@@ -1,2 +1,2 @@
 # HYDROLib
-Python wrappers around DHYDRO.
+Python wrappers around D-HYDRO Suite.
