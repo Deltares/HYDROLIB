@@ -1,5 +1,14 @@
-# Welcome to MkDocs
+# Welcome to HYDROLIB
 
+
+
+## Example function
+## ::: hydrolib.utils.example
+
+
+
+
+# MkDocs
 For full documentation visit [mkdocs.org](https://www.mkdocs.org).
 
 ## Commands
