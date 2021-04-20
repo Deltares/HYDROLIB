@@ -1,7 +1,23 @@
-site_name: My Docs
+site_name: HYDROLIB documentation
 theme:
   name: material
   language: en
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/lightbulb-outline
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/lightbulb
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
 plugins:
   - search
   - autorefs
@@ -10,7 +26,25 @@ plugins:
       handlers:
         python:
           rendering:
-            show_source: false
+            show_source: true
       custom_templates: templates
       watch:
         - hydrolib
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - admonition
+  - toc:
+      permalink: true
+repo_url: https://github.com/Deltares/HYDROLIB
+repo_name: deltares/HYDROLIB
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Deltares/HYDROLIB
+      name: Source code
+    - icon: fontawesome/brands/gitter
+      link: https://gitter.im/Deltares/HYDROLIB
+      name: Chat with us on Gitter
+copyright: Copyright &copy; 2021 Deltares
+

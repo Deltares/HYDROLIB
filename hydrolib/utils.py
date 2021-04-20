@@ -1,4 +1,4 @@
-def example(a: float, b: float) -> float:
+def example(a: float, b: float = 1.0) -> float:
     """[summary]
 
     Args:
