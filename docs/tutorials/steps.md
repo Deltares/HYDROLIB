@@ -1,5 +1,7 @@
 # First steps
 
+Extra text.
+
 Let's import and create a first blanco model.
 
 ``` python
