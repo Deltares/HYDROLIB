@@ -37,6 +37,7 @@ markdown_extensions:
   - toc:
       permalink: true
 repo_url: https://github.com/Deltares/HYDROLIB
+edit_uri: edit/main/docs/
 repo_name: deltares/HYDROLIB
 extra:
   social:
