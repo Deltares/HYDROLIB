@@ -6,5 +6,5 @@ be placed, which can later be cleaned up and promoted into HYDROLIB-core
 for example.
 
 ## Contact
-@rinekeh
-@LisaWeijers
+[@rinekeh]( https://github.com/rinekeh )
+[@LisaWeijers]( https://github.com/LisaWeijers )
