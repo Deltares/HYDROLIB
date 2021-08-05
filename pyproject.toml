@@ -7,10 +7,10 @@ license = "LGPL"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-pandas = "^1.2.4"
-geopandas = "^0.9.0"
-xarray = "^0.17.0"
-# hydrolib-core = {path = "../HYDROLIB-core"}
+pandas = "^1.2"
+geopandas = "^0.9"
+xarray = "^0.17"
+hydrolib-core = "^0.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
@@ -23,9 +23,9 @@ mkdocs-autorefs = "^0.1"
 pytest-cov = "^2.11"
 pymdown-extensions = "^8.1"
 commitizen = "^2.17"
-flake8 = "^3.9.2"
+flake8 = "^3.9"
 mypy = "^0.910"
-devtools = "^0.6.1"
+devtools = "^0.6"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
