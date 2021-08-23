@@ -16,6 +16,7 @@ from hydromt import raster
 from . import DATADIR
 
 import delft3dfmpy.core.setup_functions as delft3dfmpy_setupfuncs
+
 # TODO: replace all functions with delft3dfmpy_setupfuncs prefix
 
 from pathlib import Path
@@ -133,102 +134,103 @@ class DFlowFMModel(Model):
         )
 
         self.logger.debug(f"Adding branches vector to staticgeoms.")
-        self.set_staticgeoms(
-            branches, "branches"
-        )
+        self.set_staticgeoms(branches, "branches")
 
-
-    def setup_roughness(self,
-        generate_roughness_from_branches:bool = True,
+    def setup_roughness(
+        self,
+        generate_roughness_from_branches: bool = True,
         roughness_ini_fn: str = None,
-                        ):
+    ):
         """"""
 
         if generate_roughness_from_branches == True:
 
             # set roughness from branches (1D)
             self.logger.info(f"Preparing 1D roughness.")
-            _branches = self.staticgeoms['branches']
+            _branches = self.staticgeoms["branches"]
 
             # roughness derived and written to branches
-            branches=delft3dfmpy_setupfuncs.setup_roughness(_branches,
-                                                            generate_roughness_from_branches = generate_roughness_from_branches,
-                                                            roughness_ini_fn = roughness_ini_fn,
-                                                                )
+            branches = delft3dfmpy_setupfuncs.setup_roughness(
+                _branches,
+                generate_roughness_from_branches=generate_roughness_from_branches,
+                roughness_ini_fn=roughness_ini_fn,
+            )
 
             # update new branches with roughness info to staticgeoms
             self.logger.debug(f"Updating branches vector to staticgeoms.")
-            self.set_staticgeoms(
-                branches, "branches"
-            )
+            self.set_staticgeoms(branches, "branches")
 
         else:
             pass
             # raise NotImplementedError()
 
-    def setup_crosssections(self,
-                            generate_crosssections_from_branches:bool = True,
-                            crosssections_ini_fn: str = None,
-                            ):
+    def setup_crosssections(
+        self,
+        generate_crosssections_from_branches: bool = True,
+        crosssections_ini_fn: str = None,
+    ):
         """"""
 
         if generate_crosssections_from_branches == True:
 
             # set crosssections from branches (1D)
             self.logger.info(f"Preparing 1D crosssections.")
-            _branches = self.staticgeoms['branches']
+            _branches = self.staticgeoms["branches"]
 
             # roughness derived and written to branches
-            crsdefs, crslocs, branches = delft3dfmpy_setupfuncs.setup_crosssections(_branches,
-                                                                 generate_crosssections_from_branches=generate_crosssections_from_branches,
-                                                                 crosssections_ini_fn=crosssections_ini_fn,
-                                                                 )
+            crsdefs, crslocs, branches = delft3dfmpy_setupfuncs.setup_crosssections(
+                _branches,
+                generate_crosssections_from_branches=generate_crosssections_from_branches,
+                crosssections_ini_fn=crosssections_ini_fn,
+            )
 
             # update new branches with crsdef info to staticgeoms
             self.logger.debug(f"Updating branches vector to staticgeoms.")
-            self.set_staticgeoms(
-                branches, "branches"
-            )
+            self.set_staticgeoms(branches, "branches")
 
             # add new crsdefs to staticgeoms
             self.logger.debug(f"Adding crsdefs vector to staticgeoms.")
             self.set_staticgeoms(
-                gpd.GeoDataFrame(crsdefs, geometry=gpd.points_from_xy([0] * len(crsdefs), [0] * len(crsdefs))), "crsdefs"
-            ) # FIXME: make crsdefs a vector to be add to static geoms. using dummy locations --> might cause issue for structures
+                gpd.GeoDataFrame(
+                    crsdefs,
+                    geometry=gpd.points_from_xy([0] * len(crsdefs), [0] * len(crsdefs)),
+                ),
+                "crsdefs",
+            )  # FIXME: make crsdefs a vector to be add to static geoms. using dummy locations --> might cause issue for structures
 
             # add new crslocs to staticgeoms
             self.logger.debug(f"Adding crslocs vector to staticgeoms.")
-            self.set_staticgeoms(
-                crslocs, "crslocs"
-            )
+            self.set_staticgeoms(crslocs, "crslocs")
 
         else:
             pass
             # raise NotImplementedError()
 
-    def setup_manholes(self,
-                      manholes_ini_fn: str = None,
-                      manholes_fn: str = None,
-                      id_col: str = None,
-                      snap_offset: float = 1,
-                      rename_map: dict = None,
-                      required_columns: list = None,
-                      required_dtypes: list = None,
-                      logger=logging):
+    def setup_manholes(
+        self,
+        manholes_ini_fn: str = None,
+        manholes_fn: str = None,
+        id_col: str = None,
+        snap_offset: float = 1,
+        rename_map: dict = None,
+        required_columns: list = None,
+        required_dtypes: list = None,
+        logger=logging,
+    ):
         """"""
 
         self.logger.info(f"Preparing manholes.")
-        _branches = self.staticgeoms['branches']
+        _branches = self.staticgeoms["branches"]
 
         # Setup of branches and manholes
         manholes, branches = delft3dfmpy_setupfuncs.setup_manholes(
             _branches,
             manholes_fn=delft3dfmpy_setupfuncs.parse_arg(
                 manholes_fn
-            ), # FIXME: hydromt config parser could not parse '' to None
+            ),  # FIXME: hydromt config parser could not parse '' to None
             manholes_ini_fn=delft3dfmpy_setupfuncs.parse_arg(
                 manholes_ini_fn
-            ), # FIXME: hydromt config parser could not parse '' to None
+            ),  # FIXME: hydromt config parser could not parse '' to None
             snap_offset=snap_offset,
             id_col=id_col,
             rename_map=delft3dfmpy_setupfuncs.parse_arg(
@@ -240,34 +242,35 @@ class DFlowFMModel(Model):
             required_dtypes=delft3dfmpy_setupfuncs.parse_arg(
                 required_dtypes
             ),  # TODO: replace with data adaptor
-            logger=logger
+            logger=logger,
         )
 
         self.logger.debug(f"Adding manholes vector to staticgeoms.")
-        self.set_staticgeoms(manholes, 'manholes')
+        self.set_staticgeoms(manholes, "manholes")
 
         self.logger.debug(f"Updating branches vector to staticgeoms.")
-        self.set_staticgeoms(branches, 'branches')
+        self.set_staticgeoms(branches, "branches")
 
-
-    def setup_bridges(self,
-                      roughness_ini_fn: str = None,
-                      bridges_ini_fn: str = None,
-                      bridges_fn: str = None,
-                      id_col: str = None,
-                      branch_query: str = None,
-                      snap_method: str = 'overall',
-                      snap_offset: float = 1,
-                      rename_map: dict = None,
-                      required_columns: list = None,
-                      required_dtypes: list = None,
-                      logger=logging):
+    def setup_bridges(
+        self,
+        roughness_ini_fn: str = None,
+        bridges_ini_fn: str = None,
+        bridges_fn: str = None,
+        id_col: str = None,
+        branch_query: str = None,
+        snap_method: str = "overall",
+        snap_offset: float = 1,
+        rename_map: dict = None,
+        required_columns: list = None,
+        required_dtypes: list = None,
+        logger=logging,
+    ):
         """"""
 
         self.logger.info(f"Preparing bridges.")
-        _branches = self.staticgeoms['branches']
-        _crsdefs = self.staticgeoms['crsdefs']
-        _crslocs = self.staticgeoms['crslocs']
+        _branches = self.staticgeoms["branches"]
+        _crsdefs = self.staticgeoms["crsdefs"]
+        _crslocs = self.staticgeoms["crslocs"]
 
         bridges, crsdefs = delft3dfmpy_setupfuncs.setup_bridges(
             _branches,
@@ -291,33 +294,35 @@ class DFlowFMModel(Model):
             delft3dfmpy_setupfuncs.parse_arg(
                 required_dtypes
             ),  # TODO: replace with data adaptor
-            logger)
-
+            logger,
+        )
 
         self.logger.debug(f"Adding bridges vector to staticgeoms.")
-        self.set_staticgeoms(bridges, 'bridges')
+        self.set_staticgeoms(bridges, "bridges")
 
         self.logger.debug(f"Updating crsdefs vector to staticgeoms.")
-        self.set_staticgeoms(crsdefs, 'crsdefs')
+        self.set_staticgeoms(crsdefs, "crsdefs")
 
-    def setup_gates(self,
-                    roughness_ini_fn: str = None,
-                    gates_ini_fn: str = None,
-                    gates_fn: str = None,
-                    id_col: str = None,
-                    branch_query: str = None,
-                    snap_method: str = 'overall',
-                    snap_offset: float = 1,
-                    rename_map: dict = None,
-                    required_columns: list = None,
-                    required_dtypes: list = None,
-                    logger=logging):
+    def setup_gates(
+        self,
+        roughness_ini_fn: str = None,
+        gates_ini_fn: str = None,
+        gates_fn: str = None,
+        id_col: str = None,
+        branch_query: str = None,
+        snap_method: str = "overall",
+        snap_offset: float = 1,
+        rename_map: dict = None,
+        required_columns: list = None,
+        required_dtypes: list = None,
+        logger=logging,
+    ):
         """"""
 
         self.logger.info(f"Preparing gates.")
-        _branches = self.staticgeoms['branches']
-        _crsdefs = self.staticgeoms['crsdefs']
-        _crslocs = self.staticgeoms['crslocs']
+        _branches = self.staticgeoms["branches"]
+        _crsdefs = self.staticgeoms["crsdefs"]
+        _crslocs = self.staticgeoms["crslocs"]
 
         gates = delft3dfmpy_setupfuncs.setup_gates(
             _branches,
@@ -341,30 +346,32 @@ class DFlowFMModel(Model):
             delft3dfmpy_setupfuncs.parse_arg(
                 required_dtypes
             ),  # TODO: replace with data adaptor
-            logger)
+            logger,
+        )
 
         self.logger.debug(f"Adding gates vector to staticgeoms.")
-        self.set_staticgeoms(gates, 'gates')
+        self.set_staticgeoms(gates, "gates")
 
-
-    def setup_pumps(self,
-                    roughness_ini_fn: str = None,
-                    pumps_ini_fn: str = None,
-                    pumps_fn: str = None,
-                    id_col: str = None,
-                    branch_query: str = None,
-                    snap_method: str = 'overall',
-                    snap_offset: float = 1,
-                    rename_map: dict = None,
-                    required_columns: list = None,
-                    required_dtypes: list = None,
-                    logger=logging):
+    def setup_pumps(
+        self,
+        roughness_ini_fn: str = None,
+        pumps_ini_fn: str = None,
+        pumps_fn: str = None,
+        id_col: str = None,
+        branch_query: str = None,
+        snap_method: str = "overall",
+        snap_offset: float = 1,
+        rename_map: dict = None,
+        required_columns: list = None,
+        required_dtypes: list = None,
+        logger=logging,
+    ):
         """"""
 
         self.logger.info(f"Preparing gates.")
-        _branches = self.staticgeoms['branches']
-        _crsdefs = self.staticgeoms['crsdefs']
-        _crslocs = self.staticgeoms['crslocs']
+        _branches = self.staticgeoms["branches"]
+        _crsdefs = self.staticgeoms["crsdefs"]
+        _crslocs = self.staticgeoms["crslocs"]
 
         pumps = delft3dfmpy_setupfuncs.setup_pumps(
             _branches,
@@ -388,30 +395,32 @@ class DFlowFMModel(Model):
             delft3dfmpy_setupfuncs.parse_arg(
                 required_dtypes
             ),  # TODO: replace with data adaptor
-            logger)
-
+            logger,
+        )
 
         self.logger.debug(f"Adding pumps vector to staticgeoms.")
-        self.set_staticgeoms(pumps, 'pumps')
+        self.set_staticgeoms(pumps, "pumps")
 
-    def setup_culverts(self,
-                    roughness_ini_fn: str = None,
-                    culverts_ini_fn: str = None,
-                    culverts_fn: str = None,
-                    id_col: str = None,
-                    branch_query: str = None,
-                    snap_method: str = 'overall',
-                    snap_offset: float = 1,
-                    rename_map: dict = None,
-                    required_columns: list = None,
-                    required_dtypes: list = None,
-                    logger=logging):
+    def setup_culverts(
+        self,
+        roughness_ini_fn: str = None,
+        culverts_ini_fn: str = None,
+        culverts_fn: str = None,
+        id_col: str = None,
+        branch_query: str = None,
+        snap_method: str = "overall",
+        snap_offset: float = 1,
+        rename_map: dict = None,
+        required_columns: list = None,
+        required_dtypes: list = None,
+        logger=logging,
+    ):
         """"""
 
         self.logger.info(f"Preparing culverts.")
-        _branches = self.staticgeoms['branches']
-        _crsdefs = self.staticgeoms['crsdefs']
-        _crslocs = self.staticgeoms['crslocs']
+        _branches = self.staticgeoms["branches"]
+        _crsdefs = self.staticgeoms["crsdefs"]
+        _crslocs = self.staticgeoms["crslocs"]
 
         culverts, crsdefs = delft3dfmpy_setupfuncs.setup_culverts(
             _branches,
@@ -435,31 +444,37 @@ class DFlowFMModel(Model):
             delft3dfmpy_setupfuncs.parse_arg(
                 required_dtypes
             ),  # TODO: replace with data adaptor
-            logger)
+            logger,
+        )
 
         self.logger.debug(f"Adding culverts vector to staticgeoms.")
-        self.set_staticgeoms(culverts, 'culverts')
+        self.set_staticgeoms(culverts, "culverts")
 
         self.logger.debug(f"Updating crsdefs vector to staticgeoms.")
-        self.set_staticgeoms(crsdefs, 'crsdefs')
+        self.set_staticgeoms(crsdefs, "crsdefs")
 
-
-    def setup_compounds(self,
-                    roughness_ini_fn:str = None,
-                    compounds_ini_fn: str = None,
-                    compounds_fn: str = None,
-                    id_col: str = None,
-                    branch_query: str = None,
-                    snap_method: str = 'overall',
-                    snap_offset: float = 1,
-                    rename_map: dict = None,
-                    required_columns: list = None,
-                    required_dtypes: list = None,
-                    logger=logging):
+    def setup_compounds(
+        self,
+        roughness_ini_fn: str = None,
+        compounds_ini_fn: str = None,
+        compounds_fn: str = None,
+        id_col: str = None,
+        branch_query: str = None,
+        snap_method: str = "overall",
+        snap_offset: float = 1,
+        rename_map: dict = None,
+        required_columns: list = None,
+        required_dtypes: list = None,
+        logger=logging,
+    ):
         """"""
 
         self.logger.info(f"Preparing compounds.")
-        _structures = [self.staticgeoms[s] for s in ['bridges', 'gates', 'pumps', 'culverts'] if s in self.staticgeoms.keys()]
+        _structures = [
+            self.staticgeoms[s]
+            for s in ["bridges", "gates", "pumps", "culverts"]
+            if s in self.staticgeoms.keys()
+        ]
 
         compounds = delft3dfmpy_setupfuncs.setup_compounds(
             _structures,
@@ -481,23 +496,30 @@ class DFlowFMModel(Model):
             delft3dfmpy_setupfuncs.parse_arg(
                 required_dtypes
             ),  # TODO: replace with data adaptor
-            logger)
+            logger,
+        )
 
         self.logger.debug(f"Adding compounds vector to staticgeoms.")
-        self.set_staticgeoms(compounds, 'compounds')
+        self.set_staticgeoms(compounds, "compounds")
 
-    def setup_boundaries(self,
-                         boundaries_fn: str = None,
-                         boundaries_fn_ini: str = None,
-                         id_col: str = None,
-                         rename_map: dict = None,
-                         required_columns: list = None,
-                         required_dtypes: list = None,
-                         logger=logging):
+    def setup_boundaries(
+        self,
+        boundaries_fn: str = None,
+        boundaries_fn_ini: str = None,
+        id_col: str = None,
+        rename_map: dict = None,
+        required_columns: list = None,
+        required_dtypes: list = None,
+        logger=logging,
+    ):
         """"""
 
         self.logger.info(f"Preparing boundaries.")
-        _structures = [self.staticgeoms[s] for s in ['bridges', 'gates', 'pumps', 'culverts'] if s in self.staticgeoms.keys()]
+        _structures = [
+            self.staticgeoms[s]
+            for s in ["bridges", "gates", "pumps", "culverts"]
+            if s in self.staticgeoms.keys()
+        ]
 
         boundaries = delft3dfmpy_setupfuncs.setup_boundaries(
             delft3dfmpy_setupfuncs.parse_arg(boundaries_fn),
@@ -512,17 +534,19 @@ class DFlowFMModel(Model):
             delft3dfmpy_setupfuncs.parse_arg(
                 required_dtypes
             ),  # TODO: replace with data adaptor
-            logger)
+            logger,
+        )
 
         self.logger.debug(f"Adding boundaries vector to staticgeoms.")
-        self.set_staticgeoms(boundaries, 'boundaries')
-
+        self.set_staticgeoms(boundaries, "boundaries")
 
     def _setup_datamodel(self):
 
         """setup data model using dfm and drr naming conventions"""
         if self._datamodel == None:
-            self._datamodel = delft3dfmpy_setupfuncs.setup_dm(self.staticgeoms, logger=self.logger)
+            self._datamodel = delft3dfmpy_setupfuncs.setup_dm(
+                self.staticgeoms, logger=self.logger
+            )
 
     def setup_dflowfm(
         self,
@@ -559,7 +583,7 @@ class DFlowFMModel(Model):
             self.logger.warning("Cannot write in read-only mode")
             return
         if self.config:  # try to read default if not yet set
-            self.write_config() # FIXME: config now isread from default, modified and saved temporaryly in the models folder --> being read by dfm and modify?
+            self.write_config()  # FIXME: config now isread from default, modified and saved temporaryly in the models folder --> being read by dfm and modify?
         if self._staticmaps:
             self.write_staticmaps()
         if self._staticgeoms:
@@ -603,7 +627,10 @@ class DFlowFMModel(Model):
             raise IOError("Model opened in read-only mode")
         for name, gdf in self.staticgeoms.items():
             fn_out = join(self.root, "staticgeoms", f"{name}.shp")
-            delft3dfmpy_setupfuncs.write_shp(gdf[[i for i in gdf.columns if i.endswith('_ID') or i == 'geometry']], fn_out) # only write geometry column
+            delft3dfmpy_setupfuncs.write_shp(
+                gdf[[i for i in gdf.columns if i.endswith("_ID") or i == "geometry"]],
+                fn_out,
+            )  # only write geometry column
             # TODO: replace this function. Q: if output file columns need to be replaced? e.g. 10 char length limit
 
     def read_forcing(self):
