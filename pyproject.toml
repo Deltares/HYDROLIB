@@ -1,78 +1,37 @@
-[tool.poetry]
-name = "hydrolib"
-version = "0.1.0"
-description = "Python wrappers around D-HYDRO Suite."
-authors = ["Deltares"]
-license = "LGPL"
-
-[tool.poetry.dependencies]
-python = "^3.8"
-pandas = "^1.2"
-geopandas = "^0.9"
-xarray = "^0.17"
-hydrolib-core = "^0.1"
-
-[tool.poetry.dev-dependencies]
-pytest = "^6.2"
-black = { version = "*", allow-prereleases = true }
-isort = "^5.8"
-mkdocs = "^1.1"
-mkdocs-material = "^7.1"
-mkdocstrings = "^0.15"
-mkdocs-autorefs = "^0.1"
-pytest-cov = "^2.11"
-pymdown-extensions = "^8.1"
-commitizen = "^2.17"
-flake8 = "^3.9"
-mypy = "^0.910"
-devtools = "^0.6"
-
-[tool.commitizen]
-name = "cz_conventional_commits"
-version = "0.0.1"
-tag_format = "$version"
-version_files = [
-    "hydrolib/post/__init__.py",
-    "pyproject.toml:version"
-]
-changelog_file = "docs/changelog.md"
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["flit_core >=3.2.0,<3.3"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "hydrolib"
+authors = [{name = "Deltares"}]
+dependencies = [
+    "hydromt >=0.4.0",
+    "geopandas >=0.8",
+    "netcdf4",
+    "numpy",
+    "pandas",
+    "scipy",
+
+]
+requires-python = ">=3.8" 
+dynamic = ['version', 'description']
+
+
+[project.optional-dependencies]
+test = [
+    "testpath",
+    "responses",
+    "pytest>=2.7.3",
+    "pytest-cov",
+]
+doc = [
+    "black",
+]
+
+[project.entry-points."hydromt.models"]
+dflowfm = "hydrolib.dhydromt.dflowfm:DFlowFMModel"
 
 [tool.black]
 line-length = 88
-target-version = ['py37', 'py38']
-exclude = '''
-(
-  /(
-      \.eggs         # exclude a few common directories in the
-    | \.git          # root of the project
-    | \.hg
-    | \.mypy_cache
-    | \.tox
-    | \.venv
-    | _build
-    | buck-out
-    | build
-    | dist
-    | \.virtualenvs
-  )/
-)
-'''
-
-[tool.isort]
-profile = "black"
-multi_line_output = 3
-line_length = 88
-
-
-[tool.poetry2conda]
-name = "hydrolib"
-
-[tool.poetry2conda.dependencies]
-python = { channel = "conda-forge" }
-pandas = { channel = "conda-forge" }
-geopandas = { channel = "conda-forge" }
-xarray = { channel = "conda-forge" }
+target-version = ['py38']
