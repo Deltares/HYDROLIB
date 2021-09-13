@@ -1,7 +1,7 @@
 """Implement plugin model class"""
 
 import glob
-from os.path import join, basename
+from os.path import join, basename, isfile
 import logging
 from rasterio.warp import transform_bounds
 import pyproj
@@ -96,40 +96,53 @@ class DFlowFMModel(Model):
 
     def setup_branches(
         self,
-        branches: gpd.GeoDataFrame = None,
-        branches_fn: str = None,
+        branches_fn: str,
         branches_ini_fn: str = None,
         snap_offset: float = 0.0,
-        id_col: str = None,
-        rename_map: dict = None,
-        required_columns: list = None,
-        required_dtypes: list = None,
-        pipe_query: str = None,
-        channel_query: str = None,
+        id_col: str = "BRANCH_ID",
+        pipe_query: str = 'IS_PIPE == "TRUE"',  # TODO update to just TRUE or FALSE keywords instead of full query
+        channel_query: str = 'IS_PIPE == "FALSE"',
     ):
-        """ """
+        """This component prepares the 1D branches
+
+        Adds model layers:
+
+        * **branches** geom: 1D branches vector
+
+        Parameters
+        ----------
+        branches_fn : str
+            Name of data source for branches parameters, see data/data_sources.yml.
+
+            * Required variables: [BRANCH_ID,IS_PIPE,MATERIAL,ROUGH_TYPE,BEDLEV_UP,BEDLEV_DN,INVLEV_UP,INVLEV_DN,SHAPE,CLOSED,DIAMETER,WIDTH_UP,WIDTH_DN,HEIGHT_UP,HEIGHT_DN,T_WIDTH_UP,T_WIDTH_DN,MANHOLE_UP,MANHOLE_DN]
+
+            * Optional variables: []
+
+        """
         self.logger.info(f"Preparing 1D branches.")
-        branches = delft3dfmpy_setupfuncs.setup_branches(
-            branches,
+
+        if branches_fn is None:
+            return
+
+        branches = self.data_catalog.get_geodataframe(
             branches_fn,
-            branches_ini_fn,
-            snap_offset,
-            id_col,
-            delft3dfmpy_setupfuncs.parse_arg(
-                rename_map
-            ),  # TODO: replace with data adaptor
-            delft3dfmpy_setupfuncs.parse_arg(
-                required_columns
-            ),  # TODO: replace with data adaptor
-            delft3dfmpy_setupfuncs.parse_arg(
-                required_dtypes
-            ),  # TODO: replace with data adaptor
-            delft3dfmpy_setupfuncs.parse_arg(
-                pipe_query
-            ),  # TODO: replace with csv mapping
-            delft3dfmpy_setupfuncs.parse_arg(
-                channel_query
-            ),  # TODO: replace with csv mapping
+            geom=self.region,
+        )
+        if branches_ini_fn is None:
+            branches_ini_fn = join(
+                DATADIR, "dflowfm", "branch_settings.ini"
+            )  # TODO adapt path
+        if not isfile(branches_ini_fn):
+            self.logger.error(f"Branches settings file not found: {branches_ini_fn}")
+            return
+
+        branches = delft3dfmpy_setupfuncs.setup_branches(
+            branches=branches,
+            branches_ini_fn=branches_ini_fn,
+            snap_offset=snap_offset,
+            id_col=id_col,  # id_col should be generic and renamed if needed with data adapter
+            pipe_query=pipe_query,
+            channel_query=channel_query,
             logger=self.logger,
         )
 
