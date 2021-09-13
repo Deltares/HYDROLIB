@@ -13,6 +13,8 @@ import hydromt
 from hydromt.models.model_api import Model
 from hydromt import gis_utils, io
 from hydromt import raster
+
+from .workflows import preprocess_branches
 from . import DATADIR
 
 import delft3dfmpy.core.setup_functions as delft3dfmpy_setupfuncs
@@ -136,7 +138,7 @@ class DFlowFMModel(Model):
             self.logger.error(f"Branches settings file not found: {branches_ini_fn}")
             return
 
-        branches = delft3dfmpy_setupfuncs.setup_branches(
+        branches = preprocess_branches(
             branches=branches,
             branches_ini_fn=branches_ini_fn,
             snap_offset=snap_offset,
