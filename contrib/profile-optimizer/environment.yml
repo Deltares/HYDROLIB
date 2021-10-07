@@ -14,4 +14,4 @@ dependencies:
   - jupyterlab
   - jupyterlab-plotly-extension
   - netCDF4
-# this file serves as a temporary environment for development of the profile-optimizer, until a common hydrolib environment is available
+# this file serves as a temporary environment for development of the profile-optimizer, until a common _hydrolib environment is available

@@ -1,4 +1,4 @@
-from hydrolib import __version__
+from _hydrolib import __version__
 
 
 def test_version():

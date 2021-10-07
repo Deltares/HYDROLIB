@@ -29,7 +29,7 @@ plugins:
             show_source: true
       custom_templates: templates
       watch:
-        - hydrolib
+        - _hydrolib
 markdown_extensions:
   - pymdownx.highlight
   - pymdownx.superfences
