@@ -8,11 +8,14 @@
 # Alternatively, stop using (ana)conda.
 ###############################################################################
 name: hydrolib-hydromt
+channels:
+  - conda-forge
+  - default
 dependencies:
-  - conda-forge::python>=3.8,<4.0
-  - conda-forge::pandas>=1.2,<2.0
-  - conda-forge::geopandas>=0.9,<0.10
-  - conda-forge::xarray>=0.17,<0.18
+  - python>=3.8,<4.0
+  - pandas>=1.2,<2.0
+  - geopandas>=0.9,<0.10
+  - xarray>=0.17,<0.18
   - pip
   - git
   - ipykernel=5.4.3
