@@ -17,7 +17,7 @@ from hydromt import raster
 from .workflows import preprocess_branches
 from . import DATADIR
 
-import delft3dfmpy.core.setup_functions as delft3dfmpy_setupfuncs
+import hydrolib.dhydromt.workflows.setup_functions as delft3dfmpy_setupfuncs
 
 # TODO: replace all functions with delft3dfmpy_setupfuncs prefix
 
