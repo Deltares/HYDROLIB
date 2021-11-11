@@ -18,6 +18,7 @@ dependencies:
   - xarray>=0.17,<0.18
   - pip
   - git
+  - flit
   - ipykernel=5.4.3
   - ipywidgets=7.6.3
   - rasterio=1.2.0
