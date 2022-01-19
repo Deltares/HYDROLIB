@@ -15,6 +15,8 @@ from hydromt import gis_utils, io
 from hydromt import raster
 
 from .workflows import preprocess_branches
+from .workflows import slice_geodataframe
+from .workflows import retype_geodataframe
 from . import DATADIR
 
 import hydrolib.dhydromt.workflows.setup_functions as delft3dfmpy_setupfuncs
@@ -96,6 +98,99 @@ class DFlowFMModel(Model):
 
         # FIXME: how to deprecate WARNING:root:No staticmaps defined
 
+    def _get_geodataframe(
+        self,
+        path_or_key: str,
+        id_col: str = None,
+        clip_buffer: float = 0,
+        clip_predicate: str = "contains",
+        **kwargs,
+    ) -> gpd.GeoDataFrame:
+        """Function to get geodataframe.
+
+        This function combines a wrapper around :py:meth:`~hydromt.data_adapter.DataCatalog.get_geodataset`,
+        and BMA: original read_gpd function
+
+        Arguments
+        ---------
+        path_or_key: str
+            Data catalog key. If a path to a vector file is provided it will be added
+            to the data_catalog with its based on the file basename without extension.
+
+        Returns
+        -------
+        gdf: geopandas.GeoDataFrame
+            GeoDataFrame
+
+        """
+
+        # pop kwargs from catalogue
+        d = self.data_catalog.to_dict(path_or_key)[path_or_key].pop("kwargs")
+
+        # set clipping
+        clip_buffer = d.get("clip_buffer", clip_buffer)
+        clip_predicate = d.get("clip_predicate", clip_predicate)
+
+        # read data + clip data + preprocessing data
+        df = self.data_catalog.get_geodataframe(
+            path_or_key,
+            geom=self.region,
+            buffer=clip_buffer,
+            clip_predicate=clip_predicate,
+        )
+        self.logger.debug(
+            f"GeoDataFrame: {len(df)} feature are read after clipping region with clip_buffer = {clip_buffer}, clip_predicate = {clip_predicate}"
+        )
+
+        # retype data
+        retype = d.get("retype", None)
+        df = retype_geodataframe(df, retype)
+
+        # TODO: add funcs_geodataframe
+
+        # slice data
+        required_columns = d.get("required_columns", None)
+        required_query = d.get("required_query", None)
+        df = slice_geodataframe(
+            df, required_columns=required_columns, required_query=required_query
+        )
+        self.logger.debug(
+            f"GeoDataFrame: {len(df)} feature are sliced after applying required_columns = {required_columns}, required_query = '{required_query}'"
+        )
+
+        # index data
+        if id_col is None:
+            pass
+        elif id_col not in df.columns:
+            raise ValueError(
+                f"GeoDataFrame: cannot index data using id_col = {id_col}. id_col must exist in data columns ({df.columns})"
+            )
+        else:
+            self.logger.debug(f"GeoDataFrame: indexing with id_col: {id_col}")
+            df.index = df[id_col]
+            df.index.name = id_col
+
+        # remove nan in id
+        df_na = df.index.isna()
+        if len(df_na) > 0:
+            df = df[~df_na]
+            self.logger.debug(f"GeoDataFrame: removing index with NaN")
+
+        # remove duplicated
+        df_dp = df.duplicated()
+        if len(df_dp) > 0:
+            df = df.drop_duplicates()
+            self.logger.debug(f"GeoDataFrame: removing duplicates")
+
+        # report
+        df_num = len(df)
+        if df_num == 0:
+            self.logger.warning(f"Zero features are read from {path_or_key}")
+        else:
+            self.logger.info(f"{len(df)} features read from {path_or_key}")
+
+        return df
+
     def setup_branches(
         self,
         branches_fn: str,
@@ -104,6 +199,7 @@ class DFlowFMModel(Model):
         id_col: str = "BRANCH_ID",
         pipe_query: str = 'IS_PIPE == "TRUE"',  # TODO update to just TRUE or FALSE keywords instead of full query
         channel_query: str = 'IS_PIPE == "FALSE"',
+        **kwargs,
     ):
         """This component prepares the 1D branches
 
@@ -126,10 +222,9 @@ class DFlowFMModel(Model):
         if branches_fn is None:
             return
 
-        branches = self.data_catalog.get_geodataframe(
-            branches_fn,
-            geom=self.region,
-        )
+        # read branches_fn
+        branches = self._get_geodataframe(branches_fn, id_col=id_col, **kwargs)
+
         if branches_ini_fn is None:
             branches_ini_fn = join(
                 DATADIR, "dflowfm", "branch_settings.ini"
