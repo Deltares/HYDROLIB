@@ -14,9 +14,10 @@ from hydromt.models.model_api import Model
 from hydromt import gis_utils, io
 from hydromt import raster
 
-from .workflows import preprocess_branches
-from .workflows import slice_geodataframe
-from .workflows import retype_geodataframe
+from .workflows import process_branches
+from .workflows import validate_branches
+
+from .workflows import helper
 from . import DATADIR
 
 import hydrolib.dhydromt.workflows.setup_functions as delft3dfmpy_setupfuncs
@@ -47,7 +48,7 @@ class DFlowFMModel(Model):
         config_fn=None,  # hydromt config contain glob section, anything needed can be added here as args
         data_libs=None,  # yml # TODO: how to choose global mapping files (.csv) and project specific mapping files (.csv)
         logger=logger,
-        deltares_data=False,  # data from pdrive
+        deltares_data=False,  # data from pdrive,
     ):
 
         if not isinstance(root, (str, Path)):
@@ -63,6 +64,7 @@ class DFlowFMModel(Model):
         )
 
         # model specific
+        # default ini files
         self._datamodel = None  # TODO: replace later? e.g. self._intbl in wflow?
         self._dfmmodel = None
 
@@ -93,6 +95,11 @@ class DFlowFMModel(Model):
                 f"Unknown region kind {kind} for DFlowFM, expected one of ['bbox', 'grid', 'geom']."
             )
 
+        if geom.crs is None:
+            raise AttributeError("region crs can not be None. ")
+        else:
+            self.logger.info(f"Model region is set to crs: {geom.crs.to_epsg()}")
+
         # Set the model region geometry (to be accessed through the shortcut self.region).
         self.set_staticgeoms(geom, "region")
 
@@ -101,15 +108,14 @@ class DFlowFMModel(Model):
     def _get_geodataframe(
         self,
         path_or_key: str,
-        id_col: str = None,
+        id_col: str,
         clip_buffer: float = 0,
         clip_predicate: str = "contains",
         **kwargs,
     ) -> gpd.GeoDataFrame:
         """Function to get geodataframe.
 
-        This function combines a wrapper around :py:meth:`~hydromt.data_adapter.DataCatalog.get_geodataset`,
-        and BMA: original read_gpd function
+        This function combines a wrapper around :py:meth:`~hydromt.data_adapter.DataCatalog.get_geodataset`
 
         Arguments
         ---------
@@ -144,14 +150,14 @@ class DFlowFMModel(Model):
 
         # retype data
         retype = d.get("retype", None)
-        df = retype_geodataframe(df, retype)
+        df = helper.retype_geodataframe(df, retype)
 
         # TODO: add funcs_geodataframe
 
         # slice data
         required_columns = d.get("required_columns", None)
         required_query = d.get("required_query", None)
-        df = slice_geodataframe(
+        df = helper.slice_geodataframe(
             df, required_columns=required_columns, required_query=required_query
         )
         self.logger.debug(
@@ -196,9 +202,10 @@ class DFlowFMModel(Model):
         branches_fn: str,
         branches_ini_fn: str = None,
         snap_offset: float = 0.0,
-        id_col: str = "BRANCH_ID",
-        pipe_query: str = 'IS_PIPE == "TRUE"',  # TODO update to just TRUE or FALSE keywords instead of full query
-        channel_query: str = 'IS_PIPE == "FALSE"',
+        id_col: str = "branchId",
+        branch_query: str = None,
+        pipe_query: str = 'branchType == "Channel"',  # TODO update to just TRUE or FALSE keywords instead of full query
+        channel_query: str = 'branchType == "Pipe"',
         **kwargs,
     ):
         """This component prepares the 1D branches
@@ -218,33 +225,66 @@ class DFlowFMModel(Model):
 
         """
         self.logger.info(f"Preparing 1D branches.")
+        branches = None
+        branch_nodes = None
 
+        # read ini settings
+        if branches_ini_fn is None or not branches_ini_fn.is_file():
+            self.logger.warning(
+                f"branches_ini_fn ({branches_ini_fn}) does not exist. Fall back choice to defaults. "
+            )
+            branches_ini_fn = Path(self._DATADIR).joinpath(
+                "dflowfm", f"branch_settings.ini"
+            )
+
+        branches_ini = helper.parse_ini(branches_ini_fn)
+        self.logger.info(f"branch default settings read from {branches_ini_fn}.")
+
+        # read branches
         if branches_fn is None:
-            return
+            raise ValueError("branches_fn must be specified.")
 
-        # read branches_fn
         branches = self._get_geodataframe(branches_fn, id_col=id_col, **kwargs)
+        self.logger.info(f"branches read from {branches_fn} in Data Catalogue.")
 
-        if branches_ini_fn is None:
-            branches_ini_fn = join(
-                DATADIR, "dflowfm", "branch_settings.ini"
-            )  # TODO adapt path
-        if not isfile(branches_ini_fn):
-            self.logger.error(f"Branches settings file not found: {branches_ini_fn}")
-            return
+        branches = helper.append_data_columns_based_on_ini_query(branches, branches_ini)
 
-        branches = preprocess_branches(
-            branches=branches,
-            branches_ini_fn=branches_ini_fn,
-            snap_offset=snap_offset,
-            id_col=id_col,  # id_col should be generic and renamed if needed with data adapter
-            pipe_query=pipe_query,
-            channel_query=channel_query,
-            logger=self.logger,
-        )
+        # select branches to use
+        if helper.check_geodataframe(branches) and branch_query is not None:
+            branches = branches.query(branch_query)
+            self.logger.info(f"Query branches for {branch_query}")
 
-        self.logger.debug(f"Adding branches vector to staticgeoms.")
+        # process branches
+        if helper.check_geodataframe(branches):
+            self.logger.info(f"Processing branches")
+            branches, branch_nodes = process_branches(
+                branches,
+                branch_nodes,
+                branches_ini=branches_ini,
+                id_col=id_col,
+                snap_offset=snap_offset,
+                logger=self.logger,
+            )
+
+        # validate branches
+        # TODO integrate below into validate module
+        if helper.check_geodataframe(branches):
+            self.logger.info(f"Validating branches")
+            validate_branches(branches)
+
+        # finalise branches
+        # setup channels
+        branches.loc[branches.query(channel_query).index, "branchType"] = "Channel"
+        # setup pipes
+        branches.loc[branches.query(pipe_query).index, "branchType"] = "Pipe"
+        # assign crs
+        branches.crs = self.crs
+
+        self.logger.debug(f"Adding branches and branch_nodes vector to staticgeoms.")
         self.set_staticgeoms(branches, "branches")
+        self.set_staticgeoms(branch_nodes, "branch_nodes")
+
+        return branches, branch_nodes
 
     def setup_roughness(
         self,
