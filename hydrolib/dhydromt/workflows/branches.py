@@ -33,11 +33,15 @@ def process_branches(
 ):
 
     logger.debug(f"Cleaning up branches")
+    # TODO: maybe add arguments,use branch cross sections
+    global_controls = branches_ini.get("global", None)
+
     branches = cleanup_branches(
         branches, branches_ini, id_col=id_col, snap_offset=snap_offset, logger=logger
     )
 
     logger.debug(f"Spltting branches based on spacing")
+    # TODO: add check, if spacing is used, then in branch cross section cannot be setup later
     branches = space_branches(branches, logger=logger)
 
     logger.debug(f"Generating branchnodes")
@@ -48,8 +52,8 @@ def process_branches(
 
 def cleanup_branches(
     branches: gpd.GeoDataFrame,
-    branches_ini: configparser,
-    id_col: str = "BRANCH_ID",
+    branches_ini: configparser, # TODO: remove branch_ini from this section
+    id_col: str = "BRANCH_ID", # TODO: renaming needed
     snap_offset: float = 0.01,
     logger=logger,
 ):
@@ -82,7 +86,7 @@ def cleanup_branches(
     logger.debug(f"Removing {n} branches that are shorter than 0.1 meter.")
 
     # sort index
-    if id_col in ["None", "NONE", "none", None, ""]:
+    if id_col in ["None", "NONE", "none", None, ""]: # TODO: id_column must be specified
         id_col = "BRANCH_ID"
         # regenerate ID based on ini # NOTE BMA: this is the step to ensure unique id cross the network
         id_prefix = branches_ini["global"]["id_prefix"]
@@ -143,7 +147,7 @@ def cleanup_branches(
 
 def space_branches(
     branches: gpd.GeoDataFrame,
-    spacing_col="spacing",
+    spacing_col="spacing", # TODO: seperate situation where interpolation is needed and interpolation is not needed
     logger=logger,
 ):
     """function to space branches based on spacing_col on branch"""
@@ -186,6 +190,7 @@ def generate_branchnodes(
         right_on=branches.index.name,
         suffixes=("", "_b"),
     )
+    nodes = nodes.drop(columns = "geometry_b")
     # remove duplicated geometry
     _nodes = nodes.copy()
     G = _nodes["geometry"].apply(lambda geom: geom.wkb)
@@ -200,7 +205,7 @@ def generate_branchnodes(
     return nodes
 
 
-def validate_branches(branches: gpd.GeoDataFrame, logger=logger):
+def validate_branches(branches: gpd.GeoDataFrame, logger=logger): # TODO: add more content and maybe make a seperate module
     """function to validate branch geometry"""
     # validate pipe geometry
     if sum(branches.geometry.length <= 0) == 0:
@@ -319,7 +324,7 @@ def _split_branches_by_spacing_const(
         edge_geom.extend(new_edges)
         edge_offset.extend(offsets[1:])
         edge_invertup.extend(
-            np.interp(offsets[:-1], [0, offsets[-1]], [b.INVLEV_UP, b.INVLEV_DN])
+            np.interp(offsets[:-1], [0, offsets[-1]], [b.INVLEV_UP, b.INVLEV_DN]) # TODO: renaming needed
         )
         edge_invertdn.extend(
             np.interp(offsets[1:], [0, offsets[-1]], [b.INVLEV_UP, b.INVLEV_DN])

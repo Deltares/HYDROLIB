@@ -2,6 +2,7 @@
 
 import numpy as np
 import geopandas as gpd
+import pandas as pd
 import shapely
 from shapely.geometry import LineString, Point
 from shapely.geometry import (
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "slice_geodataframe",
     "retype_geodataframe",
+    "write_shp",
     "parse_ini",
     "append_data_columns_based_on_ini_query",
     "check_geodataframe",
@@ -209,8 +211,27 @@ def retype_geodataframe(gdf, retype=None):
     return gdf
 
 
+def write_shp(data: gpd.GeoDataFrame, filename: str, columns: list = None):
+    if data is not None:
+        # convert to numerical
+        data = data.apply(pd.to_numeric, errors='ignore')
+        # convert list to strings
+        for c in data.columns:
+            if isinstance(data[c][0], list):
+                data[c] = data[c].apply(';'.join)
+        if columns is not None:
+            if 'geometry' not in columns:
+                columns = columns + ['geometry']
+            gpd.GeoDataFrame(data[columns]).to_file(filename, index=False)
+        else:
+            gpd.GeoDataFrame(data).to_file(filename, index=False)
+
+
+# data handeling
+
 def append_data_columns_based_on_ini_query(
-    data: gpd.GeoDataFrame, ini: configparser.ConfigParser, keys: list = []
+    data: gpd.GeoDataFrame, ini: configparser.ConfigParser, keys: list = [],
+        logger = logger,
 ):
     """append key,val pair as data columns for the input GeiDataFrame based on ini [default] or [query] sections"""
     # TODO check this function
