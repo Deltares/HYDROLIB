@@ -44,41 +44,41 @@ class DFlowFMModel(Model):
     # TODO change below mapping table (hydrolib-core convention:shape file convention) to be read from data folder, maybe similar to _intbl for wflow
     # TODO: we also need one reverse table to read from static geom back. maybe a dictionary of data frame is better?
     # TODO: write static geom as geojson dataset, so that we dont get limitation for the 10 characters
-    _GEOMS = {"region":{},
-              "branches": {
-                  "branchId": "BR_ID",
-                  "branchType": "BR_TYPE",
-              },
-              "branch_nodes":{},
-              "roughness": {
-                  "frictionId": "FR_ID",
-                  "frictionValue": "FR_VAL",
-                  "frictionType": "FR_TYPE",
-              },
-              "crsdefs":
-                  {
-                      "id": "CRS_DEFID",
-                      "type": "CRS_TYPE",
-                      "thalweg": "CRS_THAL",
-                      "height": "CRS_H",
-                      "width": "CRS_W",
-                      "t_WIDTH": "CRS_TW",
-                      "closed": "CRS_CL",
-                      "diameter": "CRS_D",
-                      "frictionId": "FR_ID",
-                      "frictionValue": "FR_VAL",
-                      "frictionType": "FR_TYPE",
-                  },
-              "crslocs":
-                  {"id": "CRS_LOCID",
-                   "branchId": "BR_ID",
-                   "chainage":"CRS_CHAI",
-                   "shift": "CRS_SHIF",
-                   "definition": "CRS_DEFID",
-                   "frictionValue": "FR_VAL",
-                   "frictionType": "FR_TYPE",
-                   },
-              }  # FIXME Mapping from hydromt names to model specific names
+    _GEOMS = {
+        "region": {},
+        "branches": {
+            "branchId": "BR_ID",
+            "branchType": "BR_TYPE",
+        },
+        "branch_nodes": {},
+        "roughness": {
+            "frictionId": "FR_ID",
+            "frictionValue": "FR_VAL",
+            "frictionType": "FR_TYPE",
+        },
+        "crsdefs": {
+            "id": "CRS_DEFID",
+            "type": "CRS_TYPE",
+            "thalweg": "CRS_THAL",
+            "height": "CRS_H",
+            "width": "CRS_W",
+            "t_WIDTH": "CRS_TW",
+            "closed": "CRS_CL",
+            "diameter": "CRS_D",
+            "frictionId": "FR_ID",
+            "frictionValue": "FR_VAL",
+            "frictionType": "FR_TYPE",
+        },
+        "crslocs": {
+            "id": "CRS_LOCID",
+            "branchId": "BR_ID",
+            "chainage": "CRS_CHAI",
+            "shift": "CRS_SHIF",
+            "definition": "CRS_DEFID",
+            "frictionValue": "FR_VAL",
+            "frictionType": "FR_TYPE",
+        },
+    }  # FIXME Mapping from hydromt names to model specific names
     _MAPS = {}  # FIXME Mapping from hydromt names to model specific names
     _FOLDERS = ["dflowfm", "staticgeoms"]
 
@@ -107,16 +107,18 @@ class DFlowFMModel(Model):
         # model specific
         # default ini files
         self._region_name = "DFlowFM"
-        self._ini_settings = None, # TODO: add all ini files in one object? e.g. self._intbl in wflow?
+        self._ini_settings = (
+            None,
+        )  # TODO: add all ini files in one object? e.g. self._intbl in wflow?
         self._datamodel = None
-        self._dfmmodel = None # TODO: replace with hydrolib-core object
+        self._dfmmodel = None  # TODO: replace with hydrolib-core object
 
         # TODO: assign hydrolib-core components
 
     def setup_basemaps(
         self,
         region,
-        region_name = None,
+        region_name=None,
         **kwargs,
     ):
         """Define the model region.
@@ -158,7 +160,7 @@ class DFlowFMModel(Model):
         self,
         path_or_key: str,
         id_col: str,
-        clip_buffer: float = 0, # TODO: think about whether to keep/remove, maybe good to put into the ini file.
+        clip_buffer: float = 0,  # TODO: think about whether to keep/remove, maybe good to put into the ini file.
         clip_predicate: str = "contains",
         **kwargs,
     ) -> gpd.GeoDataFrame:
@@ -184,7 +186,7 @@ class DFlowFMModel(Model):
 
         # set clipping
         clip_buffer = d.get("clip_buffer", clip_buffer)
-        clip_predicate = d.get("clip_predicate", clip_predicate) # TODO: in ini file
+        clip_predicate = d.get("clip_predicate", clip_predicate)  # TODO: in ini file
 
         # read data + clip data + preprocessing data
         df = self.data_catalog.get_geodataframe(
@@ -201,7 +203,9 @@ class DFlowFMModel(Model):
         retype = d.get("retype", None)
         df = helper.retype_geodataframe(df, retype)
 
-        # TODO: add funcs_geodataframe
+        # eval funcs on data
+        funcs = d.get("funcs", None)
+        df = helper.eval_funcs(df, funcs)
 
         # slice data # TODO: test what can be achived by the alias in yml file
         required_columns = d.get("required_columns", None)
@@ -276,9 +280,9 @@ class DFlowFMModel(Model):
         self.logger.info(f"Preparing 1D branches.")
 
         # initialise data model
-        branches_ini = helper.parse_ini(Path(self._DATADIR).joinpath(
-                "dflowfm", f"branch_settings.ini"
-            )) # TODO: make this default file complete, need 2 more argument, spacing? yes/no, has_in_branch crosssection? yes/no, or maybe move branches, cross sections and roughness into basemap
+        branches_ini = helper.parse_ini(
+            Path(self._DATADIR).joinpath("dflowfm", f"branch_settings.ini")
+        )  # TODO: make this default file complete, need 2 more argument, spacing? yes/no, has_in_branch crosssection? yes/no, or maybe move branches, cross sections and roughness into basemap
         branches = None
         branch_nodes = None
         # TODO: initilise hydrolib-core object --> build
@@ -316,7 +320,7 @@ class DFlowFMModel(Model):
             branches, branch_nodes = process_branches(
                 branches,
                 branch_nodes,
-                branches_ini=branches_ini, # TODO:  make the branch_setting.ini [global] functions visible in the setup functions. Use kwargs to allow user interaction. Make decisions on what is neccessary and what not
+                branches_ini=branches_ini,  # TODO:  make the branch_setting.ini [global] functions visible in the setup functions. Use kwargs to allow user interaction. Make decisions on what is neccessary and what not
                 id_col=id_col,
                 snap_offset=snap_offset,
                 logger=self.logger,
@@ -349,7 +353,7 @@ class DFlowFMModel(Model):
         self,
         generate_roughness_from_branches: bool = True,
         roughness_ini_fn: str = None,
-        branch_query:str = None,
+        branch_query: str = None,
         **kwargs,
     ):
         """"""
@@ -357,9 +361,9 @@ class DFlowFMModel(Model):
         self.logger.info(f"Preparing 1D roughness.")
 
         # initialise ini settings and data
-        roughness_ini = helper.parse_ini(Path(self._DATADIR).joinpath(
-            "dflowfm", f"roughness_settings.ini"
-        ))
+        roughness_ini = helper.parse_ini(
+            Path(self._DATADIR).joinpath("dflowfm", f"roughness_settings.ini")
+        )
         # TODO: how to make sure if defaults are given, we can also know it based on friction name or cross section definiation id (can we use an additional column for that? )
         roughness = None
 
@@ -387,8 +391,11 @@ class DFlowFMModel(Model):
 
             # update data by combining ini settings
             self.logger.debug(
-                f'1D roughness initialised with the following attributes: {list(roughness_ini.get("default", {}))}.')
-            branches = helper.append_data_columns_based_on_ini_query(_branches, roughness_ini)
+                f'1D roughness initialised with the following attributes: {list(roughness_ini.get("default", {}))}.'
+            )
+            branches = helper.append_data_columns_based_on_ini_query(
+                _branches, roughness_ini
+            )
 
             # select branches to use e.g. to facilitate setup a selection each time setup_* is called
             if branch_query is not None:
@@ -407,10 +414,7 @@ class DFlowFMModel(Model):
                 self.logger.debug(f"Updating roughness vector to staticgeoms.")
                 self.set_staticgeoms(roughness, "roughness")
 
-
-
             # TODO: add hydrolib-core object
-
 
         else:
 
@@ -418,27 +422,25 @@ class DFlowFMModel(Model):
 
             pass
 
-
     def setup_crosssections(
         self,
         generate_crosssections_from_branches: bool = True,
         crosssections_ini_fn: str = None,
         branch_query: str = None,
-        **kwargs
+        **kwargs,
     ):
         """"""
 
         self.logger.info(f"Preparing 1D crosssections.")
 
         # initialise ini settings and data
-        crosssections_ini = helper.parse_ini(Path(self._DATADIR).joinpath(
-            "dflowfm", f"crosssection_settings.ini"
-        ))
+        crosssections_ini = helper.parse_ini(
+            Path(self._DATADIR).joinpath("dflowfm", f"crosssection_settings.ini")
+        )
         crsdefs = None
         crslocs = None
         # TODO: initilise hydrolib-core object --> build
         # TODO: call hydrolib-core object --> update
-
 
         # update ini settings
         if crosssections_ini_fn is None or not crosssections_ini_fn.is_file():
@@ -450,7 +452,9 @@ class DFlowFMModel(Model):
             )
 
         crosssections_ini.update(helper.parse_ini(crosssections_ini_fn))
-        self.logger.info(f"crosssections default settings read from {crosssections_ini}.")
+        self.logger.info(
+            f"crosssections default settings read from {crosssections_ini}."
+        )
 
         if generate_crosssections_from_branches == True:
 
@@ -462,8 +466,11 @@ class DFlowFMModel(Model):
 
             # update data by combining ini settings
             self.logger.debug(
-                f'1D crosssections initialised with the following attributes: {list(crosssections_ini.get("default", {}))}.')
-            branches = helper.append_data_columns_based_on_ini_query(_branches, crosssections_ini)
+                f'1D crosssections initialised with the following attributes: {list(crosssections_ini.get("default", {}))}.'
+            )
+            branches = helper.append_data_columns_based_on_ini_query(
+                _branches, crosssections_ini
+            )
 
             # select branches to use e.g. to facilitate setup a selection each time setup_* is called
             if branch_query is not None:
@@ -471,7 +478,9 @@ class DFlowFMModel(Model):
                 self.logger.info(f"Query branches for {branch_query}")
 
             if helper.check_geodataframe(branches):
-                crsdefs,crslocs,branches = generate_crosssections(branches, crosssections_ini)
+                crsdefs, crslocs, branches = generate_crosssections(
+                    branches, crosssections_ini
+                )
 
             # update new branches with crsdef info to staticgeoms
             self.logger.debug(f"Updating branches vector to staticgeoms.")
@@ -497,7 +506,6 @@ class DFlowFMModel(Model):
 
             pass
             # raise NotImplementedError()
-
 
     def setup_manholes(
         self,
@@ -920,8 +928,9 @@ class DFlowFMModel(Model):
             raise IOError("Model opened in read-only mode")
         for name, gdf in self.staticgeoms.items():
             fn_out = join(self.root, "staticgeoms", f"{name}.shp")
-            helper.write_shp(self.staticgeoms[name].rename(columns = self._GEOMS[name]), fn_out)
-
+            helper.write_shp(
+                self.staticgeoms[name].rename(columns=self._GEOMS[name]), fn_out
+            )
 
     def read_forcing(self):
         """Read forcing at <root/?/> and parse to dict of xr.DataArray"""

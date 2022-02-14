@@ -109,7 +109,9 @@ def parse_ini(ini_fn):
 ## GeoDataFrame handling
 
 
-def slice_geodataframe(gdf, required_query: str = None, required_columns: list = None):
+def slice_geodataframe(
+    gdf, required_query: str = None, required_columns: list = None, logger=logger
+):
     """Function to read gpd.GeoDataFrame with preprocessing: rename, slice, convert type and set index"""
 
     # check data
@@ -168,7 +170,7 @@ def slice_geodataframe(gdf, required_query: str = None, required_columns: list =
     return data
 
 
-def retype_geodataframe(gdf, retype=None):
+def retype_geodataframe(gdf, retype=None, logger=logger):
 
     if retype is None or len(retype) == 0:
         logger.debug(f"GeoDataFrame: no retyping is applied. retype is not specified.")
@@ -211,17 +213,41 @@ def retype_geodataframe(gdf, retype=None):
     return gdf
 
 
+def eval_funcs(gdf: gpd.GeoDataFrame, funcs: dict, logger=logger):
+
+    if funcs is None or len(funcs) == 0:
+        logger.debug(f"GeoDataFrame: no funcs is applied. funcs is not specified.")
+        return gdf
+
+    for k, v in funcs.items():
+        try:
+            # eval funcs for columns that exist
+            if v in gdf.columns:
+                if "geometry" in v:
+                    # ensure type of geoseries - might be a bug in pandas / geopandas
+                    _ = type(gdf["geometry"])
+                gdf[k] = gdf.eval(v)
+                logger.debug(f"GeoDataFrame:  update column {k} based on {v}")
+            # assign new columns using given values
+            else:
+                gdf[k] = v
+                logger.debug(f"GeoDataFrame: update column {k} based on {v}")
+        except Exception as e:
+            logger.debug(f"GeoDataFrame: can not update column {k} based on {v}: {e}")
+    return gdf
+
+
 def write_shp(data: gpd.GeoDataFrame, filename: str, columns: list = None):
     if data is not None:
         # convert to numerical
-        data = data.apply(pd.to_numeric, errors='ignore')
+        data = data.apply(pd.to_numeric, errors="ignore")
         # convert list to strings
         for c in data.columns:
             if isinstance(data[c][0], list):
-                data[c] = data[c].apply(';'.join)
+                data[c] = data[c].apply(";".join)
         if columns is not None:
-            if 'geometry' not in columns:
-                columns = columns + ['geometry']
+            if "geometry" not in columns:
+                columns = columns + ["geometry"]
             gpd.GeoDataFrame(data[columns]).to_file(filename, index=False)
         else:
             gpd.GeoDataFrame(data).to_file(filename, index=False)
@@ -229,9 +255,12 @@ def write_shp(data: gpd.GeoDataFrame, filename: str, columns: list = None):
 
 # data handeling
 
+
 def append_data_columns_based_on_ini_query(
-    data: gpd.GeoDataFrame, ini: configparser.ConfigParser, keys: list = [],
-        logger = logger,
+    data: gpd.GeoDataFrame,
+    ini: configparser.ConfigParser,
+    keys: list = [],
+    logger=logger,
 ):
     """append key,val pair as data columns for the input GeiDataFrame based on ini [default] or [query] sections"""
     # TODO check this function
