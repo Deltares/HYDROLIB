@@ -6,13 +6,11 @@ channels:
 
 dependencies:
   - python=3.8
-  - pip
   - jupyter
-  - spyder
-  - pandas
   - openpyxl
+  - pandas
   - setuptools
+  - netCDF4
+  - simplejson
+  - spyder
   - matplotlib
-  - bokeh
-  - pip:
-    - hydrolib-core
