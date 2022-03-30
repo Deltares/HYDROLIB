@@ -127,7 +127,7 @@ class DFlowFMModel(Model):
         crs: int = None,
     ):
         """Define the model region.
-        
+
         Adds model layer:
 
         * **region** geom: model region
@@ -174,7 +174,7 @@ class DFlowFMModel(Model):
             self._region_name = region_name
 
         # FIXME: how to deprecate WARNING:root:No staticmaps defined
-    
+
     def setup_channels(
         self,
         channels_fn: str,
@@ -197,8 +197,8 @@ class DFlowFMModel(Model):
 
             * Required variables: [branchId, branchType] # TODO: now still requires some cross section stuff
 
-            * Optional variables: [spacing, material, shape, diameter, width, t_width, t_width_up, width_up, 
-              width_dn, t_width_dn, height, height_up, height_dn, inlev_up, inlev_dn, bedlev_up, bedlev_dn, 
+            * Optional variables: [spacing, material, shape, diameter, width, t_width, t_width_up, width_up,
+              width_dn, t_width_dn, height, height_up, height_dn, inlev_up, inlev_dn, bedlev_up, bedlev_dn,
               closed, manhole_up, manhole_dn]
         channels_defaults_fn : str Path
             Path to a csv file containing all defaults values per 'branchType'.
@@ -210,17 +210,19 @@ class DFlowFMModel(Model):
 
         # Read the channels data
         id_col = "branchId"
-        gdf_ch = self.data_catalog.get_geodataframe(channels_fn, geom=self.region, buffer=10, predicate="contains")
+        gdf_ch = self.data_catalog.get_geodataframe(
+            channels_fn, geom=self.region, buffer=10, predicate="contains"
+        )
         gdf_ch.index = gdf_ch[id_col]
         gdf_ch.index.name = id_col
 
-        if gdf_ch.crs.is_geographic: # needed for length and splitting
+        if gdf_ch.crs.is_geographic:  # needed for length and splitting
             gdf_ch = gdf_ch.to_crs(3857)
-            
+
         if gdf_ch.index.size == 0:
-                self.logger.warning(
-                    f"No {channels_fn} 1D channel locations found within domain"
-                )
+            self.logger.warning(
+                f"No {channels_fn} 1D channel locations found within domain"
+            )
         else:
             # Fill in with default attributes values
             if channels_defaults_fn is None or not channels_defaults_fn.is_file():
@@ -232,9 +234,11 @@ class DFlowFMModel(Model):
                 )
 
             defaults = pd.read_csv(channels_defaults_fn)
-            self.logger.info(f"branch default settings read from {channels_defaults_fn}.")
+            self.logger.info(
+                f"branch default settings read from {channels_defaults_fn}."
+            )
             self.logger.info("Adding/Filling channels attributes values")
-            gdf_ch = update_data_columns_attributes(gdf_ch, defaults, brtype='channel')
+            gdf_ch = update_data_columns_attributes(gdf_ch, defaults, brtype="channel")
 
             # If specific spacing info from spacing_fn, update spacing attribute
             if isinstance(spacing_fn, str):
@@ -243,8 +247,10 @@ class DFlowFMModel(Model):
                 else:
                     spacing = pd.read_csv(spacing_fn)
                 self.logger.info(f"Updating spacing attributes based on {spacing_fn}")
-                gdf_ch = update_data_columns_attribute_from_query(gdf_ch, spacing, attribute_name='spacing')
-            
+                gdf_ch = update_data_columns_attribute_from_query(
+                    gdf_ch, spacing, attribute_name="spacing"
+                )
+
             self.logger.info(f"Processing channels")
             channels, channels_nodes = process_branches(
                 gdf_ch,
@@ -263,13 +269,14 @@ class DFlowFMModel(Model):
             channels_nodes = channels_nodes.to_crs(self.crs)
 
             # setup staticgeoms
-            self.logger.debug(f"Adding branches and branch_nodes vector to staticgeoms.")
+            self.logger.debug(
+                f"Adding branches and branch_nodes vector to staticgeoms."
+            )
             self.set_staticgeoms(channels, "channels")
             self.set_staticgeoms(channels_nodes, "channels_nodes")
 
             # add to branches
-            self.add_branches(channels, branchtype='channel')
-
+            self.add_branches(channels, branchtype="channel")
 
     def setup_branches(
         self,
@@ -998,7 +1005,7 @@ class DFlowFMModel(Model):
 
     @property
     def crs(self):
-        #return pyproj.CRS.from_epsg(self.get_config("global.epsg", fallback=4326))
+        # return pyproj.CRS.from_epsg(self.get_config("global.epsg", fallback=4326))
         return self.region.crs
 
     @property
@@ -1016,63 +1023,57 @@ class DFlowFMModel(Model):
 
     @property
     def branches(self):
-        """ 
-        Returns the branches (gpd.GeoDataFrame object) representing the 1D network.       
+        """
+        Returns the branches (gpd.GeoDataFrame object) representing the 1D network.
         Contains several "branchType" for : channel, river, pipe, tunnel.
         """
         if self._branches.empty:
-            #self.read_branches() #not implemented yet
-            self._branches= gpd.GeoDataFrame()
+            # self.read_branches() #not implemented yet
+            self._branches = gpd.GeoDataFrame()
         return self._branches
 
-    def set_branches(self, branches:gpd.GeoDataFrame):
+    def set_branches(self, branches: gpd.GeoDataFrame):
         """Updates the branches object as well as the linked staticgeoms."""
-        #Check if "branchType" col in new branches
+        # Check if "branchType" col in new branches
         if "branchType" in branches.columns:
             self._branches = branches
-        else: 
-            self.logger.error("'branchType' column absent from the new branches, could not update.")
+        else:
+            self.logger.error(
+                "'branchType' column absent from the new branches, could not update."
+            )
         # Update channels/pipes in staticgeoms
-        _ = self.set_branches_component(name='channel')
-        _ = self.set_branches_component(name='pipe')
-        
-    
-    def add_branches(
-        self, 
-        new_branches: gpd.GeoDataFrame, 
-        branchtype: str
-    ):
-        """ Add new branches of branchtype to the branches object """
+        _ = self.set_branches_component(name="channel")
+        _ = self.set_branches_component(name="pipe")
+
+    def add_branches(self, new_branches: gpd.GeoDataFrame, branchtype: str):
+        """Add new branches of branchtype to the branches object"""
         branches = self._branches.copy()
         # Check if "branchType" in new_branches column, else add
         if "branchType" not in new_branches.columns:
-            new_branches['branchType'] = np.repeat(branchtype, len(new_branches.index))
+            new_branches["branchType"] = np.repeat(branchtype, len(new_branches.index))
         branches = branches.append(new_branches, ignore_index=True)
         # Check if we need to do more check/process to make sure everything is well connected
         validate_branches(branches)
         self.set_branches(branches)
-    
+
     def set_branches_component(self, name):
-        gdf_comp = self.branches[self.branches['branchType'] == name]
+        gdf_comp = self.branches[self.branches["branchType"] == name]
         if gdf_comp.index.size > 0:
             self.set_staticgeoms(gdf_comp, name=f"{name}s")
         return gdf_comp
-    
+
     @property
     def channels(self):
         if "channels" in self.staticgeoms:
             gdf = self.staticgeoms["channels"]
         else:
-            gdf = self.set_branches_component('channel')
+            gdf = self.set_branches_component("channel")
         return gdf
-    
+
     @property
     def pipes(self):
         if "pipes" in self.staticgeoms:
             gdf = self.staticgeoms["pipes"]
         else:
-            gdf = self.set_branches_component('pipe')
+            gdf = self.set_branches_component("pipe")
         return gdf
-        
-
-        

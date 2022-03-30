@@ -20,23 +20,23 @@ logger = logging.getLogger(__name__)
 
 
 __all__ = [
-    "process_branches", 
-    "validate_branches", 
+    "process_branches",
+    "validate_branches",
     "update_data_columns_attributes",
     "update_data_columns_attribute_from_query",
 ]
 
 
 def update_data_columns_attributes(
-    branches: gpd.GeoDataFrame, 
-    attributes: pd.DataFrame, 
+    branches: gpd.GeoDataFrame,
+    attributes: pd.DataFrame,
     brtype: str = None,
 ):
     """
-    Add or update columns in the branches geodataframe based on column and values in attributes 
+    Add or update columns in the branches geodataframe based on column and values in attributes
     (excluding 1st col branchType used for query).
-    
-    If brtype is set, only update the attributes of the specified type of branches. 
+
+    If brtype is set, only update the attributes of the specified type of branches.
 
     Parameters
     ----------
@@ -47,7 +47,7 @@ def update_data_columns_attributes(
         "branchType", "shape" and "width" (column names of the DataFrame).
     attribute_name: str
         Name of the new attribute column in branches.
-    
+
     Returns
     -------
     Returns
@@ -65,12 +65,18 @@ def update_data_columns_attributes(
         for colname in row.index[1:]:
             # If attribute is not at all in branches, add a new column
             if colname not in branches.columns:
-               branches[colname] = pd.Series(dtype=attributes[colname].dtype)
+                branches[colname] = pd.Series(dtype=attributes[colname].dtype)
             # Then fill in empty or NaN values with defaults
             else:
-                branches.loc[np.logical_and(branches[colname].isna(), branches["branchType"] == branch), colname] = row.loc[colname]
-    
+                branches.loc[
+                    np.logical_and(
+                        branches[colname].isna(), branches["branchType"] == branch
+                    ),
+                    colname,
+                ] = row.loc[colname]
+
     return branches
+
 
 def update_data_columns_attribute_from_query(
     branches: gpd.GeoDataFrame,
@@ -91,7 +97,7 @@ def update_data_columns_attribute_from_query(
         "branchType", "shape" and "width"/"diameter" (column names of the DataFrame).
     attribute_name: str
         Name of the new attribute column in branches.
-    
+
     Returns
     -------
     branches : gpd.GeoDataFrame
@@ -102,52 +108,52 @@ def update_data_columns_attribute_from_query(
     # Iterate over the attribute DataFrame lines
     for row in attribute.itertuples(index=False):
         # Width/diameter is not always mandatory
-        if 'width' in row._fields:
+        if "width" in row._fields:
             if np.isnan(row.width):
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
                         branches.branchType != row.branchType,
-                        branches.shape != row.shape
+                        branches.shape != row.shape,
                     ),
-                    getattr(row, attribute_name)
+                    getattr(row, attribute_name),
                 )
             else:
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
                         branches.branchType != row.branchType,
                         branches.shape != row.shape,
-                        branches.width != row.width
+                        branches.width != row.width,
                     ),
-                    getattr(row, attribute_name)
+                    getattr(row, attribute_name),
                 )
-        elif 'diameter' in row._fields:
+        elif "diameter" in row._fields:
             if np.isnan(row.diameter):
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
                         branches.branchType != row.branchType,
-                        branches.shape != row.shape
+                        branches.shape != row.shape,
                     ),
-                    getattr(row, attribute_name)
+                    getattr(row, attribute_name),
                 )
             else:
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
                         branches.branchType != row.branchType,
                         branches.shape != row.shape,
-                        branches.diameter != row.diameter
+                        branches.diameter != row.diameter,
                     ),
-                    getattr(row, attribute_name)
+                    getattr(row, attribute_name),
                 )
         else:
             branches[attribute_name] = branches[attribute_name].where(
                 np.logical_and(
-                    branches.branchType != row.branchType,
-                    branches.shape != row.shape
+                    branches.branchType != row.branchType, branches.shape != row.shape
                 ),
-                getattr(row, attribute_name)
+                getattr(row, attribute_name),
             )
-    
+
     return branches
+
 
 # FIXME BMA: For HydroMT we will rewrite this snap_branches to snap_lines and take set_branches out of it
 def process_branches(
@@ -161,14 +167,14 @@ def process_branches(
 
     logger.debug(f"Cleaning up branches")
     # TODO: maybe add arguments,use branch cross sections
-    #global_controls = branches_ini.get("global", None)
+    # global_controls = branches_ini.get("global", None)
 
     branches = cleanup_branches(
-        branches, 
-        id_col=id_col, 
-        snap_offset=snap_offset, 
+        branches,
+        id_col=id_col,
+        snap_offset=snap_offset,
         allow_intersection_snapping=allow_intersection_snapping,
-        logger=logger
+        logger=logger,
     )
 
     logger.debug(f"Spltting branches based on spacing")
@@ -183,7 +189,7 @@ def process_branches(
 
 def cleanup_branches(
     branches: gpd.GeoDataFrame,
-    id_col: str = "BRANCH_ID", # TODO: renaming needed
+    id_col: str = "BRANCH_ID",  # TODO: renaming needed
     snap_offset: float = 0.01,
     allow_intersection_snapping: bool = True,
     logger=logger,
@@ -220,12 +226,18 @@ def cleanup_branches(
     logger.debug(f"Removing {n} branches that are shorter than 0.1 meter.")
 
     # sort index
-    if id_col in ["None", "NONE", "none", None, ""]: # TODO: id_column must be specified
+    if id_col in [
+        "None",
+        "NONE",
+        "none",
+        None,
+        "",
+    ]:  # TODO: id_column must be specified
         id_col = "BRANCH_ID"
         # regenerate ID based on ini # NOTE BMA: this is the step to ensure unique id cross the network
         # TODO could not find anay example of this or default
-        id_prefix = 100 #branches_ini["global"]["id_prefix"]
-        id_suffix = 100 #branches_ini["global"]["id_suffix"]
+        id_prefix = 100  # branches_ini["global"]["id_prefix"]
+        id_suffix = 100  # branches_ini["global"]["id_suffix"]
         branches[id_col] = [
             id_prefix + "_" + str(x) + "_" + id_suffix for x in range(len(branches))
         ]
@@ -256,11 +268,9 @@ def cleanup_branches(
 
     # precision correction --> check if needs to be changed by the user, if so move that into a func argument
     branches = reduce_gdf_precision(
-        branches, rounding_precision= 6 #branches_ini["global"]["rounding_precision"]
+        branches, rounding_precision=6  # branches_ini["global"]["rounding_precision"]
     )  # recommned to be larger than e-8
-    logger.debug(
-        f"Reducing precision of the GeoDataFrame. Rounding precision (e-6) ."
-    )
+    logger.debug(f"Reducing precision of the GeoDataFrame. Rounding precision (e-6) .")
 
     # snap branches
     if allow_intersection_snapping is True:
@@ -282,7 +292,7 @@ def cleanup_branches(
 
 def space_branches(
     branches: gpd.GeoDataFrame,
-    spacing_col="spacing", # TODO: seperate situation where interpolation is needed and interpolation is not needed
+    spacing_col="spacing",  # TODO: seperate situation where interpolation is needed and interpolation is not needed
     logger=logger,
 ):
     """function to space branches based on spacing_col on branch"""
@@ -325,7 +335,7 @@ def generate_branchnodes(
         right_on=branches.index.name,
         suffixes=("", "_b"),
     )
-    nodes = nodes.drop(columns = "geometry_b")
+    nodes = nodes.drop(columns="geometry_b")
     # remove duplicated geometry
     _nodes = nodes.copy()
     G = _nodes["geometry"].apply(lambda geom: geom.wkb)
@@ -340,7 +350,9 @@ def generate_branchnodes(
     return nodes
 
 
-def validate_branches(branches: gpd.GeoDataFrame, logger=logger): # TODO: add more content and maybe make a seperate module
+def validate_branches(
+    branches: gpd.GeoDataFrame, logger=logger
+):  # TODO: add more content and maybe make a seperate module
     """function to validate branch geometry"""
     # validate pipe geometry
     if sum(branches.geometry.length <= 0) == 0:
@@ -445,7 +457,9 @@ def _split_branches_by_spacing_const(
     edge_index = []
     branch_index = []
     for bid, b in branches.iterrows():
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         # prepare for splitting
         line = b.geometry
         num_new_lines = int(np.ceil(line.length / spacing_const))
@@ -458,7 +472,9 @@ def _split_branches_by_spacing_const(
         edge_geom.extend(new_edges)
         edge_offset.extend(offsets[1:])
         edge_invertup.extend(
-            np.interp(offsets[:-1], [0, offsets[-1]], [b.invlev_up, b.invlev_dn]) # TODO: renaming needed
+            np.interp(
+                offsets[:-1], [0, offsets[-1]], [b.invlev_up, b.invlev_dn]
+            )  # TODO: renaming needed
         )
         edge_invertdn.extend(
             np.interp(offsets[1:], [0, offsets[-1]], [b.invlev_up, b.invlev_dn])

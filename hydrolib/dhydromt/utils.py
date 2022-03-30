@@ -38,12 +38,12 @@ def get_process_geodataframe(
 
     """
 
-#    # pop kwargs from catalogue
-#    d = self.data_catalog.to_dict(path_or_key)[path_or_key].pop("kwargs")
+    #    # pop kwargs from catalogue
+    #    d = self.data_catalog.to_dict(path_or_key)[path_or_key].pop("kwargs")
 
-#    # set clipping
-#    clip_buffer = d.get("clip_buffer", clip_buffer)
-#    clip_predicate = d.get("clip_predicate", clip_predicate)  # TODO: in ini file
+    #    # set clipping
+    #    clip_buffer = d.get("clip_buffer", clip_buffer)
+    #    clip_predicate = d.get("clip_predicate", clip_predicate)  # TODO: in ini file
 
     # read data + clip data + preprocessing data
     df = self.data_catalog.get_geodataframe(
@@ -51,23 +51,23 @@ def get_process_geodataframe(
         geom=self.region,
         buffer=clip_buffer,
         clip_predicate=clip_predicate,
-        variables = variables,
+        variables=variables,
     )
     self.logger.debug(
         f"GeoDataFrame: {len(df)} feature are read after clipping region with clip_buffer = {clip_buffer}, clip_predicate = {clip_predicate}"
     )
 
     # retype data
-#    retype = d.get("retype", None)
+    #    retype = d.get("retype", None)
     df = helper.retype_geodataframe(df, retype)
 
     # eval funcs on data
-#    funcs = d.get("funcs", None)
+    #    funcs = d.get("funcs", None)
     df = helper.eval_funcs(df, funcs)
 
     # slice data # TODO: test what can be achived by the alias in yml file
-    #required_columns = d.get("required_columns", None) can be done with variables arg from get_geodataframe
-    #required_query = d.get("required_query", None)
+    # required_columns = d.get("required_columns", None) can be done with variables arg from get_geodataframe
+    # required_query = d.get("required_query", None)
     df = helper.slice_geodataframe(
         df, required_columns=None, required_query=required_query
     )
