@@ -90,7 +90,15 @@ class MeteoEvent(object):
 
         return series
 
-    def write_meteo(self, meteo_dir):
+    def update(self, specs):
+        for k, v in specs.items():
+            if k == "volume":
+                self.volume.rainfall = v
+            else:
+                setattr(self, k, v)
+        return self
+
+    def write_meteo(self, meteo_dir, file_stem=None):
         """
         Method to write meteofiles (DEFAULT.BUI and DEFAULT.EVP) based on values per catchment.
 
@@ -107,10 +115,11 @@ class MeteoEvent(object):
         series = self.get_rainfall_series()
 
         hours = self.duration / pd.Timedelta(hours=1)
-        file_stem = self.name_pattern.format(hours=int(hours),
-                                             volume=int(self.volume.rainfall),
-                                             pattern=self.pattern,
-                                             season=self.season.upper())
+        if file_stem is None:
+            file_stem = self.name_pattern.format(hours=int(hours),
+                                                 volume=int(self.volume.rainfall),
+                                                 pattern=self.pattern,
+                                                 season=self.season.upper())
 
         file_path = meteo_path / f"{file_stem}.BUI"
 
