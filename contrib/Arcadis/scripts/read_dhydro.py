@@ -1,23 +1,30 @@
-import os
 import pandas as pd
 import geopandas as gpd
-import netCDF4 as nc
 import numpy as np
-from datetime import datetime
 from shapely.geometry import Point, LineString, Polygon
-
 from pathlib import Path
 from hydrolib.core.io.net.models import Network
-from hydrolib.core.io import polyfile
-from hydrolib.core.io.polyfile import parser
 
+def net_nc2gdf(net_ncs):
+    """
+    This script reads an D-HYDRO *net.nc file and converts it to a dictionary with GeoDataFrames.
+    
+    Example:
+        gdfs = net_nc2gdf("C:/temp/model/dflowfm/model_net.nc")
+    
+    Attributes:
+        net_ncs (str): Path to net.nc file
+        
+    Result:
+        gdfs (dict): Dictionary with all geometries in as GeoDataFrames 
+    
+    """
 
-def main(net_ncs):
     nc_path  = Path(net_ncs)
     net = Network()
     nc_model = net.from_file(nc_path)
 
-    print("Geen projectie in het model, Amersfoort aangenomen")
+    #print("Geen projectie in het model, Amersfoort aangenomen")
     EPSG = 'EPSG:28992'
 
     ## 1D
@@ -47,7 +54,7 @@ def main(net_ncs):
     gdf_mesh_nodes_total = gpd.GeoDataFrame(pd.concat([gdf_mesh_nodes_start,gdf_mesh1d_nodes,gdf_mesh_nodes_end]), crs=EPSG)
     gdf_mesh_nodes_total.drop_duplicates(subset=["branch","geometry"], keep='first', inplace=True, ignore_index=True)
     geometry = gdf_mesh_nodes_total.groupby(['branch'])['geometry'].apply(lambda x: LineString(x.tolist()))
-    gdf_branch = gpd.GeoDataFrame({
+    gdf_branches = gpd.GeoDataFrame({
         "id":nc_model._mesh1d.network1d_branch_id,
         "length":nc_model._mesh1d.network1d_branch_length,
         "name":nc_model._mesh1d.network1d_branch_long_name,
@@ -106,12 +113,8 @@ def main(net_ncs):
     return {
         "1d_meshnodes":gdf_mesh1d_nodes,
         "1d_nodes":gdf_network1d_nodes,
-        "1d_branch":gdf_branch,
+        "1d_branches":gdf_branches,
         "2d_nodes":gdf_2d_nodes,
         "2d_edges":gdf_2d_edges,
         "2d_faces":gdf_2d_faces,
         "1d2d_links":gdf_links}
-
-
-if __name__ == '__main__':
-    main()
