@@ -12,7 +12,7 @@ bui_header = """*Name of this file: {file_path}
 *Date and time of construction: {now}
 *Comments are following an * (asterisk) and written above variables
 1
-*Number of stations
+*Aantal stations
 1
 *Station Name
 'STOWA_BUI'
@@ -44,7 +44,7 @@ class MeteoEvent(object):
         self.starts = starts
         self.volume = self._Volume()
         self.duration = duration
-        
+
 
     class _Volume(object):
         evaporation = 0
