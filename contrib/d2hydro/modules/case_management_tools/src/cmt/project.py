@@ -1,8 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional
 from pathlib import Path
-import json
-import sys
 from cmt.utils.readers import read_stochastics
 from cmt.utils.writers import (
     write_stowa_buien,
@@ -14,7 +12,6 @@ from cmt.utils.modifyers import prefix_to_paths
 from datetime import datetime, timedelta
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.core.io.fnm.models import RainfallRunoffModel
-import pandas as pd
 import shutil
 
 
@@ -83,13 +80,13 @@ class Project(BaseModel):
 
     def get_model(self, model_id):
         return next((i for i in self.models if i.id == model_id))
-    
+
     def get_flow_boundary(self, bc_id):
         return next((i for i in self.boundary_conditions.flow if i.id == bc_id))
 
     def get_meteo_boundary(self, bc_id):
         return next((i for i in self.boundary_conditions.meteo if i.id == bc_id))
-    
+
     def write_manifest(self):
         index_json = self.filepath / "manifest.json"
 
@@ -97,6 +94,12 @@ class Project(BaseModel):
             exclude={"filepath"},
             indent=1,
             ))
+
+    @classmethod
+    def from_manifest(cls, manifest_json: Path):
+        cls = cls.parse_raw(manifest_json.read_text())
+        cls.filepath = manifest_json.parent
+        return cls
 
     def from_stochastics(self, stochastics_json: Path):
         self._init_filepath()
