@@ -14,8 +14,13 @@ from datetime import datetime, timedelta
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.core.io.fnm.models import RainfallRunoffModel
 import shutil
+import logging
+from multiprocessing.pool import ThreadPool
 from pydantic.types import DirectoryPath
 
+logging.basicConfig()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class BoundaryCondition(BaseModel):
     id: str
@@ -93,9 +98,19 @@ class Project(BaseModel):
     def get_model(self, model_id):
         return next((i for i in self.models if i.id == model_id))
 
-    def run_case(self, case_id, stream_output=True, returncode=True):
+    def run_cases(self, case_ids, workers=None):
+        logger.info(f"Start running batch: #cases: {len(case_ids)}, #workers {workers}.")
+        tp = ThreadPool(workers)
+        for idx, case_id in enumerate(case_ids):
+            tp.apply_async(self.run_case, (case_id,))
+        tp.close()
+        tp.join()
+        logger.info(f"Finished running batch.")
+
+    def run_case(self, case_id, stream_output=False, returncode=True):
         start_datetime = datetime.now()
         case = self.get_case(case_id)
+        logger.info(f"Start running case: '{case_id}'")
         if case is not None:
             case.run.start_datetime = start_datetime
             cwd = self.filepath.joinpath(f"cases/{case_id}").absolute().resolve()
@@ -107,11 +122,15 @@ class Project(BaseModel):
             if rc == 0:
                 case.run.completed = True
                 case.run.success = True
-                case.run.run_duration = datetime.now() - start_datetime
+                run_duration = datetime.now() - start_datetime
+                case.run.run_duration = run_duration 
+                logger.info(f"finished running case: '{case_id}' in {run_duration.total_seconds()} secs")
             else:
                 case.run.completed = False
                 case.run.success = False
+                logger.error(f"Case: '{case_id}' crashed")
             self.write_manifest()
+            
 
     def get_flow_boundary(self, bc_id):
         return next((i for i in self.boundary_conditions.flow if i.id == bc_id))
