@@ -1,18 +1,20 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Union
 from pathlib import Path
-from cmt.utils.readers import read_stochastics
+from cmt.utils.readers import read_stochastics, read_text
 from cmt.utils.writers import (
     write_stowa_buien,
     write_flow_boundaries,
     write_models,
     write_rr_conditions
     )
+from cmt.run import dhydro
 from cmt.utils.modifyers import prefix_to_paths
 from datetime import datetime, timedelta
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.core.io.fnm.models import RainfallRunoffModel
 import shutil
+from pydantic.types import DirectoryPath
 
 
 class BoundaryCondition(BaseModel):
@@ -29,6 +31,9 @@ class InitialCondition(BaseModel):
 
 class Run(BaseModel):
     completed: bool = False
+    success: Optional[bool]
+    start_datetime: Optional[datetime]
+    run_duration: Optional[timedelta]
 
 
 class Case(BaseModel):
@@ -38,7 +43,7 @@ class Case(BaseModel):
     flow_bc_id: str
     model_id: str
     start_datetime: datetime
-    timedelta: timedelta
+    simulation_period: timedelta
     run: Run = Run()
 
 
@@ -60,7 +65,7 @@ class InitialConditions(BaseModel):
 
 
 class Project(BaseModel):
-    filepath: Optional[Path] = None
+    filepath: Optional[DirectoryPath] = None
     boundary_conditions: BoundaryConditions = BoundaryConditions()
     initial_conditions: InitialConditions = InitialConditions()
     models: List[Model] = []
@@ -71,6 +76,7 @@ class Project(BaseModel):
             if self.filepath.exists():
                 shutil.rmtree(self.filepath)
         self.filepath.mkdir(parents=True, exist_ok=True)
+        self.filepath = self.filepath.absolute().resolve()
 
     def _create_subdir(self, subdir):
         dir_path = Path(self.filepath) / subdir
@@ -78,8 +84,34 @@ class Project(BaseModel):
             dir_path.mkdir(parents=True, exist_ok=True)
         return dir_path
 
+    def get_case(self, case_id):
+        return next((i for i in self.cases if i.id == case_id), None)
+      
+    def get_cases(self):
+        return [i.id for i in self.cases]
+
     def get_model(self, model_id):
         return next((i for i in self.models if i.id == model_id))
+
+    def run_case(self, case_id, stream_output=True, returncode=True):
+        start_datetime = datetime.now()
+        case = self.get_case(case_id)
+        if case is not None:
+            case.run.start_datetime = start_datetime
+            cwd = self.filepath.joinpath(f"cases/{case_id}").absolute().resolve()
+            try:
+                rc = dhydro.run(cwd, stream_output=stream_output, returncode=returncode)
+            except:
+                rc = 1
+
+            if rc == 0:
+                case.run.completed = True
+                case.run.success = True
+                case.run.run_duration = datetime.now() - start_datetime
+            else:
+                case.run.completed = False
+                case.run.success = False
+            self.write_manifest()
 
     def get_flow_boundary(self, bc_id):
         return next((i for i in self.boundary_conditions.flow if i.id == bc_id))
@@ -96,9 +128,9 @@ class Project(BaseModel):
             ))
 
     @classmethod
-    def from_manifest(cls, manifest_json: Path):
-        cls = cls.parse_raw(manifest_json.read_text())
-        cls.filepath = manifest_json.parent
+    def from_manifest(cls, manifest_json:  Union[str, Path]):
+        cls = cls.parse_raw(read_text(manifest_json))
+        cls.filepath = Path(manifest_json).parent.absolute().resolve()
         return cls
 
     def from_stochastics(self, stochastics_json: Path):
@@ -234,7 +266,7 @@ class Project(BaseModel):
                              flow_bc_id=i["flow_bc_id"],
                              model_id=i["model_id"],
                              start_datetime=start_datetime,
-                             timedelta=time_delta)
+                             simulation_period=time_delta)
                         ]
                     
                     # write run.bat

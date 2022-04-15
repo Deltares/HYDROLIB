@@ -11,7 +11,7 @@ from ..utils.log import setup_basic_logging, add_logging_arguments
 
 logger = logging.getLogger(__name__)
 
-DIMR_BAT = Path(r"c:/Program Files/Deltares/D-HYDRO Suite 1D2D (1.0.0.53506)/plugins/DeltaShell.Dimr/kernels/x64/dimr/scripts/run_dimr.bat")
+DIMR_BAT = Path(r"c:/Program Files/Deltares/D-HYDRO Suite 2022.03 1D2D/plugins/DeltaShell.Dimr/kernels/x64/dimr/scripts/run_dimr.bat")
 
 def main():
     args = get_args()
@@ -29,7 +29,8 @@ def run(
     work_dir: Path,
     dimr_bat: Path = DIMR_BAT,
     num_threads: int = 1,
-    stream_output: bool = True
+    stream_output: bool = False,
+    returncode: bool = True
     ):
     f"""
     Run h2flo flow simulation
@@ -41,6 +42,7 @@ def run(
         installation. Optional, defults to {DIMR_BAT}
         num_threads (int, optional): Number of threads to be used for 1
         model-run. Optional, defaults to 1.
+        returncode (bool, optional): if True, the proc returncode will be returned
         stream_output (bool, optional): if True, print stdout line by line
         while process is running. Optional, defaults to True.
 
@@ -57,7 +59,7 @@ def run(
         [dimr_bat.as_posix()],
         cwd=work_dir.as_posix(),
         env=env,
-        creationflags=subprocess.CREATE_NEW_CONSOLE,
+ #       creationflags=subprocess.CREATE_NEW_CONSOLE,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         encoding="ascii",
@@ -72,9 +74,11 @@ def run(
     else:
         outs, _ = proc.communicate(input)
     logger.info("Finished running DHYDRO")
-    # move files
 
-    return outs
+    if returncode:
+        return proc.returncode
+    else:
+        return outs
 
 
 def get_args() -> argparse.Namespace:
