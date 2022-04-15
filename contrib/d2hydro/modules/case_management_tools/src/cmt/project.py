@@ -99,18 +99,20 @@ class Project(BaseModel):
         return next((i for i in self.models if i.id == model_id))
 
     def run_cases(self, case_ids, workers=None):
-        logger.info(f"Start running batch: #cases: {len(case_ids)}, #workers {workers}.")
+        logger.info(f"Start running batch: #cases: {len(case_ids)}, #workers {workers}")
         tp = ThreadPool(workers)
         for idx, case_id in enumerate(case_ids):
-            tp.apply_async(self.run_case, (case_id,))
+            progress = f" ({idx+1}/{len(case_ids)})"
+            tp.apply_async(self.run_case, (case_id, progress))
         tp.close()
         tp.join()
-        logger.info(f"Finished running batch.")
+        self.write_manifest()
+        logger.info(f"Finished running batch")
 
-    def run_case(self, case_id, stream_output=False, returncode=True):
+    def run_case(self, case_id, progress="", stream_output=False, returncode=True):
         start_datetime = datetime.now()
         case = self.get_case(case_id)
-        logger.info(f"Start running case: '{case_id}'")
+        logger.info(f"Start running case{progress}: '{case_id}'")
         if case is not None:
             case.run.start_datetime = start_datetime
             cwd = self.filepath.joinpath(f"cases/{case_id}").absolute().resolve()
