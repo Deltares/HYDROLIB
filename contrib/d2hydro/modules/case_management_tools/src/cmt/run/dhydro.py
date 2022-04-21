@@ -1,17 +1,20 @@
-from pathlib import Path
 import argparse
 import logging
 import os
 import shutil
 import subprocess
 from multiprocessing.pool import ThreadPool
+from pathlib import Path
 from typing import List, Optional
 
-from ..utils.log import setup_basic_logging, add_logging_arguments
+from ..utils.log import add_logging_arguments, setup_basic_logging
 
 logger = logging.getLogger(__name__)
 
-DIMR_BAT = Path(r"c:/Program Files/Deltares/D-HYDRO Suite 2022.03 1D2D/plugins/DeltaShell.Dimr/kernels/x64/dimr/scripts/run_dimr.bat")
+DIMR_BAT = Path(
+    r"c:/Program Files/Deltares/D-HYDRO Suite 2022.03 1D2D/plugins/DeltaShell.Dimr/kernels/x64/dimr/scripts/run_dimr.bat"
+)
+
 
 def main():
     args = get_args()
@@ -30,8 +33,8 @@ def run(
     dimr_bat: Path = DIMR_BAT,
     num_threads: int = 1,
     stream_output: bool = False,
-    returncode: bool = True
-    ):
+    returncode: bool = True,
+):
     f"""
     Run h2flo flow simulation
 
@@ -59,7 +62,7 @@ def run(
         [dimr_bat.as_posix()],
         cwd=work_dir.as_posix(),
         env=env,
- #       creationflags=subprocess.CREATE_NEW_CONSOLE,
+        #       creationflags=subprocess.CREATE_NEW_CONSOLE,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         encoding="ascii",
@@ -90,22 +93,15 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "dimr_bat",
         help="Path to the 'run_dimr.bat' as part of the DHYDRO installation.",
-        default=DIMR_BAT
+        default=DIMR_BAT,
     )
+    parser.add_argument("num_threads", help="Input number", type=int, default=1)
     parser.add_argument(
-        "num_threads",
-        help="Input number",
-        type=int,
-        default=1
-    )
-    parser.add_argument(
-        "--stream_output",
-        help="Stream output to stdout",
-        type=bool,
-        default=False
+        "--stream_output", help="Stream output to stdout", type=bool, default=False
     )
     add_logging_arguments(parser)
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     main()
