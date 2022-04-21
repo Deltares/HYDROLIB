@@ -1,6 +1,6 @@
-from typing import Union
-import logging
 import argparse
+import logging
+from typing import Union
 
 
 def setup_basic_logging(
