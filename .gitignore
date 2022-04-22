@@ -130,6 +130,7 @@ dmypy.json
 
 # stuff d2hydro should not commit
 contrib/d2hydro/data/*
+!contrib/d2hydro/data/dellen_map.nc
 contrib/d2hydro/modules/case_management_tools/data/*
 contrib/d2hydro/scripts/*
 .vscode/launch.json
