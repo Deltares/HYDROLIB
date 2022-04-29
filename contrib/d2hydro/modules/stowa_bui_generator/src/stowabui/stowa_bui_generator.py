@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-data_path = Path(__file__).parent.joinpath("../../data").absolute().resolve()
+data_path = Path(__file__).parent.joinpath("../data").absolute().resolve()
 patterns_xlsx = data_path / "patronen.xlsx"
 
 

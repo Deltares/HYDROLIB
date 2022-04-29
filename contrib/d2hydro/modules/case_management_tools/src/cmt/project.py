@@ -50,6 +50,7 @@ class Case(BaseModel):
     meteo_bc_id: str
     flow_bc_id: str
     model_id: str
+    fm_output_dir: Path
     start_datetime: datetime
     simulation_period: timedelta
     run: Run = Run()
@@ -301,6 +302,7 @@ class Project(BaseModel):
                     ).total_seconds()
                     mdu.time.tstop = time_delta.total_seconds()
                     mdu.save(dst_path / model.mdu)
+                    fm_output_dir = mdu.output.outputdir
 
                     # copy rtc model
                     shutil.copytree(rtc_dir, dst_path / "rtc")
@@ -319,6 +321,7 @@ class Project(BaseModel):
                             meteo_bc_id=i["meteo_bc_id"],
                             flow_bc_id=i["flow_bc_id"],
                             model_id=i["model_id"],
+                            fm_output_dir=fm_output_dir,
                             start_datetime=start_datetime,
                             simulation_period=time_delta,
                         )

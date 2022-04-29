@@ -15,7 +15,7 @@ setup(
     author="Daniel Tollenaar",
     author_email="daniel@d2hydro.nl",
     license="MIT",
-    packages=["cmt"],
+    packages=["cmt", "cmt.run", "cmt.utils"],
     package_dir={"": "src"},
     python_requires=">=3.6",
     install_requires=["pandas", "pathlib"],
