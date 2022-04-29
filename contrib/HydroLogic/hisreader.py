@@ -8,17 +8,19 @@ Created on Tue Dec 14 10:53:59 2021
 Update with variables, observation station names, weir names, and writing weir_data
 """
 
+import datetime as dt
+
 # =============================================================================
 # Import
 # =============================================================================
 import os
+import pathlib
+from datetime import datetime
+
 import netCDF4 as nc
 import numpy as np
 import pandas as pd
-import datetime as dt
 import ugfile as uf
-import pathlib
-from datetime import datetime
 
 """============================================================================
 Provides
@@ -88,9 +90,7 @@ class hisreader(object):
         time2 = np.empty(time.size)
         t2 = []
         for i in range(0, len(time)):
-            t2.append(
-                (t + dt.timedelta(0, time[i])).strftime("%d-%m-%Y %H:%M")
-            )
+            t2.append((t + dt.timedelta(0, time[i])).strftime("%d-%m-%Y %H:%M"))
         time2 = pd.DataFrame(t2)
         df = time2
         df.columns = ["time"]
@@ -119,9 +119,7 @@ class hisreader(object):
 
         """
         if "station_name" in self.__ds.variables:
-            obs_name = nc.chartostring(
-                self.__ds.variables["station_name"][:, :]
-            )
+            obs_name = nc.chartostring(self.__ds.variables["station_name"][:, :])
             obs_names = np.array(obs_name)
             obs_loc = range(0, len(obs_name))
             for variable in variables:
@@ -197,9 +195,7 @@ class hisreader(object):
 
         """
         if "dambreak_id" in self.__ds.variables:
-            bres_name = nc.chartostring(
-                self.__ds.variables["dambreak_id"][:, :]
-            )
+            bres_name = nc.chartostring(self.__ds.variables["dambreak_id"][:, :])
             bres_names = np.array(bres_name)
             bres = self.__ds.variables["dambreak_crest_width"][:, :]
             bres_debiet = self.__ds.variables["dambreak_discharge"][:, :]
@@ -208,15 +204,9 @@ class hisreader(object):
 
             for index, breach_location in enumerate(bres_names):
                 self.__df[f"bresbreedte_{breach_location}"] = bres[:, index]
-                self.__df[f"bresdebiet_{breach_location}"] = bres_debiet[
-                    :, index
-                ]
-                self.__df[f"bres_wl_up_{breach_location}"] = bres_wl_up[
-                    :, index
-                ]
-                self.__df[f"bres_wl_dn_{breach_location}"] = bres_wl_dn[
-                    :, index
-                ]
+                self.__df[f"bresdebiet_{breach_location}"] = bres_debiet[:, index]
+                self.__df[f"bres_wl_up_{breach_location}"] = bres_wl_up[:, index]
+                self.__df[f"bres_wl_dn_{breach_location}"] = bres_wl_dn[:, index]
 
     def writeall(self):
         """
@@ -248,6 +238,4 @@ class hisreader(object):
         None.
 
         """
-        self.__df.to_csv(
-            os.path.join(self.__outputdir, "hisdata.csv"), index=False
-        )
+        self.__df.to_csv(os.path.join(self.__outputdir, "hisdata.csv"), index=False)
