@@ -20,9 +20,7 @@ def get_ids(ds, layer="station"):
     """
 
     id_var = f"{layer}_id"
-    return [
-        "".join(i).strip() for i in ds[id_var][:].data.astype(str)
-        ]
+    return ["".join(i).strip() for i in ds[id_var][:].data.astype(str)]
 
 
 def get_idx(ds, ids, layer="station"):
@@ -40,9 +38,7 @@ def get_idx(ds, ids, layer="station"):
     """
 
     layer_ids = get_ids(ds, layer)
-    return [
-        layer_ids.index(i) for i in ids if i in layer_ids
-        ]
+    return [layer_ids.index(i) for i in ids if i in layer_ids]
 
 
 def get_var_by_name(ds, long_name, layer="station"):
@@ -63,7 +59,7 @@ def get_var_by_name(ds, long_name, layer="station"):
     layer_dim = ds[id_var].dimensions[0]
     layer_vars = [
         i for i in ds.variables.values() if (i.dimensions == (TIME_DIM, layer_dim))
-        ]
+    ]
     return next((i for i in layer_vars if i.long_name == long_name), None)
 
 
@@ -81,8 +77,9 @@ def get_time(ds, time_dim=TIME_DIM):
     """
 
     time_var = ds[time_dim]
-    return np.array(nc.num2date(time_var[:].data, units=time_var.units),
-                    dtype='datetime64[s]')
+    return np.array(
+        nc.num2date(time_var[:].data, units=time_var.units), dtype="datetime64[s]"
+    )
 
 
 def get_timeseries(ds, long_name, ids=None, layer="station", statistic="max"):
@@ -104,14 +101,12 @@ def get_timeseries(ds, long_name, ids=None, layer="station", statistic="max"):
     var = get_var_by_name(ds, long_name, layer)
     if ids is not None:
         idx = get_idx(ds, ids, layer)
-        result = pd.DataFrame(np.array([var[:, i].data for i in idx]).T,
-                              columns=ids,
-                              index=get_time(ds))
+        result = pd.DataFrame(
+            np.array([var[:, i].data for i in idx]).T, columns=ids, index=get_time(ds)
+        )
     else:
         ids = get_ids(ds, layer)
-        result = pd.DataFrame(var[:].data,
-                              columns=ids,
-                              index=get_time(ds))
+        result = pd.DataFrame(var[:].data, columns=ids, index=get_time(ds))
     if statistic == "max":
         result = result.max()
 

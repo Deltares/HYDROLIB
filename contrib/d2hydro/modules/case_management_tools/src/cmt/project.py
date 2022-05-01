@@ -1,13 +1,16 @@
+import json
 import logging
 import shutil
 from datetime import datetime, timedelta
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import List, Optional, Union
+
 import netCDF4 as nc
 import pandas as pd
 from cmt.run import dhydro
 from cmt.utils.modifyers import prefix_to_paths
+from cmt.utils.read_his import get_timeseries
 from cmt.utils.readers import read_stochastics, read_text
 from cmt.utils.writers import (
     write_flow_boundaries,
@@ -15,8 +18,6 @@ from cmt.utils.writers import (
     write_rr_conditions,
     write_stowa_buien,
 )
-import json
-from cmt.utils.read_his import get_timeseries
 from pydantic import BaseModel
 
 from hydrolib.core.io.fnm.models import RainfallRunoffModel
@@ -88,22 +89,33 @@ class Result(BaseModel):
     results: Optional[dict] = {}
 
     def __get_sample_ids(self, nc_file, layer, variable):
-        return [i.id for i in self.samples if (i.source.layer==layer) & (i.source.nc_file==nc_file) & (i.source.variable==variable)]
+        return [
+            i.id
+            for i in self.samples
+            if (i.source.layer == layer)
+            & (i.source.nc_file == nc_file)
+            & (i.source.variable == variable)
+        ]
 
     def get_results(self, output_dir, case_id, model_name):
         def __get_result(self, nc_file, layer, variable):
             ids = self.__get_sample_ids(nc_file, layer, variable)
             with nc.Dataset(output_dir.joinpath(f"{model_name}_{nc_file}.nc")) as ds:
-                series = get_timeseries(ds,
-                                        long_name=variable,
-                                        ids=ids,
-                                        layer=layer,
-                                        statistic=self.statistic)
+                series = get_timeseries(
+                    ds,
+                    long_name=variable,
+                    ids=ids,
+                    layer=layer,
+                    statistic=self.statistic,
+                )
             return series
 
         sets = set(
-                [(i.source.nc_file, i.source.layer, i.source.variable) for i in self.samples]
-                )
+            [
+                (i.source.nc_file, i.source.layer, i.source.variable)
+                for i in self.samples
+            ]
+        )
         result = pd.concat([__get_result(self, *i) for i in sets])
         self.results[case_id] = result.to_dict()
         return result
@@ -150,18 +162,13 @@ class Project(BaseModel):
 
     def get_results(self, results_id):
         return next((i for i in self.results if i.id == results_id), None)
-        
 
     def get_fm_output_dir(self, case_id):
         case = self.get_case(case_id)
         model = self.get_model(case.model_id)
         fm_dir = Path(model.mdu).parent
 
-
-        return self.filepath.joinpath("cases",
-                                      case_id,
-                                      fm_dir,
-                                      case.fm_output_dir)
+        return self.filepath.joinpath("cases", case_id, fm_dir, case.fm_output_dir)
 
     def sample_output(self, case_id):
         case = self.get_case(case_id)
@@ -185,7 +192,7 @@ class Project(BaseModel):
 
     def get_model(self, model_id):
         return next((i for i in self.models if i.id == model_id))
-    
+
     def run_post(self, case_id, delete_output=False):
         case = self.get_case(case_id)
         if case.run.results_id is not None:
@@ -195,7 +202,7 @@ class Project(BaseModel):
             output_dir = self.get_fm_output_dir(case_id)
             results.get_results(output_dir, case_id, model_name)
             results.write_results(self.filepath)
-            
+
             if delete_output:
                 self.delete_output(case_id)
 
@@ -204,13 +211,22 @@ class Project(BaseModel):
         tp = ThreadPool(workers)
         for idx, case_id in enumerate(case_ids):
             progress = f" ({idx+1}/{len(case_ids)})"
-            tp.apply_async(self.run_case, (case_id, progress, False, True, delete_output))
+            tp.apply_async(
+                self.run_case, (case_id, progress, False, True, delete_output)
+            )
         tp.close()
         tp.join()
         self.write_manifest()
         logger.info("Finished running batch")
 
-    def run_case(self, case_id, progress="", stream_output=False, returncode=True, delete_output=False):
+    def run_case(
+        self,
+        case_id,
+        progress="",
+        stream_output=False,
+        returncode=True,
+        delete_output=False,
+    ):
         start_datetime = datetime.now()
         case = self.get_case(case_id)
         logger.info(f"Start running case{progress}: '{case_id}'")
@@ -260,25 +276,25 @@ class Project(BaseModel):
         return cls
 
     def from_stochastics(self, stochastics_json: Path):
-
         def __convert_to_samples(results):
             def __strip_file_name(filename):
                 if filename.endswith("his.nc"):
                     return "his"
                 elif filename.endswith("map.nc"):
                     return "map"
+
             def __get_source(sample):
-                return Source(id=sample["id"],
-                              nc_file=__strip_file_name(sample["filename"]),
-                              layer="station",
-                              variable=sample["parameter"]
-                              )
+                return Source(
+                    id=sample["id"],
+                    nc_file=__strip_file_name(sample["filename"]),
+                    layer="station",
+                    variable=sample["parameter"],
+                )
 
             def __get_sample(sample):
                 source = __get_source(sample)
-                return Sample(id=sample["id"],
-                              name=sample["name"],
-                              source=source)
+                return Sample(id=sample["id"], name=sample["name"], source=source)
+
             return [__get_sample(i) for i in results]
 
         self._init_filepath()
@@ -324,9 +340,11 @@ class Project(BaseModel):
                 for i in models
             ]
             self.results = [
-                Result(id=i["id"],
-                       statistic=i["results"][0]["filter"].lower(),
-                       samples=__convert_to_samples(i["results"]))
+                Result(
+                    id=i["id"],
+                    statistic=i["results"][0]["filter"].lower(),
+                    samples=__convert_to_samples(i["results"]),
+                )
                 for i in models
             ]
 
