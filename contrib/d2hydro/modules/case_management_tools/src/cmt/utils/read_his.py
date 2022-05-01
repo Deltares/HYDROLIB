@@ -85,7 +85,7 @@ def get_time(ds, time_dim=TIME_DIM):
                     dtype='datetime64[s]')
 
 
-def get_timeseries(ds, long_name, ids=None, layer="station"):
+def get_timeseries(ds, long_name, ids=None, layer="station", statistic="max"):
     """
     Extract timeseries from netCDF4 in his-format in Pandas Dataframe
 
@@ -104,12 +104,15 @@ def get_timeseries(ds, long_name, ids=None, layer="station"):
     var = get_var_by_name(ds, long_name, layer)
     if ids is not None:
         idx = get_idx(ds, ids, layer)
-        df = pd.DataFrame(np.array([var[:, i].data for i in idx]).T,
-                          columns=ids,
-                          index=get_time(ds))
+        result = pd.DataFrame(np.array([var[:, i].data for i in idx]).T,
+                              columns=ids,
+                              index=get_time(ds))
     else:
         ids = get_ids(ds, layer)
-        df = pd.DataFrame(var[:].data,
-                          columns=ids,
-                          index=get_time(ds))
-    return df
+        result = pd.DataFrame(var[:].data,
+                              columns=ids,
+                              index=get_time(ds))
+    if statistic == "max":
+        result = result.max()
+
+    return result

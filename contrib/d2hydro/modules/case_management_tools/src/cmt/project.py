@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import List, Optional, Union
-
+import netCDF4 as nc
+import pandas as pd
 from cmt.run import dhydro
 from cmt.utils.modifyers import prefix_to_paths
 from cmt.utils.readers import read_stochastics, read_text
@@ -14,8 +15,9 @@ from cmt.utils.writers import (
     write_rr_conditions,
     write_stowa_buien,
 )
+import json
+from cmt.utils.read_his import get_timeseries
 from pydantic import BaseModel
-from pydantic.types import DirectoryPath
 
 from hydrolib.core.io.fnm.models import RainfallRunoffModel
 from hydrolib.core.io.mdu.models import FMModel
@@ -42,6 +44,8 @@ class Run(BaseModel):
     success: Optional[bool]
     start_datetime: Optional[datetime]
     run_duration: Optional[timedelta]
+    results_id: Optional[str]
+    output_deleted: Optional[bool]
 
 
 class Case(BaseModel):
@@ -63,6 +67,54 @@ class Model(BaseModel):
     fnm: str
 
 
+class Source(BaseModel):
+    nc_file: str = "his"
+    id: str
+    layer: str
+    variable: str
+    statistic: str = "max"
+
+
+class Sample(BaseModel):
+    id: str
+    name: str
+    source: Source
+
+
+class Result(BaseModel):
+    id: str
+    statistic: str = "max"
+    samples: List[Sample]
+    results: Optional[dict] = {}
+
+    def __get_sample_ids(self, nc_file, layer, variable):
+        return [i.id for i in self.samples if (i.source.layer==layer) & (i.source.nc_file==nc_file) & (i.source.variable==variable)]
+
+    def get_results(self, output_dir, case_id, model_name):
+        def __get_result(self, nc_file, layer, variable):
+            ids = self.__get_sample_ids(nc_file, layer, variable)
+            with nc.Dataset(output_dir.joinpath(f"{model_name}_{nc_file}.nc")) as ds:
+                series = get_timeseries(ds,
+                                        long_name=variable,
+                                        ids=ids,
+                                        layer=layer,
+                                        statistic=self.statistic)
+            return series
+
+        sets = set(
+                [(i.source.nc_file, i.source.layer, i.source.variable) for i in self.samples]
+                )
+        result = pd.concat([__get_result(self, *i) for i in sets])
+        self.results[case_id] = result.to_dict()
+        return result
+
+    def write_results(self, project_dir):
+        results_dir = project_dir.joinpath("results")
+        results_dir.mkdir(parents=True, exist_ok=True)
+        results_path = results_dir.joinpath(f"{self.id}.json")
+        results_path.write_text(json.dumps(self.results, indent=2))
+
+
 class BoundaryConditions(BaseModel):
     meteo: List[BoundaryCondition] = []
     flow: List[BoundaryCondition] = []
@@ -74,18 +126,18 @@ class InitialConditions(BaseModel):
 
 
 class Project(BaseModel):
-    filepath: Optional[DirectoryPath] = None
+    filepath: Optional[Path] = None
     boundary_conditions: BoundaryConditions = BoundaryConditions()
     initial_conditions: InitialConditions = InitialConditions()
     models: List[Model] = []
     cases: List[Case] = []
+    results: Optional[List[Result]]
 
     def _init_filepath(self):
-        if self.filepath is not None:
-            if self.filepath.exists():
-                shutil.rmtree(self.filepath)
-        self.filepath.mkdir(parents=True, exist_ok=True)
+        if self.filepath.exists():
+            shutil.rmtree(self.filepath)
         self.filepath = self.filepath.absolute().resolve()
+        self.filepath.mkdir(parents=True, exist_ok=True)
 
     def _create_subdir(self, subdir):
         dir_path = Path(self.filepath) / subdir
@@ -96,24 +148,69 @@ class Project(BaseModel):
     def get_case(self, case_id):
         return next((i for i in self.cases if i.id == case_id), None)
 
+    def get_results(self, results_id):
+        return next((i for i in self.results if i.id == results_id), None)
+        
+
+    def get_fm_output_dir(self, case_id):
+        case = self.get_case(case_id)
+        model = self.get_model(case.model_id)
+        fm_dir = Path(model.mdu).parent
+
+
+        return self.filepath.joinpath("cases",
+                                      case_id,
+                                      fm_dir,
+                                      case.fm_output_dir)
+
+    def sample_output(self, case_id):
+        case = self.get_case(case_id)
+        model = self.get_model(case.model_id)
+        model_name = fm_dir = Path(model.mdu).parent
+        output_dir = self.get_fm_output_dir(case_id)
+        his_nc_path = output_dir.joinpath(f"{model_name}_his.nc")
+
+    def delete_output(self, case_id):
+        case = self.get_case(case_id)
+        output_dir = self.get_fm_output_dir(case_id)
+        if output_dir.exists():
+            try:
+                shutil.rmtree(output_dir)
+                case.run.output_deleted = True
+            except:
+                logger.warning(f"Failed to remove: {output_dir}")
+
     def get_cases(self):
         return [i.id for i in self.cases]
 
     def get_model(self, model_id):
         return next((i for i in self.models if i.id == model_id))
+    
+    def run_post(self, case_id, delete_output=False):
+        case = self.get_case(case_id)
+        if case.run.results_id is not None:
+            results = self.get_results(case.run.results_id)
+            model = self.get_model(case.model_id)
+            model_name = Path(model.mdu).stem
+            output_dir = self.get_fm_output_dir(case_id)
+            results.get_results(output_dir, case_id, model_name)
+            results.write_results(self.filepath)
+            
+            if delete_output:
+                self.delete_output(case_id)
 
-    def run_cases(self, case_ids, workers=None):
+    def run_cases(self, case_ids, workers=None, delete_output=False):
         logger.info(f"Start running batch: #cases: {len(case_ids)}, #workers {workers}")
         tp = ThreadPool(workers)
         for idx, case_id in enumerate(case_ids):
             progress = f" ({idx+1}/{len(case_ids)})"
-            tp.apply_async(self.run_case, (case_id, progress))
+            tp.apply_async(self.run_case, (case_id, progress, False, True, delete_output))
         tp.close()
         tp.join()
         self.write_manifest()
         logger.info("Finished running batch")
 
-    def run_case(self, case_id, progress="", stream_output=False, returncode=True):
+    def run_case(self, case_id, progress="", stream_output=False, returncode=True, delete_output=False):
         start_datetime = datetime.now()
         case = self.get_case(case_id)
         logger.info(f"Start running case{progress}: '{case_id}'")
@@ -133,6 +230,7 @@ class Project(BaseModel):
                 logger.info(
                     f"finished running case: '{case_id}' in {run_duration.total_seconds()} secs"
                 )
+                self.run_post(case_id, delete_output=delete_output)
             else:
                 case.run.completed = False
                 case.run.success = False
@@ -162,6 +260,27 @@ class Project(BaseModel):
         return cls
 
     def from_stochastics(self, stochastics_json: Path):
+
+        def __convert_to_samples(results):
+            def __strip_file_name(filename):
+                if filename.endswith("his.nc"):
+                    return "his"
+                elif filename.endswith("map.nc"):
+                    return "map"
+            def __get_source(sample):
+                return Source(id=sample["id"],
+                              nc_file=__strip_file_name(sample["filename"]),
+                              layer="station",
+                              variable=sample["parameter"]
+                              )
+
+            def __get_sample(sample):
+                source = __get_source(sample)
+                return Sample(id=sample["id"],
+                              name=sample["name"],
+                              source=source)
+            return [__get_sample(i) for i in results]
+
         self._init_filepath()
         stochastics_dict = read_stochastics(stochastics_json)
         src_dir = stochastics_json.parent
@@ -202,6 +321,12 @@ class Project(BaseModel):
             write_models(models_path, models, src_dir)
             self.models = [
                 Model(id=i["id"], name=i["name"], mdu=i["mdu_file"], fnm=i["fnm_file"])
+                for i in models
+            ]
+            self.results = [
+                Result(id=i["id"],
+                       statistic=i["results"][0]["filter"].lower(),
+                       samples=__convert_to_samples(i["results"]))
                 for i in models
             ]
 
@@ -259,7 +384,6 @@ class Project(BaseModel):
                         ),
                     )
                 for i in cases_subset:
-                    print(rf"{i['id']}")
 
                     # read start_datetime
                     # set paths
@@ -326,6 +450,7 @@ class Project(BaseModel):
                             simulation_period=time_delta,
                         )
                     ]
+                    self.cases[-1].run.results_id = model_id
 
                     # write run.bat
                     bat_path = self.filepath / "models" / model.id / "run.bat"
