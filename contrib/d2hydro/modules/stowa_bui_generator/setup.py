@@ -15,7 +15,7 @@ setup(
     author="Daniel Tollenaar",
     author_email="daniel@d2hydro.nl",
     license="MIT",
-	include_package_data=True,
+    include_package_data=True,
     packages=["stowabui"],
     package_dir={"": "src"},
     python_requires=">=3.6",
