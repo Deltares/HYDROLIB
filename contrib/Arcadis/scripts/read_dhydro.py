@@ -3,8 +3,8 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from shapely.geometry import LineString, Point, Polygon
 import xarray as xr
+from shapely.geometry import LineString, Point, Polygon
 
 from hydrolib.core.io.net.models import Network
 
@@ -200,6 +200,7 @@ def net_nc2gdf(net_ncs):
         "1d2d_links": gdf_links,
     }
 
+
 def map_nc2gdf(input_path):
     """
     This script reads an D-HYDRO *map.nc file and converts it to a GeoDataFrame for a chosen parameter. Currently, not all parameters work.
@@ -214,47 +215,53 @@ def map_nc2gdf(input_path):
         gdf: GeoDataFrame with chosen parameter output. With the point names as index and the timesteps as columns.
 
     """
-    
-    #Open mapfile 
+
+    # Open mapfile
     ds = xr.open_dataset(input_path)
-    EPSG = ds['projected_coordinate_system'].EPSG_code
-    if EPSG == 'EPSG:0':
+    EPSG = ds["projected_coordinate_system"].EPSG_code
+    if EPSG == "EPSG:0":
         print("Geen projectie in het model, Amersfoort aangenomen")
-        EPSG = 'EPSG:28992'
-    
-    #User can give input to which parameter is needed.
+        EPSG = "EPSG:28992"
+
+    # User can give input to which parameter is needed.
     choice_params = [x for x in list(ds.variables) if x.startswith("mesh1d_")]
-    choice_params.append([x for x in list(ds.variables) if x.startswith("Mesh2d_")])   
-    print ("The possible parameters are:\n",choice_params)
-    par = input('Enter the wanted parameter here: ')  
-    
-    #Check if user wants 1D points and store all data in geodataframe
-    if ds[par].mesh[-2:] == '1d':                      
-        prefix = (ds[par].mesh + "_" + ds[par].location)    #Make standard prefix to get all data
-        xcor = ds[prefix + "_x"].data                       #Get xdata based on prefix
-        ycor = ds[prefix + "_y"].data                       #Get ydata based on prefix
-        if prefix.split("_")[1] == 'node':    
-            id = [x.decode('utf-8').strip() for x in ds[prefix+"_id"].data] #Get ID's of the nodes
+    choice_params.append([x for x in list(ds.variables) if x.startswith("Mesh2d_")])
+    print("The possible parameters are:\n", choice_params)
+    par = input("Enter the wanted parameter here: ")
+
+    # Check if user wants 1D points and store all data in geodataframe
+    if ds[par].mesh[-2:] == "1d":
+        prefix = (
+            ds[par].mesh + "_" + ds[par].location
+        )  # Make standard prefix to get all data
+        xcor = ds[prefix + "_x"].data  # Get xdata based on prefix
+        ycor = ds[prefix + "_y"].data  # Get ydata based on prefix
+        if prefix.split("_")[1] == "node":
+            id = [
+                x.decode("utf-8").strip() for x in ds[prefix + "_id"].data
+            ]  # Get ID's of the nodes
         else:
-            id = ds['mesh1d_nEdges'].values
-            
-        time = ds['time'].data                              #Get timedata
-        data = ds[par].data                                 #Get defined data 
-        df = pd.DataFrame(data = data, index = time, columns = id).T
-        geom = gpd.points_from_xy(list(xcor),list(ycor))
+            id = ds["mesh1d_nEdges"].values
+
+        time = ds["time"].data  # Get timedata
+        data = ds[par].data  # Get defined data
+        df = pd.DataFrame(data=data, index=time, columns=id).T
+        geom = gpd.points_from_xy(list(xcor), list(ycor))
         gdf = gpd.GeoDataFrame(df, geometry=geom)
-    
-    #Check if user wants 2D points, this script takes the middle point of the grid cells as x-y values. Store all data in geodataframe.
-    if ds[par].mesh[-2:] == '2d':                       
-        prefix = (ds[par].mesh + "_")# + ds[par].location)    #Make standard prefix to get all data
-        xcor = ds[prefix + "face_x"].data                       #Get xdata based on prefix
-        ycor = ds[prefix + "face_y"].data                       #Get ydata based on prefix
-        id = ds[prefix+"nFaces"].data #Get ID's of the nodes
-        time = ds['time'].data                              #Get timedata
-        data = ds[par].data                                 #Get defined data
-    
-        df = pd.DataFrame(data = data, index = time, columns = id).T
-        geom = gpd.points_from_xy(list(xcor),list(ycor))
-        gdf = gpd.GeoDataFrame(df, geometry=geom)               #Make geodataframe with geometry
-    
+
+    # Check if user wants 2D points, this script takes the middle point of the grid cells as x-y values. Store all data in geodataframe.
+    if ds[par].mesh[-2:] == "2d":
+        prefix = (
+            ds[par].mesh + "_"
+        )  # + ds[par].location)    #Make standard prefix to get all data
+        xcor = ds[prefix + "face_x"].data  # Get xdata based on prefix
+        ycor = ds[prefix + "face_y"].data  # Get ydata based on prefix
+        id = ds[prefix + "nFaces"].data  # Get ID's of the nodes
+        time = ds["time"].data  # Get timedata
+        data = ds[par].data  # Get defined data
+
+        df = pd.DataFrame(data=data, index=time, columns=id).T
+        geom = gpd.points_from_xy(list(xcor), list(ycor))
+        gdf = gpd.GeoDataFrame(df, geometry=geom)  # Make geodataframe with geometry
+
     return gdf
