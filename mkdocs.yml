@@ -49,4 +49,6 @@ extra:
       link: https://gitter.im/Deltares/HYDROLIB
       name: Chat with us on Gitter
 copyright: Copyright &copy; 2022 Deltares
+extra_css:
+  - stylesheets/extra.css
 
