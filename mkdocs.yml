@@ -2,8 +2,10 @@ site_name: HYDROLIB documentation
 theme:
   name: material
   language: en
+  logo: images/HYDROLIB_logo_notext_mono_eroded.svg
+  custom_dir: docs/overrides
   palette:
-    - scheme: default
+    - scheme: deltares
       toggle:
         icon: material/lightbulb-outline
         name: Switch to dark mode
@@ -47,5 +49,5 @@ extra:
     - icon: fontawesome/brands/gitter
       link: https://gitter.im/Deltares/HYDROLIB
       name: Chat with us on Gitter
-copyright: Copyright &copy; 2021 Deltares
+copyright: Copyright &copy; 2022 Deltares
 
