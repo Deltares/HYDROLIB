@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# stuff d2hydro should not commit
+contrib/d2hydro/data/*
+contrib/d2hydro/modules/case_management_tools/data/*
+contrib/d2hydro/scripts/*
+.vscode/launch.json
