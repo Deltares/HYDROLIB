@@ -180,6 +180,57 @@ class DFlowFMModel(Model):
 
         # FIXME: how to deprecate WARNING:root:No staticmaps defined
 
+    def _setup_branches(
+        self,
+        gdf_br: gpd.GeoDataFrame,
+        defaults: pd.DataFrame,
+        br_type: str,
+        spacing: pd.DataFrame = None,
+        snap_offset: float = 0.0,
+        allow_intersection_snapping: bool = True,
+    ):
+        """This function is a wrapper for all common steps to add branches type of objects (ie channels, rivers, pipes...).
+
+        Parameters
+        ----------
+        gdf_br : gpd.GeoDataFrame
+            GeoDataFrame with the new branches to add.
+        spacing : pd.DataFrame
+            DatFrame containing spacing values per 'branchType', 'shape', 'width' or 'diameter'.
+
+        """
+        if gdf_br.crs.is_geographic:  # needed for length and splitting
+            gdf_br = gdf_br.to_crs(3857)
+
+        self.logger.info("Adding/Filling branches attributes values")
+        gdf_br = update_data_columns_attributes(gdf_br, defaults, brtype=br_type)
+
+        # If specific spacing info from spacing_fn, update spacing attribute
+        if spacing is not None:
+            self.logger.info(f"Updating spacing attributes")
+            gdf_br = update_data_columns_attribute_from_query(
+                gdf_br, spacing, attribute_name="spacing"
+            )
+
+            self.logger.info(f"Processing branches")
+            branches, branches_nodes = process_branches(
+                gdf_br,
+                branch_nodes=None,
+                id_col="branchId",
+                snap_offset=snap_offset,
+                allow_intersection_snapping=allow_intersection_snapping,
+                logger=self.logger,
+            )
+
+            self.logger.info(f"Validating branches")
+            validate_branches(branches)
+
+            # convert to model crs
+            branches = branches.to_crs(self.crs)
+            branches_nodes = branches_nodes.to_crs(self.crs)
+
+        return branches, branches_nodes
+
     def setup_channels(
         self,
         channels_fn: str,
@@ -221,9 +272,6 @@ class DFlowFMModel(Model):
         gdf_ch.index = gdf_ch[id_col]
         gdf_ch.index.name = id_col
 
-        if gdf_ch.crs.is_geographic:  # needed for length and splitting
-            gdf_ch = gdf_ch.to_crs(3857)
-
         if gdf_ch.index.size == 0:
             self.logger.warning(
                 f"No {channels_fn} 1D channel locations found within domain"
@@ -237,43 +285,30 @@ class DFlowFMModel(Model):
                     f"channels_defaults_fn ({channels_defaults_fn}) does not exist. Fall back choice to defaults. "
                 )
                 channels_defaults_fn = Path(self._DATADIR).joinpath(
-                    "channels", "channels_defaults.csv"
+                    "branches", "branches_defaults.csv"
                 )
-
             defaults = pd.read_csv(channels_defaults_fn)
             self.logger.info(
                 f"channel default settings read from {channels_defaults_fn}."
             )
-            self.logger.info("Adding/Filling channels attributes values")
-            gdf_ch = update_data_columns_attributes(gdf_ch, defaults, brtype="channel")
 
             # If specific spacing info from spacing_fn, update spacing attribute
             if isinstance(spacing_fn, str):
                 if not isfile(spacing_fn):
                     self.logger.error(f"Spacing file not found: {spacing_fn}, skipping")
+                    spacing = None
                 else:
                     spacing = pd.read_csv(spacing_fn)
-                    self.logger.info(f"Updating spacing attributes based on {spacing_fn}")
-                    gdf_ch = update_data_columns_attribute_from_query(
-                        gdf_ch, spacing, attribute_name="spacing"
-                    )
 
-            self.logger.info(f"Processing channels")
-            channels, channel_nodes = process_branches(
-                gdf_ch,
-                branch_nodes=None,
-                id_col=id_col,
+            # Build the channels branches and nodes and fill with attributes and spacing
+            channels, channel_nodes = self._setup_branches(
+                gdf_br=gdf_ch,
+                defaults=defaults,
+                br_type="channel",
+                spacing=spacing,
                 snap_offset=snap_offset,
                 allow_intersection_snapping=allow_intersection_snapping,
-                logger=self.logger,
             )
-
-            self.logger.info(f"Validating channels")
-            validate_branches(channels)
-
-            # convert to model crs
-            channels = channels.to_crs(self.crs)
-            channel_nodes = channel_nodes.to_crs(self.crs)
 
             # setup staticgeoms #TODO do we still need channels?
             self.logger.debug(
@@ -285,104 +320,189 @@ class DFlowFMModel(Model):
             # add to branches
             self.add_branches(channels, branchtype="channel")
 
-    def setup_branches(
+    def setup_rivers(
         self,
-        branches_fn: str,
-        branches_ini_fn: str = None,
+        rivers_fn: str,
+        rivers_defaults_fn: str = None,
+        spacing_fn: str = None,
         snap_offset: float = 0.0,
-        id_col: str = "branchId",
-        branch_query: str = None,
-        pipe_query: str = 'branchType == "Channel"',  # TODO update to just TRUE or FALSE keywords instead of full query
-        channel_query: str = 'branchType == "Pipe"',
-        **kwargs,
+        allow_intersection_snapping: bool = True,
     ):
-        """This component prepares the 1D branches
+        """This component prepares the 1D channels and adds to branches 1D network
 
-        Adds model layers:
+        Adds/Updates model layers:
 
+        * **rivers** geom: 1D channels vector
         * **branches** geom: 1D branches vector
 
         Parameters
         ----------
-        branches_fn : str
+        rivers_fn : str
             Name of data source for branches parameters, see data/data_sources.yml.
 
-            * Required variables: branchId, branchType, # TODO: now still requires some cross section stuff
+            * Required variables: [branchId, branchType] # TODO: now still requires some cross section stuff
 
-            * Optional variables: []
+            * Optional variables: [spacing, material, shape, diameter, width, t_width, t_width_up, width_up,
+              width_dn, t_width_dn, height, height_up, height_dn, inlev_up, inlev_dn, bedlev_up, bedlev_dn,
+              closed, manhole_up, manhole_dn]
+        rivers_defaults_fn : str Path
+            Path to a csv file containing all defaults values per 'branchType'.
+        spacing : str Path
+            Path to a csv file containing spacing values per 'branchType', 'shape', 'width' or 'diameter'.
 
         """
-        self.logger.info(f"Preparing 1D branches.")
+        self.logger.info(f"Preparing 1D rivers.")
 
-        # initialise data model
-        branches_ini = helper.parse_ini(
-            Path(self._DATADIR).joinpath("dflowfm", f"branch_settings.ini")
-        )  # TODO: make this default file complete, need 2 more argument, spacing? yes/no, has_in_branch crosssection? yes/no, or maybe move branches, cross sections and roughness into basemap
-        branches = None
-        branch_nodes = None
-        # TODO: initilise hydrolib-core object --> build
-        # TODO: call hydrolib-core object --> update
+        # Read the rivers data
+        id_col = "branchId"
+        gdf_riv = self.data_catalog.get_geodataframe(
+            rivers_fn, geom=self.region, buffer=10, predicate="contains"
+        )
+        gdf_riv.index = gdf_riv[id_col]
+        gdf_riv.index.name = id_col
 
-        # read branch_ini
-        if branches_ini_fn is None or not branches_ini_fn.is_file():
+        if gdf_riv.index.size == 0:
             self.logger.warning(
-                f"branches_ini_fn ({branches_ini_fn}) does not exist. Fall back choice to defaults. "
+                f"No {rivers_fn} 1D river locations found within domain"
             )
-            branches_ini_fn = Path(self._DATADIR).joinpath(
-                "dflowfm", f"branch_settings.ini"
-            )
+            return None
 
-        branches_ini.update(helper.parse_ini(branches_ini_fn))
-        self.logger.info(f"branch default settings read from {branches_ini_fn}.")
+        else:
+            # Fill in with default attributes values
+            if rivers_defaults_fn is None or not rivers_defaults_fn.is_file():
+                self.logger.warning(
+                    f"rivers_defaults_fn ({rivers_defaults_fn}) does not exist. Fall back choice to defaults. "
+                )
+                rivers_defaults_fn = Path(self._DATADIR).joinpath(
+                    "branches", "branches_defaults.csv"
+                )
+            defaults = pd.read_csv(rivers_defaults_fn)
+            self.logger.info(f"river default settings read from {rivers_defaults_fn}.")
 
-        # read branches
-        if branches_fn is None:
-            raise ValueError("branches_fn must be specified.")
+            # If specific spacing info from spacing_fn, update spacing attribute
+            if isinstance(spacing_fn, str):
+                if not isfile(spacing_fn):
+                    self.logger.error(f"Spacing file not found: {spacing_fn}, skipping")
+                    spacing = None
+                else:
+                    spacing = pd.read_csv(spacing_fn)
 
-        branches = self._get_geodataframe(branches_fn, id_col=id_col, **kwargs)
-        self.logger.info(f"branches read from {branches_fn} in Data Catalogue.")
-
-        branches = helper.append_data_columns_based_on_ini_query(branches, branches_ini)
-
-        # select branches to use
-        if helper.check_geodataframe(branches) and branch_query is not None:
-            branches = branches.query(branch_query)
-            self.logger.info(f"Query branches for {branch_query}")
-
-        # process branches and generate branch_nodes
-        if helper.check_geodataframe(branches):
-            self.logger.info(f"Processing branches")
-            branches, branch_nodes = process_branches(
-                branches,
-                branch_nodes,
-                branches_ini=branches_ini,  # TODO:  make the branch_setting.ini [global] functions visible in the setup functions. Use kwargs to allow user interaction. Make decisions on what is neccessary and what not
-                id_col=id_col,
+            # Build the rivers branches and nodes and fill with attributes and spacing
+            rivers, river_nodes = self._setup_branches(
+                gdf_br=gdf_riv,
+                defaults=defaults,
+                br_type="river",
+                spacing=spacing,
                 snap_offset=snap_offset,
-                logger=self.logger,
+                allow_intersection_snapping=allow_intersection_snapping,
             )
 
-        # validate branches
-        # TODO: integrate below into validate module
-        if helper.check_geodataframe(branches):
-            self.logger.info(f"Validating branches")
-            validate_branches(branches)
+            # setup staticgeoms #TODO do we still need channels?
+            self.logger.debug(f"Adding rivers and river_nodes vector to staticgeoms.")
+            self.set_staticgeoms(rivers, "rivers")
+            self.set_staticgeoms(river_nodes, "rivers_nodes")
 
-        # finalise branches
-        # setup channels
-        branches.loc[branches.query(channel_query).index, "branchType"] = "Channel"
-        # setup pipes
-        branches.loc[branches.query(pipe_query).index, "branchType"] = "Pipe"
-        # assign crs
-        branches.crs = self.crs
+            # add to branches
+            self.add_branches(rivers, branchtype="river")
 
-        # setup staticgeoms
-        self.logger.debug(f"Adding branches and branch_nodes vector to staticgeoms.")
-        self.set_staticgeoms(branches, "branches")
-        self.set_staticgeoms(branch_nodes, "branch_nodes")
+    # def setup_branches(
+    #     self,
+    #     branches_fn: str,
+    #     branches_ini_fn: str = None,
+    #     snap_offset: float = 0.0,
+    #     id_col: str = "branchId",
+    #     branch_query: str = None,
+    #     pipe_query: str = 'branchType == "Channel"',  # TODO update to just TRUE or FALSE keywords instead of full query
+    #     channel_query: str = 'branchType == "Pipe"',
+    #     **kwargs,
+    # ):
+    #     """This component prepares the 1D branches
 
-        # TODO: assign hydrolib-core object
+    #     Adds model layers:
 
-        return branches, branch_nodes
+    #     * **branches** geom: 1D branches vector
+
+    #     Parameters
+    #     ----------
+    #     branches_fn : str
+    #         Name of data source for branches parameters, see data/data_sources.yml.
+
+    #         * Required variables: branchId, branchType, # TODO: now still requires some cross section stuff
+
+    #         * Optional variables: []
+
+    #     """
+    #     self.logger.info(f"Preparing 1D branches.")
+
+    #     # initialise data model
+    #     branches_ini = helper.parse_ini(
+    #         Path(self._DATADIR).joinpath("dflowfm", f"branch_settings.ini")
+    #     )  # TODO: make this default file complete, need 2 more argument, spacing? yes/no, has_in_branch crosssection? yes/no, or maybe move branches, cross sections and roughness into basemap
+    #     branches = None
+    #     branch_nodes = None
+    #     # TODO: initilise hydrolib-core object --> build
+    #     # TODO: call hydrolib-core object --> update
+
+    #     # read branch_ini
+    #     if branches_ini_fn is None or not branches_ini_fn.is_file():
+    #         self.logger.warning(
+    #             f"branches_ini_fn ({branches_ini_fn}) does not exist. Fall back choice to defaults. "
+    #         )
+    #         branches_ini_fn = Path(self._DATADIR).joinpath(
+    #             "dflowfm", f"branch_settings.ini"
+    #         )
+
+    #     branches_ini.update(helper.parse_ini(branches_ini_fn))
+    #     self.logger.info(f"branch default settings read from {branches_ini_fn}.")
+
+    #     # read branches
+    #     if branches_fn is None:
+    #         raise ValueError("branches_fn must be specified.")
+
+    #     branches = self._get_geodataframe(branches_fn, id_col=id_col, **kwargs)
+    #     self.logger.info(f"branches read from {branches_fn} in Data Catalogue.")
+
+    #     branches = helper.append_data_columns_based_on_ini_query(branches, branches_ini)
+
+    #     # select branches to use
+    #     if helper.check_geodataframe(branches) and branch_query is not None:
+    #         branches = branches.query(branch_query)
+    #         self.logger.info(f"Query branches for {branch_query}")
+
+    #     # process branches and generate branch_nodes
+    #     if helper.check_geodataframe(branches):
+    #         self.logger.info(f"Processing branches")
+    #         branches, branch_nodes = process_branches(
+    #             branches,
+    #             branch_nodes,
+    #             branches_ini=branches_ini,  # TODO:  make the branch_setting.ini [global] functions visible in the setup functions. Use kwargs to allow user interaction. Make decisions on what is neccessary and what not
+    #             id_col=id_col,
+    #             snap_offset=snap_offset,
+    #             logger=self.logger,
+    #         )
+
+    #     # validate branches
+    #     # TODO: integrate below into validate module
+    #     if helper.check_geodataframe(branches):
+    #         self.logger.info(f"Validating branches")
+    #         validate_branches(branches)
+
+    #     # finalise branches
+    #     # setup channels
+    #     branches.loc[branches.query(channel_query).index, "branchType"] = "Channel"
+    #     # setup pipes
+    #     branches.loc[branches.query(pipe_query).index, "branchType"] = "Pipe"
+    #     # assign crs
+    #     branches.crs = self.crs
+
+    #     # setup staticgeoms
+    #     self.logger.debug(f"Adding branches and branch_nodes vector to staticgeoms.")
+    #     self.set_staticgeoms(branches, "branches")
+    #     self.set_staticgeoms(branch_nodes, "branch_nodes")
+
+    #     # TODO: assign hydrolib-core object
+
+    #     return branches, branch_nodes
 
     def setup_roughness(
         self,
