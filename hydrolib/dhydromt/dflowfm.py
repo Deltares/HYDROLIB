@@ -55,6 +55,11 @@ class DFlowFMModel(Model):
             "branchType": "BR_TYPE",
         },
         "branch_nodes": {},
+        "channels": {
+            "branchId": "BR_ID",
+            "branchType": "BR_TYPE",
+        },
+        "channel_nodes": {},
         "roughness": {
             "frictionId": "FR_ID",
             "frictionValue": "FR_VAL",
@@ -223,6 +228,8 @@ class DFlowFMModel(Model):
             self.logger.warning(
                 f"No {channels_fn} 1D channel locations found within domain"
             )
+            return None
+
         else:
             # Fill in with default attributes values
             if channels_defaults_fn is None or not channels_defaults_fn.is_file():
@@ -230,12 +237,12 @@ class DFlowFMModel(Model):
                     f"channels_defaults_fn ({channels_defaults_fn}) does not exist. Fall back choice to defaults. "
                 )
                 channels_defaults_fn = Path(self._DATADIR).joinpath(
-                    "branches", "branches_defaults.csv"
+                    "channels", "channels_defaults.csv"
                 )
 
             defaults = pd.read_csv(channels_defaults_fn)
             self.logger.info(
-                f"branch default settings read from {channels_defaults_fn}."
+                f"channel default settings read from {channels_defaults_fn}."
             )
             self.logger.info("Adding/Filling channels attributes values")
             gdf_ch = update_data_columns_attributes(gdf_ch, defaults, brtype="channel")
@@ -246,13 +253,13 @@ class DFlowFMModel(Model):
                     self.logger.error(f"Spacing file not found: {spacing_fn}, skipping")
                 else:
                     spacing = pd.read_csv(spacing_fn)
-                self.logger.info(f"Updating spacing attributes based on {spacing_fn}")
-                gdf_ch = update_data_columns_attribute_from_query(
-                    gdf_ch, spacing, attribute_name="spacing"
-                )
+                    self.logger.info(f"Updating spacing attributes based on {spacing_fn}")
+                    gdf_ch = update_data_columns_attribute_from_query(
+                        gdf_ch, spacing, attribute_name="spacing"
+                    )
 
             self.logger.info(f"Processing channels")
-            channels, channels_nodes = process_branches(
+            channels, channel_nodes = process_branches(
                 gdf_ch,
                 branch_nodes=None,
                 id_col=id_col,
@@ -266,14 +273,14 @@ class DFlowFMModel(Model):
 
             # convert to model crs
             channels = channels.to_crs(self.crs)
-            channels_nodes = channels_nodes.to_crs(self.crs)
+            channel_nodes = channel_nodes.to_crs(self.crs)
 
-            # setup staticgeoms
+            # setup staticgeoms #TODO do we still need channels?
             self.logger.debug(
                 f"Adding branches and branch_nodes vector to staticgeoms."
             )
             self.set_staticgeoms(channels, "channels")
-            self.set_staticgeoms(channels_nodes, "channels_nodes")
+            self.set_staticgeoms(channel_nodes, "channel_nodes")
 
             # add to branches
             self.add_branches(channels, branchtype="channel")
