@@ -285,7 +285,7 @@ class DFlowFMModel(Model):
                     f"channels_defaults_fn ({channels_defaults_fn}) does not exist. Fall back choice to defaults. "
                 )
                 channels_defaults_fn = Path(self._DATADIR).joinpath(
-                    "branches", "branches_defaults.csv"
+                    "channels", "channels_defaults.csv"
                 )
             defaults = pd.read_csv(channels_defaults_fn)
             self.logger.info(
@@ -325,14 +325,27 @@ class DFlowFMModel(Model):
         rivers_fn: str,
         rivers_defaults_fn: str = None,
         spacing_fn: str = None,
+        friction_type: str = "Manning",
+        friction_value: float = 0.023,
         snap_offset: float = 0.0,
         allow_intersection_snapping: bool = True,
     ):
-        """This component prepares the 1D channels and adds to branches 1D network
+        """This component prepares the 1D rivers and adds to branches 1D network.
+
+        If defaults attributes [spacing, material, shape, diameter, width, t_width, t_width_up, width_up,
+        width_dn, t_width_dn, height, height_up, height_dn, inlev_up, inlev_dn, bedlev_up, bedlev_dn,
+        closed, manhole_up, manhole_dn] are not present in ``rivers_fn``, they are added from defaults values
+        in ``rivers_defaults_fn``.
+
+        Friction attributes [friction_type, friction_value] are either taken from ``rivers_fn`` or filled in
+        using ``friction_type`` and ``friction_value`` arguments.
+
+        The rivers are also splits into several segments based on either a default 'spacing' value or on
+        specific queries defined in ``spacing_fn``.
 
         Adds/Updates model layers:
 
-        * **rivers** geom: 1D channels vector
+        * **rivers** geom: 1D rivers vector
         * **branches** geom: 1D branches vector
 
         Parameters
@@ -344,12 +357,16 @@ class DFlowFMModel(Model):
 
             * Optional variables: [spacing, material, shape, diameter, width, t_width, t_width_up, width_up,
               width_dn, t_width_dn, height, height_up, height_dn, inlev_up, inlev_dn, bedlev_up, bedlev_dn,
-              closed, manhole_up, manhole_dn]
+              closed, manhole_up, manhole_dn, friction_type, friction_value]
         rivers_defaults_fn : str Path
             Path to a csv file containing all defaults values per 'branchType'.
         spacing : str Path
             Path to a csv file containing spacing values per 'branchType', 'shape', 'width' or 'diameter'.
-
+        friction_type : str, optional
+            Type of friction tu use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
+            By default "Manning".
+        friction_value : float, optional
+            Friction value. By default 0.023.
         """
         self.logger.info(f"Preparing 1D rivers.")
 
@@ -374,15 +391,20 @@ class DFlowFMModel(Model):
                     f"rivers_defaults_fn ({rivers_defaults_fn}) does not exist. Fall back choice to defaults. "
                 )
                 rivers_defaults_fn = Path(self._DATADIR).joinpath(
-                    "branches", "branches_defaults.csv"
+                    "rivers", "rivers_defaults.csv"
                 )
             defaults = pd.read_csv(rivers_defaults_fn)
             self.logger.info(f"river default settings read from {rivers_defaults_fn}.")
+            # Add friction to defaults
+            defaults["friction_type"] = friction_type
+            defaults["friction_value"] = friction_value
 
             # If specific spacing info from spacing_fn, update spacing attribute
             if isinstance(spacing_fn, str):
                 if not isfile(spacing_fn):
-                    self.logger.error(f"Spacing file not found: {spacing_fn}, skipping")
+                    self.logger.error(
+                        f"Spacing file not found: {spacing_fn}, using defaults"
+                    )
                     spacing = None
                 else:
                     spacing = pd.read_csv(spacing_fn)
@@ -396,6 +418,14 @@ class DFlowFMModel(Model):
                 snap_offset=snap_offset,
                 allow_intersection_snapping=allow_intersection_snapping,
             )
+
+            # Add friction_id column based on {friction_type}_{friction_value}
+            rivers["friction_id"] = [
+                f"{ftype}_{fvalue}"
+                for ftype, fvalue in zip(
+                    rivers["friction_type"], rivers["friction_value"]
+                )
+            ]
 
             # setup staticgeoms #TODO do we still need channels?
             self.logger.debug(f"Adding rivers and river_nodes vector to staticgeoms.")
