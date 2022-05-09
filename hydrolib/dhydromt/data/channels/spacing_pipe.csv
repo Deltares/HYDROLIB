@@ -1,0 +1,8 @@
+﻿branchType,shape,diameter,spacing
+pipe,circle,0.4,16
+pipe,circle,0.6,24
+pipe,circle,0.8,24
+pipe,circle,1.0,24
+pipe,circle,1.2,24
+pipe,rectangle,,24
+pipe,trapeze,,0

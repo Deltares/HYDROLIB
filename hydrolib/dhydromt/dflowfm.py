@@ -5,11 +5,13 @@ from os.path import join, basename, isfile
 import logging
 
 import pandas as pd
+import numpy as np
 from rasterio.warp import transform_bounds
 import pyproj
 import geopandas as gpd
 from shapely.geometry import box
 import xarray as xr
+from typing import Union
 
 import hydromt
 from hydromt.models.model_api import Model
@@ -17,6 +19,8 @@ from hydromt import gis_utils, io
 from hydromt import raster
 
 from .workflows import process_branches
+from .workflows import update_data_columns_attributes
+from .workflows import update_data_columns_attribute_from_query
 from .workflows import validate_branches
 from .workflows import generate_roughness
 from .workflows import generate_crosssections
@@ -51,6 +55,11 @@ class DFlowFMModel(Model):
             "branchType": "BR_TYPE",
         },
         "branch_nodes": {},
+        "channels": {
+            "branchId": "BR_ID",
+            "branchType": "BR_TYPE",
+        },
+        "channel_nodes": {},
         "roughness": {
             "frictionId": "FR_ID",
             "frictionValue": "FR_VAL",
@@ -112,28 +121,41 @@ class DFlowFMModel(Model):
         )  # TODO: add all ini files in one object? e.g. self._intbl in wflow?
         self._datamodel = None
         self._dfmmodel = None  # TODO: replace with hydrolib-core object
+        self._branches = gpd.GeoDataFrame()
 
         # TODO: assign hydrolib-core components
 
     def setup_basemaps(
         self,
-        region,
-        region_name=None,
-        **kwargs,
+        region: dict,
+        region_name: str = None,
+        crs: int = None,
     ):
         """Define the model region.
+
         Adds model layer:
+
         * **region** geom: model region
+
         Parameters
         ----------
         region: dict
             Dictionary describing region of interest, e.g. {'bbox': [xmin, ymin, xmax, ymax]}.
             See :py:meth:`~hydromt.workflows.parse_region()` for all options.
+        region_name: str, optional
+            Name of the model region.
+        crs : int, optional
+            Coordinate system (EPSG number) of the model. If not provided, equal to the region crs
+            if "grid" or "geom" option are used, and to 4326 if "bbox" is used.
         """
 
         kind, region = hydromt.workflows.parse_region(region, logger=self.logger)
         if kind == "bbox":
-            geom = gpd.GeoDataFrame(geometry=[box(*region["bbox"])], crs=4326)
+            if crs:
+                geom = gpd.GeoDataFrame(geometry=[box(*region["bbox"])], crs=crs)
+            else:
+                self.logger.info("No crs given with region bbox, assuming 4326.")
+                geom = gpd.GeoDataFrame(geometry=[box(*region["bbox"])], crs=4326)
         elif kind == "grid":
             geom = region["grid"].raster.box
         elif kind == "geom":
@@ -143,7 +165,9 @@ class DFlowFMModel(Model):
                 f"Unknown region kind {kind} for DFlowFM, expected one of ['bbox', 'grid', 'geom']."
             )
 
-        if geom.crs is None:
+        if crs:
+            geom = geom.to_crs(crs)
+        elif geom.crs is None:
             raise AttributeError("region crs can not be None. ")
         else:
             self.logger.info(f"Model region is set to crs: {geom.crs.to_epsg()}")
@@ -156,99 +180,110 @@ class DFlowFMModel(Model):
 
         # FIXME: how to deprecate WARNING:root:No staticmaps defined
 
-    def _get_geodataframe(
+    def setup_channels(
         self,
-        path_or_key: str,
-        id_col: str,
-        clip_buffer: float = 0,  # TODO: think about whether to keep/remove, maybe good to put into the ini file.
-        clip_predicate: str = "contains",
-        **kwargs,
-    ) -> gpd.GeoDataFrame:
-        """Function to get geodataframe.
+        channels_fn: str,
+        channels_defaults_fn: str = None,
+        spacing_fn: str = None,
+        snap_offset: float = 0.0,
+        allow_intersection_snapping: bool = True,
+    ):
+        """This component prepares the 1D channels and adds to branches 1D network
 
-        This function combines a wrapper around :py:meth:`~hydromt.data_adapter.DataCatalog.get_geodataset`
+        Adds model layers:
 
-        Arguments
-        ---------
-        path_or_key: str
-            Data catalog key. If a path to a vector file is provided it will be added
-            to the data_catalog with its based on the file basename without extension.
+        * **channels** geom: 1D channels vector
+        * **branches** geom: 1D branches vector
 
-        Returns
-        -------
-        gdf: geopandas.GeoDataFrame
-            GeoDataFrame
+        Parameters
+        ----------
+        channels_fn : str
+            Name of data source for branches parameters, see data/data_sources.yml.
+
+            * Required variables: [branchId, branchType] # TODO: now still requires some cross section stuff
+
+            * Optional variables: [spacing, material, shape, diameter, width, t_width, t_width_up, width_up,
+              width_dn, t_width_dn, height, height_up, height_dn, inlev_up, inlev_dn, bedlev_up, bedlev_dn,
+              closed, manhole_up, manhole_dn]
+        channels_defaults_fn : str Path
+            Path to a csv file containing all defaults values per 'branchType'.
+        spacing : str Path
+            Path to a csv file containing spacing values per 'branchType', 'shape', 'width' or 'diameter'.
 
         """
+        self.logger.info(f"Preparing 1D channels.")
 
-        # pop kwargs from catalogue
-        d = self.data_catalog.to_dict(path_or_key)[path_or_key].pop("kwargs")
-
-        # set clipping
-        clip_buffer = d.get("clip_buffer", clip_buffer)
-        clip_predicate = d.get("clip_predicate", clip_predicate)  # TODO: in ini file
-
-        # read data + clip data + preprocessing data
-        df = self.data_catalog.get_geodataframe(
-            path_or_key,
-            geom=self.region,
-            buffer=clip_buffer,
-            clip_predicate=clip_predicate,
+        # Read the channels data
+        id_col = "branchId"
+        gdf_ch = self.data_catalog.get_geodataframe(
+            channels_fn, geom=self.region, buffer=10, predicate="contains"
         )
-        self.logger.debug(
-            f"GeoDataFrame: {len(df)} feature are read after clipping region with clip_buffer = {clip_buffer}, clip_predicate = {clip_predicate}"
-        )
+        gdf_ch.index = gdf_ch[id_col]
+        gdf_ch.index.name = id_col
 
-        # retype data
-        retype = d.get("retype", None)
-        df = helper.retype_geodataframe(df, retype)
+        if gdf_ch.crs.is_geographic:  # needed for length and splitting
+            gdf_ch = gdf_ch.to_crs(3857)
 
-        # eval funcs on data
-        funcs = d.get("funcs", None)
-        df = helper.eval_funcs(df, funcs)
-
-        # slice data # TODO: test what can be achived by the alias in yml file
-        required_columns = d.get("required_columns", None)
-        required_query = d.get("required_query", None)
-        df = helper.slice_geodataframe(
-            df, required_columns=required_columns, required_query=required_query
-        )
-        self.logger.debug(
-            f"GeoDataFrame: {len(df)} feature are sliced after applying required_columns = {required_columns}, required_query = '{required_query}'"
-        )
-
-        # index data
-        if id_col is None:
-            pass
-        elif id_col not in df.columns:
-            raise ValueError(
-                f"GeoDataFrame: cannot index data using id_col = {id_col}. id_col must exist in data columns ({df.columns})"
+        if gdf_ch.index.size == 0:
+            self.logger.warning(
+                f"No {channels_fn} 1D channel locations found within domain"
             )
+            return None
+
         else:
-            self.logger.debug(f"GeoDataFrame: indexing with id_col: {id_col}")
-            df.index = df[id_col]
-            df.index.name = id_col
+            # Fill in with default attributes values
+            if channels_defaults_fn is None or not channels_defaults_fn.is_file():
+                self.logger.warning(
+                    f"channels_defaults_fn ({channels_defaults_fn}) does not exist. Fall back choice to defaults. "
+                )
+                channels_defaults_fn = Path(self._DATADIR).joinpath(
+                    "channels", "channels_defaults.csv"
+                )
 
-        # remove nan in id
-        df_na = df.index.isna()
-        if len(df_na) > 0:
-            df = df[~df_na]
-            self.logger.debug(f"GeoDataFrame: removing index with NaN")
+            defaults = pd.read_csv(channels_defaults_fn)
+            self.logger.info(
+                f"channel default settings read from {channels_defaults_fn}."
+            )
+            self.logger.info("Adding/Filling channels attributes values")
+            gdf_ch = update_data_columns_attributes(gdf_ch, defaults, brtype="channel")
 
-        # remove duplicated
-        df_dp = df.duplicated()
-        if len(df_dp) > 0:
-            df = df.drop_duplicates()
-            self.logger.debug(f"GeoDataFrame: removing duplicates")
+            # If specific spacing info from spacing_fn, update spacing attribute
+            if isinstance(spacing_fn, str):
+                if not isfile(spacing_fn):
+                    self.logger.error(f"Spacing file not found: {spacing_fn}, skipping")
+                else:
+                    spacing = pd.read_csv(spacing_fn)
+                    self.logger.info(f"Updating spacing attributes based on {spacing_fn}")
+                    gdf_ch = update_data_columns_attribute_from_query(
+                        gdf_ch, spacing, attribute_name="spacing"
+                    )
 
-        # report
-        df_num = len(df)
-        if df_num == 0:
-            self.logger.warning(f"Zero features are read from {path_or_key}")
-        else:
-            self.logger.info(f"{len(df)} features read from {path_or_key}")
+            self.logger.info(f"Processing channels")
+            channels, channel_nodes = process_branches(
+                gdf_ch,
+                branch_nodes=None,
+                id_col=id_col,
+                snap_offset=snap_offset,
+                allow_intersection_snapping=allow_intersection_snapping,
+                logger=self.logger,
+            )
 
-        return df
+            self.logger.info(f"Validating channels")
+            validate_branches(channels)
+
+            # convert to model crs
+            channels = channels.to_crs(self.crs)
+            channel_nodes = channel_nodes.to_crs(self.crs)
+
+            # setup staticgeoms #TODO do we still need channels?
+            self.logger.debug(
+                f"Adding branches and branch_nodes vector to staticgeoms."
+            )
+            self.set_staticgeoms(channels, "channels")
+            self.set_staticgeoms(channel_nodes, "channel_nodes")
+
+            # add to branches
+            self.add_branches(channels, branchtype="channel")
 
     def setup_branches(
         self,
@@ -977,7 +1012,8 @@ class DFlowFMModel(Model):
 
     @property
     def crs(self):
-        return pyproj.CRS.from_epsg(self.get_config("global.epsg", fallback=4326))
+        # return pyproj.CRS.from_epsg(self.get_config("global.epsg", fallback=4326))
+        return self.region.crs
 
     @property
     def region_name(self):
@@ -991,3 +1027,60 @@ class DFlowFMModel(Model):
 
     def init_dfmmodel(self):
         self._dfmmodel = delft3dfmpy_setupfuncs.DFlowFMModel()
+
+    @property
+    def branches(self):
+        """
+        Returns the branches (gpd.GeoDataFrame object) representing the 1D network.
+        Contains several "branchType" for : channel, river, pipe, tunnel.
+        """
+        if self._branches.empty:
+            # self.read_branches() #not implemented yet
+            self._branches = gpd.GeoDataFrame()
+        return self._branches
+
+    def set_branches(self, branches: gpd.GeoDataFrame):
+        """Updates the branches object as well as the linked staticgeoms."""
+        # Check if "branchType" col in new branches
+        if "branchType" in branches.columns:
+            self._branches = branches
+        else:
+            self.logger.error(
+                "'branchType' column absent from the new branches, could not update."
+            )
+        # Update channels/pipes in staticgeoms
+        _ = self.set_branches_component(name="channel")
+        _ = self.set_branches_component(name="pipe")
+
+    def add_branches(self, new_branches: gpd.GeoDataFrame, branchtype: str):
+        """Add new branches of branchtype to the branches object"""
+        branches = self._branches.copy()
+        # Check if "branchType" in new_branches column, else add
+        if "branchType" not in new_branches.columns:
+            new_branches["branchType"] = np.repeat(branchtype, len(new_branches.index))
+        branches = branches.append(new_branches, ignore_index=True)
+        # Check if we need to do more check/process to make sure everything is well connected
+        validate_branches(branches)
+        self.set_branches(branches)
+
+    def set_branches_component(self, name):
+        gdf_comp = self.branches[self.branches["branchType"] == name]
+        if gdf_comp.index.size > 0:
+            self.set_staticgeoms(gdf_comp, name=f"{name}s")
+        return gdf_comp
+
+    @property
+    def channels(self):
+        if "channels" in self.staticgeoms:
+            gdf = self.staticgeoms["channels"]
+        else:
+            gdf = self.set_branches_component("channel")
+        return gdf
+
+    @property
+    def pipes(self):
+        if "pipes" in self.staticgeoms:
+            gdf = self.staticgeoms["pipes"]
+        else:
+            gdf = self.set_branches_component("pipe")
+        return gdf
