@@ -29,10 +29,6 @@ from .workflows import set_xyz_crosssections
 from .workflows import helper
 from . import DATADIR
 
-from .workflows.setup_functions import *
-
-# TODO: replace all functions with delft3dfmpy_setupfuncs prefix
-
 from pathlib import Path
 
 __all__ = ["DFlowFMModel"]
@@ -49,51 +45,7 @@ class DFlowFMModel(Model):
     # TODO change below mapping table (hydrolib-core convention:shape file convention) to be read from data folder, maybe similar to _intbl for wflow
     # TODO: we also need one reverse table to read from static geom back. maybe a dictionary of data frame is better?
     # TODO: write static geom as geojson dataset, so that we dont get limitation for the 10 characters
-    _GEOMS = {
-        "region": {},
-        "branches": {
-            "branchId": "BR_ID",
-            "branchType": "BR_TYPE",
-        },
-        "branch_nodes": {},
-        "channels": {
-            "branchId": "BR_ID",
-            "branchType": "BR_TYPE",
-        },
-        "channel_nodes": {},
-        "rivers": {
-            "branchId": "BR_ID",
-            "branchType": "BR_TYPE",
-        },
-        "rivers_nodes": {},
-        "roughness": {
-            "frictionId": "FR_ID",
-            "frictionValue": "FR_VAL",
-            "frictionType": "FR_TYPE",
-        },
-        "crsdefs": {
-            "id": "CRS_DEFID",
-            "type": "CRS_TYPE",
-            "thalweg": "CRS_THAL",
-            "height": "CRS_H",
-            "width": "CRS_W",
-            "t_WIDTH": "CRS_TW",
-            "closed": "CRS_CL",
-            "diameter": "CRS_D",
-            "frictionId": "FR_ID",
-            "frictionValue": "FR_VAL",
-            "frictionType": "FR_TYPE",
-        },
-        "crslocs": {
-            "id": "CRS_LOCID",
-            "branchId": "BR_ID",
-            "chainage": "CRS_CHAI",
-            "shift": "CRS_SHIF",
-            "definition": "CRS_DEFID",
-            "frictionValue": "FR_VAL",
-            "frictionType": "FR_TYPE",
-        },
-    }  # FIXME Mapping from hydromt names to model specific names
+    _GEOMS = {}  # FIXME Mapping from hydromt names to model specific names
     _MAPS = {}  # FIXME Mapping from hydromt names to model specific names
     _FOLDERS = ["dflowfm", "staticgeoms"]
 
@@ -128,7 +80,6 @@ class DFlowFMModel(Model):
         self._datamodel = None
         self._dfmmodel = None  # TODO: replace with hydrolib-core object
         self._branches = gpd.GeoDataFrame()
-        self._crosssections = gpd.GeoDataFrame()
 
         # TODO: assign hydrolib-core components
 
@@ -462,7 +413,7 @@ class DFlowFMModel(Model):
                     )
                 defaults = pd.read_csv(crosssections_defaults_fn)
                 self.logger.info(f"crosssection default settings read from {rivers_defaults_fn}.")
-                _gdf_crs = update_data_columns_attributes(_gdf_crs, defaults, brtype="river") #FIXME after filling in all data are nan values
+                _gdf_crs = update_data_columns_attributes(_gdf_crs, defaults, brtype="river") 
 
                 # set crosssections
                 _gdf_crs = set_branch_crosssections(rivers, _gdf_crs)
@@ -513,7 +464,6 @@ class DFlowFMModel(Model):
 
                 else:
                     raise NotImplementedError("Method {crosssections_type} is not implemented.")
-                    pass
 
 
             # setup staticgeoms #TODO do we still need channels?
