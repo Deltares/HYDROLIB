@@ -29,7 +29,7 @@ from .workflows import set_xyz_crosssections
 from .workflows import helper
 from . import DATADIR
 
-import hydrolib.dhydromt.workflows.setup_functions as delft3dfmpy_setupfuncs
+from .workflows.setup_functions import *
 
 # TODO: replace all functions with delft3dfmpy_setupfuncs prefix
 
@@ -468,7 +468,7 @@ class DFlowFMModel(Model):
                 _gdf_crs = set_branch_crosssections(rivers, _gdf_crs)
 
                 # TODO add to existing crosssections
-                crosssections = pd.concat([crosssections, _gdf_crs])
+                crosssections = gpd.GeoDataFrame(pd.concat([crosssections, _gdf_crs]))
 
 
             else:
@@ -509,7 +509,7 @@ class DFlowFMModel(Model):
                         _gdf_crs = set_xyz_crosssections(rivers, _gdf_crs)
 
                         # TODO add to existing crosssections
-                        crosssections = pd.concat([crosssections, _gdf_crs])
+                        crosssections = gpd.GeoDataFrame(pd.concat([crosssections, _gdf_crs]))
 
                 else:
                     raise NotImplementedError("Method {crosssections_type} is not implemented.")
