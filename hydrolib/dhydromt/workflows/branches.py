@@ -67,13 +67,12 @@ def update_data_columns_attributes(
             if colname not in branches.columns:
                 branches[colname] = pd.Series(dtype=attributes[colname].dtype)
             # Then fill in empty or NaN values with defaults
-            else:
-                branches.loc[
-                    np.logical_and(
-                        branches[colname].isna(), branches["branchType"] == branch
-                    ),
-                    colname,
-                ] = row.loc[colname]
+            branches.loc[
+                np.logical_and(
+                    branches[colname].isna(), branches["branchType"] == branch
+                ),
+                colname,
+            ] = row.loc[colname]
 
     return branches
 
