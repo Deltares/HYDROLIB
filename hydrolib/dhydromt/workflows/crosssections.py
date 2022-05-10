@@ -8,7 +8,7 @@ from shapely.geometry import LineString, Point
 from scipy.spatial import distance
 import configparser
 import logging
-
+from delft3dfmpy.core.geometry import find_nearest_branch
 from hydromt import config
 import hydromt.io
 
@@ -18,11 +18,136 @@ logger = logging.getLogger(__name__)
 
 
 __all__ = [
-    "generate_crosssections"
+    "set_crsdefid_for_branches", "set_xyz_crosssections"
 ]  # , "process_crosssections", "validate_crosssections"]
 
 
 # FIXME BMA: For HydroMT we will rewrite this snap_branches to snap_lines and take set_branches out of it
+
+
+def set_crsdefid_for_branches(crslocs: gpd.GeoDataFrame,
+                                shape_col: str = 'shape',
+                                diameter_col: str = 'diameter',
+                                height_col: str = 'height',
+                                width_col: str = 'width',
+                                t_width_col: str = 't_width',
+                                closed_col: str = 'closed',
+                                crsdefid_col: str = 'definitionId',
+                                frictionid_col: str = 'frictionId',
+                                crs_type: str = 'branch'):
+    """
+    Function to set (inplcae) cross-section definition ids following the convention used in delft3dfmpy
+    # FIXME BMA: closed profile not yet supported (as can be seem that the definitionId convention does not convey any info on whether profile is closed or not)
+    """
+
+    if crsdefid_col not in crslocs.columns:
+        crslocs[crsdefid_col] = None
+
+    circle_indexes = crslocs.loc[crslocs[shape_col] == 'circle', :].index
+    for bi in circle_indexes:
+        crslocs.at[bi, crsdefid_col] = 'circ_d{:,.3f}_{:s}'.format(crslocs.loc[bi, diameter_col], crs_type)
+
+    rectangle_indexes = crslocs.loc[crslocs[shape_col] == 'rectangle', :].index
+
+    # if rectangle_indexes.has_duplicates:
+    #     logger.error('Duplicate id is found. Please solve this. ')
+
+    # FIXME BMA: duplicate indexes result in problems below.
+    for bi in rectangle_indexes:
+        crslocs.at[bi, crsdefid_col] = 'rect_h{:,.3f}_w{:,.3f}_c{:s}_{:s}'.format(
+                crslocs.loc[bi, height_col], crslocs.loc[bi, width_col], crslocs.loc[bi, closed_col], crs_type)
+
+    # FIXME BMA: review the trapezoid when available
+    trapezoid_indexes = crslocs.loc[crslocs[shape_col] == 'trapezoid', :].index
+    for bi in trapezoid_indexes:
+        crslocs.at[bi, crsdefid_col] = 'trapz_h{:,.1f}_bw{:,.1f}_tw{:,.1f}_c{:s}_{:s}'.format(
+            crslocs.loc[bi, height_col], crslocs.loc[bi, width_col], crslocs.loc[bi, t_width_col], crslocs.loc[bi, closed_col], crs_type)
+
+    return crslocs
+
+
+
+def set_xyz_crosssections(branches:gpd.GeoDataFrame, crosssections:gpd.GeoDataFrame,
+                            ):
+    """setup xyz crosssections
+    xyz crosssections should be points gpd, column z and column order.
+    """
+    # convert xyz crosssection into yz profile
+    crosssections = crosssections.groupby(level=0).apply(xyzp2xyzl, (['order']))
+
+
+    # snap to branch
+    # setup branch_id - snap bridges to branch (inplace of bridges, will add branch_id and branch_offset columns)
+    find_nearest_branch(branches=branches, geometries=crosssections,
+                                 method="intersecting")  # FIXME: what if the line intersect with 2/wrong branches?
+
+    # setup failed - drop based on branch_offset that are not snapped to branch (inplace of yz_crosssections) and issue warning
+    _old_ids = crosssections.index.to_list()
+    crosssections.dropna(axis=0, inplace=True, subset=['branch_offset'])
+    _new_ids = crosssections.index.to_list()
+    if len(_old_ids) != len(_new_ids):
+        logger.warning(
+            f'Crosssection with id: {list(set(_old_ids) - set(_new_ids))} are dropped: unable to find closest branch. ')
+
+    # setup crsdef from xyz
+    crsdefs = pd.DataFrame(
+                             {'id': crosssections.index.to_list(),
+                              'type': "xyz",  # FIXME read from file
+                              'branchId': crosssections.branch_id.to_list(),  # FIXME test if leave this out
+                              'xCoordinates': crosssections.x.to_list(),
+                              'yCoordinates': crosssections.y.to_list(),
+                              'zCoordinates': crosssections.z.to_list(),
+                              'xylength': crosssections.l.to_list(),
+                              # lower case key means temp keys (not written to file)
+                              'frictionid': branches.loc[crosssections.branch_id.to_list(), 'frictionId'],
+                              # lower case key means temp keys (not written to file)
+                              })
+
+    # setup crsloc from xyz
+    # delete generated ones # FIXME change to branchId everywhere
+    crslocs = pd.DataFrame({
+                             'id': [f'{bid}_{bc:.2f}' for bid, bc in
+                                    zip(crosssections.branch_id.to_list(), crosssections.branch_offset.to_list())],
+                             'branchId': crosssections.branch_id.to_list(),  # FIXME change to branchId everywhere
+                             'chainage': crosssections.branch_offset.to_list(),
+                             'shift': 0.0,
+                             'definitionId': crosssections.index.to_list(),
+                             'geometry': crosssections.geometry.centroid.to_list()
+                             # FIXME: line to centroid? because could not be written to the same sdhp file
+                         })
+
+    crosssections_ = crslocs.join(crsdefs, on="branchId")
+    return crosssections_
+
+def xyzp2xyzl(xyz: pd.DataFrame, sort_by: list = ['x', 'y']):
+
+    """xyz point to xyz line"""
+    sort_by = [s.lower() for s in sort_by]
+
+    if xyz is not None:
+        yz_index = xyz.index.unique()
+        xyz.columns = [c.lower() for c in xyz.columns]
+        xyz.reset_index(drop=True, inplace=True)
+
+        # sort
+        xyz_sorted = xyz.sort_values(by=sort_by)
+
+
+        new_z = xyz_sorted.z.to_list()
+        # temporary
+        # new_z[0] = 1.4
+        # new_z[-1] = 1.4
+
+        line = LineString([(px, py) for px, py in zip(xyz_sorted.x, xyz_sorted.y)])
+        xyz_line = gpd.GeoSeries({'geometry': line,
+                                  'l': list(np.r_[0., np.cumsum(
+                                      np.hypot(np.diff(line.coords, axis=0)[:, 0], np.diff(line.coords, axis=0)[:, 1]))]),
+                                  'index': yz_index.to_list()[0],
+                                  'x': xyz_sorted.x.to_list(),
+                                  'y': xyz_sorted.y.to_list(),
+                                  'z': new_z,
+                                  })
+    return xyz_line
 
 
 def generate_crosssections(

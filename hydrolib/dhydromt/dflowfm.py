@@ -23,7 +23,8 @@ from .workflows import update_data_columns_attributes
 from .workflows import update_data_columns_attribute_from_query
 from .workflows import validate_branches
 from .workflows import generate_roughness
-from .workflows import generate_crosssections
+from .workflows import set_crsdefid_for_branches
+from .workflows import set_xyz_crosssections
 
 from .workflows import helper
 from . import DATADIR
@@ -122,6 +123,7 @@ class DFlowFMModel(Model):
         self._datamodel = None
         self._dfmmodel = None  # TODO: replace with hydrolib-core object
         self._branches = gpd.GeoDataFrame()
+        self._crosssections = gpd.GeoDataFrame()
 
         # TODO: assign hydrolib-core components
 
@@ -212,22 +214,22 @@ class DFlowFMModel(Model):
                 gdf_br, spacing, attribute_name="spacing"
             )
 
-            self.logger.info(f"Processing branches")
-            branches, branches_nodes = process_branches(
-                gdf_br,
-                branch_nodes=None,
-                id_col="branchId",
-                snap_offset=snap_offset,
-                allow_intersection_snapping=allow_intersection_snapping,
-                logger=self.logger,
-            )
+        self.logger.info(f"Processing branches")
+        branches, branches_nodes = process_branches(
+            gdf_br,
+            branch_nodes=None,
+            id_col="branchId",
+            snap_offset=snap_offset,
+            allow_intersection_snapping=allow_intersection_snapping,
+            logger=self.logger,
+        )
 
-            self.logger.info(f"Validating branches")
-            validate_branches(branches)
+        self.logger.info(f"Validating branches")
+        validate_branches(branches)
 
-            # convert to model crs
-            branches = branches.to_crs(self.crs)
-            branches_nodes = branches_nodes.to_crs(self.crs)
+        # convert to model crs
+        branches = branches.to_crs(self.crs)
+        branches_nodes = branches_nodes.to_crs(self.crs)
 
         return branches, branches_nodes
 
@@ -293,10 +295,10 @@ class DFlowFMModel(Model):
             )
 
             # If specific spacing info from spacing_fn, update spacing attribute
+            spacing = None
             if isinstance(spacing_fn, str):
                 if not isfile(spacing_fn):
                     self.logger.error(f"Spacing file not found: {spacing_fn}, skipping")
-                    spacing = None
                 else:
                     spacing = pd.read_csv(spacing_fn)
 
@@ -329,6 +331,9 @@ class DFlowFMModel(Model):
         friction_value: float = 0.023,
         snap_offset: float = 0.0,
         allow_intersection_snapping: bool = True,
+        crosssections_fn: str = None,
+        crosssections_defaults_fn: str = None,
+        crosssections_type:str = None
     ):
         """This component prepares the 1D rivers and adds to branches 1D network.
 
@@ -367,6 +372,27 @@ class DFlowFMModel(Model):
             By default "Manning".
         friction_value : float, optional
             Friction value. By default 0.023.
+        crosssections_fn : str Path, optional
+            Name of data source for crosssections, see data/data_sources.yml.
+
+            If None, crosssections will be set from branches
+
+            If crosssections_type = "point"
+            * Required variables:
+            * Optional variables:
+
+            If crosssections_type = "xyz"
+            * Required variables:
+            * Optional variables:
+
+        crosssections_defaults_fn : str Path, optional
+            Path to a csv file containing all defaults values per 'branchType'.
+             By default None, crosssections defaults will be read from "crosssections", "crosssections_defaults.csv"
+
+        crosssections_type : str, optional
+            Type of crosssections read from crosssections_fn. One of ["point", "xyz"].
+            By default "regular".
+
         """
         self.logger.info(f"Preparing 1D rivers.")
 
@@ -396,16 +422,16 @@ class DFlowFMModel(Model):
             defaults = pd.read_csv(rivers_defaults_fn)
             self.logger.info(f"river default settings read from {rivers_defaults_fn}.")
             # Add friction to defaults
-            defaults["friction_type"] = friction_type
-            defaults["friction_value"] = friction_value
+            defaults["frictionType"] = friction_type
+            defaults["frictionValue"] = friction_value
 
             # If specific spacing info from spacing_fn, update spacing attribute
+            spacing = None
             if isinstance(spacing_fn, str):
                 if not isfile(spacing_fn):
                     self.logger.error(
                         f"Spacing file not found: {spacing_fn}, using defaults"
                     )
-                    spacing = None
                 else:
                     spacing = pd.read_csv(spacing_fn)
 
@@ -423,9 +449,86 @@ class DFlowFMModel(Model):
             rivers["friction_id"] = [
                 f"{ftype}_{fvalue}"
                 for ftype, fvalue in zip(
-                    rivers["friction_type"], rivers["friction_value"]
+                    rivers["frictionType"], rivers["frictionValue"]
                 )
             ]
+
+            # setup crosssection
+            self.logger.info(f"Preparing 1D rivers crosssections.")
+
+            # TODO: only read files here, pass branches, crosssections and crosssection types to a workflow
+            if crosssections_fn is None:
+                # TODO setup cross section from branches (check the old generate_crosssection function)
+
+                # 1. read crosssection defaults and append to branches
+                _gdf_crs = rivers.copy()
+                # Fill in with default attributes values
+                if crosssections_defaults_fn is None or not crosssections_defaults_fn.is_file():
+                    self.logger.warning(
+                        f"crosssections_defaults_fn ({crosssections_defaults_fn}) does not exist. Fall back choice to defaults. "
+                    )
+                    crosssections_defaults_fn = Path(self._DATADIR).joinpath(
+                        "crosssections", "crosssections_defaults.csv"
+                    )
+                defaults = pd.read_csv(crosssections_defaults_fn)
+                self.logger.info(f"crosssection default settings read from {rivers_defaults_fn}.")
+                _gdf_crs = update_data_columns_attributes(_gdf_crs, defaults, brtype="river") #FIXME after filling in all data are nan values
+
+                # 2. check if branches have the required columns and select only required columns
+                required_columns = ["geometry", "branchId", "branchType", "friction_id", "frictionType", "frictionValue",
+                                    "shape","width","height","t_width","bedlev","closed"]
+                if set(required_columns).issubset(_gdf_crs.columns):
+                    _gdf_crs = _gdf_crs[required_columns]
+                else:
+                    self.logger.error(f"Cannto setup crosssections from branch. Require columns {required_columns}.")
+
+                # 3. get the crs at the midpoint of branches
+                _gdf_crs["id"] = [f"CRS_{bid}" for bid in _gdf_crs["branchId"]]
+                _gdf_crs["chainage"] = [l/2 for l in _gdf_crs["geometry"].length]
+                _gdf_crs["geometry"] = _gdf_crs.geometry.centroid
+
+                # 4. for each crosssection location, derive the crosssection definition from branches
+                _gdf_crs = set_crsdefid_for_branches(_gdf_crs) # already contain the regular crosssection columns
+
+                # 5. TODO add to existing crosssections
+
+
+            else:
+                # setup cross sections from file
+                if crosssections_type == None:
+                    self.logger.error("Must specify crosssections_type. Use the following options: point, xyz")
+                if crosssections_type == 'xyz':
+                    # TODO setup xyz crosssections
+
+                    # read xyz crosssections with a small buffer
+                    id_col = "crsId"
+                    _gdf_crs = self.data_catalog.get_geodataframe(
+                        crosssections_fn, geom=self.region, buffer=10, predicate="contains"
+                    )
+                    _gdf_crs.index = _gdf_crs[id_col]
+                    _gdf_crs.index.name = id_col
+                    _gdf_crs_ids = _gdf_crs.index.unique()
+
+                    if _gdf_crs.index.size == 0:
+                        self.logger.warning(
+                            f"{crosssections_fn} No cross sections found within domain"
+                        )
+
+                    else:
+
+                        self.logger.info(
+                            f"{crosssections_fn} No cross sections found within domain"
+                        )
+
+                        # derive yz profile and assign definition id
+                        _gdf_crs = set_xyz_crosssections(rivers, _gdf_crs)
+
+                elif crosssections_type == 'point':
+                    #TODO setup point crosssections
+                    pass
+                else:
+                    pass
+
 
             # setup staticgeoms #TODO do we still need channels?
             self.logger.debug(f"Adding rivers and river_nodes vector to staticgeoms.")
