@@ -331,13 +331,12 @@ class DFlowFMModel(Model):
         self,
         rivers_fn: str,
         rivers_defaults_fn: str = None,
-        spacing_fn: str = None,
-        friction_type: str = "Manning",
-        friction_value: float = 0.023,
         snap_offset: float = 0.0,
         allow_intersection_snapping: bool = True,
-        crosssections_fn: str = None,
+        friction_type: str = "Manning", # what about constructing friction_defaults_fn?
+        friction_value: float = 0.023,
         crosssections_defaults_fn: str = None,
+        crosssections_fn: str = None,
         crosssections_type:str = None
     ):
         """This component prepares the 1D rivers and adds to branches 1D network.
@@ -362,16 +361,16 @@ class DFlowFMModel(Model):
         ----------
         rivers_fn : str
             Name of data source for branches parameters, see data/data_sources.yml.
-
-            * Required variables: [branchId, branchType] # TODO: now still requires some cross section stuff
-
-            * Optional variables: [spacing, material, shape, diameter, width, t_width, t_width_up, width_up,
-              width_dn, t_width_dn, height, height_up, height_dn, inlev_up, inlev_dn, bedlev_up, bedlev_dn,
-              closed, manhole_up, manhole_dn, friction_type, friction_value]
+            * Required variables: [branchId, branchType]
+            * Optional variables: [material, shape, diameter, width, t_width, height, bedlev, closed, friction_type, friction_value]
         rivers_defaults_fn : str Path
             Path to a csv file containing all defaults values per 'branchType'.
-        spacing : str Path
-            Path to a csv file containing spacing values per 'branchType', 'shape', 'width' or 'diameter'.
+        snap_offset: float, optional
+            Snapping tolenrance to automatically connecting branches.
+            By default 0.0, no snapping is applied.
+        allow_intersection_snapping: bool, optional
+            Switch to choose whether snapping of multiple branch ends are allowed when ``snap_offset`` is used.
+            By default True.
         friction_type : str, optional
             Type of friction tu use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
             By default "Manning".
@@ -379,25 +378,16 @@ class DFlowFMModel(Model):
             Friction value. By default 0.023.
         crosssections_fn : str Path, optional
             Name of data source for crosssections, see data/data_sources.yml.
-
-            If None, crosssections will be set from branches
-
-            If crosssections_type = "point"
-            * Required variables:
+            If ``crosssections_type`` = "xyz"
+            * Required variables: crsId, order, z
             * Optional variables:
-
-            If crosssections_type = "xyz"
-            * Required variables:
-            * Optional variables:
-
+            By default None, crosssections will be set from branches
         crosssections_defaults_fn : str Path, optional
             Path to a csv file containing all defaults values per 'branchType'.
              By default None, crosssections defaults will be read from "crosssections", "crosssections_defaults.csv"
-
         crosssections_type : str, optional
-            Type of crosssections read from crosssections_fn. One of ["point", "xyz"].
-            By default "regular".
-
+            Type of crosssections read from crosssections_fn. One of ["xyz"].
+            By default None.
         """
         self.logger.info(f"Preparing 1D rivers.")
 
@@ -426,26 +416,22 @@ class DFlowFMModel(Model):
                 )
             defaults = pd.read_csv(rivers_defaults_fn)
             self.logger.info(f"river default settings read from {rivers_defaults_fn}.")
+
+            # check for allowed columns and select only the ones required
+            _allowed_columns = ["geometry", "branchId", "branchType", "material", "shape", "diameter", "width", "t_width", "height", "bedlev", "closed", "friction_type", "friction_value"]
+            allowed_columns = set(_allowed_columns).intersection(gdf_riv.columns)
+            gdf_riv = gpd.GeoDataFrame(gdf_riv[allowed_columns])
+
             # Add friction to defaults
             defaults["frictionType"] = friction_type
             defaults["frictionValue"] = friction_value
-
-            # If specific spacing info from spacing_fn, update spacing attribute
-            spacing = None
-            if isinstance(spacing_fn, str):
-                if not isfile(spacing_fn):
-                    self.logger.error(
-                        f"Spacing file not found: {spacing_fn}, using defaults"
-                    )
-                else:
-                    spacing = pd.read_csv(spacing_fn)
 
             # Build the rivers branches and nodes and fill with attributes and spacing
             rivers, river_nodes = self._setup_branches(
                 gdf_br=gdf_riv,
                 defaults=defaults,
                 br_type="river",
-                spacing=spacing,
+                spacing=None, # does not allow spacing for rivers
                 snap_offset=snap_offset,
                 allow_intersection_snapping=allow_intersection_snapping,
             )
@@ -464,7 +450,6 @@ class DFlowFMModel(Model):
 
             # TODO: only read files here, pass branches, crosssections and crosssection types to a workflow
             if crosssections_fn is None:
-                # TODO setup cross section from branches (check the old generate_crosssection function)
 
                 # read crosssection and fill in with default attributes values
                 _gdf_crs = rivers.copy()
@@ -489,10 +474,9 @@ class DFlowFMModel(Model):
             else:
                 # setup cross sections from file
                 if crosssections_type == None:
-                    self.logger.error("Must specify crosssections_type. Use the following options: point, xyz")
+                    self.logger.error("Must specify crosssections_type. Use the following options: xyz")
 
                 elif crosssections_type == 'xyz':
-                    # TODO setup xyz crosssections
 
                     # read xyz crosssections with a small buffer
                     id_col = "crsId"
@@ -509,7 +493,7 @@ class DFlowFMModel(Model):
                         )
 
                     else:
-                        # read xyz crosssections with a larger buffer
+                        # read xyz crosssections with a larger buffer and filter the id (in case smaller buffer was too small)
                         _gdf_crs = self.data_catalog.get_geodataframe(
                             crosssections_fn, geom=self.region, buffer=1000, predicate="contains"
                         )
@@ -521,16 +505,14 @@ class DFlowFMModel(Model):
                             f"{crosssections_fn} No cross sections found within domain"
                         )
 
-                        # derive yz profile and assign definition id
+                        # set crsloc and crsdef attributes to crosssections
                         _gdf_crs = set_xyz_crosssections(rivers, _gdf_crs)
 
                         # TODO add to existing crosssections
                         crosssections = pd.concat([crosssections, _gdf_crs])
-                elif crosssections_type == 'point':
-                    #TODO setup point crosssections
-                    # TODO add to existing crosssections
-                    pass
+
                 else:
+                    raise NotImplementedError("Method {crosssections_type} is not implemented.")
                     pass
 
 
@@ -539,12 +521,13 @@ class DFlowFMModel(Model):
             self.set_staticgeoms(rivers, "rivers")
             self.set_staticgeoms(river_nodes, "rivers_nodes")
 
-            # setup staticgeoms #TODO do we still need channels?
-            self.logger.debug(f"Adding rivers and river_nodes vector to staticgeoms.")
-            self.set_staticgeoms(crosssections, "crosssections")
-
             # add to branches
             self.add_branches(rivers, branchtype="river")
+
+            # setup staticgeoms #TODO do we still need channels?
+            self.logger.debug(f"Adding crosssections vector to staticgeoms.")
+            self.set_staticgeoms(crosssections, "crosssections")
+
 
     # def setup_branches(
     #     self,
@@ -1224,7 +1207,7 @@ class DFlowFMModel(Model):
             raise IOError("Model opened in read-only mode")
         for name, gdf in self.staticgeoms.items():
             fn_out = join(self.root, "staticgeoms", f"{name}.geojson")
-            self.staticgeoms[name].to_file(fn_out, driver='GeoJSON') # FIXME: writer does not work
+            self.staticgeoms[name].reset_index(drop=True).to_file(fn_out, driver='GeoJSON') # FIXME: does not work if does not reset index
 
     def read_forcing(self):
         """Read forcing at <root/?/> and parse to dict of xr.DataArray"""
