@@ -109,10 +109,11 @@ def set_xyz_crosssections(branches:gpd.GeoDataFrame, crosssections:gpd.GeoDataFr
                              {'crsdef_id': crosssections.index.to_list(),
                               'crsdef_type': "xyz",
                               'crsdef_branchId': crosssections.branch_id.to_list(),  # FIXME test if leave this out
-                              'crsdef_xCoordinates': ' '.join(['{:.1f}'.format(i) for i in crosssections.x.to_list()[0]]), # FIXME cannot use list in gpd
-                              'crsdef_yCoordinates': ' '.join(['{:.1f}'.format(i) for i in crosssections.y.to_list()[0]]),
-                              'crsdef_zCoordinates': ' '.join(['{:.1f}'.format(i) for i in crosssections.z.to_list()[0]]),
-                              'crsdef_xylength': ' '.join(['{:.1f}'.format(i) for i in crosssections.l.to_list()[0]]),
+                              'crsdef_xyzCount': crosssections.x.map(len).to_list(),
+                              'crsdef_xCoordinates': [' '.join(['{:.1f}'.format(i) for i in l ]) for l in crosssections.x.to_list()], # FIXME cannot use list in gpd
+                              'crsdef_yCoordinates': [' '.join(['{:.1f}'.format(i) for i in l ]) for l in crosssections.y.to_list()],
+                              'crsdef_zCoordinates': [' '.join(['{:.1f}'.format(i) for i in l ]) for l in crosssections.z.to_list()],
+                              # 'crsdef_xylength': ' '.join(['{:.1f}'.format(i) for i in crosssections.l.to_list()[0]]),
                               # lower case key means temp keys (not written to file)
                               'crsdef_frictionId': branches.loc[crosssections.branch_id.to_list(), 'friction_id'],
                               # lower case key means temp keys (not written to file)

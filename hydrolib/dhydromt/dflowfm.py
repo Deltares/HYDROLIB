@@ -26,6 +26,9 @@ from .workflows import generate_roughness
 from .workflows import set_branch_crosssections
 from .workflows import set_xyz_crosssections
 
+from hydrolib.core.io.crosssection.models import *
+from hydrolib.core.io.mdu.models import FMModel
+
 from .workflows import helper
 from . import DATADIR
 
@@ -76,8 +79,7 @@ class DFlowFMModel(Model):
         self._region_name = "DFlowFM"
         self._ini_settings = (
             None,
-        )  # TODO: add all ini files in one object? e.g. self._intbl in wflow?
-        self._datamodel = None
+        )  # TODO: remove?
         self._dfmmodel = None  # TODO: replace with hydrolib-core object
         self._branches = gpd.GeoDataFrame()
 
@@ -413,7 +415,7 @@ class DFlowFMModel(Model):
                     )
                 defaults = pd.read_csv(crosssections_defaults_fn)
                 self.logger.info(f"crosssection default settings read from {rivers_defaults_fn}.")
-                _gdf_crs = update_data_columns_attributes(_gdf_crs, defaults, brtype="river") 
+                _gdf_crs = update_data_columns_attributes(_gdf_crs, defaults, brtype="river")
 
                 # set crosssections
                 _gdf_crs = set_branch_crosssections(rivers, _gdf_crs)
@@ -1112,13 +1114,14 @@ class DFlowFMModel(Model):
         if not self._write:
             self.logger.warning("Cannot write in read-only mode")
             return
+
         if self.config:  # try to read default if not yet set
             self.write_config()  # FIXME: config now isread from default, modified and saved temporaryly in the models folder --> being read by dfm and modify?
         if self._staticmaps:
             self.write_staticmaps()
         if self._staticgeoms:
             self.write_staticgeoms()
-        if self._dfmmodel:
+        if self.dfmmodel:
             self.write_dfmmodel()
         if self._forcing:
             self.write_forcing()
@@ -1178,9 +1181,61 @@ class DFlowFMModel(Model):
         """Write dfmmodel at <root/?/> in model ready format"""
         if not self._write:
             raise IOError("Model opened in read-only mode")
-        delft3dfmpy_setupfuncs.write_dfmmodel(
-            self.dfmmodel, output_dir=self.root, name="DFLOWFM", logger=self.logger
-        )
+
+        # write crosssections
+        model_crsloc, model_crsdef = self._write_crosssections(fm_model = self.dfmmodel)
+
+        # save model
+        self.dfmmodel.save()
+
+
+    def _write_crosssections(self, fm_model):
+        """write crosssections into hydrolib-core crsloc and crsdef objects"""
+
+        # preprocessing for crosssections from staticgeoms
+        gdp_crs = self._staticgeoms['crosssections']
+
+        # crsdef
+        # get crsdef from crosssections gpd # FIXME: change this for update case
+        gdp_crsdef = gdp_crs[[c for c in gdp_crs.columns if c.startswith('crsdef')]]
+        gdp_crsdef = gdp_crsdef.rename(columns = {c:c.split('_')[1] for c in gdp_crsdef.columns})
+
+        # create hydrolib-core object
+        if fm_model.geometry.crossdeffile is None: # FIXME as soon as crossdeffile is filled in, AttributeError: 'Geometry' object has no attribute 'crosslocfile'
+            # create a new crsdef model
+            fm_model.geometry.crossdeffile = CrossDefModel(filepath = fm_model.filepath.with_name('crsdef.ini'))  # FIXME: how to make it relative path
+
+        # add crsdef as per type
+        for i, c in gdp_crsdef.to_dict(orient='index').items():
+            if c['type'] == 'xyz':
+                fm_model.geometry.crossdeffile.definition.append(XYZCrsDef(**c))
+            elif c['type'] == 'rectangle':
+                fm_model.geometry.crossdeffile.definition.append(RectangleCrsDef(**c))
+            else:
+                # raise NotImplementedError
+                pass
+
+        # write def
+        fm_model.geometry.crossdeffile.save()
+
+        # crsloc
+        # get crsloc from crosssections gpd # FIXME: change this for update case
+        gdp_crsloc = gdp_crs[[c for c in gdp_crs.columns if c.startswith('crsloc')]]
+        gdp_crsloc = gdp_crsloc.rename(columns = {c:c.split('_')[1] for c in gdp_crsloc.columns})
+
+        # create hydrolib-core object
+        if fm_model.geometry.crosslocfile is None: # FIXME as soon as crossdeffile is filled in, AttributeError: 'Geometry' object has no attribute 'crosslocfile'
+            # create a new crsloc model
+            fm_model.geometry.crosslocfile = CrossLocModel(filepath = fm_model.filepath.with_name('crsloc.ini'))  # FIXME: how to make it relative path
+
+        # add crsloc
+        for i,c in gdp_crsloc.to_dict(orient='index').items():
+            fm_model.geometry.crosslocfile.crosssection.append( CrossSection(**c))
+
+        # write crsloc
+        fm_model.geometry.crosslocfile.save()
+
+        return fm_model
 
     def read_states(self):
         """Read states at <root/?/> and parse to dict of xr.DataArray"""
@@ -1218,7 +1273,11 @@ class DFlowFMModel(Model):
         return self._dfmmodel
 
     def init_dfmmodel(self):
-        self._dfmmodel = delft3dfmpy_setupfuncs.DFlowFMModel()
+        # Create output directories
+        outputdir = Path(self.root).joinpath("dflowfm")
+        outputdir.mkdir(parents=True, exist_ok=True)
+        # create a new MDU-Model
+        self._dfmmodel = FMModel(filepath=outputdir.joinpath('fm.mdu')) # FIXME: user region h
 
     @property
     def branches(self):
