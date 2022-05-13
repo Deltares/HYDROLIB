@@ -2,9 +2,9 @@
 
     from hisreader import HisResults
 
-    Output_path = "...\dflowfm\output"
+    output_path = "...\dflowfm\output"
 
-    Results = HisResults(inputdir=Output_path, outputdir=Output_path)
+    Results = HisResults(inputdir=output_path, outputdir=output_path)
     Results.observation_points[0].simulated_plot("waterlevel")
 
 
