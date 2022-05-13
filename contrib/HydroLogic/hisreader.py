@@ -9,17 +9,19 @@ Created on Tue Dec 14 10:53:59 2021
 # Import
 # =============================================================================
 import datetime as dt
+import os
+import pathlib
+from datetime import datetime
+from typing import List, Literal, Optional, Type, TypeVar
+
 import matplotlib.pyplot as plt
 import netCDF4 as nc
 import numpy as np
-import os
 import pandas as pd
-import pathlib
 import ugfile as uf
-from datetime import datetime
-from hydrolib.core.io.structure.models import Structure
 from pydantic import BaseModel, Field
-from typing import Optional, Literal, List, Type, TypeVar
+
+from hydrolib.core.io.structure.models import Structure
 
 PandasDataFrame = TypeVar("pandas.core.frame.DataFrame")
 
@@ -47,7 +49,7 @@ class ExtStructure(Structure):
     Simulated: PandasDataFrame
 
     def default_plot(self, dfs: List, variable: str, labels: List = None) -> None:
-        plt.figure(figsize=(12,4))
+        plt.figure(figsize=(12, 4))
         for ix, df in enumerate(dfs):
             if labels is None:
                 plt.plot(df[variable].dropna())
