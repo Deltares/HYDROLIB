@@ -9,19 +9,15 @@ Created on Fri May 13th 2022
 # Import
 # =============================================================================
 import datetime as dt
-import os
-import pathlib
-from datetime import datetime
-from typing import List, Literal, Optional, Type, TypeVar
-
 import matplotlib.pyplot as plt
 import netCDF4 as nc
 import numpy as np
 import pandas as pd
+import pathlib
 import ugfile as uf
-from pydantic import BaseModel, Field
-
 from hydrolib.core.io.structure.models import Structure
+from pydantic import BaseModel, Field
+from typing import Optional, Literal, List, Type, TypeVar
 
 PandasDataFrame = TypeVar("pandas.core.frame.DataFrame")
 
@@ -43,7 +39,7 @@ Provides
 
 
 class ExtStructure(Structure):
-    """ "Extends the Hydrolib structure datamodel by adding fields for simulated and measured DataFrames.
+    """Extends the Hydrolib structure datamodel by adding fields for simulated and measured DataFrames.
     Also adds basic plots for quick data inspection."""
 
     Measured: Optional[PandasDataFrame]
@@ -68,15 +64,15 @@ class ExtStructure(Structure):
         plt.show()
 
     def simulated_plot(self, variable: str) -> None:
-        """ "Specific function to plot the simulated value of 'variable'"""
+        """Specific function to plot the simulated value of 'variable'"""
         self.default_plot(dfs=[self.Simulated], variable=variable)
 
     def measured_plot(self, variable: str) -> None:
-        """ "Specific function to plot the measured value of 'variable'"""
+        """Specific function to plot the measured value of 'variable'"""
         self.default_plot(dfs=[self.Measured], variable=variable)
 
     def measured_vs_simulated_plot(self, variable: str) -> None:
-        """ "Specific function to plot the simulated and measured value of 'variable'"""
+        """Specific function to plot the simulated and measured value of 'variable'"""
         self.default_plot(
             dfs=[self.Simulated, self.Measured],
             variable=variable,
