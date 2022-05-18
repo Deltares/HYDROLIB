@@ -9,15 +9,17 @@ Created on Fri May 13th 2022
 # Import
 # =============================================================================
 import datetime as dt
+import pathlib
+from typing import List, Literal, Optional, Type, TypeVar
+
 import matplotlib.pyplot as plt
 import netCDF4 as nc
 import numpy as np
 import pandas as pd
-import pathlib
 import ugfile as uf
-from hydrolib.core.io.structure.models import Structure
 from pydantic import BaseModel, Field
-from typing import Optional, Literal, List, Type, TypeVar
+
+from hydrolib.core.io.structure.models import Structure
 
 PandasDataFrame = TypeVar("pandas.core.frame.DataFrame")
 
