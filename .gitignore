@@ -133,3 +133,5 @@ contrib/d2hydro/data/*
 contrib/d2hydro/modules/case_management_tools/data/*
 contrib/d2hydro/scripts/*
 .vscode/launch.json
+hydrolib/dhydamo/debug.py
+.vscode/settings.json

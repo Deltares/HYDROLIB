@@ -1,11 +1,14 @@
-from typing import Union
+from typing import List, Union
 
 import numpy as np
-from shapely.geometry import MultiPolygon, Polygon
+from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon
 
-from hydrolib.core.io.net.models import Network
+from hydrolib.core.io.net.models import Branch, Network
 from hydrolib.dhydamo.geometry import common
 from hydrolib.dhydamo.geometry.models import GeometryList
+
+
+
 
 
 def mesh2d_add_rectilinear(
@@ -156,3 +159,25 @@ def mesh2d_refine(
     """
     for polygon in common.as_polygon_list(polygon):
         network.mesh2d_refine_mesh(GeometryList.from_geometry(polygon), level=steps)
+
+
+def mesh1d_add_branch(
+    network: Network,
+    branches: Union[
+        LineString, MultiLineString, List[Union[LineString, MultiLineString]]
+    ],
+    node_distance: Union[float, int],
+) -> None:
+    """Add branch to 1d mesh, from a (list of) (Multi)LineString geometry.
+    The branch is discretized with the given node distance.
+
+    Args:
+        network (Network): Network to which the branch is added
+        branches (Union[ LineString, MultiLineString, List[Union[LineString, MultiLineString]] ]): Geometry object(s) for which the branch is created
+        node_distance (Union[float, int]): Preferred node distance between branch nodes
+    """
+
+    for line in common.as_linestring_list(branches):
+        branch = Branch(geometry=np.array(line.coords[:]))
+        branch.generate_nodes(node_distance)
+        network.mesh1d_add_branch(branch)
