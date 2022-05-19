@@ -1,10 +1,9 @@
-from turtle import circle
 import pytest
 from meshkernel.py_structures import DeleteMeshOption
-from shapely.geometry import box, Polygon, MultiPolygon, LineString
+from shapely.geometry import box, Polygon, MultiPolygon, LineString, MultiLineString
 
 from hydrolib.core.io.mdu.models import FMModel
-from hydrolib.dhydamo.geometry import mesh, viz
+from hydrolib.dhydamo.geometry import mesh, viz, common
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -387,4 +386,34 @@ def test_2d_clip_inside_multipolygon():
     viz.plot_network(network, ax=ax)
     for polygon in clipgeo.geoms:
         ax.plot(*polygon.exterior.coords.xy, color="r", ls="--")
+    plt.show()
+
+
+def test_1d_add_branch():
+
+    # Define polygon
+    fmmodel = FMModel()
+    network = fmmodel.geometry.netfile.network
+
+    x = np.linspace(0, 20, 101)
+    branches = [
+        LineString(np.c_[x, np.sin(x / 3) + 5]),
+        MultiLineString(
+            [
+                np.array([[0, 0], [10, 10]]),
+                np.array([[-3, -3], [-1, -5]]),
+            ]
+        ),
+    ]
+
+    mesh.mesh1d_add_branch(network, branches, node_distance=3)
+
+    # Plot to verify
+    fig, ax = plt.subplots()
+
+    ax.set_aspect(1.0)
+    viz.plot_network(network, ax=ax)
+    ax.autoscale_view()
+    for ls in common.as_linestring_list(branches):
+        ax.plot(*ls.coords.xy, color="k", ls="-", lw=3, alpha=0.2)
     plt.show()
