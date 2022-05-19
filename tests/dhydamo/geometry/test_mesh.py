@@ -23,7 +23,7 @@ def test_create_2d_rectilinear():
 
     polygon = box(0, 0, 10, 10)
 
-    mesh.add_2dmesh_rectilinear(
+    mesh.mesh2d_add_rectilinear(
         network,
         polygon,
         dx=5,
@@ -64,7 +64,7 @@ def test_create_2d_rectilinear_within_circle():
     circle = _get_circle_polygon(radius=10)
 
     # Add mesh and clip part outside circle
-    mesh.add_2dmesh_rectilinear(
+    mesh.mesh2d_add_rectilinear(
         network,
         circle,
         dx=2,
@@ -92,7 +92,7 @@ def test_create_2d_triangular_within_circle():
     circle = _get_circle_polygon(radius=10)
 
     # Add mesh and clip part outside circle
-    mesh.add_2dmesh_triangular(network, circle, edge_length=2)
+    mesh.mesh2d_add_triangular(network, circle, edge_length=2)
 
     np.testing.assert_array_equal(
         np.c_[network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y].round(3),
@@ -262,7 +262,7 @@ def test_create_2d_rectangular_from_multipolygon():
     polygon2 = box(12, 2, 19, 9)
     multipolygon = MultiPolygon([polygon1, polygon2])
 
-    mesh.add_2dmesh_rectilinear(
+    mesh.mesh2d_add_rectilinear(
         network,
         multipolygon,
         dx=1,
@@ -276,13 +276,13 @@ def test_create_2d_rectangular_from_multipolygon():
 
     # Refine along river
     refinement = river.buffer(1)
-    mesh.mesh2d_refine(network, refinement, level=1)
+    mesh.mesh2d_refine(network, refinement, steps=1)
     assert len(network._mesh2d.mesh2d_face_x) == 411
 
     # Clip river
-    mesh.mesh2d_clip_and_clean(
+    mesh.mesh2d_clip(
         network=network,
-        geometrylist=GeometryList.from_geometry(river),
+        polygon=GeometryList.from_geometry(river),
         deletemeshoption=DeleteMeshOption.ALL_NODES,
     )
     assert len(network._mesh2d.mesh2d_face_x) == 303
@@ -311,14 +311,14 @@ def test_create_2d_triangular_from_multipolygon():
 
     multipolygon = MultiPolygon([circle1, circle2])
 
-    mesh.add_2dmesh_triangular(network, multipolygon, edge_length=2)
+    mesh.mesh2d_add_triangular(network, multipolygon, edge_length=2)
 
     # Check bounds and number of faces
     assert len(network._mesh2d.mesh2d_face_x) == 352
     assert len(network._mesh2d.mesh2d_edge_x) == 553
 
     # Refine mesh
-    mesh.mesh2d_refine(network, refinement_box, level=1)
+    mesh.mesh2d_refine(network, refinement_box, steps=1)
 
     # Check bounds and number of faces
     assert len(network._mesh2d.mesh2d_face_x) == 636
@@ -344,13 +344,13 @@ def test_2d_clip_outside_polygon():
     rectangle = box(-10, -10, 10, 10)
 
     dmo = DeleteMeshOption.ALL_FACE_CIRCUMCENTERS
-    mesh.add_2dmesh_rectilinear(network, rectangle, dx=1, dy=1, deletemeshoption=dmo)
+    mesh.mesh2d_add_rectilinear(network, rectangle, dx=1, dy=1, deletemeshoption=dmo)
 
     clipgeo = box(-8, -8, 8, 8).difference(
         MultiPolygon([box(-6, -1, -4, 2), box(4, 5, 7, 7)])
     )
 
-    mesh.mesh2d_clip_and_clean(network, clipgeo, deletemeshoption=1, inside=False)
+    mesh.mesh2d_clip(network, clipgeo, deletemeshoption=1, inside=False)
 
     assert len(network._mesh2d.mesh2d_node_x) == 285
 
@@ -373,11 +373,11 @@ def test_2d_clip_inside_multipolygon():
     rectangle = box(-10, -10, 10, 10)
 
     dmo = DeleteMeshOption.ALL_FACE_CIRCUMCENTERS
-    mesh.add_2dmesh_rectilinear(network, rectangle, dx=1, dy=1, deletemeshoption=dmo)
+    mesh.mesh2d_add_rectilinear(network, rectangle, dx=1, dy=1, deletemeshoption=dmo)
 
     clipgeo = MultiPolygon([box(-6, -1, -4, 2), box(4, 5, 7.2, 7.2)])
 
-    mesh.mesh2d_clip_and_clean(network, clipgeo, deletemeshoption=1, inside=True)
+    mesh.mesh2d_clip(network, clipgeo, deletemeshoption=1, inside=True)
     assert len(network._mesh2d.mesh2d_node_x) == 437
 
     # Plot to verify
