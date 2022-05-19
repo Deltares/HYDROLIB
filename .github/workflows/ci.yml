@@ -4,17 +4,19 @@ on: [push]
 
 jobs:
 
-  test:
+  CI:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.7, 3.8]
-        os: [ubuntu-18.04, macos-latest, windows-latest]
+        python-version: [3.8, 3.9]
+        os: [ubuntu-18.04, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
-      - name: Set up Python 3.7
+      - name: Set up Python
         uses: actions/setup-python@v1
         with:
           python-version: ${{ matrix.python-version }}
@@ -22,15 +24,15 @@ jobs:
       - name: Run image
         uses: abatilo/actions-poetry@v2.0.0
         with:
-          poetry-version: 1.1.6
+          poetry-version: 1.1.8
       - name: Cache Poetry virtualenv
         uses: actions/cache@v1
         id: cache
         with:
           path: ~/.virtualenvs
-          key: poetry2-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ matrix.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            poetry2-${{ hashFiles('**/poetry.lock') }}
+            venv-${{ matrix.os }}-${{ matrix.python-version }}-
 
       - name: Set Poetry config
         run: |
@@ -41,8 +43,23 @@ jobs:
         run: poetry install
         if: steps.cache.outputs.cache-hit != 'true'
 
-      - name: Code Quality
-        run: poetry run black . --check
-
       - name: Test with pytest
-        run: poetry run pytest --cov .
+        run: poetry run pytest --cov . --cov-report xml:coverage-reports/coverage-hydrolib.xml --junitxml=xunit-reports/xunit-result-hydrolib.xml
+
+      - name: Autoformat code if the check fails
+        if: ${{ (matrix.os == 'ubuntu-18.04') && (matrix.python-version == 3.8) }}
+        run: |
+          poetry run isort .
+          poetry run black .
+          git config --global user.name '${{ github.actor }}'
+          git config --global user.email '${{ github.actor }}@users.noreply.github.com'
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
+          git checkout $GITHUB_HEAD_REF
+          git commit -am "autoformat: isort & black" && git push || true
+
+      # - name: SonarCloud Scan
+      #   uses: SonarSource/sonarcloud-github-action@master
+      #   if: ${{ (matrix.os == 'ubuntu-18.04') && (matrix.python-version == 3.8) }}
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.SONAR_GITHUB_TOKEN }}  # Needed to get PR information, if any
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
