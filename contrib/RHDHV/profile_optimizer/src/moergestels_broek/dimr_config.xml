@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<dimrConfig xmlns="http://schemas.deltares.nl/dimr" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schemas.deltares.nl/dimr http://content.oss.deltares.nl/schemas/dimr-1.2.xsd">
+	<documentation>
+		<fileVersion>1.2</fileVersion>
+		<createdBy>D-HyDAMO in delft3dfmpy v.1.2.0</createdBy>
+		<creationDate>2021-09-09T09:29:28.223076Z</creationDate>
+	</documentation>
+
+	<control>
+				<start name="DFM" />
+	</control>
+
+	<component name="DFM">
+		<library>dflowfm</library>
+		<workingDir>.</workingDir>
+		<inputFile>moergestels_broek.mdu</inputFile>
+	</component>
+</dimrConfig>
