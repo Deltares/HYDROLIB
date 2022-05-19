@@ -6,3 +6,11 @@
 
 HYDROLIB is a Python package with tools for preprocessing, postprocessing and analysis of hydrodynamical data and simulation results, currently focused on (but not restricted to the D-HYDRO Suite for hydrodynamical simulations).
 HYDROLIB builds upon the basic D-HYDRO I/O functionality provided by the [HYDROLIB-core](https://github.com/Deltares/HYDROLIB-core) package.
+
+<div align="center">
+<img src="images/HYDROLIB_logo_paths.svg" width="50%">
+</div>
+
+## More information
+HYDROLIB is currently under development, there is more to know than this website reflects.
+Please contact us at <a href="mailto:hydrolib@deltares.nl">hydrolib@deltares.nl</a> if you want to know more.
