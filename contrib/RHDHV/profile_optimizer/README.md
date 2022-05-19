@@ -10,20 +10,24 @@ Other resulting parameters can also be used to test the system, for example the 
 These adjustments are not yet developed. 
 
 # Getting Started
-It is recommended to use the Profile Optimizer as a part of the HYDROLIB package. 
+The recommended approach to use the Profile Optimizer as a part of the HYDROLIB package. 
 Please follow the most recent instructions for HYDROLIB (https://github.com/Deltares/HYDROLIB).
 
 Alternatively, the following steps can be used to run the Profile Optimizer as a stand-alone package:
 1.  Install a conda distribution. 
-2.  Use conda to install the environment.yml delivered with this project:
-    - `conda env create --file environment.yml`
+2.  Use conda to install the environment.yml delivered with this project:  
+    `conda env create --file environment.yml`  
     - the environment is called "po_env" and contains all required dependencies, including HYDROLIB-CORE.
-3.  Use the example notebook to use the Profile Optimizer for your model
+3.  Use the example notebook to use the Profile Optimizer for your model.
+    - To launch the notebook in this environment, use the following code in anaconda prompt:  
+    `conda activate po_env`  
+    `jupyter notebook`
 
 # Contact 
 The Profile Optimizer is part of HYDROLIB, an open source community effort for python tools for the D-Hydro software package. 
 For more information about this initiative, visit: https://github.com/Deltares/HYDROLIB
 
 The Profile Optimizer is developed by Royal HaskoningDHV:
+- rineke.hulsman@rhdhv.com
 - lisa.weijers@rhdhv.com
 - valerie.demetriades@rhdhv.com
