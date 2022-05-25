@@ -5,7 +5,6 @@
     output_path = "...\dflowfm\output"
 
     Results = HisResults(inputdir=output_path, outputdir=output_path)
-    Results.observation_point_list[0].simulated_plot("waterlevel")
     Results.<object_name>.simulated_plot("waterlevel")
 
 
