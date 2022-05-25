@@ -80,7 +80,7 @@ class HisResults(object):
         self.__outputdir = outputdir
         if structure_types is None:
             structure_types = STRUCTURE_TYPES
-        self.parse_structures(structure_types, ExtStructure)
+        self.structure_list = self.parse_structures(structure_types, ExtStructure)
 
     def __read_netcdf(self) -> None:
         """Reads the NetCDF file and stores it in __ds attribute.
