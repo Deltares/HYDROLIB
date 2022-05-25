@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from typing import List
 
+
 def default_plot(dfs: List, variable: str, labels: List = None) -> None:
     """Basic plot function that takes a number of DataFrames and plots the 'variable' columns in one figure"""
     plt.figure(figsize=(12, 4))
