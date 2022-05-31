@@ -11,6 +11,7 @@ pandas = "^1.2"
 geopandas = "^0.9"
 xarray = "^0.17"
 hydrolib-core = "^0.1"
+shapely = "^1.8"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
