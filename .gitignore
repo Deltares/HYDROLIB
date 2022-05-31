@@ -135,3 +135,5 @@ contrib/d2hydro/scripts/*
 .vscode/launch.json
 hydrolib/dhydamo/debug.py
 .vscode/settings.json
+
+.DS_Store
