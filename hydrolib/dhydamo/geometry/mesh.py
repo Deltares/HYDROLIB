@@ -200,6 +200,7 @@ def links1d2d_add_links_1d_to_2d(
     network: Network,
     branchids: List[str] = None,
     within: Union[Polygon, MultiPolygon] = None,
+    max_length: float = np.inf,
 ) -> None:
     """Function to add 1d2d links to network, by generating them from 1d to 2d.
     Branchids can be specified for 1d branches that need to be linked.
@@ -209,6 +210,7 @@ def links1d2d_add_links_1d_to_2d(
         network (Network): Network in which the connections are made
         branchids (List[str], optional): List of branchid's to connect. If None, all branches are connected. Defaults to None.
         within (Union[Polygon, MultiPolygon], optional): Area within which connections are made. Defaults to None.
+        max_length (float, optional): Max edge length. Defaults to None.
     """
     # Load 1d and 2d in meshkernel
     network._mesh1d._set_mesh1d()
@@ -237,5 +239,36 @@ def links1d2d_add_links_1d_to_2d(
     # Get the nodes for the specific branch ids
     node_mask = network._mesh1d.get_node_mask(branchids)
 
+    # Get the already present links. These are not filtered on length
+    npresent = len(network._link1d2d.link1d2d)
+
     # Generate links
     network._link1d2d._link_from_1d_to_2d(node_mask, polygon=geometrylist)
+
+    # Filter the links that are longer than the max distance
+    id1d = network._link1d2d.link1d2d[npresent:, 0]
+    id2d = network._link1d2d.link1d2d[npresent:, 1]
+    nodes1d = np.stack(
+        [network._mesh1d.mesh1d_node_x[id1d], network._mesh1d.mesh1d_node_y[id1d]],
+        axis=1,
+    )
+    faces2d = np.stack(
+        [network._mesh2d.mesh2d_face_x[id2d], network._mesh2d.mesh2d_face_y[id2d]],
+        axis=1,
+    )
+    lengths = np.hypot(nodes1d[:, 0] - faces2d[:, 0], nodes1d[:, 1] - faces2d[:, 1])
+    keep = np.concatenate(
+        [np.arange(npresent), np.where(lengths < max_length)[0] + npresent]
+    )
+    _filter_links_on_idx(network, keep)
+
+
+def _filter_links_on_idx(network: Network, keep: np.ndarray) -> None:
+
+    # Select the remaining links
+    network._link1d2d.link1d2d = network._link1d2d.link1d2d[keep]
+    network._link1d2d.link1d2d_contact_type = network._link1d2d.link1d2d_contact_type[
+        keep
+    ]
+    network._link1d2d.link1d2d_id = network._link1d2d.link1d2d_id[keep]
+    network._link1d2d.link1d2d_long_name = network._link1d2d.link1d2d_long_name[keep]

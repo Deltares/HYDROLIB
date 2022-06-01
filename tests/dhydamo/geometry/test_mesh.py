@@ -458,6 +458,13 @@ def test_links1d2d_add_links_1d_to_2d():
     assert len(network._link1d2d.link1d2d) == 13
     network._link1d2d.clear()
 
+    # Generate links within polygon, with smaller distance factor, with max length, and for the first branch
+    mesh.links1d2d_add_links_1d_to_2d(
+        network, within=within, max_length=2, branchids=[branchids[0]]
+    )
+    assert len(network._link1d2d.link1d2d) == 7
+    network._link1d2d.clear()
+
     # Generate links within polygon
     mesh.links1d2d_add_links_1d_to_2d(network, within=within)
     assert len(network._link1d2d.link1d2d) == 28
