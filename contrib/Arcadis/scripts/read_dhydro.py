@@ -267,13 +267,13 @@ def map_nc2gdf(input_path):
     return gdf
 
 
-def chainage2gdf(df,gdf_branches,chainage="chainage",x="x",y="y",branch_id="id"):
-    '''
+def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id="id"):
+    """
     Gets dataframe as input, converts chainage to x,y datapoints.
 
     Parameters
     ----------
-    df : Pandas DataFrame 
+    df : Pandas DataFrame
         containing data to be changed.
     gdf_branches : TYPE
     chainage : String, optional
@@ -290,25 +290,28 @@ def chainage2gdf(df,gdf_branches,chainage="chainage",x="x",y="y",branch_id="id")
     gdf : gdf containing the data with xy.
         DESCRIPTION.
 
-    '''
-    #TODO andere objecten
+    """
+    # TODO andere objecten
     for index, row in df.iterrows():
         branchid = row.branchid
         chainage = float(row.chainage)
         if branchid != None:
             branch = gdf_branches[gdf_branches[branch_id] == branchid].iloc[0]
             geom = branch.geometry.interpolate(chainage)
-            df.loc[index,[x,y]] = [geom.coords[0][0],geom.coords[0][1]]
+            df.loc[index, [x, y]] = [geom.coords[0][0], geom.coords[0][1]]
         elif row.xcoordinates != None:
-            df.loc[index,[x,y]] = [sum(row["xcoordinates"])/len(row["xcoordinates"]),sum(row["ycoordinates"])/len(row["ycoordinates"])]
+            df.loc[index, [x, y]] = [
+                sum(row["xcoordinates"]) / len(row["xcoordinates"]),
+                sum(row["ycoordinates"]) / len(row["ycoordinates"]),
+            ]
 
-    gdf = gpd.GeoDataFrame(df,geometry=gpd.points_from_xy(df[x],df[y]))
+    gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[x], df[y]))
     return gdf
 
 
 def hisnc_2gdf(input_path):
     """
-    This script reads an D-HYDRO *his.nc file and converts it to a dictionary containing several geodataframes for all the output. 
+    This script reads an D-HYDRO *his.nc file and converts it to a dictionary containing several geodataframes for all the output.
 
     Example:
         gdf = hisnc_2gdf("C:/temp/model/dflowfm/output/FlowFM_his.nc")
@@ -323,60 +326,81 @@ def hisnc_2gdf(input_path):
 
     # Open hisfile
     ds = xr.open_dataset(input_path)
-    EPSG = ds['projected_coordinate_system'].EPSG_code
-    if EPSG == 'EPSG:0':
+    EPSG = ds["projected_coordinate_system"].EPSG_code
+    if EPSG == "EPSG:0":
         print("Geen projectie in het model, Amersfoort aangenomen")
-        EPSG = 'EPSG:28992'
-      
+        EPSG = "EPSG:28992"
+
     gdfs = {}
-    
-    #The HIS file consists of different datapoints. Where the obesrvation points i.e. stations contain data and the structures.
-    #read general data
-    time = ds['time'].data
-    
-    #Read all waterbalance data
+
+    # The HIS file consists of different datapoints. Where the obesrvation points i.e. stations contain data and the structures.
+    # read general data
+    time = ds["time"].data
+
+    # Read all waterbalance data
     wbs = [x for x in list(ds.variables) if x.startswith("water_balance")]
     wb = gpd.GeoDataFrame(index=time)
     for par in wbs:
         data = ds[par].data
         wb[str(par)] = data
     gdfs["water_balance"] = wb
-    
-    #read observation points with data
-    obspoint_id = [x.decode('utf-8').strip() for x in ds["station_id"].data] 
+
+    # read observation points with data
+    obspoint_id = [x.decode("utf-8").strip() for x in ds["station_id"].data]
     obspoint_xcor = ds["station_geom_node_coordx"].data
     obspoint_ycor = ds["station_geom_node_coordy"].data
-    geom = gpd.points_from_xy(list(obspoint_xcor),list(obspoint_ycor))
-    obsdatanames = ["waterlevel","bedlevel","waterdepth","taus","x_velocity","y_velocity","velocity_magnitude","discharge_magnitude"]
+    geom = gpd.points_from_xy(list(obspoint_xcor), list(obspoint_ycor))
+    obsdatanames = [
+        "waterlevel",
+        "bedlevel",
+        "waterdepth",
+        "taus",
+        "x_velocity",
+        "y_velocity",
+        "velocity_magnitude",
+        "discharge_magnitude",
+    ]
     for obsname in obsdatanames:
         data = ds[obsname].data
         if len(data) == len(time):
-            df = pd.DataFrame(data = data, index = time, columns = obspoint_id).T
+            df = pd.DataFrame(data=data, index=time, columns=obspoint_id).T
             gdf = gpd.GeoDataFrame(df, geometry=geom)
             gdfs[str(obsname)] = gdf
         else:
-            print (obsname + " is empty, skipping")
+            print(obsname + " is empty, skipping")
             continue
-    
-    #Read structure data
-    strucs = ["general_structure","pump","weirgen","orifice","bridge","culvert","uniweir"]
-    
+
+    # Read structure data
+    strucs = [
+        "general_structure",
+        "pump",
+        "weirgen",
+        "orifice",
+        "bridge",
+        "culvert",
+        "uniweir",
+    ]
+
     for struc in strucs:
         strucgdfs = {}
-        #voor elke structure de data inladen en in een gdf, opslaan in strucgdfs
+        # voor elke structure de data inladen en in een gdf, opslaan in strucgdfs
         struc_data = [x for x in list(ds.variables) if x.startswith(struc)]
-        struc_id = [x.decode('utf-8').strip() for x in ds[struc+"_id"].data]
+        struc_id = [x.decode("utf-8").strip() for x in ds[struc + "_id"].data]
         struc_xcorall = ds[struc + "_geom_node_coordx"].data
         struc_ycorall = ds[struc + "_geom_node_coordy"].data
-        
-        #Get average middle points because it are now lines.
-        #TODO: Point data omzetten naar polylines, wordt nu nog gemiddelde van genomen
-        points = [Point(xy) for xy in zip(struc_xcorall,struc_ycorall)]
-        struc_xcorgem = [sum([pair[0].x,pair[1].x])/2 for pair in zip(points[1::2],points[0::2])]
-        struc_ycorgem = [sum([pair[0].y,pair[1].y])/2 for pair in zip(points[1::2],points[0::2])]
-        avgpoints = [Point(xy) for xy in zip(struc_xcorgem,struc_ycorgem)]
-        
-        #TODO: Hij herkent nu nog niet de linestring format in geodataframe, daarom gemiddelde punt gepakt.
+
+        # Get average middle points because it are now lines.
+        # TODO: Point data omzetten naar polylines, wordt nu nog gemiddelde van genomen
+        points = [Point(xy) for xy in zip(struc_xcorall, struc_ycorall)]
+        struc_xcorgem = [
+            sum([pair[0].x, pair[1].x]) / 2 for pair in zip(points[1::2], points[0::2])
+        ]
+        struc_ycorgem = [
+            sum([pair[0].y, pair[1].y]) / 2 for pair in zip(points[1::2], points[0::2])
+        ]
+        avgpoints = [Point(xy) for xy in zip(struc_xcorgem, struc_ycorgem)]
+
+        # TODO: Hij herkent nu nog niet de linestring format in geodataframe, daarom gemiddelde punt gepakt.
         # if ds[struc +"_geom"].geometry_type == "line":
         #     itx = iter(struc_xcorall)
         #     for x in itx:
@@ -384,52 +408,52 @@ def hisnc_2gdf(input_path):
         #     ity = iter(struc_ycorall)
         #     for y in ity:
         #         struc_ycorgem.append([y,next(ity)])
-        
-        #Check if amount of xy coordinates matches with the geom_node_count:
-        if sum(list(ds[struc+"_geom_node_count"].data)) == 2*len(struc_ycorgem):
-            print ("Length is correct.")
+
+        # Check if amount of xy coordinates matches with the geom_node_count:
+        if sum(list(ds[struc + "_geom_node_count"].data)) == 2 * len(struc_ycorgem):
+            print("Length is correct.")
         else:
-            print ("Length is INCORRECT: Please check")
-             
-        #Schrijf alle data weg naar een losse dataframe
-        if struc == 'pump':
+            print("Length is INCORRECT: Please check")
+
+        # Schrijf alle data weg naar een losse dataframe
+        if struc == "pump":
             for struc_dat in struc_data[7:]:
                 data = ds[struc_dat].data
-                df = pd.DataFrame(data = data, index = time, columns = struc_id).T
+                df = pd.DataFrame(data=data, index=time, columns=struc_id).T
                 gdf = gpd.GeoDataFrame(df, geometry=avgpoints)
                 strucgdfs[str(struc_dat)] = gdf
         else:
             for struc_dat in struc_data[5:]:
                 data = ds[struc_dat].data
-                df = pd.DataFrame(data = data, index = time, columns = struc_id).T
+                df = pd.DataFrame(data=data, index=time, columns=struc_id).T
                 gdf = gpd.GeoDataFrame(df, geometry=avgpoints)
                 strucgdfs[str(struc_dat)] = gdf
         gdfs[str(struc)] = strucgdfs
-    
-    #import compound structures
+
+    # import compound structures
     cmpnd_data = [x for x in list(ds.variables) if x.startswith("cmpstru")]
-    cmpnd_id = [x.decode('utf-8').strip() for x in ds["cmpstru_id"].data]
+    cmpnd_id = [x.decode("utf-8").strip() for x in ds["cmpstru_id"].data]
     cmpndgdfs = {}
     for cmpnd_dat in cmpnd_data[1:]:
         data = ds[cmpnd_dat].data
-        df = pd.DataFrame(data = data, index = time, columns = cmpnd_id).T
+        df = pd.DataFrame(data=data, index=time, columns=cmpnd_id).T
         cmpndgdfs[str(cmpnd_dat)] = df
     gdfs[str("cmpstru")] = cmpndgdfs
-    
-    #import laterals
+
+    # import laterals
     lat_data = [x for x in list(ds.variables) if x.startswith("lateral")]
-    lats_id = [x.decode('utf-8').strip() for x in ds["lateral_id"].data] 
+    lats_id = [x.decode("utf-8").strip() for x in ds["lateral_id"].data]
     lats_xcor = ds["lateral_geom_node_coordx"].data
     lats_ycor = ds["lateral_geom_node_coordy"].data
-    geom = gpd.points_from_xy(list(lats_xcor),list(lats_ycor))
+    geom = gpd.points_from_xy(list(lats_xcor), list(lats_ycor))
     latsgdfs = {}
     for lat_dat in lat_data[5:]:
-       data = ds[lat_dat].data
-       df = pd.DataFrame(data = data, index = time, columns = lats_id).T
-       gdf = gpd.GeoDataFrame(df, geometry=geom)
-       latsgdfs[str(lat_dat)] = gdf
+        data = ds[lat_dat].data
+        df = pd.DataFrame(data=data, index=time, columns=lats_id).T
+        gdf = gpd.GeoDataFrame(df, geometry=geom)
+        latsgdfs[str(lat_dat)] = gdf
     gdfs[str("lateral")] = latsgdfs
-    
-    #Done
-    
+
+    # Done
+
     return gdfs
