@@ -363,6 +363,7 @@ def test_2d_clip_outside_polygon():
     plt.show()
 
 
+@pytest.mark.plots
 def test_2d_clip_inside_multipolygon():
 
     # Define polygon
@@ -389,6 +390,7 @@ def test_2d_clip_inside_multipolygon():
     plt.show()
 
 
+@pytest.mark.plots
 def test_1d_add_branch():
 
     # Define polygon
@@ -416,4 +418,59 @@ def test_1d_add_branch():
     ax.autoscale_view()
     for ls in common.as_linestring_list(branches):
         ax.plot(*ls.coords.xy, color="k", ls="-", lw=3, alpha=0.2)
+    plt.show()
+
+
+def _prepare_1d2d_mesh():
+    # Define polygon
+    fmmodel = FMModel()
+    network = fmmodel.geometry.netfile.network
+
+    # Generate 1d
+    branch = [LineString([[-9, -3], [0, 4]]), LineString([[0, 4], [10, -10]])]
+    branchids = mesh.mesh1d_add_branch(network, branches=branch, node_distance=1)
+
+    # Generate 2d
+    areas = MultiPolygon([box(-8, -10, 8, -2), box(-8, 2, 8, 10)])
+    hole = box(-6, -6, 6, -4)
+    mesh.mesh2d_add_rectilinear(network, areas, dx=0.5, dy=0.5)
+    mesh.mesh2d_clip(network, hole)
+
+    within = box(-10, -10, 12, 10).difference(
+        LineString([[-2, -10], [2, 10]]).buffer(2)
+    )
+
+    return network, within, branchids
+
+
+@pytest.mark.plots
+def test_links1d2d_add_links_1d_to_2d():
+
+    network, within, branchids = _prepare_1d2d_mesh()
+
+    # Generate all links
+    mesh.links1d2d_add_links_1d_to_2d(network)
+    assert len(network._link1d2d.link1d2d) == 33
+    network._link1d2d.clear()
+
+    # Generate links within polygon, with smaller distance factor, with max length, and for the first branch
+    mesh.links1d2d_add_links_1d_to_2d(network, within=within, branchids=[branchids[0]])
+    assert len(network._link1d2d.link1d2d) == 13
+    network._link1d2d.clear()
+
+    # Generate links within polygon
+    mesh.links1d2d_add_links_1d_to_2d(network, within=within)
+    assert len(network._link1d2d.link1d2d) == 28
+
+    # Plot to verify
+    fig, ax = plt.subplots(figsize=(5, 5))
+
+    viz.plot_network(network, ax=ax)
+
+    for polygon in common.as_polygon_list(within):
+        ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
+        ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
+    ax.set_aspect(1.0)
+    ax.autoscale_view()
+
     plt.show()

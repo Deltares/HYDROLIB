@@ -1,14 +1,20 @@
 from typing import List, Union
 
 import numpy as np
-from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon
+from shapely.geometry import (
+    LineString,
+    MultiLineString,
+    MultiPolygon,
+    Polygon,
+    Point,
+    MultiPoint,
+    box,
+)
+from shapely.prepared import prep
 
 from hydrolib.core.io.net.models import Branch, Network
 from hydrolib.dhydamo.geometry import common
 from hydrolib.dhydamo.geometry.models import GeometryList
-
-
-
 
 
 def mesh2d_add_rectilinear(
@@ -167,7 +173,7 @@ def mesh1d_add_branch(
         LineString, MultiLineString, List[Union[LineString, MultiLineString]]
     ],
     node_distance: Union[float, int],
-) -> None:
+) -> List[str]:
     """Add branch to 1d mesh, from a (list of) (Multi)LineString geometry.
     The branch is discretized with the given node distance.
 
@@ -175,9 +181,61 @@ def mesh1d_add_branch(
         network (Network): Network to which the branch is added
         branches (Union[ LineString, MultiLineString, List[Union[LineString, MultiLineString]] ]): Geometry object(s) for which the branch is created
         node_distance (Union[float, int]): Preferred node distance between branch nodes
+
+    Returns:
+        List[str]: List of names of added branches
     """
 
+    branchids = []
     for line in common.as_linestring_list(branches):
         branch = Branch(geometry=np.array(line.coords[:]))
         branch.generate_nodes(node_distance)
-        network.mesh1d_add_branch(branch)
+        branchid = network.mesh1d_add_branch(branch)
+        branchids.append(branchid)
+
+    return branchids
+
+
+def links1d2d_add_links_1d_to_2d(
+    network: Network,
+    branchids: List[str] = None,
+    within: Union[Polygon, MultiPolygon] = None,
+) -> None:
+    """Function to add 1d2d links to network, by generating them from 1d to 2d.
+    Branchids can be specified for 1d branches that need to be linked.
+    A (Multi)Polygon can be provided were links should be made.
+
+    Args:
+        network (Network): Network in which the connections are made
+        branchids (List[str], optional): List of branchid's to connect. If None, all branches are connected. Defaults to None.
+        within (Union[Polygon, MultiPolygon], optional): Area within which connections are made. Defaults to None.
+    """
+    # Load 1d and 2d in meshkernel
+    network._mesh1d._set_mesh1d()
+    network._mesh2d._set_mesh2d()
+
+    if within is None:
+        # If not provided, create a box from the maximum bounds
+        xmin = min(
+            network._mesh1d.mesh1d_node_x.min(), network._mesh2d.mesh2d_node_x.min()
+        )
+        xmax = max(
+            network._mesh1d.mesh1d_node_x.max(), network._mesh2d.mesh2d_node_x.max()
+        )
+        ymin = min(
+            network._mesh1d.mesh1d_node_y.min(), network._mesh2d.mesh2d_node_y.min()
+        )
+        ymax = max(
+            network._mesh1d.mesh1d_node_y.max(), network._mesh2d.mesh2d_node_y.max()
+        )
+
+        within = box(xmin, ymin, xmax, ymax)
+
+    # If a 'within' polygon was provided, convert it to a geometrylist
+    geometrylist = GeometryList.from_geometry(within)
+
+    # Get the nodes for the specific branch ids
+    node_mask = network._mesh1d.get_node_mask(branchids)
+
+    # Generate links
+    network._link1d2d._link_from_1d_to_2d(node_mask, polygon=geometrylist)
