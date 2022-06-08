@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
 
-from pydoc import doc
-import numpy as np
-import pandas as pd
-import geopandas as gpd
-import shapely
-from shapely.geometry import LineString, Point
-from scipy.spatial import distance
-from typing import Union
 import configparser
 import logging
+from pydoc import doc
+from typing import Union
 
-from hydromt import config
+import geopandas as gpd
 import hydromt.io
+import numpy as np
+import pandas as pd
+import shapely
+from hydromt import config
+from scipy.spatial import distance
+from shapely.geometry import LineString, Point
 
 from .helper import split_lines
 

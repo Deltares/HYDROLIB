@@ -1,53 +1,51 @@
 # -*- coding: utf-8 -*-
+import configparser
+import json
+import logging
 import os
 import pathlib
-import configparser, json
-
-import numpy as np
-
-from delft3dfmpy import (
-    OSM,
-    HyDAMO,
-    DFlowFMModel,
-    Rectangular,
-    DFlowFMWriter,
-    DFlowRRWriter,
-)
-from delft3dfmpy import DFlowRRModel, DFlowRRWriter
-from delft3dfmpy.datamodels.datamodel import datamodel
-from delft3dfmpy.io.UgridReader import UgridReader
-from delft3dfmpy.io import dfmreader
-from delft3dfmpy.core.logging import initialize_logger
-from delft3dfmpy.core.geometry import sample_raster_values
-
-# TODO BMA: maybe all the geometry functions can be replaced by hydroMT functions
-
-import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
-import pandas as pd
-import geopandas as gpd
-import logging
-import subprocess, shutil, zipfile
-import networkx as nx
-import contextily as ctx
 import random
+import shutil
+import subprocess
+import zipfile
 
-# Import csv
-
-# Geometries
-from shapely.geometry import Polygon, LineString, Point
+import contextily as ctx
+import geopandas as gpd
+import hydromt
 
 # Plotting
 import matplotlib.pyplot as plt
-
-from matplotlib.collections import LineCollection
+import networkx as nx
+import numpy as np
+import pandas as pd
+from delft3dfmpy import (
+    OSM,
+    DFlowFMModel,
+    DFlowFMWriter,
+    DFlowRRModel,
+    DFlowRRWriter,
+    HyDAMO,
+    Rectangular,
+)
+from delft3dfmpy.core.geometry import sample_raster_values
+from delft3dfmpy.core.logging import initialize_logger
 
 # from delft3dfmpy.core.preprocess import *
 # FIXME: use above-mentioned preprocess from hydromt workflows
 from delft3dfmpy.datamodels.common import ExtendedGeoDataFrame
+from delft3dfmpy.datamodels.datamodel import datamodel
+from delft3dfmpy.io import dfmreader
+from delft3dfmpy.io.UgridReader import UgridReader
+from matplotlib.collections import LineCollection
+
+# Geometries
+from shapely.geometry import LineString, Point, Polygon
+
+# TODO BMA: maybe all the geometry functions can be replaced by hydroMT functions
 
 
-import hydromt
+# Import csv
+
 
 # TODO BMA: make class and use self (hydroMT related)
 

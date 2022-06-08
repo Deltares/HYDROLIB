@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 
-import numpy as np
-import pandas as pd
-import geopandas as gpd
-import shapely
-from shapely.geometry import LineString, Point
-from scipy.spatial import distance
 import configparser
 import logging
 
-from hydromt import config
+import geopandas as gpd
 import hydromt.io
+import numpy as np
+import pandas as pd
+import shapely
+from hydromt import config
+from scipy.spatial import distance
+from shapely.geometry import LineString, Point
 
 logger = logging.getLogger(__name__)
 

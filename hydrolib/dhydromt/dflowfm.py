@@ -1,38 +1,36 @@
 """Implement plugin model class"""
 
 import glob
-from os.path import join, basename, isfile
 import logging
-
-import pandas as pd
-import numpy as np
-from rasterio.warp import transform_bounds
-import pyproj
-import geopandas as gpd
-from shapely.geometry import box
-import xarray as xr
+from os.path import basename, isfile, join
+from pathlib import Path
 from typing import Union
 
+import geopandas as gpd
 import hydromt
+import numpy as np
+import pandas as pd
+import pyproj
+import xarray as xr
+from hydromt import gis_utils, io, raster
 from hydromt.models.model_api import Model
-from hydromt import gis_utils, io
-from hydromt import raster
-
-from .workflows import process_branches
-from .workflows import update_data_columns_attributes
-from .workflows import update_data_columns_attribute_from_query
-from .workflows import validate_branches
-from .workflows import generate_roughness
-from .workflows import set_branch_crosssections
-from .workflows import set_xyz_crosssections
+from rasterio.warp import transform_bounds
+from shapely.geometry import box
 
 from hydrolib.core.io.crosssection.models import *
 from hydrolib.core.io.mdu.models import FMModel
 
-from .workflows import helper
 from . import DATADIR
-
-from pathlib import Path
+from .workflows import (
+    generate_roughness,
+    helper,
+    process_branches,
+    set_branch_crosssections,
+    set_xyz_crosssections,
+    update_data_columns_attribute_from_query,
+    update_data_columns_attributes,
+    validate_branches,
+)
 
 __all__ = ["DFlowFMModel"]
 logger = logging.getLogger(__name__)
@@ -77,9 +75,7 @@ class DFlowFMModel(Model):
         # model specific
         # default ini files
         self._region_name = "DFlowFM"
-        self._ini_settings = (
-            None,
-        )  # TODO: remove?
+        self._ini_settings = (None,)  # TODO: remove?
         self._dfmmodel = None  # TODO: replace with hydrolib-core object
         self._branches = gpd.GeoDataFrame()
 
@@ -286,11 +282,11 @@ class DFlowFMModel(Model):
         rivers_defaults_fn: str = None,
         snap_offset: float = 0.0,
         allow_intersection_snapping: bool = True,
-        friction_type: str = "Manning", # what about constructing friction_defaults_fn?
+        friction_type: str = "Manning",  # what about constructing friction_defaults_fn?
         friction_value: float = 0.023,
         crosssections_defaults_fn: str = None,
         crosssections_fn: str = None,
-        crosssections_type:str = None
+        crosssections_type: str = None,
     ):
         """This component prepares the 1D rivers and adds to branches 1D network.
 
@@ -371,7 +367,21 @@ class DFlowFMModel(Model):
             self.logger.info(f"river default settings read from {rivers_defaults_fn}.")
 
             # check for allowed columns and select only the ones required
-            _allowed_columns = ["geometry", "branchId", "branchType", "material", "shape", "diameter", "width", "t_width", "height", "bedlev", "closed", "friction_type", "friction_value"]
+            _allowed_columns = [
+                "geometry",
+                "branchId",
+                "branchType",
+                "material",
+                "shape",
+                "diameter",
+                "width",
+                "t_width",
+                "height",
+                "bedlev",
+                "closed",
+                "friction_type",
+                "friction_value",
+            ]
             allowed_columns = set(_allowed_columns).intersection(gdf_riv.columns)
             gdf_riv = gpd.GeoDataFrame(gdf_riv[allowed_columns])
 
@@ -384,7 +394,7 @@ class DFlowFMModel(Model):
                 gdf_br=gdf_riv,
                 defaults=defaults,
                 br_type="river",
-                spacing=None, # does not allow spacing for rivers
+                spacing=None,  # does not allow spacing for rivers
                 snap_offset=snap_offset,
                 allow_intersection_snapping=allow_intersection_snapping,
             )
@@ -406,7 +416,10 @@ class DFlowFMModel(Model):
 
                 # read crosssection and fill in with default attributes values
                 _gdf_crs = rivers.copy()
-                if crosssections_defaults_fn is None or not crosssections_defaults_fn.is_file():
+                if (
+                    crosssections_defaults_fn is None
+                    or not crosssections_defaults_fn.is_file()
+                ):
                     self.logger.warning(
                         f"crosssections_defaults_fn ({crosssections_defaults_fn}) does not exist. Fall back choice to defaults. "
                     )
@@ -414,8 +427,12 @@ class DFlowFMModel(Model):
                         "crosssections", "crosssections_defaults.csv"
                     )
                 defaults = pd.read_csv(crosssections_defaults_fn)
-                self.logger.info(f"crosssection default settings read from {rivers_defaults_fn}.")
-                _gdf_crs = update_data_columns_attributes(_gdf_crs, defaults, brtype="river")
+                self.logger.info(
+                    f"crosssection default settings read from {rivers_defaults_fn}."
+                )
+                _gdf_crs = update_data_columns_attributes(
+                    _gdf_crs, defaults, brtype="river"
+                )
 
                 # set crosssections
                 _gdf_crs = set_branch_crosssections(rivers, _gdf_crs)
@@ -423,18 +440,22 @@ class DFlowFMModel(Model):
                 # TODO add to existing crosssections
                 crosssections = gpd.GeoDataFrame(pd.concat([crosssections, _gdf_crs]))
 
-
             else:
                 # setup cross sections from file
                 if crosssections_type == None:
-                    self.logger.error("Must specify crosssections_type. Use the following options: xyz")
+                    self.logger.error(
+                        "Must specify crosssections_type. Use the following options: xyz"
+                    )
 
-                elif crosssections_type == 'xyz':
+                elif crosssections_type == "xyz":
 
                     # read xyz crosssections with a small buffer
                     id_col = "crsId"
                     _gdf_crs = self.data_catalog.get_geodataframe(
-                        crosssections_fn, geom=self.region, buffer=10, predicate="contains"
+                        crosssections_fn,
+                        geom=self.region,
+                        buffer=10,
+                        predicate="contains",
                     )
                     _gdf_crs.index = _gdf_crs[id_col]
                     _gdf_crs.index.name = id_col
@@ -448,7 +469,10 @@ class DFlowFMModel(Model):
                     else:
                         # read xyz crosssections with a larger buffer and filter the id (in case smaller buffer was too small)
                         _gdf_crs = self.data_catalog.get_geodataframe(
-                            crosssections_fn, geom=self.region, buffer=1000, predicate="contains"
+                            crosssections_fn,
+                            geom=self.region,
+                            buffer=1000,
+                            predicate="contains",
                         )
                         _gdf_crs.index = _gdf_crs[id_col]
                         _gdf_crs.index.name = id_col
@@ -462,11 +486,14 @@ class DFlowFMModel(Model):
                         _gdf_crs = set_xyz_crosssections(rivers, _gdf_crs)
 
                         # TODO add to existing crosssections
-                        crosssections = gpd.GeoDataFrame(pd.concat([crosssections, _gdf_crs]))
+                        crosssections = gpd.GeoDataFrame(
+                            pd.concat([crosssections, _gdf_crs])
+                        )
 
                 else:
-                    raise NotImplementedError("Method {crosssections_type} is not implemented.")
-
+                    raise NotImplementedError(
+                        "Method {crosssections_type} is not implemented."
+                    )
 
             # setup staticgeoms #TODO do we still need channels?
             self.logger.debug(f"Adding rivers and river_nodes vector to staticgeoms.")
@@ -479,7 +506,6 @@ class DFlowFMModel(Model):
             # setup staticgeoms #TODO do we still need channels?
             self.logger.debug(f"Adding crosssections vector to staticgeoms.")
             self.set_staticgeoms(crosssections, "crosssections")
-
 
     # def setup_branches(
     #     self,
@@ -1160,7 +1186,9 @@ class DFlowFMModel(Model):
             raise IOError("Model opened in read-only mode")
         for name, gdf in self.staticgeoms.items():
             fn_out = join(self.root, "staticgeoms", f"{name}.geojson")
-            self.staticgeoms[name].reset_index(drop=True).to_file(fn_out, driver='GeoJSON') # FIXME: does not work if does not reset index
+            self.staticgeoms[name].reset_index(drop=True).to_file(
+                fn_out, driver="GeoJSON"
+            )  # FIXME: does not work if does not reset index
 
     def read_forcing(self):
         """Read forcing at <root/?/> and parse to dict of xr.DataArray"""
@@ -1183,33 +1211,38 @@ class DFlowFMModel(Model):
             raise IOError("Model opened in read-only mode")
 
         # write crosssections
-        model_crsloc, model_crsdef = self._write_crosssections(fm_model = self.dfmmodel)
+        model_crsloc, model_crsdef = self._write_crosssections(fm_model=self.dfmmodel)
 
         # save model
         self.dfmmodel.save()
-
 
     def _write_crosssections(self, fm_model):
         """write crosssections into hydrolib-core crsloc and crsdef objects"""
 
         # preprocessing for crosssections from staticgeoms
-        gdp_crs = self._staticgeoms['crosssections']
+        gdp_crs = self._staticgeoms["crosssections"]
 
         # crsdef
         # get crsdef from crosssections gpd # FIXME: change this for update case
-        gdp_crsdef = gdp_crs[[c for c in gdp_crs.columns if c.startswith('crsdef')]]
-        gdp_crsdef = gdp_crsdef.rename(columns = {c:c.split('_')[1] for c in gdp_crsdef.columns})
+        gdp_crsdef = gdp_crs[[c for c in gdp_crs.columns if c.startswith("crsdef")]]
+        gdp_crsdef = gdp_crsdef.rename(
+            columns={c: c.split("_")[1] for c in gdp_crsdef.columns}
+        )
 
         # create hydrolib-core object
-        if fm_model.geometry.crossdeffile is None: # FIXME as soon as crossdeffile is filled in, AttributeError: 'Geometry' object has no attribute 'crosslocfile'
+        if (
+            fm_model.geometry.crossdeffile is None
+        ):  # FIXME as soon as crossdeffile is filled in, AttributeError: 'Geometry' object has no attribute 'crosslocfile'
             # create a new crsdef model
-            fm_model.geometry.crossdeffile = CrossDefModel(filepath = fm_model.filepath.with_name('crsdef.ini'))  # FIXME: how to make it relative path
+            fm_model.geometry.crossdeffile = CrossDefModel(
+                filepath=fm_model.filepath.with_name("crsdef.ini")
+            )  # FIXME: how to make it relative path
 
         # add crsdef as per type
-        for i, c in gdp_crsdef.to_dict(orient='index').items():
-            if c['type'] == 'xyz':
+        for i, c in gdp_crsdef.to_dict(orient="index").items():
+            if c["type"] == "xyz":
                 fm_model.geometry.crossdeffile.definition.append(XYZCrsDef(**c))
-            elif c['type'] == 'rectangle':
+            elif c["type"] == "rectangle":
                 fm_model.geometry.crossdeffile.definition.append(RectangleCrsDef(**c))
             else:
                 # raise NotImplementedError
@@ -1220,17 +1253,23 @@ class DFlowFMModel(Model):
 
         # crsloc
         # get crsloc from crosssections gpd # FIXME: change this for update case
-        gdp_crsloc = gdp_crs[[c for c in gdp_crs.columns if c.startswith('crsloc')]]
-        gdp_crsloc = gdp_crsloc.rename(columns = {c:c.split('_')[1] for c in gdp_crsloc.columns})
+        gdp_crsloc = gdp_crs[[c for c in gdp_crs.columns if c.startswith("crsloc")]]
+        gdp_crsloc = gdp_crsloc.rename(
+            columns={c: c.split("_")[1] for c in gdp_crsloc.columns}
+        )
 
         # create hydrolib-core object
-        if fm_model.geometry.crosslocfile is None: # FIXME as soon as crossdeffile is filled in, AttributeError: 'Geometry' object has no attribute 'crosslocfile'
+        if (
+            fm_model.geometry.crosslocfile is None
+        ):  # FIXME as soon as crossdeffile is filled in, AttributeError: 'Geometry' object has no attribute 'crosslocfile'
             # create a new crsloc model
-            fm_model.geometry.crosslocfile = CrossLocModel(filepath = fm_model.filepath.with_name('crsloc.ini'))  # FIXME: how to make it relative path
+            fm_model.geometry.crosslocfile = CrossLocModel(
+                filepath=fm_model.filepath.with_name("crsloc.ini")
+            )  # FIXME: how to make it relative path
 
         # add crsloc
-        for i,c in gdp_crsloc.to_dict(orient='index').items():
-            fm_model.geometry.crosslocfile.crosssection.append( CrossSection(**c))
+        for i, c in gdp_crsloc.to_dict(orient="index").items():
+            fm_model.geometry.crosslocfile.crosssection.append(CrossSection(**c))
 
         # write crsloc
         fm_model.geometry.crosslocfile.save()
@@ -1277,7 +1316,9 @@ class DFlowFMModel(Model):
         outputdir = Path(self.root).joinpath("dflowfm")
         outputdir.mkdir(parents=True, exist_ok=True)
         # create a new MDU-Model
-        self._dfmmodel = FMModel(filepath=outputdir.joinpath('fm.mdu')) # FIXME: user region h
+        self._dfmmodel = FMModel(
+            filepath=outputdir.joinpath("fm.mdu")
+        )  # FIXME: user region h
 
     @property
     def branches(self):
