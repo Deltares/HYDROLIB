@@ -1,5 +1,4 @@
 import os
-
 import geopandas as gpd
 import netCDF4 as nc
 import pandas as pd
@@ -32,12 +31,15 @@ def initial_dhydro(
            Waterways that lie in several waterlevel control areas are not (always) processed correctly.
 
     """
-    # TODO: order of split in level is not always right
     global_value = float(global_value)
 
-    ds = nc.Dataset(net_nc_path)
+    #ds = nc.Dataset(net_nc_path)
     gdf_areas = gpd.read_file(areas_path)
-    initials = determine_initial(ds, gdf_areas, value_field)
+    # hier al reaches uitlezen
+
+    gdf_branches = net_nc2gdf(net_nc_path,results=["1d_branches"])["1d_branches"]
+
+    initials = determine_initial(gdf_branches, gdf_areas, value_field)
     # todo: check projection both files
     write_initial(initials, output_path, value_type, global_value)
     print("Wegschrijven van initiele situatie gelukt")
@@ -45,15 +47,14 @@ def initial_dhydro(
 
 ## General functions
 
-
-def determine_initial(ds, gdf_areas, level_field):
+def determine_initial(gdf_branches, gdf_areas, level_field):
     """
     Function that determines and changes the initial fields of the D-Hydro project.
 
     Parameters
     ----------
-    ds : netCDF4 dataset
-        Dataset of the net_nc file.
+    gdf_branches : GeoDataFrame
+        GDF containing the model 1d branches.
     gdf_areas : GeoDataFrame
         GDF containing the areas with the initial water levels.
     level_field : string
@@ -65,10 +66,8 @@ def determine_initial(ds, gdf_areas, level_field):
         list containing new initial water levels.
 
     """
-    gdfs = net_nc2gdf(ds)
-    gdf_branch = gdfs["network_branch"]
 
-    gdf1 = gdf_branch.drop(columns=gdf_branch.columns[:-1]).reset_index()
+    gdf1 = gdf_branches[["id","geometry"]]
     gdf2 = gdf_areas[[level_field, "geometry"]]
 
     # TODO: Union nog oplossen dat het niet error geeft, de nan values (oude values) missen nu.
@@ -95,8 +94,9 @@ def determine_initial(ds, gdf_areas, level_field):
                 initials[branch_id]["chainage"] += [chainage]
                 initials[branch_id]["level"] += [gdf_union_branch[level_field].iloc[0]]
         else:  # branches split into multiple parts
-            gdf_branch_org = gdf_branch.loc[branch_id]
-            coords_start = gdf_branch_org.geometry.coords[0]
+            #gdf_branches_org = gdf_branches.loc[branch_id]
+            gdf_branches_org = gdf_branches.loc[gdf_branches["id"]==branch_id].iloc[0]
+            coords_start = gdf_branches_org.geometry.coords[0]
             gdf_union_branch["coords_start"] = [
                 xy.coords[0] for xy in gdf_union_branch["geometry"].tolist()
             ]
@@ -117,15 +117,10 @@ def determine_initial(ds, gdf_areas, level_field):
                 chainage = chainage + part.length
                 coords_start = part.geometry.coords[-1]
 
-        # for index, row in gdf_union[gdf_union["id"] == branch_id].iterrows():
-        #    if row[level_field] > -9999:
-        #        initials[branch_id]["chainage"] += [row["start"]]
-        #        initials[branch_id]["level"] += [row[level_field]]
-
     return initials
 
 
-def write_initial(initials, output_location, value_type, global_value=1.0):
+def write_initial(initials,output_location,value_type="WaterLevel",global_value=0.0):
     """
     Writer of initial water levels .ini file.
 
@@ -146,45 +141,29 @@ def write_initial(initials, output_location, value_type, global_value=1.0):
 
     """
     with open(output_location, "w") as f:
-        f.write(
-            "[General]\n    fileVersion           = 2.00\n    fileType              = 1dField\n"
-        )
-        f.write(
-            "\n[Global]\n    quantity              = "
-            + value_type
-            + "\n    unit                  = m\n    value                 = "
-            + str(global_value)
-            + "\n"
-        )
+        f.write("[General]\n    fileVersion           = 2.00\n    fileType              = 1dField\n")
+        f.write("\n[Global]\n    quantity              = " + value_type + "\n    unit                  = m\n    value                 = " + str(global_value) + "\n")
 
-        for initial in initials:
-            f.write("\n[Branch]\n    branchId              = " + initial[0] + "\n")
-            if len(set(initial[2])) == 1:
-                f.write(
-                    "    values                = "
-                    + "{:8.3f}".format(initial[2][0])
-                    + "\n"
-                )
-            else:
-                f.write("    numLocations          = " + str(len(initial[2])) + "\n")
-                f.write(
-                    "    chainage              = "
-                    + " ".join(["{:8.3f}".format(x) for x in initial[1]])
-                    + "\n"
-                )
-                f.write(
-                    "    values                = "
-                    + " ".join(["{:8.3f}".format(x) for x in initial[2]])
-                    + "\n"
-                )
+        for branch_id in initials:
+            initial = initials[branch_id]
+            if len(initial["chainage"]) > 0:
+                f.write("\n[Branch]\n    branchId              = " + branch_id + "\n")
+                if len(initial["chainage"]) == 1 and initial["chainage"][0] == 0:
+                    f.write("    values                = " + "{:8.3f}".format(initial["level"][0]) + "\n")
+                else:
+                    f.write("    numLocations          = " + str(len(initial["chainage"])) + "\n")
+                    f.write("    chainage              = " + " ".join(["{:8.3f}".format(x) for x in initial["chainage"]]) + "\n")
+                    f.write("    values                = " + " ".join(["{:8.3f}".format(x) for x in initial["level"]]) + "\n")
 
 
 if __name__ == "__main__":
-    net_nc_path = r"C:\D-Hydro\DR49_Doesburg_Noord_10000\dflowfm\structures.ini"
-    areas_path = r"C:\D-Hydro\DR49_Doesburg_Noord_10000\dflowfm\40x40_dr49_ref_net.nc"
-    value_field = r"C:\temp\export_dhydro"
-    value_type = r"C:\D-Hydro\DR49_Doesburg_Noord_10000\dflowfm\crsloc.ini"
-    output_path = r"C:\temp\initial/InitialWaterLevel.ini"
+
+    dir = os.path.dirname(__file__)
+    net_nc_path = os.path.join(dir,r"exampledata\Zwolle-Minimodel\1D2D-DIMR\dflowfm\FlowFM_net.nc")
+    areas_path =  os.path.join(dir,r"exampledata\shapes\gebieden.shp")
+    value_field = "Level"
+    value_type = "WaterLevel"
+    output_path = r"C:\temp\Hydrolib\InitialWaterLevel.ini"
 
     initial_dhydro(
         net_nc_path,
@@ -194,3 +173,4 @@ if __name__ == "__main__":
         global_value=1.0,
         output_path=output_path,
     )
+    print("Script finished")
