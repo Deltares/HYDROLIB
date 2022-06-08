@@ -1,5 +1,6 @@
-from pathlib import Path
 import os
+from pathlib import Path
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -9,7 +10,18 @@ from shapely.geometry import LineString, Point, Polygon
 from hydrolib.core.io.net.models import Network
 
 
-def net_nc2gdf(net_ncs,results=["1d_meshnodes","1d_nodes","1d_branches","2d_nodes","2d_edges","2d_faces","1d2d_links"]):
+def net_nc2gdf(
+    net_ncs,
+    results=[
+        "1d_meshnodes",
+        "1d_nodes",
+        "1d_branches",
+        "2d_nodes",
+        "2d_edges",
+        "2d_faces",
+        "1d2d_links",
+    ],
+):
     """
     This script reads an D-HYDRO *net.nc file and converts it to a dictionary with GeoDataFrames.
 
@@ -24,121 +36,220 @@ def net_nc2gdf(net_ncs,results=["1d_meshnodes","1d_nodes","1d_branches","2d_node
 
     """
 
-    if not set(results).issubset(["1d_meshnodes","1d_nodes","1d_branches","2d_nodes","2d_edges","2d_faces","1d2d_links"]):
+    if not set(results).issubset(
+        [
+            "1d_meshnodes",
+            "1d_nodes",
+            "1d_branches",
+            "2d_nodes",
+            "2d_edges",
+            "2d_faces",
+            "1d2d_links",
+        ]
+    ):
         print("wrong input in results")
 
     # read nc model
-    nc_path  = Path(net_ncs)
+    nc_path = Path(net_ncs)
     net = Network()
     nc_model = net.from_file(nc_path)
 
     print("Amersfoort aangenomen als projectie")
-    EPSG = 'EPSG:28992'
+    EPSG = "EPSG:28992"
 
     ## 1D
     # 1D nodes mesh
-    gdf_mesh1d_nodes = gpd.GeoDataFrame({
-        "id":nc_model._mesh1d.mesh1d_node_id,
-        "name":nc_model._mesh1d.mesh1d_node_long_name,
-        "branch":nc_model._mesh1d.mesh1d_node_branch_id,
-        "offset":nc_model._mesh1d.mesh1d_node_branch_offset
-        },crs=EPSG,geometry=gpd.points_from_xy(nc_model._mesh1d.mesh1d_node_x,nc_model._mesh1d.mesh1d_node_y))
+    gdf_mesh1d_nodes = gpd.GeoDataFrame(
+        {
+            "id": nc_model._mesh1d.mesh1d_node_id,
+            "name": nc_model._mesh1d.mesh1d_node_long_name,
+            "branch": nc_model._mesh1d.mesh1d_node_branch_id,
+            "offset": nc_model._mesh1d.mesh1d_node_branch_offset,
+        },
+        crs=EPSG,
+        geometry=gpd.points_from_xy(
+            nc_model._mesh1d.mesh1d_node_x, nc_model._mesh1d.mesh1d_node_y
+        ),
+    )
 
     # 1D nodes
-    gdf_network1d_nodes = gpd.GeoDataFrame({
-        "id":nc_model._mesh1d.network1d_node_id,
-        "name":nc_model._mesh1d.network1d_node_long_name
-        },crs=EPSG,geometry=gpd.points_from_xy(nc_model._mesh1d.network1d_node_x,nc_model._mesh1d.network1d_node_y))        
-    
+    gdf_network1d_nodes = gpd.GeoDataFrame(
+        {
+            "id": nc_model._mesh1d.network1d_node_id,
+            "name": nc_model._mesh1d.network1d_node_long_name,
+        },
+        crs=EPSG,
+        geometry=gpd.points_from_xy(
+            nc_model._mesh1d.network1d_node_x, nc_model._mesh1d.network1d_node_y
+        ),
+    )
+
     # combine mesh_nodes with edge_nodes from network1d
-    gdf_mesh_nodes_start = gpd.GeoDataFrame([gdf_network1d_nodes.loc[i] for i in np.array(nc_model._mesh1d.network1d_edge_nodes)[:,0]], crs=EPSG).reset_index(drop=True)
-    gdf_mesh_nodes_end = gpd.GeoDataFrame([gdf_network1d_nodes.loc[i] for i in np.array(nc_model._mesh1d.network1d_edge_nodes)[:,1]], crs=EPSG).reset_index(drop=True)
-    gdf_mesh_nodes_start.index.rename("branch",inplace=True)
-    gdf_mesh_nodes_end.index.rename("branch",inplace=True)
+    gdf_mesh_nodes_start = gpd.GeoDataFrame(
+        [
+            gdf_network1d_nodes.loc[i]
+            for i in np.array(nc_model._mesh1d.network1d_edge_nodes)[:, 0]
+        ],
+        crs=EPSG,
+    ).reset_index(drop=True)
+    gdf_mesh_nodes_end = gpd.GeoDataFrame(
+        [
+            gdf_network1d_nodes.loc[i]
+            for i in np.array(nc_model._mesh1d.network1d_edge_nodes)[:, 1]
+        ],
+        crs=EPSG,
+    ).reset_index(drop=True)
+    gdf_mesh_nodes_start.index.rename("branch", inplace=True)
+    gdf_mesh_nodes_end.index.rename("branch", inplace=True)
     gdf_mesh_nodes_start.reset_index(inplace=True)
     gdf_mesh_nodes_end.reset_index(inplace=True)
 
     # 1D branches
     if "1d_branches" in results:
-        gdf_mesh_nodes_total = gpd.GeoDataFrame(pd.concat([gdf_mesh_nodes_start,gdf_mesh1d_nodes,gdf_mesh_nodes_end]), crs=EPSG)
-        gdf_mesh_nodes_total.drop_duplicates(subset=["branch","geometry"], keep='first', inplace=True, ignore_index=True)
-        geometry = gdf_mesh_nodes_total.groupby(['branch'])['geometry'].apply(lambda x: LineString(x.tolist()))
-        gdf_branches = gpd.GeoDataFrame({
-            "id":nc_model._mesh1d.network1d_branch_id,
-            "length":nc_model._mesh1d.network1d_branch_length,
-            "name":nc_model._mesh1d.network1d_branch_long_name,
-            "order":nc_model._mesh1d.network1d_branch_order},
-            geometry=geometry
+        gdf_mesh_nodes_total = gpd.GeoDataFrame(
+            pd.concat([gdf_mesh_nodes_start, gdf_mesh1d_nodes, gdf_mesh_nodes_end]),
+            crs=EPSG,
+        )
+        gdf_mesh_nodes_total.drop_duplicates(
+            subset=["branch", "geometry"], keep="first", inplace=True, ignore_index=True
+        )
+        geometry = gdf_mesh_nodes_total.groupby(["branch"])["geometry"].apply(
+            lambda x: LineString(x.tolist())
+        )
+        gdf_branches = gpd.GeoDataFrame(
+            {
+                "id": nc_model._mesh1d.network1d_branch_id,
+                "length": nc_model._mesh1d.network1d_branch_length,
+                "name": nc_model._mesh1d.network1d_branch_long_name,
+                "order": nc_model._mesh1d.network1d_branch_order,
+            },
+            geometry=geometry,
         )
 
     ## 2D
 
-
     # create nodes
-    dict_2d_nodes = dict(list(enumerate(zip(nc_model._mesh2d.mesh2d_node_x,nc_model._mesh2d.mesh2d_node_y,nc_model._mesh2d.mesh2d_node_z))))
-    if "2d_nodes" in results or "2d_faces" in results or "2d_edges" in results or "1d2d_links" in results:
-        gdf_2d_nodes = gpd.GeoDataFrame(geometry=gpd.points_from_xy(
-            nc_model._mesh2d.mesh2d_node_x,
-            nc_model._mesh2d.mesh2d_node_y,
-            nc_model._mesh2d.mesh2d_node_z),
-            crs=EPSG)
-    
+    dict_2d_nodes = dict(
+        list(
+            enumerate(
+                zip(
+                    nc_model._mesh2d.mesh2d_node_x,
+                    nc_model._mesh2d.mesh2d_node_y,
+                    nc_model._mesh2d.mesh2d_node_z,
+                )
+            )
+        )
+    )
+    if (
+        "2d_nodes" in results
+        or "2d_faces" in results
+        or "2d_edges" in results
+        or "1d2d_links" in results
+    ):
+        gdf_2d_nodes = gpd.GeoDataFrame(
+            geometry=gpd.points_from_xy(
+                nc_model._mesh2d.mesh2d_node_x,
+                nc_model._mesh2d.mesh2d_node_y,
+                nc_model._mesh2d.mesh2d_node_z,
+            ),
+            crs=EPSG,
+        )
+
     # create faces
     if "2d_faces" in results or "1d2d_links" in results:
         gdf_2d_faces = gpd.GeoDataFrame(
-            pd.DataFrame({
-                "X":nc_model._mesh2d.mesh2d_face_x,
-                "Y":nc_model._mesh2d.mesh2d_face_y,
-                "Z":nc_model._mesh2d.mesh2d_face_z}),
+            pd.DataFrame(
+                {
+                    "X": nc_model._mesh2d.mesh2d_face_x,
+                    "Y": nc_model._mesh2d.mesh2d_face_y,
+                    "Z": nc_model._mesh2d.mesh2d_face_z,
+                }
+            ),
             crs=EPSG,
-            geometry=[Polygon([dict_2d_nodes[id] for id in np.delete(ids,ids==-999)]) 
-            for ids in nc_model._mesh2d.mesh2d_face_nodes])
+            geometry=[
+                Polygon([dict_2d_nodes[id] for id in np.delete(ids, ids == -999)])
+                for ids in nc_model._mesh2d.mesh2d_face_nodes
+            ],
+        )
 
     # create edges
     if "2d_edges" in results:
         gdf_2d_edges = gpd.GeoDataFrame(
-            pd.DataFrame({
-                "X":nc_model._mesh2d.mesh2d_edge_x,
-                "Y":nc_model._mesh2d.mesh2d_edge_y,
-                "Z":nc_model._mesh2d.mesh2d_edge_z}),
+            pd.DataFrame(
+                {
+                    "X": nc_model._mesh2d.mesh2d_edge_x,
+                    "Y": nc_model._mesh2d.mesh2d_edge_y,
+                    "Z": nc_model._mesh2d.mesh2d_edge_z,
+                }
+            ),
             crs=EPSG,
-            geometry=[LineString([dict_2d_nodes[id] for id in np.delete(ids,ids==-999)]) 
-            for ids in nc_model._mesh2d.mesh2d_edge_nodes])
+            geometry=[
+                LineString([dict_2d_nodes[id] for id in np.delete(ids, ids == -999)])
+                for ids in nc_model._mesh2d.mesh2d_edge_nodes
+            ],
+        )
 
     # create 1d2d links
     if "1d2d_links" in results:
         l1d2d = nc_model._link1d2d
         if len(l1d2d.link1d2d_id) > 0:
-            df_links = pd.DataFrame([{
-                "id":l1d2d.link1d2d_id[i],
-                "name":l1d2d.link1d2d_long_name[i],
-                "type":l1d2d.link1d2d_contact_type[i],
-                "1D":l1d2d.link1d2d[i][0],
-                "2D":l1d2d.link1d2d[i][1]}
-                for i in range(len(l1d2d.link1d2d_id))]).set_index("id")
-            geometry = [LineString([
-                    [gdf_mesh1d_nodes.loc[l1d2d.link1d2d[i][0]].geometry.x,gdf_mesh1d_nodes.loc[l1d2d.link1d2d[i][0]].geometry.y],
-                    [gdf_2d_faces.loc[l1d2d.link1d2d[i][1]].geometry.centroid.x,gdf_2d_faces.loc[l1d2d.link1d2d[i][1]].geometry.centroid.y]])
-                    for i in range(len(l1d2d.link1d2d_id))]
-            gdf_links = gpd.GeoDataFrame(df_links,geometry=geometry,crs=EPSG)
-        else: # no 1D2D links
-            gdf_links=gpd.GeoDataFrame(columns=["id","name","type","1D","2D","geometry"],crs=EPSG).set_index("id")
+            df_links = pd.DataFrame(
+                [
+                    {
+                        "id": l1d2d.link1d2d_id[i],
+                        "name": l1d2d.link1d2d_long_name[i],
+                        "type": l1d2d.link1d2d_contact_type[i],
+                        "1D": l1d2d.link1d2d[i][0],
+                        "2D": l1d2d.link1d2d[i][1],
+                    }
+                    for i in range(len(l1d2d.link1d2d_id))
+                ]
+            ).set_index("id")
+            geometry = [
+                LineString(
+                    [
+                        [
+                            gdf_mesh1d_nodes.loc[l1d2d.link1d2d[i][0]].geometry.x,
+                            gdf_mesh1d_nodes.loc[l1d2d.link1d2d[i][0]].geometry.y,
+                        ],
+                        [
+                            gdf_2d_faces.loc[l1d2d.link1d2d[i][1]].geometry.centroid.x,
+                            gdf_2d_faces.loc[l1d2d.link1d2d[i][1]].geometry.centroid.y,
+                        ],
+                    ]
+                )
+                for i in range(len(l1d2d.link1d2d_id))
+            ]
+            gdf_links = gpd.GeoDataFrame(df_links, geometry=geometry, crs=EPSG)
+        else:  # no 1D2D links
+            gdf_links = gpd.GeoDataFrame(
+                columns=["id", "name", "type", "1D", "2D", "geometry"], crs=EPSG
+            ).set_index("id")
             print("no 1d2d links in model")
 
     gdfs_results = {}
-    if "1d_meshnodes" in results: gdfs_results["1d_meshnodes"] = gdf_mesh1d_nodes
-    if "1d_nodes" in results: gdfs_results["1d_nodes"] = gdf_network1d_nodes
-    if "1d_branches" in results: gdfs_results["1d_branches"] = gdf_branches
-    if "2d_nodes" in results: gdfs_results["2d_nodes"] = gdf_2d_nodes
-    if "2d_edges" in results: gdfs_results["2d_edges"] = gdf_2d_edges
-    if "2d_faces" in results: gdfs_results["2d_faces"] = gdf_2d_faces
-    if "1d2d_links" in results: gdfs_results["1d2d_links"] = gdf_links
+    if "1d_meshnodes" in results:
+        gdfs_results["1d_meshnodes"] = gdf_mesh1d_nodes
+    if "1d_nodes" in results:
+        gdfs_results["1d_nodes"] = gdf_network1d_nodes
+    if "1d_branches" in results:
+        gdfs_results["1d_branches"] = gdf_branches
+    if "2d_nodes" in results:
+        gdfs_results["2d_nodes"] = gdf_2d_nodes
+    if "2d_edges" in results:
+        gdfs_results["2d_edges"] = gdf_2d_edges
+    if "2d_faces" in results:
+        gdfs_results["2d_faces"] = gdf_2d_faces
+    if "1d2d_links" in results:
+        gdfs_results["1d2d_links"] = gdf_links
 
     # join branch information when present
-    branches_path = os.path.join(os.path.dirname(net_ncs),"branches.gui")
+    branches_path = os.path.join(os.path.dirname(net_ncs), "branches.gui")
     if "1d_branches" in gdfs_results.keys() and os.path.isfile(branches_path):
         branches_df = branch_gui2df(branches_path)
-        gdfs_results["1d_branches"] = gdfs_results["1d_branches"].join(branches_df.set_index("name"),on="id")
+        gdfs_results["1d_branches"] = gdfs_results["1d_branches"].join(
+            branches_df.set_index("name"), on="id"
+        )
 
     return gdfs_results
 
@@ -146,15 +257,16 @@ def net_nc2gdf(net_ncs,results=["1d_meshnodes","1d_nodes","1d_branches","2d_node
 def branch_gui2df(branch_file):
     # branch file
     df = pd.DataFrame()
-    with open(branch_file,mode='r') as f:
+    with open(branch_file, mode="r") as f:
         text = [x.strip().splitlines() for x in f.read().split("[Branch]") if x != ""]
         for branch in text:
             td = {}
             for item in branch:
                 item = item.split("#")[0].split("=")
                 td[item[0].strip()] = item[1].strip()
-            df = df.append(td,ignore_index=True)
+            df = df.append(td, ignore_index=True)
     return df
+
 
 def map_nc2gdf(input_path):
     """
