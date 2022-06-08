@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rtcDataConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rtc="http://www.wldelft.nl/fews" xmlns="http://www.wldelft.nl/fews" xsi:schemaLocation="http://www.wldelft.nl/fews C:\Tempfinal2\SW-mini\1D2D-DIMRv4\rtc\rtcDataConfig.xsd">
+  <importSeries>
+    <PITimeSeriesFile>
+      <timeSeriesFile>timeseries_import.xml</timeSeriesFile>
+      <useBinFile>false</useBinFile>
+    </PITimeSeriesFile>
+    <timeSeries id="[Input]measUpSW-S570/Water level (op)">
+      <OpenMIExchangeItem>
+        <elementId>measUpSW-S570</elementId>
+        <quantityId>Water level (op)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[SP]Control group of SW-S570/CTR_SW-S570">
+      <PITimeSeries>
+        <locationId>[IntervalRule]Control group of SW-S570/CTR_SW-S570</locationId>
+        <parameterId>SP</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+  </importSeries>
+  <exportSeries>
+    <CSVTimeSeriesFile decimalSeparator="." delimiter="," adjointOutput="false"></CSVTimeSeriesFile>
+    <PITimeSeriesFile>
+      <timeSeriesFile>timeseries_export.xml</timeSeriesFile>
+      <useBinFile>false</useBinFile>
+    </PITimeSeriesFile>
+    <timeSeries id="[Output]SW-S570/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>SW-S570</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Status]Control group of SW-S570/CTR_SW-S570" />
+  </exportSeries>
+</rtcDataConfig>

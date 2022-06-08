@@ -1,0 +1,379 @@
+[Branch]
+    name                  = ch1687              # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1705              # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1710              # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1720              # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1717_1            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1699_2            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1692_2            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1699_3            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1699_4            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1692_3            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1692_4            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1582_3            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1582_4            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1485_2            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1684_1            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1684_2            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1582_6            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1718_2            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1718_3            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1718_4            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1690_4            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1690_6            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1693_1            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1693_2            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1582_7            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1582_8            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1717_3            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1717_4            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1690_7            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1690_8            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1690_9            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1690_10           # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1691_1            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = ch1691_2            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut122             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor122            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut133             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor133            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut156             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor156            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut259             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor259            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut291             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor291            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut295             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor295            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut370             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor370            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut435             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor435            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut506             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor506            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut570             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor570            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut590             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor590            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut725             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor725            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut730             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor730            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut831             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor831            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut870             # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor870            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut1089            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor1089           # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut1204            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor1204           # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut1278            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor1278           # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut1468            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor1468           # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rOut1937            # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = rStor1937           # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = 1                   # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user
+
+[Branch]
+    name                  = 2                   # Unique branch id
+    branchType            = 0                   # Channel = 0, SewerConnection = 1, Pipe = 2
+    isLengthCustom        = True                # branch length specified by user

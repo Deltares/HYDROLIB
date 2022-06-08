@@ -1,0 +1,372 @@
+[General]
+    fileVersion           = 1.01                
+    fileType              = boundConds          
+
+[forcing]
+    name                  = evap122             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec122             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = seep133             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    -0.00015712575 
+
+[forcing]
+    name                  = evap133             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec133             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap156             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec156             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = seep259             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    -9.715475E-05 
+
+[forcing]
+    name                  = evap259             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec259             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap291             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec291             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = seep295             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    8.3367E-05 
+
+[forcing]
+    name                  = evap295             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec295             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = seep370             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    3.304E-06 
+
+[forcing]
+    name                  = evap370             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec370             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap435             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec435             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap506             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec506             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = seep570             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    -0.00029131375 
+
+[forcing]
+    name                  = evap570             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec570             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = seep590             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0.0002251735 
+
+[forcing]
+    name                  = evap590             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec590             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap725             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec725             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap730             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec730             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap831             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec831             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap870             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec870             
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap1089            
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec1089            
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap1204            
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec1204            
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap1278            
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec1278            
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap1468            
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec1468            
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = evap1937            
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+
+[forcing]
+    name                  = prec1937            
+    function              = constant            
+    timeInterpolation     = linear              
+    quantity              = lateral_discharge   
+    unit                  = m³/s                
+    0 
+

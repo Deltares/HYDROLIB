@@ -1,0 +1,494 @@
+[General]
+    fileVersion           = 1.01                
+    fileType              = boundConds          
+
+[Boundary]
+    name                  = ucGRASLANDZAND122   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURZAND122     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND133   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN133   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND156   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN156   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND259   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN259   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURVEEN259     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURZAND259     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN291   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND291   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND295   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN295   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURVEEN295     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND370   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN370   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURVEEN370     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURZAND370     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND435   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURZAND435     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN435   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURVEEN435     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND506   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND570   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN570   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURVEEN570     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURZAND570     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND590   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN590   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND725   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN725   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURZAND725     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND730   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN730   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURVEEN730     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND831   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN831   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND870   
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURZAND870     
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND1089  
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN1089  
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURVEEN1089    
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURZAND1089    
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND1204  
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN1204  
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND1278  
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN1278  
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURZAND1278    
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURVEEN1278    
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND1468  
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN1468  
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURZAND1468    
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucNATUURVEEN1468    
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDZAND1937  
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = ucGRASLANDVEEN1937  
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep122             
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep156             
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep291             
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep435             
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep506             
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep725             
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep730             
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep831             
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep870             
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep1089            
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep1204            
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep1278            
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep1468            
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
+[Boundary]
+    name                  = seep1937            
+    function              = constant            
+    quantity              = water_level         
+    unit                  = m                   
+    0 
+
