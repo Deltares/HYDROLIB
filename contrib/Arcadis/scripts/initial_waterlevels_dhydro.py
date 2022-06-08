@@ -1,7 +1,8 @@
 import os
-import pandas as pd
+
 import geopandas as gpd
 import netCDF4 as nc
+import pandas as pd
 from read_dhydro import net_nc2gdf
 
 from hydrolib.core.io.net.models import Link1d2d, Mesh1d, Network
@@ -66,53 +67,61 @@ def determine_initial(ds, gdf_areas, level_field):
     """
     gdfs = net_nc2gdf(ds)
     gdf_branch = gdfs["network_branch"]
-    
+
     gdf1 = gdf_branch.drop(columns=gdf_branch.columns[:-1]).reset_index()
-    gdf2 = gdf_areas[[level_field,"geometry"]]
-    
-    #TODO: Union nog oplossen dat het niet error geeft, de nan values (oude values) missen nu.
+    gdf2 = gdf_areas[[level_field, "geometry"]]
+
+    # TODO: Union nog oplossen dat het niet error geeft, de nan values (oude values) missen nu.
     try:
-        gdf_union = gpd.overlay(gdf1, gdf2, how='union',keep_geom_type=True) # gdf_union = gpd.sjoin(gdf1, gdf2)
+        gdf_union = gpd.overlay(
+            gdf1, gdf2, how="union", keep_geom_type=True
+        )  # gdf_union = gpd.sjoin(gdf1, gdf2)
     except:
         gdf_union = gpd.overlay(gdf1, gdf2)
-        print ("LET OP: Union niet gelukt. Oude waardes worden niet weggeschreven.")
-    
+        print("LET OP: Union niet gelukt. Oude waardes worden niet weggeschreven.")
+
     gdf_union["length"] = gdf_union.geometry.length
- 
-    # loop over all branches 
+
+    # loop over all branches
     initials = {}
     sortlist = gdf_union.id.unique()
     sortlist.sort()
     for branch_id in sortlist:
-        initials[branch_id] = {"chainage":[],"level":[]}
+        initials[branch_id] = {"chainage": [], "level": []}
         gdf_union_branch = gdf_union[gdf_union["id"] == branch_id]
         chainage = 0
-        if len(gdf_union_branch) == 1: # speed up processing
+        if len(gdf_union_branch) == 1:  # speed up processing
             if gdf_union_branch[level_field].iloc[0] > -9999:
                 initials[branch_id]["chainage"] += [chainage]
                 initials[branch_id]["level"] += [gdf_union_branch[level_field].iloc[0]]
-        else: # branches split into multiple parts
+        else:  # branches split into multiple parts
             gdf_branch_org = gdf_branch.loc[branch_id]
             coords_start = gdf_branch_org.geometry.coords[0]
-            gdf_union_branch["coords_start"] = [xy.coords[0] for xy in gdf_union_branch["geometry"].tolist()]
+            gdf_union_branch["coords_start"] = [
+                xy.coords[0] for xy in gdf_union_branch["geometry"].tolist()
+            ]
             for i in range(len(gdf_union_branch)):
                 # find correct first linepart, based on cooridinates
-                part = gdf_union_branch[gdf_union_branch["coords_start"] == coords_start]
-                if len(part) == 0: # needed since sometimes there are weird slithers
+                part = gdf_union_branch[
+                    gdf_union_branch["coords_start"] == coords_start
+                ]
+                if len(part) == 0:  # needed since sometimes there are weird slithers
                     break
                 part = part.iloc[0]
-                if part[level_field] > -9999: # only add when not nan since D-HYDRO does not support nan
+                if (
+                    part[level_field] > -9999
+                ):  # only add when not nan since D-HYDRO does not support nan
                     initials[branch_id]["chainage"] += [chainage]
                     initials[branch_id]["level"] += [part[level_field]]
                 # prepare next linepart
                 chainage = chainage + part.length
                 coords_start = part.geometry.coords[-1]
- 
-        #for index, row in gdf_union[gdf_union["id"] == branch_id].iterrows():
+
+        # for index, row in gdf_union[gdf_union["id"] == branch_id].iterrows():
         #    if row[level_field] > -9999:
         #        initials[branch_id]["chainage"] += [row["start"]]
         #        initials[branch_id]["level"] += [row[level_field]]
- 
+
     return initials
 
 
@@ -168,17 +177,20 @@ def write_initial(initials, output_location, value_type, global_value=1.0):
                     + " ".join(["{:8.3f}".format(x) for x in initial[2]])
                     + "\n"
                 )
-if __name__ == '__main__':
-   net_nc_path = r"C:\D-Hydro\DR49_Doesburg_Noord_10000\dflowfm\structures.ini"
-   areas_path = r"C:\D-Hydro\DR49_Doesburg_Noord_10000\dflowfm\40x40_dr49_ref_net.nc"
-   value_field = r"C:\temp\export_dhydro"
-   value_type = r"C:\D-Hydro\DR49_Doesburg_Noord_10000\dflowfm\crsloc.ini"
-   output_path = r"C:\temp\initial/InitialWaterLevel.ini"
-   
-   initial_dhydro(
-       net_nc_path, areas_path, value_field, value_type, global_value=1.0, output_path = output_path
-   )
-    
-    
-    
-    
+
+
+if __name__ == "__main__":
+    net_nc_path = r"C:\D-Hydro\DR49_Doesburg_Noord_10000\dflowfm\structures.ini"
+    areas_path = r"C:\D-Hydro\DR49_Doesburg_Noord_10000\dflowfm\40x40_dr49_ref_net.nc"
+    value_field = r"C:\temp\export_dhydro"
+    value_type = r"C:\D-Hydro\DR49_Doesburg_Noord_10000\dflowfm\crsloc.ini"
+    output_path = r"C:\temp\initial/InitialWaterLevel.ini"
+
+    initial_dhydro(
+        net_nc_path,
+        areas_path,
+        value_field,
+        value_type,
+        global_value=1.0,
+        output_path=output_path,
+    )
