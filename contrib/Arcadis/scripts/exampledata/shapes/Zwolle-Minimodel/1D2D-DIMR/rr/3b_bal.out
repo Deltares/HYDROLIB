@@ -1,0 +1,24 @@
+ Results 3B calculation
+
+ Rainfall file                      : default.bui                                                                                                                     
+ Evaporation file                   : default.evp                                                                                                                     
+ Crop factor file                   : cropfact                                                                                                                        
+ Storage coefficient file           : bergcoef                                                                                                                        
+ Timestep size (s)                  :     3600
+ Simulated period (hours)           :     3264.00 for number of Events=     1
+
+
+ Summary results Sobek-RR Rural model   
+
+ Total area (ha)                    :          37.32
+ Total rainfall (m3)                :      150916.88
+ Total evaporation paved area (m3)  :       10273.43
+ Total evaporation unpaved area (m3):       20830.55
+ Total DWA paved area (m3)          :           0.00
+ Net seepage unpaved area (m3)      :       13845.90
+ Storage change paved area (m3)     :           0.00
+ Storage change unpaved area (m3)   :       44441.63
+ Total outflow at boundaries (m3)   :      102718.09
+ Total inflow at boundaries (m3)    :       13500.92
+ Balance error (m3)                 :           0.01 ( 0.0000% of inflow; 0.0000% of outflow)
+ Maximum balance error in simulation:           0.02
