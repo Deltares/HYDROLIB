@@ -35,15 +35,16 @@ def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id=
 
 def read_strucs(input_mdu):
     fm = FMModel(input_mdu)
-    print ('The first structurefile is used.')
+    print("The first structurefile is used.")
     structures = pd.DataFrame(
         [f.__dict__ for f in fm.geometry.structurefile[0].structure]
     )
     netnc_path = os.path.join(input_mdu.parent, str(fm.geometry.netfile.filepath))
     gdfs = net_nc2gdf(netnc_path)
     strucgdf = chainage2gdf(structures, gdfs["1d_branches"])
-    
+
     return strucgdf
+
 
 def read_bc(input_mdu):
     fm = FMModel(input_mdu)
@@ -68,6 +69,7 @@ def read_bc(input_mdu):
         dfsbc[str(forceid)] = dfbc
 
     return dfsbc
+
 
 def read_lat(input_mdu):
     dfsbc = {}
@@ -141,4 +143,3 @@ if __name__ == "__main__":
     # read_lat(input_mdu)
     strucs = read_strucs(input_mdu)
     struc = StructureModel(definition=strucs.to_dict("records"))
-    

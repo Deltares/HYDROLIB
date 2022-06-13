@@ -8,9 +8,7 @@ import xarray as xr
 from shapely.geometry import Polygon
 
 
-def analyse_bres_run(
-    filepath, outpath, dambreak, shpfile, dijkringnummer
-):
+def analyse_bres_run(filepath, outpath, dambreak, shpfile, dijkringnummer):
     """
     PLEASE NOTE: This script works if there is a run used as input with a dambreak.
     This script can be used to analyse a dambreak run in D-Hydro. The script analyses the fou, his, map en dia file.
@@ -33,14 +31,25 @@ def analyse_bres_run(
     All outputs can be found in output folder.
 
     """
-    mapnc, hisnc, founc, diag, bres_coord_x, bres_coord_y = read_data(filepath,dambreak)
+    mapnc, hisnc, founc, diag, bres_coord_x, bres_coord_y = read_data(
+        filepath, dambreak
+    )
 
     plot_his(hisnc, outpath, dambreak)
     read_dia(diag, outpath)
-    plot_overstroming(founc, mapnc, shpfile, dijkringnummer, bres_coord_x, bres_coord_y, dambreak, outpath)
+    plot_overstroming(
+        founc,
+        mapnc,
+        shpfile,
+        dijkringnummer,
+        bres_coord_x,
+        bres_coord_y,
+        dambreak,
+        outpath,
+    )
 
 
-def read_data(filepath,dambreak):
+def read_data(filepath, dambreak):
     for root, dirs, files in os.walk(os.path.join(filepath, "output")):
         for file in files:
             if file.endswith("map.nc"):
@@ -183,7 +192,7 @@ def plot_his(hisnc, outpath, dambreak):
         ax.tick_params(axis="x", rotation=30, labelright=True)
         # save
         plt.savefig(os.path.join(outpath, "bresdebiet.png"), dpi=200)
-    
+
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(hisnc.time, hisnc.dambreak_cumulative_discharge)
         ax.grid()
@@ -196,7 +205,7 @@ def plot_his(hisnc, outpath, dambreak):
         ax.tick_params(axis="x", rotation=30, labelright=True)
         # save
         plt.savefig(os.path.join(outpath, "bres_cdis.png"), dpi=200)
-    
+
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(
             hisnc.time, hisnc.dambreak_crest_level, color="black", label="breshoogte"
@@ -225,7 +234,7 @@ def plot_his(hisnc, outpath, dambreak):
         plt.rc("font", size=14)  # fontsize global
         # save
         plt.savefig(os.path.join(outpath, "hoogte.png"), dpi=200)
-    
+
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(hisnc.time, hisnc.dambreak_breach_width_time_derivative)
         ax.grid()
@@ -240,7 +249,7 @@ def plot_his(hisnc, outpath, dambreak):
         #    ax.set_ylim([0,max(hisnc.dambreak_breach_width_time_derivative)*1.05])
         # save
         plt.savefig(os.path.join(outpath, "bresgroei.png"), dpi=200)
-    
+
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(hisnc.time, hisnc.dambreak_structure_head)
         ax.grid()
@@ -253,7 +262,7 @@ def plot_his(hisnc, outpath, dambreak):
         plt.rc("font", size=14)  # fontsize global
         # save
         plt.savefig(os.path.join(outpath, "bres_verval.png"), dpi=200)
-    
+
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(hisnc.time, hisnc.dambreak_crest_width)
         ax.grid()
@@ -315,8 +324,6 @@ if __name__ == "__main__":
     outpath = r"C:\scripts\AHT_scriptjes\WRIJ"
     shpfile = r"C:\Users\\delanger3781\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\06 Work in Progress\GIS\dijkringen\dijkringen_wrij.shp"
     dijkringnummer = 50
-    
+
     dambreak = True
-    analyse_bres_run(
-        filepath, outpath, dambreak, shpfile, dijkringnummer
-    )
+    analyse_bres_run(filepath, outpath, dambreak, shpfile, dijkringnummer)
