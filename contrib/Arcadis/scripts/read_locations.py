@@ -35,14 +35,15 @@ def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id=
 
 def read_strucs(input_mdu):
     fm = FMModel(input_mdu)
+    print ('The first structurefile is used.')
     structures = pd.DataFrame(
         [f.__dict__ for f in fm.geometry.structurefile[0].structure]
     )
     netnc_path = os.path.join(input_mdu.parent, str(fm.geometry.netfile.filepath))
     gdfs = net_nc2gdf(netnc_path)
     strucgdf = chainage2gdf(structures, gdfs["1d_branches"])
+    
     return strucgdf
-
 
 def read_bc(input_mdu):
     fm = FMModel(input_mdu)
@@ -67,7 +68,6 @@ def read_bc(input_mdu):
         dfsbc[str(forceid)] = dfbc
 
     return dfsbc
-
 
 def read_lat(input_mdu):
     dfsbc = {}
@@ -125,17 +125,20 @@ if __name__ == "__main__":
     input_mdu = Path(
         r"C:\scripts\AHT_scriptjes\Hydrolib\Dhydro_changefrict\data\Zwolle-Minimodel\1D2D-DIMR\dflowfm\flowFM.mdu"
     )
-    shape_path = r"C:\Users\delanger3781\OneDrive - ARCADIS\Documents\DHydro\Zwolle-Minimodel\Zwolle-Minimodel\frictfiles.shp"
-    output_location = (
-        r"C:\scripts\AHT_scriptjes\Hydrolib\Dhydro_changefrict\roughness-Section000.ini"
-    )
-    input_mdu = Path(
-        r"C:\scripts\AHT_scriptjes\Hydrolib\Dhydro_changefrict\data\Zwolle-Minimodel\1D2D-DIMR\dflowfm\flowFM.mdu"
-    )
-    fm = FMModel(input_mdu)
+    # shape_path = r"C:\Users\delanger3781\OneDrive - ARCADIS\Documents\DHydro\Zwolle-Minimodel\Zwolle-Minimodel\frictfiles.shp"
+    # output_location = (
+    #     r"C:\scripts\AHT_scriptjes\Hydrolib\Dhydro_changefrict\roughness-Section000.ini"
+    # )
+    # input_mdu = Path(
+    #     r"C:\scripts\AHT_scriptjes\Hydrolib\Dhydro_changefrict\data\Zwolle-Minimodel\1D2D-DIMR\dflowfm\flowFM.mdu"
+    # )
+    # fm = FMModel(input_mdu)
 
-    cross_def = pd.DataFrame(
-        [cs.__dict__ for cs in fm.geometry.crossdeffile.definition]
-    )
-    print("HI")
-    read_lat(input_mdu)
+    # cross_def = pd.DataFrame(
+    #     [cs.__dict__ for cs in fm.geometry.crossdeffile.definition]
+    # )
+    # print("HI")
+    # read_lat(input_mdu)
+    strucs = read_strucs(input_mdu)
+    struc = StructureModel(definition=strucs.to_dict("records"))
+    

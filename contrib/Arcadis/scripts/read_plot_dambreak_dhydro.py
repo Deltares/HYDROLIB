@@ -9,7 +9,7 @@ from shapely.geometry import Polygon
 
 
 def analyse_bres_run(
-    filepath, outpath, bresdebiet_trial, bresdebiet_actual, shpfile, dijkringnummer
+    filepath, outpath, dambreak, shpfile, dijkringnummer
 ):
     """
     PLEASE NOTE: This script works if there is a run used as input with a dambreak.
@@ -21,10 +21,8 @@ def analyse_bres_run(
         Path to dflowfm folder.
     outpath : string
         Output path.
-    bresdebiet_trial : TYPE
-        DESCRIPTION.
-    bresdebiet_actual : TYPE
-        DESCRIPTION.
+    dambreak : boolean
+        True or False if there is a dambreak.
     shpfile : string
         Path to shapefile.
     dijkringnummer : integer
@@ -35,14 +33,14 @@ def analyse_bres_run(
     All outputs can be found in output folder.
 
     """
-    mapnc, hisnc, founc, diag, bres_coord_x, bres_coord_y = read_data(filepath)
+    mapnc, hisnc, founc, diag, bres_coord_x, bres_coord_y = read_data(filepath,dambreak)
 
-    plot_his(hisnc, outpath, bresdebiet_trial, bresdebiet_actual)
+    plot_his(hisnc, outpath, dambreak)
     read_dia(diag, outpath)
-    plot_overstroming(founc, mapnc, shpfile, dijkringnummer, bres_coord_x, bres_coord_y)
+    plot_overstroming(founc, mapnc, shpfile, dijkringnummer, bres_coord_x, bres_coord_y, dambreak, outpath)
 
 
-def read_data(filepath):
+def read_data(filepath,dambreak):
     for root, dirs, files in os.walk(os.path.join(filepath, "output")):
         for file in files:
             if file.endswith("map.nc"):
@@ -65,7 +63,7 @@ def read_data(filepath):
     inProj = pyproj.Proj(init="epsg:28992")
     outProj = pyproj.Proj(init="epsg:3857")
 
-    if bresdebiet_actual or bresdebiet_trial:
+    if dambreak:
         s = open(os.path.join(filepath, strucfile))
         struc = s.readlines()
         s.close()
@@ -171,12 +169,8 @@ def read_dia(diag, outpath):
         )
 
 
-def plot_his(hisnc, outpath, bresdebiet_trial, bresdebiet_actual):
-    if bresdebiet_trial & bresdebiet_actual:
-        print(
-            "Beide bresdebiet types zijn geselecteerd, kies er eentje en probeer opnieuw, anders wordt de afvoer door de bres niet berekend"
-        )
-    elif bresdebiet_actual:
+def plot_his(hisnc, outpath, dambreak):
+    if dambreak:
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(hisnc.time, hisnc.dambreak_discharge)
         ax.grid()
@@ -189,7 +183,7 @@ def plot_his(hisnc, outpath, bresdebiet_trial, bresdebiet_actual):
         ax.tick_params(axis="x", rotation=30, labelright=True)
         # save
         plt.savefig(os.path.join(outpath, "bresdebiet.png"), dpi=200)
-
+    
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(hisnc.time, hisnc.dambreak_cumulative_discharge)
         ax.grid()
@@ -202,7 +196,7 @@ def plot_his(hisnc, outpath, bresdebiet_trial, bresdebiet_actual):
         ax.tick_params(axis="x", rotation=30, labelright=True)
         # save
         plt.savefig(os.path.join(outpath, "bres_cdis.png"), dpi=200)
-
+    
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(
             hisnc.time, hisnc.dambreak_crest_level, color="black", label="breshoogte"
@@ -231,7 +225,7 @@ def plot_his(hisnc, outpath, bresdebiet_trial, bresdebiet_actual):
         plt.rc("font", size=14)  # fontsize global
         # save
         plt.savefig(os.path.join(outpath, "hoogte.png"), dpi=200)
-
+    
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(hisnc.time, hisnc.dambreak_breach_width_time_derivative)
         ax.grid()
@@ -246,7 +240,7 @@ def plot_his(hisnc, outpath, bresdebiet_trial, bresdebiet_actual):
         #    ax.set_ylim([0,max(hisnc.dambreak_breach_width_time_derivative)*1.05])
         # save
         plt.savefig(os.path.join(outpath, "bresgroei.png"), dpi=200)
-
+    
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(hisnc.time, hisnc.dambreak_structure_head)
         ax.grid()
@@ -259,7 +253,7 @@ def plot_his(hisnc, outpath, bresdebiet_trial, bresdebiet_actual):
         plt.rc("font", size=14)  # fontsize global
         # save
         plt.savefig(os.path.join(outpath, "bres_verval.png"), dpi=200)
-
+    
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(hisnc.time, hisnc.dambreak_crest_width)
         ax.grid()
@@ -273,21 +267,6 @@ def plot_his(hisnc, outpath, bresdebiet_trial, bresdebiet_actual):
         ax.tick_params(axis="x", rotation=30, labelright=True)
         # save
         plt.savefig(os.path.join(outpath, "bres_breedte.png"), dpi=200)
-    elif bresdebiet_trial:
-        fig, ax = plt.subplots(figsize=(10, 8))
-        ax.plot(hisnc.time, hisnc.cross_section_discharge)
-        ax.grid()
-        ax.set_xlabel("tijd")
-        ax.set_ylabel("debiet [m3/s]")
-        ax.set_title("Bresdebiet", fontsize=14)
-        # ax.set_xlim([14929, 14944])
-        # als er meer of minder x-ticks moeten komen, zoekt nu eerste en laatste standaard x_tick en stapgrootte = 1 (dag)
-        # ax.set_xticks(np.arange(plt.gca().get_xticks()[0], plt.gca().get_xticks()[-1], 1))
-        ax.tick_params(axis="x", rotation=30, labelright=True)
-        ax.set_ylim([0, max(hisnc.cross_section_discharge) * 1.05])
-        plt.rc("font", size=14)  # fontsize global
-        # save
-        plt.savefig(os.path.join(outpath, "bresdebiet.png"))
     else:
         print("Geen bresdebiet opgegeven")
 
@@ -295,7 +274,7 @@ def plot_his(hisnc, outpath, bresdebiet_trial, bresdebiet_actual):
 
 
 def plot_overstroming(
-    founc, mapnc, shpfile, dijkringnummer, bres_coord_x, bres_coord_y
+    founc, mapnc, shpfile, dijkringnummer, bres_coord_x, bres_coord_y, dambreak, outpath
 ):
     max_wd = founc.Mesh2d_fourier001_max_depth
 
@@ -321,7 +300,7 @@ def plot_overstroming(
         legend_kwds={"label": "Waterdiepte [m]"},
     )
     dr.boundary.plot(ax=ax, color="black")
-    if bresdebiet_actual or bresdebiet_trial:
+    if dambreak:
         plt.plot(bres_coord_x, bres_coord_y, "ro", ms=5, label="bres")
         ax.legend(loc="lower left", fontsize=8)
     ax.set_title("Maximale waterdiepte", fontsize=10)
@@ -336,10 +315,8 @@ if __name__ == "__main__":
     outpath = r"C:\scripts\AHT_scriptjes\WRIJ"
     shpfile = r"C:\Users\\delanger3781\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\06 Work in Progress\GIS\dijkringen\dijkringen_wrij.shp"
     dijkringnummer = 50
-
-    bresdebiet_trial = False
-    bresdebiet_actual = True
-
+    
+    dambreak = True
     analyse_bres_run(
-        filepath, outpath, bresdebiet_trial, bresdebiet_actual, shpfile, dijkringnummer
+        filepath, outpath, dambreak, shpfile, dijkringnummer
     )
