@@ -92,11 +92,13 @@ def read_lat(input_mdu):
         dfsbc[str(forceid)] = dfbc
     return dfsbc
 
+
 def read_crossections(fm):
     dfcrsdef = pd.DataFrame([f.__dict__ for f in fm.geometry.crossdeffile.definition])
     dfcrsloc = pd.DataFrame([f.__dict__ for f in fm.geometry.crosslocfile.crosssection])
 
     return dfcrsdef, dfcrsloc
+
 
 # =============================================================================
 # bc = pd.DataFrame([f.__dict__ for f in fm.external_forcing.extforcefilenew.boundary])
