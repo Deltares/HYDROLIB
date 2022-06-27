@@ -15,3 +15,27 @@ dependencies:
   - python>=3.8,<4.0
   - pip
   - hydromt>=0.4.3
+  - affine
+  - bottleneck
+  - click
+  - dask
+  - entrypoints
+  - flit>=3.2
+  - gdal>=3.1
+  - geopandas>=0.10
+  - netcdf4
+  - numba
+  - numpy
+  - openpyxl
+  - pandas
+  - pyflwdir>=0.5.3
+  - pygeos>=0.8
+  - python>=3.8
+  - rasterio
+  - requests
+  - rtree 
+  - scipy
+  - xarray
+  - zarr
+  - pip:
+    - git+https://github.com/openearth/delft3dfmpy.git@deltares-urban
