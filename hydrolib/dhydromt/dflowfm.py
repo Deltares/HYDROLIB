@@ -18,7 +18,10 @@ from rasterio.warp import transform_bounds
 from shapely.geometry import box
 
 from hydrolib.core.io.crosssection.models import *
+from hydrolib.core.io.friction.models import *
+from hydrolib.core.io.net.models import *
 from hydrolib.core.io.mdu.models import FMModel
+from hydrolib.dhydamo.geometry import mesh, viz, common
 
 from . import DATADIR
 from .workflows import (
@@ -1211,77 +1214,73 @@ class DFlowFMModel(Model):
             raise IOError("Model opened in read-only mode")
 
         # write 1D mesh
-        self._write_mesh1d(fm_model=self.dfmmodel)
+        self._write_mesh1d() # FIXME None handling
+
+        # write friction
+        self._write_friction() # FIXME: ask Rinske, add global section correctly
+
         # write crosssections
-        model_crsloc, model_crsdef = self._write_crosssections(fm_model=self.dfmmodel)
+        self._write_crosssections() # FIXME None handling, if there are no crosssections
 
         # save model
-        self.dfmmodel.save()
+        self.dfmmodel.save(recurse=True)
 
 
-    def _write_mesh1d(self, fm_model):
-        
-        pass
+    def _write_mesh1d(self):
 
-    def _write_crosssections(self, fm_model):
+        #
+        branches  = self._staticgeoms["branches"]
+
+        # iFIXME: imporve the None handeling here, ref: crosssections
+
+        # remove if the network file exist, otherwise error about duplicated points
+        # FIXME: do this in the initialse phase to make sure the directory is clean  --> ask Helene how in wflow is
+        if self.dfmmodel.geometry.netfile.filepath.is_file():
+            self.dfmmodel.geometry.netfile.filepath.unlink()
+            self.dfmmodel.geometry.netfile.filepath = None
+
+        # create a new network instance
+        network_model = NetworkModel(filepath = self.dfmmodel.filepath.with_name("fm_net.nc"))
+        self.dfmmodel.geometry.netfile = network_model
+        mesh.mesh1d_add_branch(self.dfmmodel.geometry.netfile.network, branches.geometry.to_list(), node_distance=40)
+
+    def _write_friction(self):
+
+        #
+        branches  = self._staticgeoms["branches"]
+
+        # create a new friction
+        fric_model = FrictionModel(filepath = self.dfmmodel.filepath.with_name("roughness_branch.ini"),
+                                   branch = branches.to_dict('record'))
+        self.dfmmodel.geometry.frictfile.append(fric_model) # FIXME: Ask Rinske, how to deal with abundant fields
+
+    def _write_crosssections(self):
         """write crosssections into hydrolib-core crsloc and crsdef objects"""
 
         # preprocessing for crosssections from staticgeoms
-        gdp_crs = self._staticgeoms["crosssections"]
+        gpd_crs = self._staticgeoms["crosssections"]
 
         # crsdef
         # get crsdef from crosssections gpd # FIXME: change this for update case
-        gdp_crsdef = gdp_crs[[c for c in gdp_crs.columns if c.startswith("crsdef")]]
-        gdp_crsdef = gdp_crsdef.rename(
-            columns={c: c.split("_")[1] for c in gdp_crsdef.columns}
+        gpd_crsdef = gpd_crs[[c for c in gpd_crs.columns if c.startswith("crsdef")]]
+        gpd_crsdef = gpd_crsdef.rename(
+            columns={c: c.split("_")[1] for c in gpd_crsdef.columns}
         )
 
-        # create hydrolib-core object
-        if (
-            fm_model.geometry.crossdeffile is None
-        ):  # FIXME as soon as crossdeffile is filled in, AttributeError: 'Geometry' object has no attribute 'crosslocfile'
-            # create a new crsdef model
-            fm_model.geometry.crossdeffile = CrossDefModel(
-                filepath=fm_model.filepath.with_name("crsdef.ini")
-            )  # FIXME: how to make it relative path
+        crsdef = CrossDefModel(definition = gpd_crsdef.to_dict('records'))
+        self.dfmmodel.geometry.crossdeffile = crsdef
 
-        # add crsdef as per type
-        for i, c in gdp_crsdef.to_dict(orient="index").items():
-            if c["type"] == "xyz":
-                fm_model.geometry.crossdeffile.definition.append(XYZCrsDef(**c))
-            elif c["type"] == "rectangle":
-                fm_model.geometry.crossdeffile.definition.append(RectangleCrsDef(**c))
-            else:
-                # raise NotImplementedError
-                pass
-
-        # write def
-        fm_model.geometry.crossdeffile.save()
 
         # crsloc
         # get crsloc from crosssections gpd # FIXME: change this for update case
-        gdp_crsloc = gdp_crs[[c for c in gdp_crs.columns if c.startswith("crsloc")]]
-        gdp_crsloc = gdp_crsloc.rename(
-            columns={c: c.split("_")[1] for c in gdp_crsloc.columns}
+        gpd_crsloc = gpd_crs[[c for c in gpd_crs.columns if c.startswith("crsloc")]]
+        gpd_crsloc = gpd_crsloc.rename(
+            columns={c: c.split("_")[1] for c in gpd_crsloc.columns}
         )
 
-        # create hydrolib-core object
-        if (
-            fm_model.geometry.crosslocfile is None
-        ):  # FIXME as soon as crossdeffile is filled in, AttributeError: 'Geometry' object has no attribute 'crosslocfile'
-            # create a new crsloc model
-            fm_model.geometry.crosslocfile = CrossLocModel(
-                filepath=fm_model.filepath.with_name("crsloc.ini")
-            )  # FIXME: how to make it relative path
+        crsloc = CrossLocModel(crosssection = gpd_crsloc.to_dict('records'))
+        self.dfmmodel.geometry.crosslocfile = crsloc
 
-        # add crsloc
-        for i, c in gdp_crsloc.to_dict(orient="index").items():
-            fm_model.geometry.crosslocfile.crosssection.append(CrossSection(**c))
-
-        # write crsloc
-        fm_model.geometry.crosslocfile.save()
-
-        return fm_model
 
     def read_states(self):
         """Read states at <root/?/> and parse to dict of xr.DataArray"""
@@ -1326,6 +1325,10 @@ class DFlowFMModel(Model):
         self._dfmmodel = FMModel(
             filepath=outputdir.joinpath("fm.mdu")
         )  # FIXME: user region h
+        self._dfmmodel.geometry.netfile = NetworkModel(filepath=outputdir.joinpath('fm_net.nc'))
+        self._dfmmodel.geometry.crossdeffile = CrossDefModel(filepath=outputdir.joinpath('crsdef.ini'))
+        self._dfmmodel.geometry.crosslocfile = CrossLocModel(filepath=outputdir.joinpath('crsloc.ini'))
+        self._dfmmodel.geometry.frictfile = [FrictionModel(filepath=outputdir.joinpath('roughness.ini'))]
 
     @property
     def branches(self):
@@ -1350,6 +1353,11 @@ class DFlowFMModel(Model):
         # Update channels/pipes in staticgeoms
         _ = self.set_branches_component(name="channel")
         _ = self.set_branches_component(name="pipe")
+
+        # update staticgeom #FIXME: do we need branches as staticgeom?
+        self.logger.debug(f"Adding crosssections vector to staticgeoms.")
+        self.set_staticgeoms(gpd.GeoDataFrame(branches, crs = self.crs), "branches")
+
 
     def add_branches(self, new_branches: gpd.GeoDataFrame, branchtype: str):
         """Add new branches of branchtype to the branches object"""
