@@ -383,7 +383,7 @@ class DFlowFMModel(Model):
                 "friction_value",
             ]
             allowed_columns = set(_allowed_columns).intersection(gdf_riv.columns)
-            gdf_riv = gpd.GeoDataFrame(gdf_riv[allowed_columns])
+            gdf_riv = gpd.GeoDataFrame(gdf_riv[allowed_columns], crs = gdf_riv.crs)
 
             # Add friction to defaults
             defaults["frictionType"] = friction_type
@@ -1210,11 +1210,18 @@ class DFlowFMModel(Model):
         if not self._write:
             raise IOError("Model opened in read-only mode")
 
+        # write 1D mesh
+        self._write_mesh1d(fm_model=self.dfmmodel)
         # write crosssections
         model_crsloc, model_crsdef = self._write_crosssections(fm_model=self.dfmmodel)
 
         # save model
         self.dfmmodel.save()
+
+
+    def _write_mesh1d(self, fm_model):
+        
+        pass
 
     def _write_crosssections(self, fm_model):
         """write crosssections into hydrolib-core crsloc and crsdef objects"""
