@@ -52,7 +52,7 @@ def set_branch_crosssections(
     if set(required_columns).issubset(crosssections.columns):
         crosssections = crosssections[required_columns]
     else:
-        self.logger.error(
+        logger.error(
             f"Cannto setup crosssections from branch. Require columns {required_columns}."
         )
 
@@ -63,13 +63,13 @@ def set_branch_crosssections(
     crslocs["crsloc_chainage"] = [l / 2 for l in crosssections["geometry"].length]
     crslocs["crsloc_shift"] = crosssections["bedlev"]
 
-    if crsdefid_col not in crslocs.columns:
+    if "definitionId" not in crslocs.columns:
         crslocs["definitionId"] = None
 
     circle_indexes = crslocs.loc[crslocs["shape"] == "circle", :].index
     for bi in circle_indexes:
         crslocs.at[bi, "crsloc_definitionId"] = "circ_d{:,.3f}_{:s}".format(
-            crslocs.loc[bi, diameter_col], crs_type
+            crslocs.loc[bi, "diameter"], crs_type
         )
 
     rectangle_indexes = crslocs.loc[crslocs["shape"] == "rectangle", :].index
@@ -115,7 +115,7 @@ def set_xyz_crosssections(
     if set(required_columns).issubset(crosssections.columns):
         crosssections = gpd.GeoDataFrame(crosssections[required_columns])
     else:
-        self.logger.error(
+        logger.error(
             f"Cannto setup crosssections from branch. Require columns {required_columns}."
         )
 
@@ -165,7 +165,7 @@ def set_xyz_crosssections(
             # 'crsdef_xylength': ' '.join(['{:.1f}'.format(i) for i in crosssections.l.to_list()[0]]),
             # lower case key means temp keys (not written to file)
             "crsdef_frictionId": branches.loc[
-                crosssections.branch_id.to_list(), "friction_id"
+                crosssections.branch_id.to_list(), "frictionId"
             ],
             # lower case key means temp keys (not written to file)
         }
@@ -201,9 +201,12 @@ def set_xyz_crosssections(
 
 
 def set_point_crosssections(
-    branches: gpd.GeoDataFrame, crosssections: gpd.GeoDataFrame, crs_type: str = "point"
+    branches: gpd.GeoDataFrame,
+    crosssections: gpd.GeoDataFrame,
+    crs_type: str = "point",
 ):
     pass
+
 
 
 def xyzp2xyzl(xyz: pd.DataFrame, sort_by: list = ["x", "y"]):
