@@ -8,7 +8,6 @@ import hydromt.io
 import numpy as np
 import pandas as pd
 import shapely
-from delft3dfmpy.core.geometry import find_nearest_branch
 from hydromt import config
 from scipy.spatial import distance
 from shapely.geometry import LineString, Point
