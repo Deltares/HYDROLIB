@@ -7,9 +7,10 @@ import pandas as pd
 import xarray as xr
 from shapely.geometry import LineString, Point, Polygon
 
-from hydrolib.core.io.net.models import Network
 from hydrolib.core.io import polyfile
+from hydrolib.core.io.net.models import Network
 from hydrolib.core.io.polyfile import parser
+
 
 def net_nc2gdf(
     net_ncs,
@@ -254,6 +255,7 @@ def net_nc2gdf(
 
     return gdfs_results
 
+
 def map_nc2gdf(input_path, param):
     """
     This script reads an D-HYDRO *map.nc file and converts it to a GeoDataFrame for a chosen parameter. Currently, not all parameters work.
@@ -318,6 +320,7 @@ def map_nc2gdf(input_path, param):
         gdf = gpd.GeoDataFrame(df, geometry=geom)  # Make geodataframe with geometry
 
     return gdf
+
 
 def hisnc_2gdf(input_path):
     """
@@ -468,6 +471,7 @@ def hisnc_2gdf(input_path):
 
     return gdfs
 
+
 def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id="id"):
     """
     Gets dataframe as input, converts chainage to x,y datapoints.
@@ -509,6 +513,7 @@ def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id=
     gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[x], df[y]))
     return gdf
 
+
 def branch_gui2df(branch_file):
     # branch file
     df = pd.DataFrame()
@@ -522,17 +527,20 @@ def branch_gui2df(branch_file):
             df = df.append(td, ignore_index=True)
     return df
 
+
 def pli2gdf(input_file):
     # read pli file, including z value
     input_path = Path(input_file)
-    pli_polyfile = polyfile.parser.read_polyfile(input_path,True)
+    pli_polyfile = polyfile.parser.read_polyfile(input_path, True)
 
     list = []
     for pli_object in pli_polyfile["objects"]:
         name = pli_object.metadata.name
         points = pli_object.points
-        geometry = LineString([[point.x,point.y,max(point.z,-9999)] for point in points]) # convert nodata to -9999
-        list.append({"name":name,"geometry":geometry})
+        geometry = LineString(
+            [[point.x, point.y, max(point.z, -9999)] for point in points]
+        )  # convert nodata to -9999
+        list.append({"name": name, "geometry": geometry})
 
     gdf = gpd.GeoDataFrame(list)
 
