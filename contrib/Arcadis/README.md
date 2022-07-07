@@ -7,5 +7,4 @@ for example.
 
 ## Contact
 [@abuijert]( https://github.com/abuijert )
-[@stefandevriesarcadis]( https://github.com/stefandevriesarcadis )
-[@myrthearcadis]( https://github.com/myrthearcadis )
+[@Robbertdelange]( https://github.com/Robbertdelange )
