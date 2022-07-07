@@ -8,7 +8,8 @@ import xarray as xr
 from shapely.geometry import LineString, Point, Polygon
 
 from hydrolib.core.io.net.models import Network
-
+from hydrolib.core.io import polyfile
+from hydrolib.core.io.polyfile import parser
 
 def net_nc2gdf(
     net_ncs,
@@ -253,22 +254,7 @@ def net_nc2gdf(
 
     return gdfs_results
 
-
-def branch_gui2df(branch_file):
-    # branch file
-    df = pd.DataFrame()
-    with open(branch_file, mode="r") as f:
-        text = [x.strip().splitlines() for x in f.read().split("[Branch]") if x != ""]
-        for branch in text:
-            td = {}
-            for item in branch:
-                item = item.split("#")[0].split("=")
-                td[item[0].strip()] = item[1].strip()
-            df = df.append(td, ignore_index=True)
-    return df
-
-
-def map_nc2gdf(input_path):
+def map_nc2gdf(input_path, param):
     """
     This script reads an D-HYDRO *map.nc file and converts it to a GeoDataFrame for a chosen parameter. Currently, not all parameters work.
 
@@ -294,7 +280,7 @@ def map_nc2gdf(input_path):
     choice_params = [x for x in list(ds.variables) if x.startswith("mesh1d_")]
     choice_params.append([x for x in list(ds.variables) if x.startswith("Mesh2d_")])
     print("The possible parameters are:\n", choice_params)
-    par = input("Enter the wanted parameter here: ")
+    par = param
 
     # Check if user wants 1D points and store all data in geodataframe
     if ds[par].mesh[-2:] == "1d":
@@ -332,49 +318,6 @@ def map_nc2gdf(input_path):
         gdf = gpd.GeoDataFrame(df, geometry=geom)  # Make geodataframe with geometry
 
     return gdf
-
-
-def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id="id"):
-    """
-    Gets dataframe as input, converts chainage to x,y datapoints.
-
-    Parameters
-    ----------
-    df : Pandas DataFrame
-        containing data to be changed.
-    gdf_branches : TYPE
-    chainage : String, optional
-        DESCRIPTION. The default is "chainage".
-    x : String, optional
-        DESCRIPTION. The default is "x".
-    y : String, optional
-        DESCRIPTION. The default is "y".
-    branch_id : String, optional
-        DESCRIPTION. The default is "id".
-
-    Returns
-    -------
-    gdf : gdf containing the data with xy.
-        DESCRIPTION.
-
-    """
-    # TODO andere objecten
-    for index, row in df.iterrows():
-        branchid = row.branchid
-        chainage = float(row.chainage)
-        if branchid != None:
-            branch = gdf_branches[gdf_branches[branch_id] == branchid].iloc[0]
-            geom = branch.geometry.interpolate(chainage)
-            df.loc[index, [x, y]] = [geom.coords[0][0], geom.coords[0][1]]
-        elif row.xcoordinates != None:
-            df.loc[index, [x, y]] = [
-                sum(row["xcoordinates"]) / len(row["xcoordinates"]),
-                sum(row["ycoordinates"]) / len(row["ycoordinates"]),
-            ]
-
-    gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[x], df[y]))
-    return gdf
-
 
 def hisnc_2gdf(input_path):
     """
@@ -524,3 +467,73 @@ def hisnc_2gdf(input_path):
     # Done
 
     return gdfs
+
+def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id="id"):
+    """
+    Gets dataframe as input, converts chainage to x,y datapoints.
+
+    Parameters
+    ----------
+    df : Pandas DataFrame
+        containing data to be changed.
+    gdf_branches : TYPE
+    chainage : String, optional
+        DESCRIPTION. The default is "chainage".
+    x : String, optional
+        DESCRIPTION. The default is "x".
+    y : String, optional
+        DESCRIPTION. The default is "y".
+    branch_id : String, optional
+        DESCRIPTION. The default is "id".
+
+    Returns
+    -------
+    gdf : gdf containing the data with xy.
+        DESCRIPTION.
+
+    """
+    # TODO andere objecten
+    for index, row in df.iterrows():
+        branchid = row.branchid
+        chainage = float(row.chainage)
+        if branchid != None:
+            branch = gdf_branches[gdf_branches[branch_id] == branchid].iloc[0]
+            geom = branch.geometry.interpolate(chainage)
+            df.loc[index, [x, y]] = [geom.coords[0][0], geom.coords[0][1]]
+        elif row.xcoordinates != None:
+            df.loc[index, [x, y]] = [
+                sum(row["xcoordinates"]) / len(row["xcoordinates"]),
+                sum(row["ycoordinates"]) / len(row["ycoordinates"]),
+            ]
+
+    gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[x], df[y]))
+    return gdf
+
+def branch_gui2df(branch_file):
+    # branch file
+    df = pd.DataFrame()
+    with open(branch_file, mode="r") as f:
+        text = [x.strip().splitlines() for x in f.read().split("[Branch]") if x != ""]
+        for branch in text:
+            td = {}
+            for item in branch:
+                item = item.split("#")[0].split("=")
+                td[item[0].strip()] = item[1].strip()
+            df = df.append(td, ignore_index=True)
+    return df
+
+def pli2gdf(input_file):
+    # read pli file, including z value
+    input_path = Path(input_file)
+    pli_polyfile = polyfile.parser.read_polyfile(input_path,True)
+
+    list = []
+    for pli_object in pli_polyfile["objects"]:
+        name = pli_object.metadata.name
+        points = pli_object.points
+        geometry = LineString([[point.x,point.y,max(point.z,-9999)] for point in points]) # convert nodata to -9999
+        list.append({"name":name,"geometry":geometry})
+
+    gdf = gpd.GeoDataFrame(list)
+
+    return gdf
