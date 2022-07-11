@@ -31,6 +31,8 @@ def initial_dhydro(
                Column name of the shape containing intial values
            value_type: str
                Type of initial value (WaterLevel or WaterDepth)
+           value_unit: str
+               Unit of initial value ("m")        
            global_value: float
                Standard value for waterways that fall outside of the area
            output_path : str
@@ -61,11 +63,9 @@ def initial_dhydro(
     writefile = OneDFieldModel(
         branch=df_branch.to_dict("records"), global_=df_global.to_dict("records")[0]
     )
+    
     writefile.save(Path(output_path))
 
-    write_initial(
-        initials, r"C:\temp\Hydrolib\InitialWaterLevel2.ini", value_type, global_value
-    )
     print("Wegschrijven van initiele situatie gelukt")
 
 
@@ -144,67 +144,6 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
 
     return initials
 
-
-def write_initial(initials, output_location, value_type="WaterLevel", global_value=0.0):
-    """
-    Writer of initial water levels .ini file.
-
-    Parameters
-    ----------
-    initials : list
-        Output of determine_initial function.
-    output_location : string
-        Folder location used to store the output .ini file.
-    value_type : TYPE
-        Choice between WaterDepth and WaterLevel.
-    global_value : float, optional
-        Global initial water level value. The default is 1.0.
-
-    Returns
-    -------
-    None.
-
-    """
-    with open(output_location, "w") as f:
-        f.write(
-            "[General]\n    fileVersion           = 2.00\n    fileType              = 1dField\n"
-        )
-        f.write(
-            "\n[Global]\n    quantity              = "
-            + value_type
-            + "\n    unit                  = m\n    value                 = "
-            + str(global_value)
-            + "\n"
-        )
-
-        for branch_id in initials:
-            initial = initials[branch_id]
-            if len(initial["chainage"]) > 0:
-                f.write("\n[Branch]\n    branchId              = " + branch_id + "\n")
-                if len(initial["chainage"]) == 1 and initial["chainage"][0] == 0:
-                    f.write(
-                        "    values                = "
-                        + "{:8.3f}".format(initial["values"][0])
-                        + "\n"
-                    )
-                else:
-                    f.write(
-                        "    numLocations          = "
-                        + str(len(initial["chainage"]))
-                        + "\n"
-                    )
-                    f.write(
-                        "    chainage              = "
-                        + " ".join(["{:8.3f}".format(x) for x in initial["chainage"]])
-                        + "\n"
-                    )
-                    f.write(
-                        "    values                = "
-                        + " ".join(["{:8.3f}".format(x) for x in initial["values"]])
-                        + "\n"
-                    )
-
-
 if __name__ == "__main__":
 
     dir = os.path.dirname(__file__)
@@ -215,6 +154,7 @@ if __name__ == "__main__":
     value_field = "Level"
     value_type = "WaterLevel"
     value_unit = "m"
+    global_value = 1.0
     output_path = r"C:\temp\Hydrolib\InitialWaterLevel.ini"
 
     initial_dhydro(
@@ -223,7 +163,7 @@ if __name__ == "__main__":
         value_field,
         value_type,
         value_unit,
-        global_value=1.0,
+        global_value,
         output_path=output_path,
     )
     print("Script finished")
