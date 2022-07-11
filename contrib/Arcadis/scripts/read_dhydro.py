@@ -526,22 +526,3 @@ def branch_gui2df(branch_file):
                 td[item[0].strip()] = item[1].strip()
             df = df.append(td, ignore_index=True)
     return df
-
-
-def pli2gdf(input_file):
-    # read pli file, including z value
-    input_path = Path(input_file)
-    pli_polyfile = polyfile.parser.read_polyfile(input_path, True)
-
-    list = []
-    for pli_object in pli_polyfile["objects"]:
-        name = pli_object.metadata.name
-        points = pli_object.points
-        geometry = LineString(
-            [[point.x, point.y, max(point.z, -9999)] for point in points]
-        )  # convert nodata to -9999
-        list.append({"name": name, "geometry": geometry})
-
-    gdf = gpd.GeoDataFrame(list)
-
-    return gdf
