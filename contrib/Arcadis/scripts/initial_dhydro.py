@@ -4,12 +4,13 @@ import geopandas as gpd
 import netCDF4 as nc
 import pandas as pd
 from read_dhydro import net_nc2gdf
+from pathlib import Path
 
 from hydrolib.core.io.net.models import Link1d2d, Mesh1d, Network
-
+from hydrolib.core.io.onedfield.models import OneDFieldModel
 
 def initial_dhydro(
-    net_nc_path, areas_path, value_field, value_type, global_value, output_path
+    net_nc_path, areas_path, value_field, value_type, value_unit, global_value, output_path
 ):
     """
        Determine the initial situation for D-hydro based on waterlevel control areas.
@@ -42,7 +43,15 @@ def initial_dhydro(
 
     initials = determine_initial(gdf_branches, gdf_areas, value_field)
     # todo: check projection both files
-    write_initial(initials, output_path, value_type, global_value)
+    
+    df_branch = pd.DataFrame.from_dict(initials).T
+    df_branch['branchId']=[str(f) for f in df_branch.index]
+    df_branch['numlocations']=[len(ch) for ch in df_branch.chainage]
+    df_global = pd.DataFrame(data = [[value_type,value_unit,global_value]],columns = ["quantity","unit","value"])
+    writefile = OneDFieldModel(branch = df_branch.to_dict('records'), global_ = df_global.to_dict('records')[0])
+    writefile.save(Path(output_path))
+    
+    write_initial(initials, r'C:\temp\Hydrolib\InitialWaterLevel2.ini', value_type, global_value)
     print("Wegschrijven van initiele situatie gelukt")
 
 
@@ -88,13 +97,13 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
     sortlist = gdf_union.id.unique()
     sortlist.sort()
     for branch_id in sortlist:
-        initials[branch_id] = {"chainage": [], "level": []}
+        initials[branch_id] = {"chainage": [], "values": []}
         gdf_union_branch = gdf_union[gdf_union["id"] == branch_id]
         chainage = 0
         if len(gdf_union_branch) == 1:  # speed up processing
             if gdf_union_branch[level_field].iloc[0] > -9999:
                 initials[branch_id]["chainage"] += [chainage]
-                initials[branch_id]["level"] += [gdf_union_branch[level_field].iloc[0]]
+                initials[branch_id]["values"] += [gdf_union_branch[level_field].iloc[0]]
         else:  # branches split into multiple parts
             # gdf_branches_org = gdf_branches.loc[branch_id]
             gdf_branches_org = gdf_branches.loc[gdf_branches["id"] == branch_id].iloc[0]
@@ -114,7 +123,7 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
                     part[level_field] > -9999
                 ):  # only add when not nan since D-HYDRO does not support nan
                     initials[branch_id]["chainage"] += [chainage]
-                    initials[branch_id]["level"] += [part[level_field]]
+                    initials[branch_id]["values"] += [part[level_field]]
                 # prepare next linepart
                 chainage = chainage + part.length
                 coords_start = part.geometry.coords[-1]
@@ -161,7 +170,7 @@ def write_initial(initials, output_location, value_type="WaterLevel", global_val
                 if len(initial["chainage"]) == 1 and initial["chainage"][0] == 0:
                     f.write(
                         "    values                = "
-                        + "{:8.3f}".format(initial["level"][0])
+                        + "{:8.3f}".format(initial["values"][0])
                         + "\n"
                     )
                 else:
@@ -177,7 +186,7 @@ def write_initial(initials, output_location, value_type="WaterLevel", global_val
                     )
                     f.write(
                         "    values                = "
-                        + " ".join(["{:8.3f}".format(x) for x in initial["level"]])
+                        + " ".join(["{:8.3f}".format(x) for x in initial["values"]])
                         + "\n"
                     )
 
@@ -191,6 +200,7 @@ if __name__ == "__main__":
     areas_path = os.path.join(dir, r"exampledata\shapes\gebieden.shp")
     value_field = "Level"
     value_type = "WaterLevel"
+    value_unit = "m"
     output_path = r"C:\temp\Hydrolib\InitialWaterLevel.ini"
 
     initial_dhydro(
@@ -198,6 +208,7 @@ if __name__ == "__main__":
         areas_path,
         value_field,
         value_type,
+        value_unit,
         global_value=1.0,
         output_path=output_path,
     )
