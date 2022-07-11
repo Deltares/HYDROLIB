@@ -32,7 +32,7 @@ def initial_dhydro(
            value_type: str
                Type of initial value (WaterLevel or WaterDepth)
            value_unit: str
-               Unit of initial value ("m")        
+               Unit of initial value ("m")
            global_value: float
                Standard value for waterways that fall outside of the area
            output_path : str
@@ -63,7 +63,7 @@ def initial_dhydro(
     writefile = OneDFieldModel(
         branch=df_branch.to_dict("records"), global_=df_global.to_dict("records")[0]
     )
-    
+
     writefile.save(Path(output_path))
 
     print("Wegschrijven van initiele situatie gelukt")
@@ -143,6 +143,7 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
                 coords_start = part.geometry.coords[-1]
 
     return initials
+
 
 if __name__ == "__main__":
 
