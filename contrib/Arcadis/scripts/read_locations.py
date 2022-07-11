@@ -5,13 +5,14 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
-from read_dhydro import net_nc2gdf, chainage2gdf
+from read_dhydro import chainage2gdf, net_nc2gdf
 from shapely.geometry import LineString, Point, Polygon
 
 from hydrolib.core.io.bc.models import ForcingBase
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.core.io.net.models import Network
 from hydrolib.core.io.structure.models import StructureModel
+
 
 def read_strucs(input_mdu):
     fm = FMModel(input_mdu)
@@ -77,9 +78,9 @@ def read_crosssections(input_mdu):
     fm = FMModel(input_mdu)
     netnc_path = os.path.join(input_mdu.parent, str(fm.geometry.netfile.filepath))
     gdfs = net_nc2gdf(netnc_path)
-       
+
     dfcrsdef = pd.DataFrame([f.__dict__ for f in fm.geometry.crossdeffile.definition])
-    
+
     dfcrsloc = pd.DataFrame([f.__dict__ for f in fm.geometry.crosslocfile.crosssection])
     dfcrsloc_gdf = chainage2gdf(dfcrsloc, gdfs["1d_branches"])
     return dfcrsdef, dfcrsloc_gdf
@@ -119,13 +120,10 @@ if __name__ == "__main__":
     input_mdu = Path(
         r"C:\scripts\AHT_scriptjes\Hydrolib\Dhydro_changefrict\data\Zwolle-Minimodel\1D2D-DIMR\dflowfm\flowFM.mdu"
     )
-    
+
     fm = FMModel(input_mdu)
-    
+
     read_crosssections(fm)
-    
-    
+
     # strucs = read_strucs(input_mdu)
     # struc = StructureModel(definition=strucs.to_dict("records"))
-    
-    
