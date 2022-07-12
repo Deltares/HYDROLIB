@@ -471,7 +471,6 @@ def hisnc_2gdf(input_path):
 
     return gdfs
 
-
 def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id="id"):
     """
     Gets dataframe as input, converts chainage to x,y datapoints.
@@ -526,3 +525,39 @@ def branch_gui2df(branch_file):
                 td[item[0].strip()] = item[1].strip()
             df = df.append(td, ignore_index=True)
     return df
+
+
+def read_nc_data(ds,par):
+
+    data_params = [x for x in list(ds.variables) if x.startswith(ds.variables[par].mesh + "_" + ds.variables[par].location)]
+    data_coords = ds.variables[par].coordinates.split(" ")
+
+    id = ds.variables[par].mesh + "_" + ds.variables[par].location + "_id"
+
+    data = ds.variables[par][:].tolist()
+    index = ds.variables['time'][:].tolist()
+    if id in ds.variables:
+        columns = [id.tostring().decode("utf-8").strip() for id in ds.variables[id][:]]
+    else:
+        columns = list(range(len(data[0])))
+
+    df = pd.DataFrame(data = data, index = index, columns = columns)
+    df.index = pd.to_datetime(df.index, unit='s',origin=pd.Timestamp('2000-01-01'))
+    return df
+
+
+def pli2gdf(input_file):
+    # read pli file, including z value
+    input_path = Path(input_file)
+    pli_polyfile = polyfile.parser.read_polyfile(input_path,True)
+
+    list = []
+    for pli_object in pli_polyfile["objects"]:
+        name = pli_object.metadata.name
+        points = pli_object.points
+        geometry = LineString([[point.x,point.y,max(point.z,-9999)] for point in points]) # convert nodata to -9999
+        list.append({"name":name,"geometry":geometry})
+
+    gdf = gpd.GeoDataFrame(list)
+
+    return gdf

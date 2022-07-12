@@ -24,7 +24,7 @@ from shapely.ops import linemerge
 
 from hydrolib.core.io import polyfile
 from hydrolib.core.io.polyfile import parser
-
+from read_dhydro import pli2gdf
 
 def shp2pli(input_file, output_file, id, values=[], write_z=True):
     """
@@ -53,6 +53,9 @@ def shp2pli(input_file, output_file, id, values=[], write_z=True):
     values = values if isinstance(values, list) else [values]
     write_pli(gdf, output_file, id=id, values=values, write_z=write_z)
 
+def pli2shp(input_file, output_file):
+    gdf = pli2gdf(input_file)
+    gdf.to_file(output_file)
 
 def write_pli(gdf, output, id="unique_id", values=[], write_z=True):
     values = values if isinstance(values, list) else [values]
@@ -148,30 +151,6 @@ def write_pli(gdf, output, id="unique_id", values=[], write_z=True):
                 file.write(file_string + "\n")
             file.write("\n")
     print("Wegschrijven .pli afgerond (" + datetime.now().strftime("%H:%M:%S") + ")")
-
-
-def pli2shp(input_file, output_file):
-    gdf = pli2gdf(input_file)
-    gdf.to_file(output_file)
-
-
-def pli2gdf(input_file):
-    # read pli file, including z value
-    input_path = Path(input_file)
-    pli_polyfile = polyfile.parser.read_polyfile(input_path, True)
-
-    list = []
-    for pli_object in pli_polyfile["objects"]:
-        name = pli_object.metadata.name
-        points = pli_object.points
-        geometry = LineString(
-            [[point.x, point.y, max(point.z, -9999)] for point in points]
-        )  # convert nodata to -9999
-        list.append({"name": name, "geometry": geometry})
-
-    gdf = gpd.GeoDataFrame(list)
-
-    return gdf
 
 
 if __name__ == "__main__":
