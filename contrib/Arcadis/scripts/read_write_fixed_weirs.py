@@ -11,6 +11,7 @@ import rasterio
 import rasterio.features
 import rasterio.mask
 import shapely
+from read_dhydro import pli2gdf
 from shapely.geometry import (
     LineString,
     MultiPoint,
@@ -24,7 +25,7 @@ from shapely.ops import linemerge
 
 from hydrolib.core.io import polyfile
 from hydrolib.core.io.polyfile import parser
-from read_dhydro import pli2gdf
+
 
 def shp2pli(input_file, output_file, id, values=[], write_z=True):
     """
@@ -53,9 +54,11 @@ def shp2pli(input_file, output_file, id, values=[], write_z=True):
     values = values if isinstance(values, list) else [values]
     write_pli(gdf, output_file, id=id, values=values, write_z=write_z)
 
+
 def pli2shp(input_file, output_file):
     gdf = pli2gdf(input_file)
     gdf.to_file(output_file)
+
 
 def write_pli(gdf, output, id="unique_id", values=[], write_z=True):
     values = values if isinstance(values, list) else [values]
