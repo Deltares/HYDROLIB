@@ -1,5 +1,5 @@
-
 # Basis
+from pathlib import Path
 import os
 import sys
 import shutil
@@ -7,399 +7,371 @@ import numpy as np
 import geopandas as gpd
 import pandas as pd
 from pathlib import Path
+from shapely.geometry import Point
+import shutup
+# shutup.please()
 
-sys.path.append('../')      
+sys.path.insert(1, r"D:\3640.20\HYDROLIB-dhydamo")
 # Importing relevant classes from delft3dfmpy
-from dhydamo.io.hydamo import HyDAMO
-from dhydamo.io.convert_hydamo import Structures
-#from dhydamo.io.dfm import DFlowFMmodel
+from hydrolib.dhydamo.core.hydamo import HyDAMO
+from hydrolib.dhydamo.io.dfmwriter import DFLowFMModelWriter
+# from hydrolib.dhydamo.io.fmconverter import RoughnessVariant#
+from hydrolib.dhydamo.geometry import mesh
 
-
-#from delft3dfmpy import DFlowRRModel, DFlowRRWriter
- #rom delft3dfmpy.datamodels.common import ExtendedGeoDataFrame
-
-sys.path.append(r'D:\3640.20\HYDROLIB-core')
+from hydrolib.dhydamo.core.drr import DRRModel
+from hydrolib.dhydamo.io.drrwriter import DRRWriter
+from hydrolib.dhydamo.geometry.viz import plot_network
+from hydrolib.core.io.dimr.models import DIMR, FMComponent, RRComponent
+from hydrolib.core.io.inifield.models import IniFieldModel
+from hydrolib.core.io.onedfield.models import OneDFieldModel
 from hydrolib.core.io.structure.models import *
-from hydrolib.core.io.mdu.models import FMModel
-from hydrolib.core.io.dimr.models import DIMR, FMComponent
+from hydrolib.core.io.crosssection.models import *
+from hydrolib.core.io.ext.models import *
+from hydrolib.core.io.mdu.models import FMModel#, RainfallRunoffModel
+from hydrolib.core.io.bc.models import *
+from hydrolib.core.io.friction.models import *
+from hydrolib.core.io.obs.models import *
 
 # path to the package containing the dummy-data
-data_path = os.path.abspath('../tests/data')
-print(data_path)
+data_path = os.path.abspath("hydrolib/tests/data")
 
 # path to write the models
-output_path = os.path.abspath('../tests/model')
+output_path = os.path.abspath("hydrolib/model")
 
-gpkg_file = os.path.join(data_path,'Example_model.gpkg')
+gpkg_file = os.path.join(data_path, "Example_model.gpkg")
 
-hydamo = HyDAMO(extent_file=os.path.join(data_path,'OLO_stroomgebied_incl.maas.shp'))
+hydamo = HyDAMO(extent_file=os.path.join(data_path, "OLO_stroomgebied_incl.maas.shp"))
 
 # show content
 hydamo.branches.show_gpkg(gpkg_file)
-hydamo.branches.read_gpkg_layer(gpkg_file, layer_name='HydroObject', index_col='code')
+hydamo.branches.read_gpkg_layer(gpkg_file, layer_name="HydroObject", index_col="code")
 
-hydamo.profile.read_gpkg_layer(gpkg_file, layer_name='ProfielPunt', groupby_column = 'profiellijnid', order_column='codevolgnummer', id_col='code') 
-hydamo.profile_roughness.read_gpkg_layer(gpkg_file, layer_name='RuwheidProfiel') 
-hydamo.profile.snap_to_branch(hydamo.branches, snap_method='intersecting')
-hydamo.profile.dropna(axis=0, inplace=True, subset=['branch_offset'])
-hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name='profiellijn')
-hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name='profielgroep')
+hydamo.profile.read_gpkg_layer(
+    gpkg_file,
+    layer_name="ProfielPunt",
+    groupby_column="profiellijnid",
+    order_column="codevolgnummer",
+    id_col="code",
+)
+hydamo.profile_roughness.read_gpkg_layer(gpkg_file, layer_name="RuwheidProfiel")
+hydamo.profile.snap_to_branch(hydamo.branches, snap_method="intersecting")
+hydamo.profile.dropna(axis=0, inplace=True, subset=["branch_offset"])
+hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name="profiellijn")
+hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name="profielgroep")
 
-hydamo.profile.drop('code', axis=1, inplace=True)
-hydamo.profile.rename(columns={'profiellijnid': 'code'}, inplace=True)
+hydamo.profile.drop("code", axis=1, inplace=True)
+hydamo.profile["code"] = hydamo.profile["profiellijnid"]
 
-hydamo.culverts.read_gpkg_layer(gpkg_file, layer_name='DuikerSifonHevel', index_col='code')
-hydamo.culverts.snap_to_branch(hydamo.branches, snap_method='ends', maxdist=5)
-hydamo.culverts.dropna(axis=0, inplace=True, subset=['branch_offset'])
+hydamo.culverts.read_gpkg_layer(
+    gpkg_file, layer_name="DuikerSifonHevel", index_col="code"
+)
+hydamo.culverts.snap_to_branch(hydamo.branches, snap_method="ends", maxdist=5)
+hydamo.culverts.dropna(axis=0, inplace=True, subset=["branch_offset"])
 
-hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name='Stuw')
-hydamo.weirs.snap_to_branch(hydamo.branches, snap_method='overal', maxdist=10)
-hydamo.weirs.dropna(axis=0, inplace=True, subset=['branch_offset'])
-hydamo.opening.read_gpkg_layer(gpkg_file, layer_name='Kunstwerkopening')
-hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name='Regelmiddel')
+hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name="Stuw")
+hydamo.weirs.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
+hydamo.weirs.dropna(axis=0, inplace=True, subset=["branch_offset"])
+hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
+hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
 
-idx = hydamo.management_device[hydamo.management_device['duikersifonhevelid'].notnull()].index
+idx = hydamo.management_device[
+    hydamo.management_device["duikersifonhevelid"].notnull()
+].index
 for i in idx:
-    globid = hydamo.culverts[hydamo.culverts.code==hydamo.management_device.duikersifonhevelid.loc[i]].globalid.values[0]
-    hydamo.management_device.at[i,'duikersifonhevelid'] = globid
+    globid = hydamo.culverts[
+        hydamo.culverts.code == hydamo.management_device.duikersifonhevelid.loc[i]
+    ].globalid.values[0]
+    hydamo.management_device.at[i, "duikersifonhevelid"] = globid
 
-hydamo.pumpstations.read_gpkg_layer(gpkg_file, layer_name='Gemaal',index_col='code')
-hydamo.pumpstations.snap_to_branch(hydamo.branches, snap_method='overal', maxdist=10)
-hydamo.pumps.read_gpkg_layer(gpkg_file,layer_name='Pomp', index_col='code')
-hydamo.management.read_gpkg_layer(gpkg_file, layer_name='Sturing', index_col='code')
+hydamo.pumpstations.read_gpkg_layer(gpkg_file, layer_name="Gemaal", index_col="code")
+hydamo.pumpstations.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
+hydamo.pumps.read_gpkg_layer(gpkg_file, layer_name="Pomp", index_col="code")
+hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
 
+hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
+hydamo.bridges.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
+hydamo.bridges.dropna(axis=0, inplace=True, subset=["branch_offset"])
 
-hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name='Brug', index_col='code')
-hydamo.bridges.snap_to_branch(hydamo.branches, snap_method='overal', maxdist=1100)
-hydamo.bridges.dropna(axis=0, inplace=True, subset=['branch_offset'])
+hydamo.boundary_conditions.read_gpkg_layer(
+    gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code"
+)
+hydamo.boundary_conditions.snap_to_branch(
+    hydamo.branches, snap_method="overal", maxdist=10
+)
 
-hydamo.boundary_conditions.read_gpkg_layer(gpkg_file, layer_name='hydrologischerandvoorwaarde', index_col='code')
-hydamo.boundary_conditions.snap_to_branch(hydamo.branches, snap_method='overal', maxdist=10)
+hydamo.catchments.read_gpkg_layer(
+    gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code"
+)
+
+hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
+for ind, cat in hydamo.catchments.iterrows():
+    hydamo.catchments.loc[ind, "lateraleknoopcode"] = hydamo.laterals[
+        hydamo.laterals.globalid == cat.lateraleknoopid
+    ].code.values[0]
+hydamo.laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=5000)
+
+hydamo.structures.convert.weirs(
+    hydamo.weirs,
+    hydamo.profile_group,
+    hydamo.profile_line,
+    hydamo.profile,
+    hydamo.opening,
+    hydamo.management_device,
+)
+hydamo.structures.convert.culverts(
+    hydamo.culverts, management_device=hydamo.management_device
+)
+hydamo.structures.convert.bridges(
+    hydamo.bridges,
+    profile_groups=hydamo.profile_group,
+    profile_lines=hydamo.profile_line,
+    profiles=hydamo.profile,
+)
+hydamo.structures.convert.pumps(
+    hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
+)
+
+hydamo.structures.add_rweir(
+    id="rwtest",
+    name="rwtest",
+    branchid="W_1386_0",
+    chainage=600.0,
+    crestlevel=18.0,
+    crestwidth=3.0,
+    corrcoeff=1.0,
+)
+hydamo.structures.add_orifice(
+    id="otest",
+    name="otest",
+    branchid="W_1386_0",
+    chainage=500.0,
+    crestlevel=18.0,
+    crestwidth=3.0,
+    corrcoeff=1.0,
+    gateloweredgelevel=17.0,
+    uselimitflowpos=False,
+    limitflowpos=0.0,
+    uselimitflowneg=False,
+    limitflowneg=0.0,
+)
+hydamo.structures.add_uweir(
+    id="uwtest",
+    name="uwtest",
+    branchid="W_1386_0",
+    chainage=400.0,
+    dischargecoeff=0.9,
+    crestlevel=18.0,
+    numlevels=3,
+    yvalues="0 0.5 1.0",
+    zvalues="19.0 18.0 19.0",
+)
+hydamo.structures.add_bridge(
+    id="btest",
+    name="btest",
+    branchid="W_1386_0",
+    chainage=300.0,
+    length=8.0,
+    csdefid="rect_3.60",
+    inletlosscoeff=0.9,
+    outletlosscoeff=0.9,
+    shift=0.0,
+    frictiontype="Manning",
+    friction=0.06,
+)
+hydamo.structures.add_culvert(
+    id="ctest",
+    name="ctest",
+    branchid="W_1386_0",
+    chainage=200.0,
+    leftlevel=18.0,
+    rightlevel=17.0,
+    length=30.0,
+    crosssection={"shape": "circle", "diameter": 0.40},
+    inletlosscoeff=0.9,
+    outletlosscoeff=0.9,
+    frictiontype="Manning",
+    frictionvalue=0.06,
+)
+hydamo.structures.add_pump(
+    id="ptest",
+    name="ptest",
+    branchid="W_1386_0",
+    chainage=100.0,
+    capacity=1.0,
+    startlevelsuctionside=[14.0],
+    stoplevelsuctionside=[13.8],
+)
 
 fm = FMModel()
-fm.filepath = "test.mdu"
 
-#network = Network()
-# crosssections = Crosssections()
+# TODO:  write a convenience function in mesh(?) and to separate structures
+[
+    mesh.mesh1d_add_branch(fm.geometry.netfile.network, branch.geometry, 20.0)
+    for branch in hydamo.branches.itertuples()
+]
+
+# 2d mesh extent
+extent = gpd.read_file(r"hydrolib\tests\data\2D_extent.shp").at[0, "geometry"]
+# buffer for refinement
+buffer = hydamo.branches.buffer(10.0).unary_union
+# add triangular mesh, refene around channels and add 1d_to_2d links (TODO: check if all options work)
+mesh.mesh2d_add_triangular(fm.geometry.netfile.network, extent, edge_length=20.0)
+mesh.mesh2d_refine(fm.geometry.netfile.network, buffer, 1)
+mesh.links1d2d_add_links_1d_to_2d(fm.geometry.netfile.network)
+
+# Add cross sections from hydamo
+hydamo.crosssections.convert.profiles(
+    crosssections=hydamo.profile,
+    crosssection_roughness=hydamo.profile_roughness,
+    profile_groups=hydamo.profile_group,
+    profile_lines=hydamo.profile_line,
+    param_profile=hydamo.param_profile,
+    param_profile_values=hydamo.param_profile_values,
+    branches=hydamo.branches,
+    roughness_variant='High',
+)
+
+hydamo.external_forcings.convert.boundaries(
+    hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network
+)
+series = pd.Series(np.sin(np.linspace(0,100,100))+1.)
+series.index = [pd.Timestamp('2016-01-01 00:00:00')+pd.Timedelta(hours=i) for i in range(100)] 
+hydamo.external_forcings.add_boundary_condition('RVW_01', (197464.,392130.),  'dischargebnd', series, fm.geometry.netfile.network)
+hydamo.external_forcings.add_lateral('LAT_01','W_242209_0', '5.0', series)
+
+hydamo.crosssections.crosssection_loc = hydamo.dict_to_dataframe(
+    hydamo.crosssections.crosssection_loc
+)
+hydamo.crosssections.crosssection_def = hydamo.dict_to_dataframe(
+    hydamo.crosssections.crosssection_def
+)
+
+hydamo.observationpoints.add_points(
+    [Point((200200, 395600)), (200200, 396200)],
+    ["ObsPt1", "ObsPt2"],
+    locationTypes=["1d", "1d"],
+    snap_distance=10.0,
+)
+hydamo.storagenodes.add_storagenode(
+    "test",
+    "123_123",
+    usestreetstorage="true",
+    nodetype="unspecified",
+    name=np.nan,
+    usetable="false",
+    bedlevel=12.0,
+    area=100,
+    streetlevel=14.0,
+    streetstoragearea=10.0,
+    storagetype="reservoir",
+    levels=np.nan,
+    storagearea=np.nan,
+    interpolate="linear",
+)
+hydamo.storagenodes.storagenodes = hydamo.dict_to_dataframe(
+    hydamo.storagenodes.storagenodes
+)
+
+hydamo.external_forcings.set_initial_waterdepth(0.5)
 
 
-struct = Structures()
-struct.weirs_from_hydamo(hydamo.weirs, profile_groups=hydamo.profile_group, profile_lines=hydamo.profile_line, profiles=hydamo.profile, opening=hydamo.opening, management_device=hydamo.management_device)
-struct.culverts_from_hydamo(hydamo.culverts, management_device=hydamo.management_device)
-struct.bridges_from_hydamo(hydamo.bridges, profile_groups=hydamo.profile_group, profile_lines=hydamo.profile_line, profiles=hydamo.profile)
-struct.pumps_from_hydamo(hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management)
+drrmodel = DRRModel()
 
-all_structures = struct.rweirs+struct.orifices+struct.uweirs+struct.bridges+struct.culverts+struct.pumps
+# all data and settings to create the RR-model
+lu_file = os.path.join(data_path, "rasters", "sobek_landuse.tif")
+ahn_file = os.path.join(data_path, "rasters", "AHN_2m_clipped_filled.tif")
+soil_file = os.path.join(data_path, "rasters", "sobek_soil.tif")
+surface_storage = 10.0
+infiltration_capacity = 100.0
+initial_gwd = 1.2  # water level depth below surface
 
-fm.geometry.structurefile = [StructureModel(structure=all_structures)]
+runoff_resistance = 1.0
+infil_resistance = 300.0
+layer_depths = [0.0, 1.0, 2.0]
+layer_resistances = [30, 200, 10000]
+street_storage = 10.0
+sewer_storage = 10.0
+pumpcapacity = 10.0
+roof_storage = 10.0
+
+meteo_areas = hydamo.catchments
+
+drrmodel.unpaved.io.unpaved_from_input(
+    hydamo.catchments,
+    lu_file,
+    ahn_file,
+    soil_file,
+    surface_storage,
+    infiltration_capacity,
+    initial_gwd,
+    meteo_areas,
+)
+drrmodel.unpaved.io.ernst_from_input(hydamo.catchments, depths=layer_depths, resistance=layer_resistances,infiltration_resistance=infil_resistance, runoff_resistance=runoff_resistance)
+drrmodel.paved.io.paved_from_input(catchments=hydamo.catchments,landuse=lu_file,surface_level=ahn_file, street_storage=street_storage, sewer_storage=sewer_storage, pump_capacity=pumpcapacity, meteo_areas=meteo_areas, zonalstats_alltouched=True)
+drrmodel.greenhouse.io.greenhouse_from_input(hydamo.catchments, lu_file, ahn_file, roof_storage, meteo_areas, zonalstats_alltouched=True)
+drrmodel.openwater.io.openwater_from_input(hydamo.catchments, lu_file, meteo_areas, zonalstats_alltouched=True)
+drrmodel.external_forcings.io.boundary_from_input(hydamo.laterals, hydamo.catchments, drrmodel)
+
+hydamo.external_forcings.convert.laterals(hydamo.laterals, lateral_discharges=None, rr_boundaries=drrmodel.external_forcings.boundary_nodes)
+hydamo.external_forcings.lateral_nodes= hydamo.dict_to_dataframe(
+    hydamo.external_forcings.lateral_nodes
+)
+hydamo.external_forcings.boundary_nodes = hydamo.dict_to_dataframe(
+    hydamo.external_forcings.boundary_nodes
+)
+
+fm.filepath = Path(output_path) / 'fm' / 'test.mdu'
+
+forcingmodel = ForcingModel()
+forcingmodel.filepath = Path(output_path) / 'fm' / 'boundaryconditions.bc'
+
+seepage_folder = os.path.join( data_path, 'rasters', 'seepage')
+precip_folder =  os.path.join(data_path, 'rasters',  'precipitation')
+evap_folder = os.path.join( data_path, 'rasters',  'evaporation')
+drrmodel.external_forcings.io.seepage_from_input(hydamo.catchments, seepage_folder)
+drrmodel.external_forcings.io.precip_from_input(meteo_areas, precip_folder=None, precip_file=str(Path(data_path) / 'DEFAULT.BUI'))
+drrmodel.external_forcings.io.evap_from_input(meteo_areas, evap_folder=None, evap_file=str(Path(data_path) / 'DEFAULT.EVP'))
+
+writer = DFLowFMModelWriter(hydamo, forcingmodel)
+fm.geometry.structurefile = [StructureModel(structure=writer.structures)]
+fm.geometry.crosslocfile = CrossLocModel(crosssection=writer.crosslocs)
+fm.geometry.crossdeffile = CrossDefModel(definition=writer.crossdefs)
+fm.geometry.frictfile = [FrictionModel(global_=writer.friction_defs)]
+fm.output.obsfile = [ObservationPointModel(observationpoint=writer.obspoints)]
+extmodel = ExtModel()
+extmodel.boundary = writer.boundaries_ext 
+extmodel.lateral = writer.laterals_ext
+forcingmodel.forcing = writer.laterals_bc + writer.boundaries_bc
+fm.external_forcing.extforcefilenew = extmodel
+fm.external_forcing.forcingfile = forcingmodel
+fm.geometry.inifieldfile = IniFieldModel(initial=writer.inifields)
+fm.geometry.onedfieldfile = [OneDFieldModel(global_=writer.onedfields[0])]
+
+drrmodel.d3b_parameters['Timestepsize'] = 300
+drrmodel.d3b_parameters['StartTime'] = "'2016/06/01;00:00:00'" # should be equal to refdate for D-HYDRO
+drrmodel.d3b_parameters['EndTime'] = "'2016/06/03;00:00:00'"
+drrmodel.d3b_parameters['RestartIn'] = 0
+drrmodel.d3b_parameters['RestartOut'] = 0
+drrmodel.d3b_parameters['RestartFileNamePrefix'] ='Test'
+drrmodel.d3b_parameters['UnsaturatedZone'] = 1
+drrmodel.d3b_parameters['UnpavedPercolationLikeSobek213']=-1
+drrmodel.d3b_parameters['VolumeCheckFactorToCF']=100000
+
+# rr_writer = DRRWriter(drrmodel, output_dir= output_path, name='test',wwtp=(199000.,396000.))
+# rr_writer.write_all()
+
 
 # wegschrijven
 dimr = DIMR()
 dimr.component.append(
-    FMComponent(name="test", workingDir=".", inputfile=fm.filepath, model=fm)
+    FMComponent(name="test", workingDir=Path(output_path)/'fm', model=fm, inputfile=fm.filepath)
+    # RRComponent(name="test", workingDir=r"D:\3640.20\HYDROLIB-dhydamo\hydrolib\model", inputfile=fm.filepath, model=rr)
 )
 dimr.save(recurse=True)
 
-print('Done!')
 
 
-# # Collect structures
-#from_hydamo(hydamo.weirs, profile_groups=hydamo.profile_group, profile_lines=hydamo.profile_line, profiles=hydamo.profile, opening=hydamo.opening, management_device=hydamo.management_device, management=None)
-# dfmmodel.structures.io.culverts_from_hydamo(hydamo.culverts, management_device=hydamo.management_device)
-# dfmmodel.structures.io.bridges_from_hydamo(hydamo.bridges, profile_groups=hydamo.profile_group, profile_lines=hydamo.profile_line, profiles=hydamo.profile)
-# dfmmodel.structures.io.pumps_from_hydamo(pompen=hydamo.pumps, sturing=hydamo.management, gemalen=hydamo.pumpstations)
-
-# # Add a weir manually (equivalent functions exist for all structures):
-# dfmmodel.structures.add_weir(
-#     id='extra_weir',
-#     branchid='riv_RS1_1810',
-#     chainage=950.0,
-#     crestlevel=18.00,
-#     crestwidth=7.5,
-#     corrcoeff=1.0    
-# )
-
-
-# # To use, provide a list of ID's of compound structures, and along with, for every compound structure, a nested list of sub-structures. If there are many, these can be read from files (for example).
-# # cmpnd_ids  = ['cmpnd_1']
-# # cmpnd_list = [['Orifice_Test1','UWR_test']]
-# # dfmmodel.structures.io.compound_structures(cmpnd_ids, cmpnd_list)
-
-
-# # After this add the branches and generate a grid.
-
-# # In[8]:
-
-
-# # Create a 1D schematisation
-# dfmmodel.network.set_branches(hydamo.branches)
-# dfmmodel.network.generate_1dnetwork(one_d_mesh_distance=40.0, seperate_structures=True)
-
-
-# # Add cross sections. Here two hydamo files are used. First the imported cross sections. If after this there are branch objects left without a cross sections, it is derived from the norm parametrised profile (Dutch: legger).
-
-# # In[9]:
-
-
-# # Add cross sections from hydamo
-# dfmmodel.crosssections.io.from_hydamo(
-#     dwarsprofielen=hydamo.crosssections,
-#     parametrised=hydamo.parametrised_profiles,
-#     branches=hydamo.branches
-# )
-
-# print(f'{len(dfmmodel.crosssections.get_branches_without_crosssection())} branches are still missing a cross section.')
-# print(f'{len(dfmmodel.crosssections.get_structures_without_crosssection())} structures are still missing a cross section.')
-
-
-# # If there are still missing cross sections left, add a default one. To do so add a cross section definition, and assign it with a vertical offset (shift).
-
-# # In[10]:
-
-
-# # Set a default cross section
-# default = dfmmodel.crosssections.add_rectangle_definition(
-#     height=5.0, width=5.0, closed=False, roughnesstype='Strickler', roughnessvalue=30, name='default')
-# dfmmodel.crosssections.set_default_definition(definition=default, shift=5.0)
-
-
-# # #### Add a 2D mesh
-
-# # To add a mesh, currently 2 options exist:
-
-# # 1) the converter can generate a relatively simple, rectangular mesh, with a rotation or refinement. Note that rotation _and_ refinement is currently not possible. In the section below we generate a refined 2D mesh with the following steps:
-# # 
-# # - Generate grid within a polygon. The polygon is the extent given to the HyDAMO model.
-# # - Refine along the main branch
-# # - Determine altitude from a DEM.
-# # 
-# # The 'refine'-method requires the dflowfm.exe executable. If this is not added to the system path, it can be provided in an optional argument to refine (dflowfm_path).
-
-# # In[ ]:
-
-
-# # Create mesh object
-# mesh = Rectangular()
-# cellsize = 25
-
-# # Generate mesh within model bounds
-# mesh.generate_within_polygon(hydamo.clipgeo, cellsize=cellsize, rotation=0)
-
-# # Refine the model (2 steps) along the main branch. To do so we generate a buffer around the main branch.
-# buffered_branch = hydamo.branches.loc[['riv_RS1_1810', 'riv_RS1_264'], 'geometry'].unary_union.buffer(10)
-# mesh.refine(polygon=[buffered_branch], level=[2], cellsize=cellsize, dflowfm_path=dflowfm_path)
-
-# # Determine the altitude from a digital elevation model
-# # rasterpath = '../gis/AHNdommel_clipped.tif'
-# # mesh.altitude_from_raster(rasterpath)
-
-# # The full DEM is not added to this notebook. Instead a constant bed level is used
-# mesh.altitude_constant(15.0)
-
-# # Add to schematisation
-# dfmmodel.network.add_mesh2d(mesh)
-
-
-# # 2) a more complex mesh can be created in other software (such as SMS) and then imported in the converter: (uncomment to activate)
-
-# # In[ ]:
-
-
-# #from dhydamo.core.mesh2d import Mesh2D
-# #mesh = Mesh2D()
-# # import the geometry
-# #mesh.geom_from_netcdf(r'T:\2Hugo\Grid_Roer_net.nc')
-# # fill every cell with an elevation value
-# #mesh.altitude_from_raster(rasterpath)
-# # and add to the model
-# #dfmmodel.network.add_mesh2d(mesh)
-
-
-# # #### Add the 1D-2D links
-
-# # For linking the 1D and 2D model, three options are available:
-# # 1. Generating links from each 1d node to the nearest 2d node.
-# # 2. Generating links from each 2d node to the nearest 1d node (intersecting==True)
-# # 3. Generating links from each 2d node to the nearest 1d node, while not allowing the links to intersect other cells (intersecting==True).
-# # 
-# # Intersecting indicates whether or not the 2D cells cross the 1D network (lateral versus embedded links).
-# # So, option 3 is relevant when there is no 2d mesh on top of the 1d mesh: the lateral links.
-# # 
-# # Note that for each option a maximum link length can be chosen, to prevent creating long (and perhaps unrealistic) links.
-
-# # In[ ]:
-
-
-# del dfmmodel.network.links1d2d.faces2d[:]
-# del dfmmodel.network.links1d2d.nodes1d[:]
-# dfmmodel.network.links1d2d.generate_1d_to_2d(max_distance=50)
-
-
-# # In[ ]:
-
-
-# fig, ax = plt.subplots(figsize=(13, 10))
-# ax.set_aspect(1.0)
-
-# segments = dfmmodel.network.mesh2d.get_segments()
-# ax.add_collection(LineCollection(segments, color='0.3', linewidths=0.5, label='2D-mesh'))
-
-# links = dfmmodel.network.links1d2d.get_1d2dlinks()
-# ax.add_collection(LineCollection(links, color='k', linewidths=0.5))
-# ax.plot(links[:, :, 0].ravel(), links[:, :, 1].ravel(), color='k', marker='.', ls='', label='1D2D-links')
-
-# for i, p in enumerate([buffered_branch]):
-#     ax.plot(*p.exterior.xy, color='C3', lw=1.5, zorder=10, alpha=0.8, label='Refinement buffer' if i==0 else None)
-
-# hydamo.branches.plot(ax=ax, color='C0', lw=2.5, alpha=0.8, label='1D-mesh')
-
-# ax.legend()
-
-# ax.set_xlim(140900, 141300)
-# ax.set_ylim(393400, 393750);
-
-
-# # ### Boundary conditions for FM
-# # 
-# # Add boundary conditions to external forcings from a SOBEK time series.
-
-# # In[ ]:
-
-
-# fn_bcs = os.path.join(data_path, 'sobekdata', 'boundaryconditions.csv')
-# bcs = pd.read_csv(fn_bcs, sep=';', index_col=0)
-# bcs.index = pd.to_datetime(bcs.index)
-
-
-# # In[ ]:
-
-
-# dfmmodel.external_forcings.add_boundary_condition(
-#     name='BC_flow_in',
-#     pt=(140712.056047, 391893.277878),
-#     bctype='discharge',
-#     series=bcs['Discharge']
-# )
-
-# dfmmodel.external_forcings.add_boundary_condition(
-#     name='BC_wlev_down',
-#     pt=(141133.788766, 395441.748424),
-#     bctype='waterlevel',
-#     series=bcs['Waterlevel']
-# )
-
-
-# # In[ ]:
-
-
-# fig, ax = plt.subplots()
-
-# ax.plot(
-#     dfmmodel.external_forcings.boundaries['BC_flow_in']['time'],
-#     dfmmodel.external_forcings.boundaries['BC_flow_in']['value'],
-#     label='Discharge [m3/s]'
-# )
-
-# ax.plot(
-#     dfmmodel.external_forcings.boundaries['BC_wlev_down']['time'],
-#     dfmmodel.external_forcings.boundaries['BC_wlev_down']['value'],
-#     label='Water level [m+NAP]'
-# )
-
-# ax.set_ylabel('Value (discharge or waterlevel)')
-# ax.set_xlabel('Time [minutes]')
-
-# ax.legend();
-
-
-# # ### Initial conditions
-
-# # There are four ways to set the initial conditions. First, global water level or depth can be set. In the example, we use a global water depth of 0.5 m, but we could also use the equivalent function "set_initial_waterlevel".
-
-# # In[ ]:
-
-
-# # Initial water depth is set to 0.5 m
-# dfmmodel.external_forcings.set_initial_waterdepth(0.5)
-
-
-# # It is also possible to define a certain area, using a polygon, with alternative initial conditions (level or depth).
-
-# # In[ ]:
-
-
-# #init_special = gpd.read_file(data_path+'/GIS/init_waterlevel_special.shp')
-# #dfmmodel.external_forcings.set_initial_waterlevel(10.0, polygon=init_special.geometry[0], name='test_polygon')
-
-
-# # ### Lateral flow
-
-# # Lateral flow can be obtained from the coupling with the RR-model, or by providing time series. Here, these are read from a Sobek model. In the coupling below, nodes that are not linked to a RR-boundary node are assumed to have a prescribed time series.
-# # 
-# # If a DFM-model is run offline, timeseries should be provided for all laterals.
-
-# # In[ ]:
-
-
-# ###For adding the lateral inflow we import SOBEK results. To do so we use hkvsobekpy. For more info on this module, see: https://github.com/HKV-products-services/hkvsobekpy
-# # # Add the lateral inflows also from the SOBEK results. Naote that the column names in the his-file need to match
-# # # the id's of the imported lateral locations at the top of this notebook.
-# rehis = hkvsobekpy.read_his.ReadMetadata(data_path+'/sobekdata/QLAT.HIS', hia_file='auto')
-# param = [p for p in rehis.GetParameters() if 'disch' in p][0]
-# lateral_discharge = rehis.DataFrame().loc[:, param]
-# lateral_discharge.drop('lat_986', inplace=True, axis=1)
-
-
-# # In[ ]:
-
-
-# dfmmodel.external_forcings.io.read_laterals(hydamo.laterals, lateral_discharges=lateral_discharge)
-
-
-# # ### Observation points
-
-# # Observation points are now written in the new format, where once can discriminate between 1D ('1d') and 2D ('2d') observation points. This can be done using the optional argument 'locationTypes'. If it is omitted, all points are assumed to be 1d. 1D-points are always snapped to a the nearest branch. 2D-observation points are always defined by their X/Y-coordinates.
-# # 
-# # Note: add_points can be called only once: once dfmodel.observation_points is filled,the add_points-method is not available anymore. Observation point coordinates can be definied eiher as an (x,y)-tuple or as a shapely Point-object.
-
-# # In[ ]:
-
-
-# from shapely.geometry import Point
-# dfmmodel.observation_points.add_points([Point((141150, 393700)),(141155, 393705)],['ObsPt1','ObsPt2'], locationTypes=['1d','1d'])
-
-
-# # ### Settings and writing
-# # 
-# # Finally, we adjust some settings and export the coupled FM-RR model. For more info on the settings: https://content.oss.deltares.nl/delft3d/manuals/D-Flow_FM_User_Manual.pdf
-# # 
-# # The 1D/2D model (FM) is written to the sub-folder 'fm'; RR-files are written to 'rr'. An XML-file (dimr-config.xml) describes the coupling between the two. Note that both the GUI and Interaktor do not (yet) support RR, so the only way to carry out a coupled simulation is using DIMR.
-# # 
-
-# # In[ ]:
-
-
-# # Runtime and output settings
-# # for FM model
-# dfmmodel.mdu_parameters['refdate'] = 20000101
-# dfmmodel.mdu_parameters['tstart'] = 0.0 * 3600
-# dfmmodel.mdu_parameters['tstop'] = 24.0 * 1 * 3600
-# dfmmodel.mdu_parameters['hisinterval'] = '120. 0. 0.'
-# dfmmodel.mdu_parameters['cflmax'] = 0.7
-
-# # Create writer
-# dfmmodel.dimr_path = dimr_path
-# fm_writer = DFlowFMWriter(dfmmodel, output_dir=output_path, name='olo_damo')
-
-# # Write as model
-# fm_writer.objects_to_ldb()
-# fm_writer.write_all()
-
-
-# # Finished!
-
-# # In[ ]:
-
-
-
+print("done.")
+# drrmodel.dimr_path = dimr_path
+# print('Writing model')
 
