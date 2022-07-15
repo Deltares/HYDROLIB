@@ -26,11 +26,11 @@ from hydrolib.core.io.inifield.models import IniFieldModel
 from hydrolib.core.io.onedfield.models import OneDFieldModel
 from hydrolib.core.io.structure.models import *
 from hydrolib.core.io.crosssection.models import *
-from hydrolib.core.io.ext.models import *
+from hydrolib.core.io.ext.models import ExtModel
 from hydrolib.core.io.mdu.models import FMModel#, RainfallRunoffModel
-from hydrolib.core.io.bc.models import *
-from hydrolib.core.io.friction.models import *
-from hydrolib.core.io.obs.models import *
+from hydrolib.core.io.bc.models import ForcingModel
+from hydrolib.core.io.friction.models import FrictionModel
+from hydrolib.core.io.obs.models import ObservationPointModel
 
 # path to the package containing the dummy-data
 data_path = os.path.abspath("hydrolib/tests/data")
