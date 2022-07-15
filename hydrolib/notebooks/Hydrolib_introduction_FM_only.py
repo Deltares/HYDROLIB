@@ -363,6 +363,7 @@ drrmodel.d3b_parameters['VolumeCheckFactorToCF']=100000
 
 # wegschrijven
 dimr = DIMR()
+dimr.filepath = Path(output_path) / 'fm'
 dimr.component.append(
     FMComponent(name="test", workingDir=Path(output_path)/'fm', model=fm, inputfile=fm.filepath)
     # RRComponent(name="test", workingDir=r"D:\3640.20\HYDROLIB-dhydamo\hydrolib\model", inputfile=fm.filepath, model=rr)

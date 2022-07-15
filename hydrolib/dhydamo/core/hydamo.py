@@ -1,9 +1,6 @@
-from ast import Or
-from calendar import c
 import logging
 
-from typing import List, Union
-from wsgiref import validate
+from typing import Union
 
 from tqdm.auto import tqdm
 
@@ -12,28 +9,20 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import KDTree
 import shapely
-from shapely.geometry import LineString, MultiPolygon, Point, Polygon
-import sys
+from shapely.geometry import LineString, Point, Polygon
 import numpy as np
-import rstr
-from hydrolib.dhydamo.geometry import mesh
 from hydrolib.dhydamo.io import fmconverter
 from datetime import datetime
 from enum import Enum
 from pydantic import validate_arguments
-# from hydrolib.core.io.structure.models import *
-# from hydrolib.core.io.crosssection.models import *
-# from hydrolib.core.io.ext.models import *
-# from hydrolib.core.io.net.models import *
+
 from hydrolib.dhydamo.io.fmconverter import RoughnessVariant
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame, ExtendedDataFrame
 from hydrolib.dhydamo.geometry.geometry import find_nearest_branch
-from hydrolib.dhydamo.geometry.mesh import *
+#from hydrolib.dhydamo.geometry.mesh import *
 from hydrolib import dhydamo
 
 logger = logging.getLogger(__name__)
-
-
 
 class HyDAMO:
     """Main data structure for dflowfm model. Contains subclasses
@@ -946,7 +935,7 @@ class CrossSections:
         delft3dfmtype = roughnesstype
 
         if roughnesstype.lower() == 'stricklerks':
-            raise ValueError()
+            raise ValueError('Not a valid roughness type.')
 
         # Add to dict
         self.hydamo.roughness_definitions[name] = {
@@ -1288,7 +1277,7 @@ class CrossSections:
             
             
             if pd.isnull(values[values.soortparameter=='taludhelling linkerzijde'].waarde).values[0]:
-                css_type=='rectangle'
+                css_type ='rectangle'
             else:
                 css_type = 'trapezium'
                 dh1 = values[values.soortparameter=='hoogte insteek linkerzijde'].waarde.values[0] - botlev
@@ -1303,7 +1292,7 @@ class CrossSections:
             elif roughness_variant==RoughnessVariant.HIGH:
                 roughness = values.ruwheidhoog.values[0]
             else:
-                ValueError('Invalid value for roughness_variant; should be "High" or "Low".')
+                raise ValueError('Invalid value for roughness_variant; should be "High" or "Low".')
             # Determine name for cross section
             if css_type == 'trapezium':
                 cssdct[branch[0].Index] = {
@@ -1687,7 +1676,7 @@ class Structures:
         elif crosssection['shape'] == 'rectangle':
             definition = self.hydamo.crosssections.add_rectangle_definition(crosssection['height'], crosssection['width'], crosssection['closed'], frictiontype, frictionvalue, name=id)
         else:
-                NotImplementedError(f'Cross section with shape \"{crosssection["shape"]}\" not implemented.')
+            raise NotImplementedError(f'Cross section with shape \"{crosssection["shape"]}\" not implemented.')
 
         dct = pd.DataFrame({'id':id, 'name':name,'branchid':branchid,'chainage':chainage,'rightlevel':rightlevel,'leftlevel':leftlevel,
                             'length':length, 'inletlosscoeff':inletlosscoeff,'outletlosscoeff':outletlosscoeff,'csdefid':definition,

@@ -389,7 +389,7 @@ class DRRWriter:
 
         for i, line in enumerate(lines):
             if line.lower().startswith(parameter.lower()):
-                items = re.split('=|#|$\s+', line)
+                items = re.split('=', line)
                 key, oldvalue = items[0], items[1]
                 if not key.strip().lower() == parameter.lower():
                     continue

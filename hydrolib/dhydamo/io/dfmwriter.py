@@ -285,42 +285,38 @@ class DFLowFMModelWriter:
 
     def laterals_to_dhydro(self, forcingmodel):
         for lateral in self.hydamo.external_forcings.lateral_nodes.itertuples():
-            if (isinstance(lateral.discharge,pd.Series))|(isinstance(lateral.discharge,float)):               
-            
-                lat_ext = Lateral(id=lateral.Index,
-                                name = lateral.Index,
-                                type = lateral.type,
-                                locationtype = lateral.locationtype,
-                                branchId = lateral.branchid,
-                                chainage = lateral.chainage,                              
-                                discharge = forcingmodel)
-                # lat_ext.forcingmodel.filepath=Path('boundaryconditions.bc')                                      
-            else:
+            if isinstance(lateral.discharge,str):                                
                 lat_ext = Lateral(id=lateral.Index,
                                 name = lateral.Index,
                                 type = 'discharge',
                                 locationType = '1d',
                                 branchId = lateral.branchid,
                                 chainage = lateral.chainage,                              
-                                discharge = lateral.discharge)                                      
-
-            if isinstance(lateral.discharge,pd.Series):
-                 lat_bc = TimeSeries(name=lateral.Index,
-                                    function='timeseries',
-                                    timeinterpolation='linear',
-                                    quantity='lateral_discharge',
-                                    unit='m3/s',
-                                    datablock=[lateral.time, lateral.value])
-                 self.laterals_bc.append(lat_bc)
-            elif isinstance(lateral.discharge,float):
-                lat_bc = Constant(name=lateral.Index,
-                                  function='constant',                                  
-                                  quantity='lateral_discharge', 
-                                  unit='m3/s',
-                                  datablock=[[lateral.value]])                
-                self.laterals_bc.append(lat_bc)
+                                discharge = lateral.discharge)                                    
             else:
-                ValueError('A lateral should contain either a timeseries or a constant attribute.')
+                lat_ext = Lateral(id=lateral.Index,
+                                name = lateral.Index,
+                                type = lateral.type,
+                                locationtype = lateral.locationtype,
+                                branchId = lateral.branchid,
+                                chainage = lateral.chainage,                              
+                                discharge = forcingmodel)                  
+
+                if isinstance(lateral.discharge,pd.Series):
+                    lat_bc = TimeSeries(name=lateral.Index,
+                                        function='timeseries',
+                                        timeinterpolation='linear',
+                                        quantity='lateral_discharge',
+                                        unit='m3/s',
+                                        datablock=[lateral.time, lateral.value])
+                    self.laterals_bc.append(lat_bc)
+                elif isinstance(lateral.discharge,float):
+                    lat_bc = Constant(name=lateral.Index,
+                                    function='constant',                                  
+                                    quantity='lateral_discharge', 
+                                    unit='m3/s',
+                                    datablock=[[lateral.value]])                
+                self.laterals_bc.append(lat_bc)
             # [[setattr(c.comments, field[0], "") for field in c.comments] for c in lat_bc]  
             # [[setattr(c.comments, field[0], "") for field in c.comments] for c in lat_ext]  
             self.laterals_ext.append(lat_ext)
