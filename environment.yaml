@@ -23,7 +23,7 @@ dependencies:
   - flit>=3.2
   - gdal>=3.1
   - geopandas=0.10
-  - netcdf4
+  - netcdf4=1.5.8
   - numba
   - numpy
   - openpyxl
@@ -35,7 +35,5 @@ dependencies:
   - requests
   - rtree 
   - scipy
-  - xarray>=0.17.0
+  - xarray
   - zarr
-  - pip:
-    - git+https://github.com/openearth/delft3dfmpy.git@deltares-urban

@@ -8,12 +8,11 @@ license = "LGPL"
 [tool.poetry.dependencies]
 python = "^3.8"
 pandas = "^1.2"
-geopandas = "^0.9"
-xarray = "^0.17"
-hydrolib-core = "0.2.1"
+geopandas = "^0.10"
+hydrolib-core = "0.3.0"
 shapely = "^1.8"
 matplotlib = "^3.5.2"
-hydromt = "^0.4.3"
+hydromt = "^0.4.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

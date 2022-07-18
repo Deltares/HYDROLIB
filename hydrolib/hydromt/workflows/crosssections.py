@@ -11,7 +11,7 @@ import shapely
 from hydromt import config
 from scipy.spatial import distance
 from shapely.geometry import LineString, Point
-from delft3dfmpy.core import geometry
+# from delft3dfmpy.core import geometry
 from .helper import split_lines
 
 logger = logging.getLogger(__name__)

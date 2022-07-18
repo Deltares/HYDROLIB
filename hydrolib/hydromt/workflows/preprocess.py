@@ -5,7 +5,7 @@ import os
 import random
 import sys
 
-import contextily as ctx
+# import contextily as ctx
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -14,8 +14,8 @@ import pandas as pd
 import scipy as sp
 import scipy.spatial
 import shapely
-from delft3dfmpy import DFlowFMModel
-from delft3dfmpy.core import geometry
+# from delft3dfmpy import DFlowFMModel
+# from delft3dfmpy.core import geometry
 from networkx.drawing.nx_agraph import graphviz_layout
 from scipy.spatial import KDTree, distance
 from shapely.geometry import LineString, MultiLineString, Point, Polygon, box
