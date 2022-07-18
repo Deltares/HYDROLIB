@@ -77,13 +77,13 @@ class DFlowFMModel(Model):
 
         # model specific
         # check root destination folder
-        if mode == 'w' and any(Path(root).joinpath("dflowfm").iterdir()):
-            raise OSError(f"Root directory not empty: {root}")
-
-        # defaults
-        self._region_name = "DFlowFM"
-        self._dfmmodel = None
-        self._branches = gpd.GeoDataFrame()
+        if mode == 'w':
+            if any(Path(root).joinpath("dflowfm").iterdir()):
+                raise OSError(f"Root directory not empty: {root}")
+            else:
+                self._dfmmodel = None
+                self._region_name = "DFlowFM"
+                self._branches = gpd.GeoDataFrame()
 
     def setup_basemaps(
         self,
@@ -1324,17 +1324,9 @@ class DFlowFMModel(Model):
         #
         branches  = self._staticgeoms["branches"]
 
-        # iFIXME: imporve the None handeling here, ref: crosssections
+        # FIXME: imporve the None handeling here, ref: crosssections
 
-        # remove if the network file exist, otherwise error about duplicated points
-        # FIXME: do this in the initialse phase to make sure the directory is clean  --> ask Helene how in wflow is
-        if self.dfmmodel.geometry.netfile.filepath.is_file():
-            self.dfmmodel.geometry.netfile.filepath.unlink()
-            self.dfmmodel.geometry.netfile.filepath = None
-
-        # create a new network instance
-        network_model = NetworkModel(filepath = self.dfmmodel.filepath.with_name("fm_net.nc"))
-        self.dfmmodel.geometry.netfile = network_model
+        # add mesh
         mesh.mesh1d_add_branch(self.dfmmodel.geometry.netfile.network, branches.geometry.to_list(), node_distance=40)
 
     def _write_friction(self):
@@ -1343,8 +1335,7 @@ class DFlowFMModel(Model):
         branches  = self._staticgeoms["branches"]
 
         # create a new friction
-        fric_model = FrictionModel(filepath = self.dfmmodel.geometry.frictfile[0].filepath,
-                                   global_ = branches.to_dict('record'))
+        fric_model = FrictionModel(global_ = branches.to_dict('record'))
         self.dfmmodel.geometry.frictfile[0] = fric_model
 
     def _write_crosssections(self):
@@ -1413,13 +1404,16 @@ class DFlowFMModel(Model):
         outputdir = Path(self.root).joinpath("dflowfm")
         outputdir.mkdir(parents=True, exist_ok=True)
         # create a new MDU-Model
-        self._dfmmodel = FMModel(
-            filepath=outputdir.joinpath("fm.mdu")
-        )  # FIXME: user region h
-        self._dfmmodel.geometry.netfile = NetworkModel(filepath=outputdir.joinpath('fm_net.nc'))
-        self._dfmmodel.geometry.crossdeffile = CrossDefModel(filepath=outputdir.joinpath('crsdef.ini'))
-        self._dfmmodel.geometry.crosslocfile = CrossLocModel(filepath=outputdir.joinpath('crsloc.ini'))
-        self._dfmmodel.geometry.frictfile = [FrictionModel(filepath=outputdir.joinpath('roughness.ini'))]
+        self._dfmmodel = FMModel()
+        self._dfmmodel.filepath = outputdir.joinpath("fm.mdu")  # FIXME: user region name?
+        self._dfmmodel.geometry.netfile = NetworkModel()
+        self._dfmmodel.geometry.netfile.filepath = outputdir.joinpath('fm_net.nc')
+        self._dfmmodel.geometry.crossdeffile = CrossDefModel()
+        self._dfmmodel.geometry.crossdeffile.filepath=outputdir.joinpath('crsdef.ini')
+        self._dfmmodel.geometry.crosslocfile = CrossLocModel()
+        self._dfmmodel.geometry.crosslocfile.filepath=outputdir.joinpath('crsloc.ini')
+        self._dfmmodel.geometry.frictfile = [FrictionModel()]
+        self._dfmmodel.geometry.frictfile[0].filepath = outputdir.joinpath('roughness.ini')
 
     @property
     def branches(self):
