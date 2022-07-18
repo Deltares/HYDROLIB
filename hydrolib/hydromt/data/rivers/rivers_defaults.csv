@@ -1,2 +1,2 @@
-﻿branchType,spacing,material,shape,diameter,width,t_width,t_width_up,width_up,width_dn,t_width_dn,height,height_up,height_dn,inlev_up,inlev_dn,bedlev_up,bedlev_dn,closed,manhole_up,manhole_dn
-river,inf,clay,rectangle,1.,1.,1.,1.,300.,300.,1.,1.,11.5,11.5,-1.,-1.,-10.,-10.,no,'',''
+﻿branchType,branchOrder,spacing,material,shape,width,t_width,height,bedlev,closed
+river,-1,inf,clay,rectangle,10,20,10,-10,no

@@ -11,7 +11,7 @@ import shapely
 from hydromt import config
 from scipy.spatial import distance
 from shapely.geometry import LineString, Point
-
+from delft3dfmpy.core import geometry
 from .helper import split_lines
 
 logger = logging.getLogger(__name__)
@@ -25,12 +25,11 @@ __all__ = [
 
 def set_branch_crosssections(
     branches: gpd.GeoDataFrame,
-    crosssections: gpd.GeoDataFrame,
     crs_type: str = "branch",
 ):
     """
-    Function to set (inplcae) cross-section definition ids following the convention used in delft3dfmpy
-    # FIXME BMA: closed profile not yet supported (as can be seem that the definitionId convention does not convey any info on whether profile is closed or not)
+    Function to set regular cross-sections at the mid point of branch.
+    only support rectangle and trapezoid.
     """
 
     # 2. check if branches have the required columns and select only required columns
@@ -38,9 +37,8 @@ def set_branch_crosssections(
         "geometry",
         "branchId",
         "branchType",
-        "friction_id",
-        "frictionType",
-        "frictionValue",
+        "branchOrder",
+        "frictionId",
         "shape",
         "width",
         "height",
@@ -48,59 +46,67 @@ def set_branch_crosssections(
         "bedlev",
         "closed",
     ]
-    if set(required_columns).issubset(crosssections.columns):
-        crosssections = crosssections[required_columns]
+    if set(required_columns).issubset(branches.columns):
+        branches = gpd.GeoDataFrame(branches[required_columns])
     else:
         logger.error(
             f"Cannto setup crosssections from branch. Require columns {required_columns}."
         )
 
     # 3. get the crs at the midpoint of branches
-    crslocs = crosssections.copy()
-    crslocs["crsloc_id"] = [f"crs_{bid}" for bid in crosssections["branchId"]]
-    crslocs["crsloc_branchId"] = crosssections["branchId"]
-    crslocs["crsloc_chainage"] = [l / 2 for l in crosssections["geometry"].length]
-    crslocs["crsloc_shift"] = crosssections["bedlev"]
+    crosssections = gpd.GeoDataFrame({}, index = branches.index)
+    crosssections["geometry"] = [l.interpolate(0.5, normalized=True) for l in branches.geometry]
+    crosssections["crsloc_id"] = [f"crs_{bid}" for bid in branches["branchId"]]
+    crosssections["crsloc_branchId"] = branches["branchId"]
+    crosssections["crsloc_chainage"] = [l / 2 for l in branches["geometry"].length]
+    crosssections["crsloc_shift"] = branches["bedlev"]
 
-    if "definitionId" not in crslocs.columns:
-        crslocs["definitionId"] = None
+    # FIXME: set crosssection at mid point does not apply to circle profile (which are intended for pipes)
+    # circle_indexes = crslocs.loc[crslocs["shape"] == "circle", :].index
+    # for bi in circle_indexes:
+    #     crslocs.loc[bi, "diameter"] = branches.loc[bi, "diameter"]
+    #     crslocs.at[bi, "crsloc_definitionId"] = "circ_d{:,.3f}_{:s}".format(
+    #         crslocs.loc[bi, "diameter"], crs_type
+    #     )
 
-    circle_indexes = crslocs.loc[crslocs["shape"] == "circle", :].index
-    for bi in circle_indexes:
-        crslocs.at[bi, "crsloc_definitionId"] = "circ_d{:,.3f}_{:s}".format(
-            crslocs.loc[bi, "diameter"], crs_type
-        )
+    # rectangle profile
+    rectangle_indexes = branches.loc[branches["shape"] == "rectangle", :].index
 
-    rectangle_indexes = crslocs.loc[crslocs["shape"] == "rectangle", :].index
-
-    # if rectangle_indexes.has_duplicates:
-    #     logger.error('Duplicate id is found. Please solve this. ')
-
-    # FIXME BMA: duplicate indexes result in problems below.
     for bi in rectangle_indexes:
-        crslocs.at[
+        crosssections.at[
             bi, "crsloc_definitionId"
         ] = "rect_h{:,.3f}_w{:,.3f}_c{:s}_{:s}".format(
-            crslocs.loc[bi, "height"],
-            crslocs.loc[bi, "width"],
-            crslocs.loc[bi, "closed"],
+            branches.loc[bi, "height"],
+            branches.loc[bi, "width"],
+            branches.loc[bi, "closed"],
             crs_type,
         )
+        crosssections.at[bi, "crsdef_id"] = crosssections.loc[bi, "crsloc_definitionId"]
+        crosssections.at[bi, "crsdef_type"] = branches.loc[bi, "shape"]
+        crosssections.at[bi, "crsdef_height"] = branches.loc[bi, "height"]
+        crosssections.at[bi, "crsdef_width"] = branches.loc[bi, "width"]
+        crosssections.at[bi, "crsdef_closed"] = branches.loc[bi, "closed"]
 
-    # FIXME BMA: review the trapezoid when available
-    trapezoid_indexes = crslocs.loc[crslocs["shape"] == "trapezoid", :].index
+    # trapzoid profile
+    trapezoid_indexes = branches.loc[branches["shape"] == "trapezoid", :].index
     for bi in trapezoid_indexes:
-        crslocs.at[
+        crosssections.at[
             bi, "crsloc_definitionId"
         ] = "trapz_h{:,.1f}_bw{:,.1f}_tw{:,.1f}_c{:s}_{:s}".format(
-            crslocs.loc[bi, "height"],
-            crslocs.loc[bi, "width"],
-            crslocs.loc[bi, "t_width"],
-            crslocs.loc[bi, "closed"],
+            branches.loc[bi, "height"],
+            branches.loc[bi, "width"],
+            branches.loc[bi, "t_width"],
+            branches.loc[bi, "closed"],
             crs_type,
         )
+        crosssections.at[bi, "crsdef_id"] = crosssections.loc[bi, "crsloc_definitionId"]
+        crosssections.at[bi, "crsdef_type"] = branches.loc[bi, "shape"]
+        crosssections.at[bi, "crsdef_height"] = branches.loc[bi, "height"]
+        crosssections.at[bi, "crsdef_width"] = branches.loc[bi, "width"]
+        crosssections.at[bi, "crsdef_t_width"] = branches.loc[bi, "t_width"]
+        crosssections.at[bi, "crsdef_closed"] = branches.loc[bi, "closed"]
 
-    return crslocs
+    return crosssections
 
 
 def set_xyz_crosssections(
@@ -129,7 +135,7 @@ def set_xyz_crosssections(
 
     # snap to branch
     # setup branch_id - snap bridges to branch (inplace of bridges, will add branch_id and branch_offset columns)
-    find_nearest_branch(
+    geometry.find_nearest_branch(
         branches=branches, geometries=crosssections, method="intersecting"
     )  # FIXME: what if the line intersect with 2/wrong branches?
 
