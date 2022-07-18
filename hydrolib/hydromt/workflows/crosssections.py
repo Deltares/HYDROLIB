@@ -83,6 +83,7 @@ def set_branch_crosssections(
         )
         crosssections.at[bi, "crsdef_id"] = crosssections.loc[bi, "crsloc_definitionId"]
         crosssections.at[bi, "crsdef_type"] = branches.loc[bi, "shape"]
+        crosssections.at[bi, "crsdef_frictionId"] = branches.loc[bi, "frictionId"]
         crosssections.at[bi, "crsdef_height"] = branches.loc[bi, "height"]
         crosssections.at[bi, "crsdef_width"] = branches.loc[bi, "width"]
         crosssections.at[bi, "crsdef_closed"] = branches.loc[bi, "closed"]
@@ -101,6 +102,7 @@ def set_branch_crosssections(
         )
         crosssections.at[bi, "crsdef_id"] = crosssections.loc[bi, "crsloc_definitionId"]
         crosssections.at[bi, "crsdef_type"] = branches.loc[bi, "shape"]
+        crosssections.at[bi, "crsdef_frictionId"] = branches.loc[bi, "frictionId"]
         crosssections.at[bi, "crsdef_height"] = branches.loc[bi, "height"]
         crosssections.at[bi, "crsdef_width"] = branches.loc[bi, "width"]
         crosssections.at[bi, "crsdef_t_width"] = branches.loc[bi, "t_width"]
