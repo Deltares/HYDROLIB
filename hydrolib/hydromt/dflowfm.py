@@ -1302,10 +1302,13 @@ class DFlowFMModel(Model):
     def _write_friction(self):
 
         #
-        branches = self._staticgeoms["branches"]
+        frictions = self._staticgeoms["branches"][
+            ["frictionId", "frictionValue", "frictionType"]
+        ]
+        frictions = frictions.drop_duplicates(subset="frictionId")
 
         # create a new friction
-        fric_model = FrictionModel(global_=branches.to_dict("record"))
+        fric_model = FrictionModel(global_=frictions.to_dict("record"))
         self.dfmmodel.geometry.frictfile[0] = fric_model
 
     def _write_crosssections(self):
