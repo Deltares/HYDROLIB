@@ -19,9 +19,9 @@ from shapely.geometry import box
 
 from hydrolib.core.io.crosssection.models import *
 from hydrolib.core.io.friction.models import *
-from hydrolib.core.io.net.models import *
 from hydrolib.core.io.mdu.models import FMModel
-from hydrolib.dhydamo.geometry import mesh, viz, common
+from hydrolib.core.io.net.models import *
+from hydrolib.dhydamo.geometry import common, mesh, viz
 
 from . import DATADIR
 from .workflows import (
@@ -44,7 +44,7 @@ class DFlowFMModel(Model):
 
     # FIXME
     _NAME = "dflowfm"
-    _CONF = "FMmdu.txt"
+    _CONF = "DFlowFM.mdu"
     _DATADIR = DATADIR
     # TODO change below mapping table (hydrolib-core convention:shape file convention) to be read from data folder, maybe similar to _intbl for wflow
     # TODO: we also need one reverse table to read from static geom back. maybe a dictionary of data frame is better?
@@ -76,19 +76,12 @@ class DFlowFMModel(Model):
         )
 
         # model specific
-        # check root destination folder
-        if mode == 'w':
-            if any(Path(root).joinpath("dflowfm").iterdir()):
-                raise OSError(f"Root directory not empty: {root}")
-            else:
-                self._dfmmodel = None
-                self._region_name = "DFlowFM"
-                self._branches = gpd.GeoDataFrame()
+        self._dfmmodel = None
+        self._branches = gpd.GeoDataFrame()
 
     def setup_basemaps(
         self,
         region: dict,
-        region_name: str = None,
         crs: int = None,
     ):
         """Define the model region.
@@ -102,8 +95,6 @@ class DFlowFMModel(Model):
         region: dict
             Dictionary describing region of interest, e.g. {'bbox': [xmin, ymin, xmax, ymax]}.
             See :py:meth:`~hydromt.workflows.parse_region()` for all options.
-        region_name: str, optional
-            Name of the model region.
         crs : int, optional
             Coordinate system (EPSG number) of the model. If not provided, equal to the region crs
             if "grid" or "geom" option are used, and to 4326 if "bbox" is used.
@@ -134,9 +125,6 @@ class DFlowFMModel(Model):
 
         # Set the model region geometry (to be accessed through the shortcut self.region).
         self.set_staticgeoms(geom, "region")
-
-        if region_name is not None:
-            self._region_name = region_name
 
         # FIXME: how to deprecate WARNING:root:No staticmaps defined
 
@@ -280,28 +268,10 @@ class DFlowFMModel(Model):
             # add to branches
             self.add_branches(channels, branchtype="channel")
 
-    def _check_gpd_features(self, gdf: gpd.GeoDataFrame, raise_error: bool = False):
-        """check if the geodataframe has valid geometry and contains all required columns
-
-        Parameters
-        ----------
-        gdf : gpd.GeoDataFrame, required
-            GeoDataFrame to be checked
-        raise_error: boolean, optional
-            Raise error if the check failed
-        """
-
-        if gdf is None or len(gdf) == 0:
-
-            if raise_error:
-                raise ValueError("GeoDataFrame: do not have valid features. ")
-            else:
-                logger.warnings("GeoDataFrame: do not have valid features. ")
-            return False
-        return True
-
-    def _check_gpd_attributes(self, gdf: gpd.GeoDataFrame, required_columns: list = None, raise_error: bool = False):
-        """check if the geodataframe has valid geometry and contains all required columns
+    def _check_gpd_attributes(
+        self, gdf: gpd.GeoDataFrame, required_columns: list, raise_error: bool = False
+    ):
+        """check if the geodataframe contains all required columns
 
         Parameters
         ----------
@@ -312,12 +282,15 @@ class DFlowFMModel(Model):
         raise_error: boolean, optional
             Raise error if the check failed
         """
-        if not (required_columns is not None and set(required_columns).issubset(gdf.columns)):
+        if not (set(required_columns).issubset(gdf.columns)):
             if raise_error:
-                raise ValueError("GeoDataFrame: do not have valid attributes. ")
+                raise ValueError(
+                    f"GeoDataFrame do not contains all required attributes: {required_columns}."
+                )
             else:
-                logger.warning("GeoDataFrame: do not have valid attributes. ")
-
+                logger.warning(
+                    f"GeoDataFrame do not contains all required attributes: {required_columns}."
+                )
             return False
         return True
 
@@ -357,8 +330,8 @@ class DFlowFMModel(Model):
         rivers_fn : str
             Name of data source for branches parameters, see data/data_sources.yml.
             Note only the lines that are within the region polygon + 10m buffer will be used.
-            * Required variables: [branchId, branchType, branchOrder]
-            * Optional variables: [material, friction_type, friction_value]
+            * Required variables: [branchId, branchType]
+            * Optional variables: [material, friction_type, friction_value, branchOrder]
         rivers_defaults_fn : str Path
             Path to a csv file containing all defaults values per 'branchType'.
         snap_offset: float, optional
@@ -398,16 +371,14 @@ class DFlowFMModel(Model):
         )
 
         # check if feature and attributes exist
-        valid_feature = self._check_gpd_features(gdf_riv, raise_error=False)
-        valid_attributes = self._check_gpd_attributes(gdf_riv, required_columns=["branchId", "branchType"],
-                                                      raise_error=False)
-
-        if not valid_feature:
+        if len(gdf_riv) == 0:
             self.logger.warning(
                 f"No {rivers_fn} 1D river locations found within domain"
             )
             return None
-
+        valid_attributes = self._check_gpd_attributes(
+            gdf_riv, required_columns=["branchId", "branchType"], raise_error=False
+        )
         if not valid_attributes:
             self.logger.error(
                 f"Required attributes [branchId, branchType] do not exist"
@@ -435,8 +406,7 @@ class DFlowFMModel(Model):
             "geometry",
             "branchId",
             "branchType",
-            "branchOrder"
-            "material",
+            "branchOrder" "material",
             "shape",
             "diameter",
             "width",
@@ -448,7 +418,7 @@ class DFlowFMModel(Model):
             "friction_value",
         ]
         allowed_columns = set(_allowed_columns).intersection(gdf_riv.columns)
-        gdf_riv = gpd.GeoDataFrame(gdf_riv[allowed_columns], crs = gdf_riv.crs)
+        gdf_riv = gpd.GeoDataFrame(gdf_riv[allowed_columns], crs=gdf_riv.crs)
 
         # Add friction to defaults
         defaults["frictionType"] = friction_type
@@ -467,18 +437,18 @@ class DFlowFMModel(Model):
         # Add friction_id column based on {friction_type}_{friction_value}
         rivers["frictionId"] = [
             f"{ftype}_{fvalue}"
-            for ftype, fvalue in zip(
-                rivers["frictionType"], rivers["frictionValue"]
-            )
+            for ftype, fvalue in zip(rivers["frictionType"], rivers["frictionValue"])
         ]
 
         # setup crosssections
         if crosssections_type is None:
-            crosssections_type = 'branch' # TODO: maybe assign a specific one for river, like branch_river
-        assert {crosssections_type}.issubset({'xyzpoints', 'branch'})
-        crosssections = self._setup_crosssections(branches=rivers,
-                                                  crosssections_fn=crosssections_fn,
-                                                  crosssections_type=crosssections_type)
+            crosssections_type = "branch"  # TODO: maybe assign a specific one for river, like branch_river
+        assert {crosssections_type}.issubset({"xyzpoints", "branch"})
+        crosssections = self._setup_crosssections(
+            branches=rivers,
+            crosssections_fn=crosssections_fn,
+            crosssections_type=crosssections_type,
+        )
 
         # setup staticgeoms #TODO do we still need channels?
         self.logger.debug(f"Adding rivers and river_nodes vector to staticgeoms.")
@@ -488,67 +458,68 @@ class DFlowFMModel(Model):
         # add to branches
         self.add_branches(rivers, branchtype="river")
 
-
-
-    def _setup_crosssections(self, branches, crosssections_fn = None, crosssections_type = 'branch'):
+    def _setup_crosssections(
+        self, branches, crosssections_fn: str = None, crosssections_type: str = "branch"
+    ):
         """Prepares 1D crosssections.
-                crosssections can be set from branchs, xyzpoints, # TODO to be extended
-                Crosssection must only be used after friction has been setup.
+        crosssections can be set from branchs, xyzpoints, # TODO to be extended also from dem data for rivers/channels?
+        Crosssection must only be used after friction has been setup.
 
-                Default method is 'branch', meaning that branch attributes will be used to derive regular crosssections.
-                The required attributes for this method are:
-                for rivers: [branchId, branchType,branchOrder,shape,diameter,width,t_width,height,bedlev,closed,friction_type,friction_value]
-                # TODO for pipes:
+        Crosssections are read from ``crosssections_fn``.
+        Crosssection types of this file is read from ``crosssections_type``
+        If ``crosssections_type`` = "xyzpoints":
+            * Required variables: crsId, order, z
+            * Optional variables:
 
-                Crosssections are read from ``crosssections_fn``.
-                Crosssection types of this file is read from ``crosssections_type``
-                If ``crosssections_type`` = "xyzpoints":
-                    * Required variables: crsId, order, z
-                    * Optional variables:
+        If ``crosssections_fn`` is not defined, default method is ``crosssections_type`` = 'branch',
+        meaning that branch attributes will be used to derive regular crosssections.
+        The required attributes for this method are:
+        for rivers: [branchId, branchType,branchOrder,shape,diameter,width,t_width,height,bedlev,closed,friction_type,friction_value]
+        # TODO for pipes:
 
-                Adds/Updates model layers:
-                * **crosssections** geom: 1D crosssection vector
+        Adds/Updates model layers:
+        * **crosssections** geom: 1D crosssection vector
 
-                Parameters
-                ----------
-                branches : gpd.GeoDataFrame
-                    geodataframe of the branches to apply crosssections.
-                    * Required variables: [branchId, branchType, branchOrder]
-                    * Optional variables: [material, friction_type, friction_value]
-                crosssections_fn : str Path, optional
-                    Name of data source for crosssections, see data/data_sources.yml.
-                    If ``crosssections_type`` = "xyzpoints"
-                    Note that only points within the region + 1000m buffer will be read.
-                    * Required variables: crsId, order, z
-                    * Optional variables:
-                    If ``crosssections_type`` = "points"
-                    * Required variables: crsId, order, z
-                    * Optional variables:
-                    By default None, crosssections will be set from branches
-                crosssections_type : str, optional
-                    Type of crosssections read from crosssections_fn. One of ["xyzpoints"].
-                    By default None.
-                """
+        Parameters
+        ----------
+        branches : gpd.GeoDataFrame
+            geodataframe of the branches to apply crosssections.
+            * Required variables: [branchId, branchType, branchOrder]
+            * Optional variables: [material, friction_type, friction_value]
+        crosssections_fn : str Path, optional
+            Name of data source for crosssections, see data/data_sources.yml.
+            If ``crosssections_type`` = "xyzpoints"
+            Note that only points within the region + 1000m buffer will be read.
+            * Required variables: crsId, order, z
+            * Optional variables:
+            If ``crosssections_type`` = "points"
+            * Required variables: crsId, order, z
+            * Optional variables:
+            By default None, crosssections will be set from branches
+        crosssections_type : str, optional
+            Type of crosssections read from crosssections_fn. One of ["xyzpoints"].
+            By default None.
+        """
 
         # setup crosssections
         self.logger.info(f"Preparing 1D crosssections.")
-        if 'crosssections' in self.staticgeoms.keys():
-            crosssections = self._staticgeoms['crosssections']
-        else:
-            crosssections = gpd.GeoDataFrame()
+        # if 'crosssections' in self.staticgeoms.keys():
+        #    crosssections = self._staticgeoms['crosssections']
+        # else:
+        #    crosssections = gpd.GeoDataFrame()
 
         # TODO: allow multiple crosssection filenamess
 
-        if crosssections_fn is None and crosssections_type == 'branch':
+        if crosssections_fn is None and crosssections_type == "branch":
             # TODO: set a seperate type for rivers because other branch types might require upstream/downstream
 
             # read crosssection from branches
-            gdf_crs = set_branch_crosssections(branches)
+            gdf_cs = set_branch_crosssections(branches)
 
         elif crosssections_type == "xyz":
 
             # Read the crosssection data
-            gdf_crs = self.data_catalog.get_geodataframe(
+            gdf_cs = self.data_catalog.get_geodataframe(
                 crosssections_fn,
                 geom=self.region,
                 buffer=1000,
@@ -556,13 +527,14 @@ class DFlowFMModel(Model):
             )
 
             # check if feature valid
-            valid_feature = self._check_gpd_features(gdf_crs)
-            if not valid_feature:
+            if len(gdf_cs) == 0:
                 self.logger.warning(
                     f"No {crosssections_fn} 1D xyz crosssections found within domain"
                 )
                 return None
-            valid_attributes = self._check_gpd_attributes(gdf_crs, required_columns=["crsId", "order", "z"])
+            valid_attributes = self._check_gpd_attributes(
+                gdf_cs, required_columns=["crsId", "order", "z"]
+            )
             if not valid_attributes:
                 self.logger.error(
                     f"Required attributes [crsId, order, z] in xyz crosssections do not exist"
@@ -571,14 +543,17 @@ class DFlowFMModel(Model):
 
             # assign id
             id_col = "crsId"
-            gdf_crs.index = gdf_crs[id_col]
-            gdf_crs.index.name = id_col
+            gdf_cs.index = gdf_cs[id_col]
+            gdf_cs.index.name = id_col
+
+            # reproject to model crs
+            gdf_cs.to_crs(self.crs)
 
             # set crsloc and crsdef attributes to crosssections
-            gdf_crs = set_xyz_crosssections(branches, gdf_crs)
+            gdf_cs = set_xyz_crosssections(branches, gdf_cs)
 
         elif crosssections_type == "point":
-            # add seup point crosssections here
+            # add setup point crosssections here
             raise NotImplementedError(
                 f"Method {crosssections_type} is not implemented."
             )
@@ -587,21 +562,11 @@ class DFlowFMModel(Model):
                 f"Method {crosssections_type} is not implemented."
             )
 
-        # TODO: make this part as an seperate add function
-        # add crosssections to exisiting ones
-        crosssections = gpd.GeoDataFrame(
-                pd.concat([crosssections, gdf_crs])
-            )
-        # TODO: sort out the crosssections, e.g. remove branch crosssections if point/xyz exist etc
-
-
-        # setup staticgeoms
+        # add crosssections to exisiting ones and update staticgeoms
         self.logger.debug(f"Adding crosssections vector to staticgeoms.")
-        self.set_staticgeoms(crosssections, "crosssections")
-
+        self.set_crosssections(gdf_cs)
+        # TODO: sort out the crosssections, e.g. remove branch crosssections if point/xyz exist etc
         # TODO: setup river crosssections, set contrains based on branch types
-
-
 
     # def setup_branches(
     #     self,
@@ -1307,35 +1272,38 @@ class DFlowFMModel(Model):
             raise IOError("Model opened in read-only mode")
 
         # write 1D mesh
-        self._write_mesh1d() # FIXME None handling
+        self._write_mesh1d()  # FIXME None handling
 
         # write friction
-        self._write_friction() # FIXME: ask Rinske, add global section correctly
+        self._write_friction()  # FIXME: ask Rinske, add global section correctly
 
         # write crosssections
-        self._write_crosssections() # FIXME None handling, if there are no crosssections
+        self._write_crosssections()  # FIXME None handling, if there are no crosssections
 
         # save model
         self.dfmmodel.save(recurse=True)
 
-
     def _write_mesh1d(self):
 
         #
-        branches  = self._staticgeoms["branches"]
+        branches = self._staticgeoms["branches"]
 
         # FIXME: imporve the None handeling here, ref: crosssections
 
         # add mesh
-        mesh.mesh1d_add_branch(self.dfmmodel.geometry.netfile.network, branches.geometry.to_list(), node_distance=40)
+        mesh.mesh1d_add_branch(
+            self.dfmmodel.geometry.netfile.network,
+            branches.geometry.to_list(),
+            node_distance=40,
+        )
 
     def _write_friction(self):
 
         #
-        branches  = self._staticgeoms["branches"]
+        branches = self._staticgeoms["branches"]
 
         # create a new friction
-        fric_model = FrictionModel(global_ = branches.to_dict('record'))
+        fric_model = FrictionModel(global_=branches.to_dict("record"))
         self.dfmmodel.geometry.frictfile[0] = fric_model
 
     def _write_crosssections(self):
@@ -1351,7 +1319,7 @@ class DFlowFMModel(Model):
             columns={c: c.split("_")[1] for c in gpd_crsdef.columns}
         )
 
-        crsdef = CrossDefModel(definition = gpd_crsdef.to_dict('records'))
+        crsdef = CrossDefModel(definition=gpd_crsdef.to_dict("records"))
         self.dfmmodel.geometry.crossdeffile = crsdef
 
         # crsloc
@@ -1361,7 +1329,7 @@ class DFlowFMModel(Model):
             columns={c: c.split("_")[1] for c in gpd_crsloc.columns}
         )
 
-        crsloc = CrossLocModel(crosssection = gpd_crsloc.to_dict('records'))
+        crsloc = CrossLocModel(crosssection=gpd_crsloc.to_dict("records"))
         self.dfmmodel.geometry.crosslocfile = crsloc
 
     def read_states(self):
@@ -1390,10 +1358,6 @@ class DFlowFMModel(Model):
         return self.region.crs
 
     @property
-    def region_name(self):
-        return self._region_name
-
-    @property
     def dfmmodel(self):
         if self._dfmmodel == None:
             self.init_dfmmodel()
@@ -1405,15 +1369,19 @@ class DFlowFMModel(Model):
         outputdir.mkdir(parents=True, exist_ok=True)
         # create a new MDU-Model
         self._dfmmodel = FMModel()
-        self._dfmmodel.filepath = outputdir.joinpath("fm.mdu")  # FIXME: user region name?
+        self._dfmmodel.filepath = outputdir.joinpath(
+            "fm.mdu"
+        )  # FIXME: user region name?
         self._dfmmodel.geometry.netfile = NetworkModel()
-        self._dfmmodel.geometry.netfile.filepath = outputdir.joinpath('fm_net.nc')
+        self._dfmmodel.geometry.netfile.filepath = outputdir.joinpath("fm_net.nc")
         self._dfmmodel.geometry.crossdeffile = CrossDefModel()
-        self._dfmmodel.geometry.crossdeffile.filepath=outputdir.joinpath('crsdef.ini')
+        self._dfmmodel.geometry.crossdeffile.filepath = outputdir.joinpath("crsdef.ini")
         self._dfmmodel.geometry.crosslocfile = CrossLocModel()
-        self._dfmmodel.geometry.crosslocfile.filepath=outputdir.joinpath('crsloc.ini')
+        self._dfmmodel.geometry.crosslocfile.filepath = outputdir.joinpath("crsloc.ini")
         self._dfmmodel.geometry.frictfile = [FrictionModel()]
-        self._dfmmodel.geometry.frictfile[0].filepath = outputdir.joinpath('roughness.ini')
+        self._dfmmodel.geometry.frictfile[0].filepath = outputdir.joinpath(
+            "roughness.ini"
+        )
 
     @property
     def branches(self):
@@ -1440,9 +1408,8 @@ class DFlowFMModel(Model):
         _ = self.set_branches_component(name="pipe")
 
         # update staticgeom #FIXME: do we need branches as staticgeom?
-        self.logger.debug(f"Adding crosssections vector to staticgeoms.")
-        self.set_staticgeoms(gpd.GeoDataFrame(branches, crs = self.crs), "branches")
-
+        self.logger.debug(f"Adding branches vector to staticgeoms.")
+        self.set_staticgeoms(gpd.GeoDataFrame(branches, crs=self.crs), "branches")
 
     def add_branches(self, new_branches: gpd.GeoDataFrame, branchtype: str):
         """Add new branches of branchtype to the branches object"""
@@ -1476,3 +1443,20 @@ class DFlowFMModel(Model):
         else:
             gdf = self.set_branches_component("pipe")
         return gdf
+
+    @property
+    def crosssections(self):
+        """Quick accessor to crosssections staticgeoms"""
+        if "crosssections" in self.staticgeoms:
+            gdf = self.staticgeoms["crosssections"]
+        else:
+            gdf = gpd.GeoDataFrame()
+        return gdf
+
+    def set_crosssections(self, crosssections: gpd.GeoDataFrame):
+        """Updates crosssections in staticgeoms with new ones"""
+        if len(self.crosssections) > 0:
+            crosssections = gpd.GeoDataFrame(
+                pd.concat([self.crosssections, crosssections])
+            )
+        self.set_staticgeoms(crosssections, name="crosssections")

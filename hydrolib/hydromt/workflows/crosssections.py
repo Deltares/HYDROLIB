@@ -11,6 +11,9 @@ import shapely
 from hydromt import config
 from scipy.spatial import distance
 from shapely.geometry import LineString, Point
+
+from .branches import find_nearest_branch
+
 # from delft3dfmpy.core import geometry
 from .helper import split_lines
 
@@ -25,11 +28,11 @@ __all__ = [
 
 def set_branch_crosssections(
     branches: gpd.GeoDataFrame,
-    crs_type: str = "branch",
 ):
     """
     Function to set regular cross-sections at the mid point of branch.
     only support rectangle and trapezoid.
+
     """
 
     # 2. check if branches have the required columns and select only required columns
@@ -46,16 +49,16 @@ def set_branch_crosssections(
         "bedlev",
         "closed",
     ]
-    if set(required_columns).issubset(branches.columns):
-        branches = gpd.GeoDataFrame(branches[required_columns])
-    else:
+    if not set(required_columns).issubset(branches.columns):
         logger.error(
             f"Cannto setup crosssections from branch. Require columns {required_columns}."
         )
 
     # 3. get the crs at the midpoint of branches
-    crosssections = gpd.GeoDataFrame({}, index = branches.index)
-    crosssections["geometry"] = [l.interpolate(0.5, normalized=True) for l in branches.geometry]
+    crosssections = gpd.GeoDataFrame({}, index=branches.index, crs=branches.crs)
+    crosssections["geometry"] = [
+        l.interpolate(0.5, normalized=True) for l in branches.geometry
+    ]
     crosssections["crsloc_id"] = [f"crs_{bid}" for bid in branches["branchId"]]
     crosssections["crsloc_branchId"] = branches["branchId"]
     crosssections["crsloc_chainage"] = [l / 2 for l in branches["geometry"].length]
@@ -79,7 +82,7 @@ def set_branch_crosssections(
             branches.loc[bi, "height"],
             branches.loc[bi, "width"],
             branches.loc[bi, "closed"],
-            crs_type,
+            "branch",
         )
         crosssections.at[bi, "crsdef_id"] = crosssections.loc[bi, "crsloc_definitionId"]
         crosssections.at[bi, "crsdef_type"] = branches.loc[bi, "shape"]
@@ -98,7 +101,7 @@ def set_branch_crosssections(
             branches.loc[bi, "width"],
             branches.loc[bi, "t_width"],
             branches.loc[bi, "closed"],
-            crs_type,
+            "branch",
         )
         crosssections.at[bi, "crsdef_id"] = crosssections.loc[bi, "crsloc_definitionId"]
         crosssections.at[bi, "crsdef_type"] = branches.loc[bi, "shape"]
@@ -112,7 +115,8 @@ def set_branch_crosssections(
 
 
 def set_xyz_crosssections(
-    branches: gpd.GeoDataFrame, crosssections: gpd.GeoDataFrame, crs_type: str = "xyz"
+    branches: gpd.GeoDataFrame,
+    crosssections: gpd.GeoDataFrame,
 ):
     """setup xyz crosssections
     xyz crosssections should be points gpd, column z and column order.
@@ -137,7 +141,7 @@ def set_xyz_crosssections(
 
     # snap to branch
     # setup branch_id - snap bridges to branch (inplace of bridges, will add branch_id and branch_offset columns)
-    geometry.find_nearest_branch(
+    find_nearest_branch(
         branches=branches, geometries=crosssections, method="intersecting"
     )  # FIXME: what if the line intersect with 2/wrong branches?
 
@@ -213,7 +217,6 @@ def set_point_crosssections(
     crs_type: str = "point",
 ):
     pass
-
 
 
 def xyzp2xyzl(xyz: pd.DataFrame, sort_by: list = ["x", "y"]):
