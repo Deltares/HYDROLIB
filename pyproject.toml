@@ -81,4 +81,4 @@ xarray = { channel = "conda-forge" }
 hydrolib-core = { channel = "pip" }
 
 [tool.poetry.plugins."hydromt.models"]
-dflowfm = "hydrolib.hydromt.dflowfm:DFlowFMModel"
+dflowfm = "hydrolib.hydromt_delft3dfm.dflowfm:DFlowFMModel"
