@@ -111,6 +111,9 @@ def set_branch_crosssections(
         crosssections.at[bi, "crsdef_t_width"] = branches.loc[bi, "t_width"]
         crosssections.at[bi, "crsdef_closed"] = branches.loc[bi, "closed"]
 
+    # setup thaiweg for GUI
+    crosssections["crsdef_thalweg"] = 0.0
+
     return crosssections
 
 

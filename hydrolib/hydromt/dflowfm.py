@@ -1295,6 +1295,8 @@ class DFlowFMModel(Model):
             self.dfmmodel.geometry.netfile.network,
             branches.geometry.to_list(),
             node_distance=40,
+            branch_names=branches.branchId.to_list(),
+            branch_orders=branches.branchOrder.to_list(),
         )
 
     def _write_friction(self):
@@ -1373,7 +1375,9 @@ class DFlowFMModel(Model):
             "fm.mdu"
         )  # FIXME: user region name?
         self._dfmmodel.geometry.netfile = NetworkModel()
-        self._dfmmodel.geometry.netfile.filepath = outputdir.joinpath("fm_net.nc")
+        self._dfmmodel.geometry.netfile.filepath = (
+            "fm_net.nc"  # because hydrolib.core writes this argument as absolute path
+        )
         self._dfmmodel.geometry.crossdeffile = CrossDefModel()
         self._dfmmodel.geometry.crossdeffile.filepath = outputdir.joinpath("crsdef.ini")
         self._dfmmodel.geometry.crosslocfile = CrossLocModel()
