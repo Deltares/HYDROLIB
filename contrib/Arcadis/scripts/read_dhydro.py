@@ -598,7 +598,7 @@ def read_locations(
         Dictionary with all locations in as GeoDataFrames.
 
     """
-    
+
     # initial results dictionary
     gdfs_results = {}
 
