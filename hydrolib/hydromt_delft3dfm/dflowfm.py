@@ -78,6 +78,9 @@ class DFlowFMModel(Model):
         # model specific
         self._dfmmodel = None
         self._branches = gpd.GeoDataFrame()
+        self._config_fn = (
+            join("dflowfm", self._CONF) if config_fn is None else config_fn
+        )
 
     def setup_basemaps(
         self,
@@ -1203,7 +1206,7 @@ class DFlowFMModel(Model):
             return
 
         if self.config:  # try to read default if not yet set
-            self.write_config()  # FIXME: config now isread from default, modified and saved temporaryly in the models folder --> being read by dfm and modify?
+            self.write_config()
         if self._staticmaps:
             self.write_staticmaps()
         if self._staticgeoms:
@@ -1372,11 +1375,9 @@ class DFlowFMModel(Model):
         # Create output directories
         outputdir = Path(self.root).joinpath("dflowfm")
         outputdir.mkdir(parents=True, exist_ok=True)
+        # TODO: check that HydroMT already wrote the updated config
         # create a new MDU-Model
-        self._dfmmodel = FMModel()
-        self._dfmmodel.filepath = outputdir.joinpath(
-            "fm.mdu"
-        )  # FIXME: user region name?
+        self._dfmmodel = FMModel(filepath=Path(join(self.root, self._config_fn)))
         self._dfmmodel.geometry.netfile = NetworkModel()
         self._dfmmodel.geometry.netfile.filepath = (
             "fm_net.nc"  # because hydrolib.core writes this argument as absolute path
