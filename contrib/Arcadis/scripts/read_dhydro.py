@@ -10,6 +10,7 @@ from shapely.geometry import LineString, Point, Polygon
 from hydrolib.core.io import polyfile
 from hydrolib.core.io.net.models import Network
 from hydrolib.core.io.polyfile import parser
+from hydrolib.core.io.mdu.models import FMModel
 
 
 def net_nc2gdf(
@@ -568,3 +569,71 @@ def pli2gdf(input_file):
     gdf = gpd.GeoDataFrame(list)
 
     return gdf
+
+
+def read_locations(input_mdu, results = ['cross_sections_locations','cross_sections_definition','structures', 'boundaries', 'laterals']):
+    #initial results dictionary
+    gdfs_results = {}
+
+    #read fm model and net_nc
+    fm = FMModel(input_mdu)
+    netnc_path = os.path.join(input_mdu.parent, str(fm.geometry.netfile.filepath))
+    gdfs = net_nc2gdf(netnc_path)
+    
+    #read cross sections
+    if "cross_sections_locations" in results:
+        crsloc = pd.DataFrame([f.__dict__ for f in fm.geometry.crosslocfile.crosssection])
+        gdf_crslocs = chainage2gdf(crsloc, gdfs["1d_branches"])
+        gdf_crslocs.dropna(axis=1, how='all',inplace=True)
+        gdf_crslocs.drop(columns=["comments","x","y"],inplace=True)
+        
+        gdfs_results["cross_sections_locations"] = gdf_crslocs
+
+    if "cross_sections_definition" in results:
+        crsdef = pd.DataFrame([f.__dict__ for f in fm.geometry.crossdeffile.definition])
+        gdfs_results["cross_sections_definition"] = crsdef
+
+    #read structures
+    if "structures" in results:
+
+        structures = pd.DataFrame(
+            [f.__dict__ for f in fm.geometry.structurefile[0].structure]
+        )
+        
+        # TODO: na deze functie is "type" veranderd van soort structure naar een "Point"
+        gdf_strucs = chainage2gdf(structures, gdfs["1d_branches"])
+        gdf_strucs.dropna(axis=1, how='all',inplace=True)
+        gdf_strucs.drop(columns=["comments","structureids","x","y"],inplace=True)
+
+        gdfs_results["structures"] = gdf_strucs
+    
+    #read boundaries
+    if "boundaries" in results:
+        bclocs = pd.DataFrame([f.__dict__ for f in fm.external_forcing.extforcefilenew.boundary])
+        #get the geometry from the 1d nodes of the net_file
+        geom = gdfs["1d_nodes"].geometry.loc[gdfs["1d_nodes"]["id"].isin(list(bclocs.nodeid))]
+        
+        gdf_bclocs = gpd.GeoDataFrame(bclocs, geometry = geom.values)
+        gdf_bclocs.dropna(axis=1, how='all',inplace=True)
+        gdf_bclocs.drop(columns=["comments","forcingfile"],inplace=True)
+        
+        gdfs_results["laterals"] = gdf_bclocs
+
+
+    #read laterals
+    if "laterals" in results:
+        latlocs = pd.DataFrame([f.__dict__ for f in fm.external_forcing.extforcefilenew.lateral])
+        gdf_lats = chainage2gdf(latlocs, gdfs["1d_branches"])
+        
+        gdf_lats.dropna(axis=1, how='all',inplace=True)
+        gdf_lats.drop(columns = ["comments","name","x","y","discharge"], inplace=True)
+        
+        gdfs_results["laterals"] = gdf_lats
+
+
+    return gdfs_results
+if __name__ == "__main__":
+    inputf= (Path(r"C:\Users\delanger3781\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\05 Gedeelde map WRIJ\03_Resultaten\20220214_DR49\modellen\DR49_Bronkhorst_1000\dflowfm\output\dr49_map.nc"))
+    ds = xr.open_dataset(inputf)
+    print(list(ds.variables))
+    hisnc_2gdf(Path(r"C:\Users\delanger3781\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\05 Gedeelde map WRIJ\03_Resultaten\20220214_DR49\modellen\DR49_Bronkhorst_1000\dflowfm\output\dr49_his.nc"))
