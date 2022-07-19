@@ -581,6 +581,24 @@ def read_locations(
         "laterals",
     ],
 ):
+    """
+    Use an input_mdu to read all locations into a GeoDataFrame. The user can choose which locations to read. If none are defined, all locations are read.
+    The user can choose cross section locations, cross section definitions, structures, boundaries, laterals.
+
+    Parameters
+    ----------
+    input_mdu : Path()
+        Path to input_mdu in dflowfm folder. The dflowfm needs to be cleaned to be read with hydrolib.
+    results : gdfs (dict)
+        Dictionary with all locations in as GeoDataFrames
+
+    Returns
+    -------
+    gdfs_results : gdfs (dict)
+        Dictionary with all locations in as GeoDataFrames.
+
+    """
+    
     # initial results dictionary
     gdfs_results = {}
 
@@ -603,6 +621,7 @@ def read_locations(
     if "cross_sections_definition" in results:
         crsdef = pd.DataFrame([f.__dict__ for f in fm.geometry.crossdeffile.definition])
         gdfs_results["cross_sections_definition"] = crsdef
+        # TODO: read the data of the cross section definitions
 
     # read structures
     if "structures" in results:
