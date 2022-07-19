@@ -10,7 +10,9 @@ python = "^3.8"
 pandas = "^1.2"
 geopandas = "^0.9"
 xarray = "^0.17"
-hydrolib-core = "^0.1"
+hydrolib-core = "0.2.1"
+shapely = "^1.8"
+matplotlib = "^3.5.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
