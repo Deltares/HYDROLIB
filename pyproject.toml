@@ -1,15 +1,16 @@
 [tool.poetry]
 name = "hydrolib"
 version = "0.1.0"
-description = "HydroMT model builder around D-HYDRO Suite."
+description = "Python wrappers around D-HYDRO Suite."
 authors = ["Deltares"]
 license = "LGPL"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = ">=3.8,<3.10"
 pandas = "^1.2"
-geopandas = "^0.10"
-hydrolib-core = "0.3.0"
+geopandas = ">=0.9"
+xarray = "^0.17"
+hydrolib-core = "0.2.1"
 shapely = "^1.8"
 matplotlib = "^3.5.2"
 hydromt = "^0.4.5"
