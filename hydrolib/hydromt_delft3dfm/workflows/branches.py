@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
 
-from pydoc import doc
-import numpy as np
-import pandas as pd
-import geopandas as gpd
-import shapely
-from shapely.geometry import LineString, Point
-from scipy.spatial import distance
-from typing import Union
 import configparser
 import logging
+from pydoc import doc
+from typing import Union
 
-from hydromt import config
+import geopandas as gpd
 import hydromt.io
+import numpy as np
+import pandas as pd
+import shapely
+from hydromt import config
+from scipy.spatial import distance
+from shapely.geometry import LineString, Point
 
 from .helper import split_lines
 
@@ -67,13 +67,12 @@ def update_data_columns_attributes(
             if colname not in branches.columns:
                 branches[colname] = pd.Series(dtype=attributes[colname].dtype)
             # Then fill in empty or NaN values with defaults
-            else:
-                branches.loc[
-                    np.logical_and(
-                        branches[colname].isna(), branches["branchType"] == branch
-                    ),
-                    colname,
-                ] = row.loc[colname]
+            branches.loc[
+                np.logical_and(
+                    branches[colname].isna(), branches["branchType"] == branch
+                ),
+                colname,
+            ] = row.loc[colname]
 
     return branches
 
@@ -624,3 +623,134 @@ def snap_branch_ends(
     logger.debug(f"Snapped {snapped} points.")
 
     return branches
+
+
+# TODO copied from dhydamo geometry.py, update when available in main
+def possibly_intersecting(
+    dataframebounds: np.ndarray, geometry: gpd.GeoDataFrame, buffer: int = 0
+):
+    """
+    Finding intersecting profiles for each branch is a slow process in case of large datasets
+    To speed this up, we first determine which profile intersect a square box around the branch
+    With the selection, the interseting profiles can be determines much faster.
+
+    Parameters
+    ----------
+    dataframebounds : numpy.array
+    geometry : shapely.geometry.Polygon
+    """
+
+    geobounds = geometry.bounds
+    idx = (
+        (dataframebounds[0] - buffer < geobounds[2])
+        & (dataframebounds[2] + buffer > geobounds[0])
+        & (dataframebounds[1] - buffer < geobounds[3])
+        & (dataframebounds[3] + buffer > geobounds[1])
+    )
+    # Get intersecting profiles
+    return idx
+
+
+# TODO copied from dhydamo geometry.py, update when available in main
+def find_nearest_branch(
+    branches: gpd.GeoDataFrame,
+    geometries: gpd.GeoDataFrame,
+    method: str = "overal",
+    maxdist: int = 5,
+):
+    """
+    Method to determine nearest branch for each geometry.
+    The nearest branch can be found by finding t from both ends (ends) or the nearest branch from the geometry
+    as a whole (overal), the centroid (centroid), or intersecting (intersect).
+
+    Parameters
+    ----------
+    branches : geopandas.GeoDataFrame
+        Geodataframe with branches
+    geometries : geopandas.GeoDataFrame
+        Geodataframe with geometries to snap
+    method='overal' : str
+        Method for determine branch
+    maxdist=5 : int or float
+        Maximum distance for finding nearest geometry
+    minoffset : int or float
+        Minimum offset from the end of the corresponding branch in case of method=equal
+    """
+    # Check if method is in allowed methods
+    allowed_methods = ["intersecting", "overal", "centroid", "ends"]
+    if method not in allowed_methods:
+        raise NotImplementedError(f'Method "{method}" not implemented.')
+
+    # Add columns if not present
+    if "branch_id" not in geometries.columns:
+        geometries["branch_id"] = ""
+    if "branch_offset" not in geometries.columns:
+        geometries["branch_offset"] = np.nan
+
+    if method == "intersecting":
+        # Determine intersection geometries per branch
+        geobounds = geometries.bounds.values.T
+        for branch in branches.itertuples():
+            selectie = geometries.loc[
+                possibly_intersecting(geobounds, branch.geometry)
+            ].copy()
+            intersecting = selectie.loc[selectie.intersects(branch.geometry).values]
+
+            # For each geometrie, determine offset along branch
+            for geometry in intersecting.itertuples():
+                # Determine distance of profile line along branch
+                geometries.at[geometry.Index, "branch_id"] = branch.Index
+
+                # Calculate offset
+                branchgeo = branch.geometry
+                mindist = min(0.1, branchgeo.length / 2.0)
+                offset = round(
+                    branchgeo.project(
+                        branchgeo.intersection(geometry.geometry).centroid
+                    ),
+                    3,
+                )
+                offset = max(mindist, min(branchgeo.length - mindist, offset))
+                geometries.at[geometry.Index, "branch_offset"] = offset
+
+    else:
+        branch_bounds = branches.bounds.values.T
+        # In case of looking for the nearest, it is easier to iteratie over the geometries instead of the branches
+        for geometry in geometries.itertuples():
+            # Find near branches
+            nearidx = possibly_intersecting(
+                branch_bounds, geometry.geometry, buffer=maxdist
+            )
+            selectie = branches.loc[nearidx]
+
+            if method == "overal":
+                # Determine distances to branches
+                dist = selectie.distance(geometry.geometry)
+            elif method == "centroid":
+                # Determine distances to branches
+                dist = selectie.distance(geometry.geometry.centroid)
+            elif method == "ends":
+                # Since a culvert can cross a channel, it is
+                crds = geometry.geometry.coords[:]
+                dist = (
+                    selectie.distance(Point(*crds[0]))
+                    + selectie.distance(Point(*crds[-1]))
+                ) * 0.5
+
+            # Determine nearest
+            if dist.min() < maxdist:
+                branchidxmin = dist.idxmin()
+                geometries.at[geometry.Index, "branch_id"] = dist.idxmin()
+                if isinstance(geometry.geometry, Point):
+                    geo = geometry.geometry
+                else:
+                    geo = geometry.geometry.centroid
+
+                # Calculate offset
+                branchgeo = branches.at[branchidxmin, "geometry"]
+                mindist = min(0.1, branchgeo.length / 2.0)
+                offset = max(
+                    mindist,
+                    min(branchgeo.length - mindist, round(branchgeo.project(geo), 3)),
+                )
+                geometries.at[geometry.Index, "branch_offset"] = offset

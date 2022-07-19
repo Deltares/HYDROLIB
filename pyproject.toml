@@ -80,3 +80,6 @@ pandas = { channel = "conda-forge" }
 geopandas = { channel = "conda-forge" }
 xarray = { channel = "conda-forge" }
 hydrolib-core = { channel = "pip" }
+
+[tool.poetry.plugins."hydromt.models"]
+dflowfm = "hydrolib.hydromt_delft3dfm.dflowfm:DFlowFMModel"

@@ -1,26 +1,25 @@
 # -*- coding: utf-8 -*-
 
-import numpy as np
-import geopandas as gpd
-import pandas as pd
-import shapely
-from shapely.geometry import LineString, Point
-from shapely.geometry import (
-    Polygon,
-    LineString,
-    Point,
-    MultiLineString,
-    box,
-    MultiPoint,
-)
-from shapely.ops import split, snap
-from scipy.spatial import distance
-import pathlib
 import configparser
 import logging
+import pathlib
 
-from hydromt import config
+import geopandas as gpd
 import hydromt.io
+import numpy as np
+import pandas as pd
+import shapely
+from hydromt import config
+from scipy.spatial import distance
+from shapely.geometry import (
+    LineString,
+    MultiLineString,
+    MultiPoint,
+    Point,
+    Polygon,
+    box,
+)
+from shapely.ops import snap, split
 
 logger = logging.getLogger(__name__)
 

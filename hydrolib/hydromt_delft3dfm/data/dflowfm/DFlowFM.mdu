@@ -1,0 +1,247 @@
+# written by HYDROLIB-core 0.3.0
+
+[General]
+    fileVersion           = 1.09
+    fileType              = modelDef
+    program               = D-Flow FM
+    version               = 1.2.94.66079M
+    autoStart             = 0
+    pathsRelativeToParent = 0
+
+[Geometry]
+    netFile                    = 
+    useCaching                 = 0
+    uniformWidth1D             = 3.0
+    waterLevIni                = 0.0
+    bedLevUni                  = -5.0
+    bedSlope                   = 0.0
+    bedLevType                 = 3
+    blMeanBelow                = -999.0
+    blMinAbove                 = -999.0
+    angLat                     = 0.0
+    angLon                     = 0.0
+    conveyance2D               = -1
+    nonlin1D                   = 1
+    nonlin2D                   = 0
+    sillHeightMin              = 0.0
+    makeOrthoCenters           = 0
+    dCenterInside              = 1.0
+    baMin                      = 1e-06
+    openBoundaryTolerance      = 3.0
+    renumberFlowNodes          = 1
+    kmx                        = 0
+    layerType                  = 1
+    numTopSig                  = 0
+    sigmaGrowthFactor          = 1.0
+    dxDoubleAt1DEndNodes       = 1
+    changeVelocityAtStructures = 0
+    changeStructureDimensions  = 1
+    crossDefFile               = 
+    crossLocFile               = 
+    frictFile                  = 
+
+[VolumeTables]
+    useVolumeTables    = 0
+    increment          = 0.2
+    useVolumeTableFile = 0
+
+[Numerics]
+    cflMax                   = 0.7
+    advecType                = 33
+    timeStepType             = 2
+    limTypHu                 = 0
+    limTypMom                = 4
+    limTypSa                 = 4
+    icgSolver                = 4
+    maxDegree                = 6
+    fixedWeirScheme          = 9
+    fixedWeirContraction     = 1.0
+    izBndPos                 = 0
+    tlfSmo                   = 0.0
+    slopeDrop2D              = 0.0
+    drop1D                   = 0
+    chkAdvd                  = 0.1
+    teta0                    = 0.55
+    qhRelax                  = 0.01
+    cstBnd                   = 0
+    maxitVerticalForesterSal = 0
+    maxitVerticalForesterTem = 0
+    turbulenceModel          = 3
+    turbulenceAdvection      = 3
+    antiCreep                = 0
+    maxWaterLevelDiff        = 0.0
+    maxVelocityDiff          = 0.0
+    epsHu                    = 0.0001
+
+[Physics]
+    unifFrictCoef              = 0.023
+    unifFrictType              = 1
+    unifFrictCoef1D            = 0.023
+    unifFrictCoefLin           = 0.0
+    vicouv                     = 0.1
+    dicouv                     = 0.1
+    vicoww                     = 5e-05
+    dicoww                     = 5e-05
+    vicwminb                   = 0.0
+    xlozmidov                  = 0.0
+    smagorinsky                = 0.2
+    elder                      = 0.0
+    irov                       = 0
+    wall_ks                    = 0.0
+    rhomean                    = 1000
+    idensform                  = 2
+    ag                         = 9.81
+    tidalForcing               = 0
+    doodsonStart               = 55.565
+    doodsonStop                = 375.575
+    doodsonEps                 = 0.0
+    villemonteCD1              = 1.0
+    villemonteCD2              = 10.0
+    salinity                   = 0
+    initialSalinity            = 0.0
+    sal0AboveZLev              = -999.0
+    deltaSalinity              = -999.0
+    backgroundSalinity         = 30.0
+    temperature                = 0
+    initialTemperature         = 6.0
+    backgroundWaterTemperature = 6.0
+    secchiDepth                = 2.0
+    stanton                    = 0.0013
+    dalton                     = 0.0013
+    secondaryFlow              = 0
+    betaSpiral                 = 0.0
+
+[Sediment]
+    Sedimentmodelnr =
+    MorFile         =
+    SedFile         =
+
+[Wind]
+    icdTyp               = 2
+    cdBreakpoints        = 0.00063 0.00723
+    windSpeedBreakpoints = 0.0 100.0
+    rhoAir               = 1.205
+    relativeWind         = 0.0
+    windPartialDry       = 1
+    pavBnd               = 0.0
+    pavIni               = 0.0
+
+[Time]
+    refDate                 = 20200101
+    tZone                   = 0.0
+    tUnit                   = S
+    dtUser                  = 300.0
+    dtNodal                 = 21600.0
+    dtMax                   = 30.0
+    dtInit                  = 1.0
+    tStart                  = 0.0
+    tStop                   = 86400.0
+    updateRoughnessInterval = 86400.0
+
+[Restart]
+    restartFile     =
+    restartDateTime =
+
+[External Forcing]
+    extForceFile    =
+    extForceFileNew =
+    rainfall        =
+    qExt            =
+    evaporation     =
+    windExt         =
+
+[Hydrology]
+    interceptionModel = 0
+
+[Trachytopes]
+    trtRou = N
+    trtDef =
+    trtL   =
+    dtTrt  = 60.0
+
+[Output]
+    wrishp_crs                        = 0
+    wrishp_weir                       = 0
+    wrishp_gate                       = 0
+    wrishp_fxw                        = 0
+    wrishp_thd                        = 0
+    wrishp_obs                        = 0
+    wrishp_emb                        = 0
+    wrishp_dryArea                    = 0
+    wrishp_enc                        = 0
+    wrishp_src                        = 0
+    wrishp_pump                       = 0
+    outputDir                         =
+    waqOutputDir                      =
+    flowGeomFile                      =
+    obsFile                           =
+    crsFile                           =
+    hisFile                           =
+    hisInterval                       = 300
+    xlsInterval                       = 0.0
+    mapFile                           =
+    mapInterval                       = 1200.0
+    rstInterval                       = 0.0
+    mapFormat                         = 4
+    ncFormat                          = 3
+    ncNoUnlimited                     = 0
+    ncNoForcedFlush                   = 0
+    ncWriteLatLon                     = 0
+    wrihis_balance                    = 1
+    wrihis_sourceSink                 = 1
+    wrihis_structure_gen              = 1
+    wrihis_structure_dam              = 1
+    wrihis_structure_pump             = 1
+    wrihis_structure_gate             = 1
+    wrihis_structure_weir             = 1
+    wrihis_structure_orifice          = 1
+    wrihis_structure_bridge           = 1
+    wrihis_structure_culvert          = 1
+    wrihis_structure_longCulvert      = 1
+    wrihis_structure_damBreak         = 1
+    wrihis_structure_uniWeir          = 1
+    wrihis_structure_compound         = 1
+    wrihis_lateral                    = 1
+    wrihis_velocity                   = 0
+    wrihis_discharge                  = 0
+    wrimap_waterLevel_s0              = 1
+    wrimap_waterLevel_s1              = 1
+    wrimap_evaporation                = 1
+    wrimap_velocity_component_u0      = 1
+    wrimap_velocity_component_u1      = 1
+    wrimap_velocity_vector            = 1
+    wrimap_upward_velocity_component  = 0
+    wrimap_density_rho                = 1
+    wrimap_horizontal_viscosity_viu   = 1
+    wrimap_horizontal_diffusivity_diu = 1
+    wrimap_flow_flux_q1               = 1
+    wrimap_spiral_flow                = 1
+    wrimap_numLimdt                   = 1
+    wrimap_tauCurrent                 = 1
+    wrimap_chezy                      = 1
+    wrimap_turbulence                 = 1
+    wrimap_rain                       = 0
+    wrimap_wind                       = 1
+    wrimap_heat_fluxes                = 0
+    wrimap_wet_waterDepth_threshold   = 2e-05
+    wrimap_time_water_on_ground       = 0
+    wrimap_freeboard                  = 0
+    wrimap_waterDepth_on_ground       = 0
+    wrimap_volume_on_ground           = 0
+    wrimap_total_net_inflow_1d2d      = 0
+    wrimap_total_net_inflow_lateral   = 0
+    wrimap_water_level_gradient       = 0
+    wrimap_flow_analysis              = 0
+    mapOutputTimeVector               =
+    fullGridOutput                    = 0
+    eulerVelocities                   = 0
+    classMapFile                      =
+    waterLevelClasses                 = 0.0
+    waterDepthClasses                 = 0.0
+    classMapInterval                  = 0.0
+    waqInterval                       = 0.0
+    statsInterval                     = 0.0
+    writeBalanceFile                  = 0
+    timingsInterval                   = 0.0
+    richardsonOnOutput                = 1
+

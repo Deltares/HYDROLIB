@@ -1,27 +1,27 @@
+import configparser
+import copy
+import logging
+import os
+import random
+import sys
+
+# import contextily as ctx
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
+import pandas as pd
 import scipy as sp
 import scipy.spatial
-import sys
-import copy
-import os
-import geopandas as gpd
-import pandas as pd
-import numpy as np
-from shapely.geometry import Polygon, LineString, Point, MultiLineString, box
-from shapely.ops import polygonize
-import matplotlib.pyplot as plt
-from delft3dfmpy import DFlowFMModel
-import logging
-import networkx as nx
-import contextily as ctx
-import random
-from scipy.spatial import KDTree
-import configparser
-from delft3dfmpy.core import geometry
-from scipy.spatial import distance
 import shapely
+
+# from delft3dfmpy import DFlowFMModel
+# from delft3dfmpy.core import geometry
 from networkx.drawing.nx_agraph import graphviz_layout
-from shapely.ops import linemerge
+from scipy.spatial import KDTree, distance
+from shapely.geometry import LineString, MultiLineString, Point, Polygon, box
+from shapely.ops import linemerge, polygonize
+
 
 # ===============================================================
 #                  checkes
