@@ -271,42 +271,17 @@ class DFlowFMModel(Model):
             # add to branches
             self.add_branches(channels, branchtype="channel")
 
-    def _check_gpd_attributes(
-        self, gdf: gpd.GeoDataFrame, required_columns: list, raise_error: bool = False
-    ):
-        """check if the geodataframe contains all required columns
-
-        Parameters
-        ----------
-        gdf : gpd.GeoDataFrame, required
-            GeoDataFrame to be checked
-        required_columns: list of strings, optional
-            Check if the geodataframe contains all required columns
-        raise_error: boolean, optional
-            Raise error if the check failed
-        """
-        if not (set(required_columns).issubset(gdf.columns)):
-            if raise_error:
-                raise ValueError(
-                    f"GeoDataFrame do not contains all required attributes: {required_columns}."
-                )
-            else:
-                logger.warning(
-                    f"GeoDataFrame do not contains all required attributes: {required_columns}."
-                )
-            return False
-        return True
-
     def setup_rivers(
         self,
         rivers_fn: str,
         rivers_defaults_fn: str = None,
-        snap_offset: float = 0.0,
-        allow_intersection_snapping: bool = True,
+        river_filter: str = None,
         friction_type: str = "Manning",  # what about constructing friction_defaults_fn?
         friction_value: float = 0.023,
         crosssections_fn: str = None,
         crosssections_type: str = None,
+        snap_offset: float = 0.0,
+        allow_intersection_snapping: bool = True,
     ):
         """Prepares the 1D rivers and adds to 1D branches.
 
@@ -331,18 +306,13 @@ class DFlowFMModel(Model):
         Parameters
         ----------
         rivers_fn : str
-            Name of data source for branches parameters, see data/data_sources.yml.
+            Name of data source for rivers parameters, see data/data_sources.yml.
             Note only the lines that are within the region polygon + 10m buffer will be used.
-            * Required variables: [branchId, branchType]
-            * Optional variables: [material, friction_type, friction_value, branchOrder]
+            * Optional variables: [branchId, branchType, branchOrder, material, friction_type, friction_value]
         rivers_defaults_fn : str Path
             Path to a csv file containing all defaults values per 'branchType'.
-        snap_offset: float, optional
-            Snapping tolenrance to automatically connecting branches.
-            By default 0.0, no snapping is applied.
-        allow_intersection_snapping: bool, optional
-            Switch to choose whether snapping of multiple branch ends are allowed when ``snap_offset`` is used.
-            By default True.
+        river_filter: str, optional
+            Keyword in branchType column of rivers_fn used to filter river lines. If None all lines in rivers_fn are used (default).
         friction_type : str, optional
             Type of friction tu use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
             By default "Manning".
@@ -352,15 +322,19 @@ class DFlowFMModel(Model):
         crosssections_fn : str Path, optional
             Name of data source for crosssections, see data/data_sources.yml.
             If ``crosssections_type`` = "xyzpoints"
-            * Required variables: crsId, order, z
-            * Optional variables:
+            * Required variables: [crsId, order, z]
             If ``crosssections_type`` = "points"
-            * Required variables: crsId, order, z
-            * Optional variables:
+            * Required variables: [crsId, order, z]
             By default None, crosssections will be set from branches
         crosssections_type : str, optional
             Type of crosssections read from crosssections_fn. One of ["xyzpoints"].
             By default None.
+        snap_offset: float, optional
+            Snapping tolenrance to automatically connecting branches.
+            By default 0.0, no snapping is applied.
+        allow_intersection_snapping: bool, optional
+            Switch to choose whether snapping of multiple branch ends are allowed when ``snap_offset`` is used.
+            By default True.
 
         See Also
         ----------
@@ -372,21 +346,18 @@ class DFlowFMModel(Model):
         gdf_riv = self.data_catalog.get_geodataframe(
             rivers_fn, geom=self.region, buffer=10, predicate="contains"
         )
+        # Filter features based on river_filter
+        if river_filter is not None and "branchType" in gdf_riv.columns:
+            gdf_riv = gdf_riv[gdf_riv["branchType"] == river_filter]
 
-        # check if feature and attributes exist
-        if len(gdf_riv) == 0:
-            self.logger.warning(
-                f"No {rivers_fn} 1D river locations found within domain"
+        # Add branchType and branchId attributes if does not exist
+        if "branchType" not in gdf_riv.columns:
+            gdf_riv["branchType"] = pd.Series(
+                data=np.repeat("river", len(gdf_riv)), index=gdf_riv.index, dtype=str
             )
-            return None
-        valid_attributes = self._check_gpd_attributes(
-            gdf_riv, required_columns=["branchId", "branchType"], raise_error=False
-        )
-        if not valid_attributes:
-            self.logger.error(
-                f"Required attributes [branchId, branchType] do not exist"
-            )
-            return None
+        if "branchId" not in gdf_riv.columns:
+            data = [f"river_{i}" for i in np.arange(1, len(gdf_riv) + 1)]
+            gdf_riv["branchId"] = pd.Series(data, index=gdf_riv.index, dtype=str)
 
         # assign id
         id_col = "branchId"
@@ -535,7 +506,7 @@ class DFlowFMModel(Model):
                     f"No {crosssections_fn} 1D xyz crosssections found within domain"
                 )
                 return None
-            valid_attributes = self._check_gpd_attributes(
+            valid_attributes = helper.heck_gpd_attributes(
                 gdf_cs, required_columns=["crsId", "order", "z"]
             )
             if not valid_attributes:
