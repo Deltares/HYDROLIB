@@ -76,11 +76,13 @@ class DFlowFMModel(Model):
         )
 
         # model specific
-        self._dfmmodel = None
-        self._branches = gpd.GeoDataFrame()
+        self._branches = None
         self._config_fn = (
             join("dflowfm", self._CONF) if config_fn is None else config_fn
         )
+        self.write_config() #  create the mdu file in order to initialise dfmmodedl properly and at correct output location
+        self._dfmmodel = self.init_dfmmodel()
+
 
     def setup_basemaps(
         self,
@@ -1397,9 +1399,9 @@ class DFlowFMModel(Model):
         Returns the branches (gpd.GeoDataFrame object) representing the 1D network.
         Contains several "branchType" for : channel, river, pipe, tunnel.
         """
-        if self._branches.empty:
+        if self._branches is None:
             # self.read_branches() #not implemented yet
-            self._branches = gpd.GeoDataFrame()
+            self._branches = gpd.GeoDataFrame(crs=self.crs)
         return self._branches
 
     def set_branches(self, branches: gpd.GeoDataFrame):
@@ -1419,9 +1421,17 @@ class DFlowFMModel(Model):
         self.logger.debug(f"Adding branches vector to staticgeoms.")
         self.set_staticgeoms(gpd.GeoDataFrame(branches, crs=self.crs), "branches")
 
+        self.logger.debug(f"Updating branches in network.")
+        mesh.mesh1d_add_branch(
+            self.dfmmodel.geometry.netfile.network,
+            self.staticgeoms["branches"].geometry.to_list(),
+            node_distance=40,
+            branch_names=self.staticgeoms["branches"].branchId.to_list(),
+            branch_orders=self.staticgeoms["branches"].branchOrder.to_list(),
+        )
     def add_branches(self, new_branches: gpd.GeoDataFrame, branchtype: str):
         """Add new branches of branchtype to the branches object"""
-        branches = self._branches.copy()
+        branches = self.branches.copy()
         # Check if "branchType" in new_branches column, else add
         if "branchType" not in new_branches.columns:
             new_branches["branchType"] = np.repeat(branchtype, len(new_branches.index))
@@ -1437,6 +1447,14 @@ class DFlowFMModel(Model):
         return gdf_comp
 
     @property
+    def rivers(self):
+        if "rivers" in self.staticgeoms:
+            gdf = self.staticgeoms["rivers"]
+        else:
+            gdf = self.set_branches_component("rivers")
+        return gdf
+
+    @property
     def channels(self):
         if "channels" in self.staticgeoms:
             gdf = self.staticgeoms["channels"]
@@ -1450,6 +1468,16 @@ class DFlowFMModel(Model):
             gdf = self.staticgeoms["pipes"]
         else:
             gdf = self.set_branches_component("pipe")
+        return gdf
+
+    @property
+    def opensystem(self):
+        gdf = self.branches[self.branches["branchType"].isin(["river", "channel"])]
+        return gdf
+
+    @property
+    def closedsystem(self):
+        gdf = self.branches[self.branches["branchType"].isin(["pipe", "tunnel"])]
         return gdf
 
     @property
