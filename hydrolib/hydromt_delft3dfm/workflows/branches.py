@@ -158,7 +158,7 @@ def update_data_columns_attribute_from_query(
 def process_branches(
     branches: gpd.GeoDataFrame,
     branch_nodes: gpd.GeoDataFrame,
-    id_col: str = "BRANCH_ID",
+    id_col: str = "branchId",
     snap_offset: float = 0.01,
     allow_intersection_snapping: bool = True,
     logger=logger,
@@ -176,7 +176,7 @@ def process_branches(
         logger=logger,
     )
 
-    logger.debug(f"Spltting branches based on spacing")
+    logger.debug(f"Splitting branches based on spacing")
     # TODO: add check, if spacing is used, then in branch cross section cannot be setup later
     branches = space_branches(branches, logger=logger)
 
@@ -188,7 +188,7 @@ def process_branches(
 
 def cleanup_branches(
     branches: gpd.GeoDataFrame,
-    id_col: str = "BRANCH_ID",  # TODO: renaming needed
+    id_col: str = "branchId",
     snap_offset: float = 0.01,
     allow_intersection_snapping: bool = True,
     logger=logger,
@@ -285,6 +285,10 @@ def cleanup_branches(
         logger.debug(
             f"Performing snapping at all branch ends, excluding intersections (To avoid messy results, please use a lower snap_offset).."
         )
+
+    # Drop count column
+    if "count" in branches.columns:
+        branches = branches.drop(columns=["count"])
 
     return branches
 
@@ -433,7 +437,7 @@ def _split_branches_by_spacing_const(
     ----------
     branches : gpd.GeoDataFrame
     spacing_const : float
-        Constent spacing which will overwrite the spacing_col.
+        Constant spacing which will overwrite the spacing_col.
     id_col: str
         Name of the column in branches that contains the id of the branches.
 
@@ -455,10 +459,16 @@ def _split_branches_by_spacing_const(
     edge_bedlevdn = []
     edge_index = []
     branch_index = []
-    for bid, b in branches.iterrows():
-        import pdb
 
-        pdb.set_trace()
+    # Check for attributes
+    interp_invlev = False
+    interp_bedlev = False
+    if "invlev_up" and "invlev_dn" in branches.columns:
+        interp_invlev = True
+    if "bedlev_up" and "bedlev_dn" in branches.columns:
+        interp_bedlev = True
+
+    for bid, b in branches.iterrows():
         # prepare for splitting
         line = b.geometry
         num_new_lines = int(np.ceil(line.length / spacing_const))
@@ -470,20 +480,22 @@ def _split_branches_by_spacing_const(
         # interpolate values
         edge_geom.extend(new_edges)
         edge_offset.extend(offsets[1:])
-        edge_invertup.extend(
-            np.interp(
-                offsets[:-1], [0, offsets[-1]], [b.invlev_up, b.invlev_dn]
-            )  # TODO: renaming needed
-        )
-        edge_invertdn.extend(
-            np.interp(offsets[1:], [0, offsets[-1]], [b.invlev_up, b.invlev_dn])
-        )
-        edge_bedlevup.extend(
-            np.interp(offsets[:-1], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn])
-        )
-        edge_bedlevdn.extend(
-            np.interp(offsets[1:], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn])
-        )
+        if interp_invlev:
+            edge_invertup.extend(
+                np.interp(
+                    offsets[:-1], [0, offsets[-1]], [b.invlev_up, b.invlev_dn]
+                )  # TODO: renaming needed
+            )
+            edge_invertdn.extend(
+                np.interp(offsets[1:], [0, offsets[-1]], [b.invlev_up, b.invlev_dn])
+            )
+        if interp_bedlev:
+            edge_bedlevup.extend(
+                np.interp(offsets[:-1], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn])
+            )
+            edge_bedlevdn.extend(
+                np.interp(offsets[1:], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn])
+            )
         edge_index.extend([bid + "_E" + str(i) for i in range(len(new_edges))])
         branch_index.extend([bid] * len(new_edges))
 
@@ -492,13 +504,19 @@ def _split_branches_by_spacing_const(
             "EDGE_ID": edge_index,
             "geometry": edge_geom,
             id_col: branch_index,
-            "invlev_up": edge_invertup,
-            "invlev_dn": edge_invertdn,
-            "bedlev_up": edge_bedlevup,
-            "bedlev_dn": edge_bedlevdn,
+            # "invlev_up": edge_invertup,
+            # "invlev_dn": edge_invertdn,
+            # "bedlev_up": edge_bedlevup,
+            # "bedlev_dn": edge_bedlevdn,
         },
         crs=branches.crs,
     )
+    if interp_invlev:
+        edges["invlev_up"] = edge_invertup
+        edges["invlev_dn"] = edge_invertdn
+    if interp_bedlev:
+        edges["bedlev_up"] = edge_bedlevup
+        edges["bedlev_dn"] = edge_bedlevdn
     edges_attr = pd.concat(
         [branches.loc[idx, :] for idx in branch_index], axis=1
     ).transpose()

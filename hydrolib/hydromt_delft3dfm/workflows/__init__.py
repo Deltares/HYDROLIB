@@ -5,3 +5,4 @@ from .crosssections import *
 from .helper import *
 from .preprocess import *
 from .roughness import *
+from .dem import *
