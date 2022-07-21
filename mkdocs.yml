@@ -76,14 +76,7 @@ nav:
           - "guides/documentation.md"
   - Tools:
       - Introduction: "tools/tools_introduction.md"
-      - HydroMT-Delft3D FM plugin: 
-          - "../hydrolib/hydromt_delft3dfm/docs/hydromt_delft3dfm.md"
-          - Getting started: 
-              - "../hydrolib/hydromt_delft3dfm/docs/getting_started/getting_started.md"
-          - User Guide: 
-              - "../hydrolib/hydromt_delft3dfm/docs/user_guide/user_guide.md"
-          - API reference: 
-              - "../hydrolib/hydromt_delft3dfm/docs/references/api.md"
+      - HydroMT-Delft3D FM plugin: "!include ./hydrolib/hydromt_delft3dfm/mkdocs.yml"
   - Reference: 
           - "references/api.md"
   - Changelog: 

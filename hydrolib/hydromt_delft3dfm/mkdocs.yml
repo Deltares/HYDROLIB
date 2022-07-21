@@ -1,0 +1,7 @@
+site_name: hydromt_delft3dfm
+
+nav:
+  - Home: "hydromt_delft3dfm.md"
+  - Getting started: "getting_started/getting_started.md"
+  - API reference: "reference/api.md"
+  - User Guide: "user_guide/user_guide.md"
