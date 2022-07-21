@@ -127,7 +127,7 @@ def net_nc2gdf(
                 "order": nc_model._mesh1d.network1d_branch_order,
             },
             geometry=geometry,
-            crs=EPSG
+            crs=EPSG,
         )
 
     ## 2D
@@ -139,7 +139,9 @@ def net_nc2gdf(
                 zip(
                     nc_model._mesh2d.mesh2d_node_x,
                     nc_model._mesh2d.mesh2d_node_y,
-                    nc_model._mesh2d.mesh2d_node_z if len(nc_model._mesh2d.mesh2d_node_z)> 0 else [np.nan] * len(nc_model._mesh2d.mesh2d_node_x),
+                    nc_model._mesh2d.mesh2d_node_z
+                    if len(nc_model._mesh2d.mesh2d_node_z) > 0
+                    else [np.nan] * len(nc_model._mesh2d.mesh2d_node_x),
                 )
             )
         )
@@ -154,7 +156,9 @@ def net_nc2gdf(
             geometry=gpd.points_from_xy(
                 nc_model._mesh2d.mesh2d_node_x,
                 nc_model._mesh2d.mesh2d_node_y,
-                nc_model._mesh2d.mesh2d_node_z if len(nc_model._mesh2d.mesh2d_node_z)> 0 else [np.nan] * len(nc_model._mesh2d.mesh2d_node_x),
+                nc_model._mesh2d.mesh2d_node_z
+                if len(nc_model._mesh2d.mesh2d_node_z) > 0
+                else [np.nan] * len(nc_model._mesh2d.mesh2d_node_x),
             ),
             crs=EPSG,
         )
@@ -166,7 +170,9 @@ def net_nc2gdf(
                 {
                     "X": nc_model._mesh2d.mesh2d_face_x,
                     "Y": nc_model._mesh2d.mesh2d_face_y,
-                    "Z": nc_model._mesh2d.mesh2d_face_z if len(nc_model._mesh2d.mesh2d_face_z)> 0 else [np.nan] * len(nc_model._mesh2d.mesh2d_face_x),
+                    "Z": nc_model._mesh2d.mesh2d_face_z
+                    if len(nc_model._mesh2d.mesh2d_face_z) > 0
+                    else [np.nan] * len(nc_model._mesh2d.mesh2d_face_x),
                 }
             ),
             crs=EPSG,
@@ -183,7 +189,9 @@ def net_nc2gdf(
                 {
                     "X": nc_model._mesh2d.mesh2d_edge_x,
                     "Y": nc_model._mesh2d.mesh2d_edge_y,
-                    "Z": nc_model._mesh2d.mesh2d_edge_z if len(nc_model._mesh2d.mesh2d_edge_z)> 0 else [np.nan] * len(nc_model._mesh2d.mesh2d_edge_x),
+                    "Z": nc_model._mesh2d.mesh2d_edge_z
+                    if len(nc_model._mesh2d.mesh2d_edge_z) > 0
+                    else [np.nan] * len(nc_model._mesh2d.mesh2d_edge_x),
                 }
             ),
             crs=EPSG,
@@ -599,7 +607,7 @@ def read_locations(
         Dictionary with all locations in as GeoDataFrames.
 
     """
-    
+
     # initial results dictionary
     gdfs_results = {}
 
