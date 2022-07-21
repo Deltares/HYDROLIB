@@ -73,6 +73,7 @@ nav:
   - Tools:
       - Introduction: "tools/tools_introduction.md"
       - HydroMT-Delft3D FM plugin: "!include ./hydrolib/hydromt_delft3dfm/mkdocs.yml"
+      - D-HyDAMO plugin: "!include ./hydrolib/dhydamo/mkdocs.yml"
   - Reference: 
           - "reference/api.md"
   - Changelog: 
