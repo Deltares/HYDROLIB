@@ -13,14 +13,11 @@ import networkx as nx
 
 logger = logging.getLogger(__name__)
 
+
 def gpd_to_digraph(data: gpd.GeoDataFrame) -> nx.DiGraph():
 
-    data["from_node"] = [
-        row.geometry.coords[0] for index, row in data.iterrows()
-    ]
-    data["to_node"] = [
-        row.geometry.coords[-1] for index, row in data.iterrows()
-    ]
+    data["from_node"] = [row.geometry.coords[0] for index, row in data.iterrows()]
+    data["to_node"] = [row.geometry.coords[-1] for index, row in data.iterrows()]
     G = nx.from_pandas_edgelist(
         data,
         source="from_node",

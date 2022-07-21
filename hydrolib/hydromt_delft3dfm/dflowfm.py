@@ -81,9 +81,8 @@ class DFlowFMModel(Model):
         self._config_fn = (
             join("dflowfm", self._CONF) if config_fn is None else config_fn
         )
-        self.write_config() #  create the mdu file in order to initialise dfmmodedl properly and at correct output location
+        self.write_config()  #  create the mdu file in order to initialise dfmmodedl properly and at correct output location
         self._dfmmodel = self.init_dfmmodel()
-
 
     def setup_basemaps(
         self,
@@ -1492,9 +1491,6 @@ class DFlowFMModel(Model):
         if not self._write:
             raise IOError("Model opened in read-only mode")
 
-        # write 1D mesh
-        self._write_mesh1d()  # FIXME None handling
-
         # write friction
         self._write_friction()  # FIXME: ask Rinske, add global section correctly
 
@@ -1504,22 +1500,6 @@ class DFlowFMModel(Model):
         # save model
         self.dfmmodel.save(recurse=True)
 
-    def _write_mesh1d(self):
-
-        #
-        branches = self._staticgeoms["branches"]
-
-        # FIXME: imporve the None handeling here, ref: crosssections
-
-        # add mesh
-        mesh.mesh1d_add_branch(
-            self.dfmmodel.geometry.netfile.network,
-            branches.geometry.to_list(),
-            node_distance=40,
-            branch_names=branches.branchId.to_list(),
-            branch_orders=branches.branchOrder.to_list(),
-        )
-
     def _write_friction(self):
 
         #
@@ -1528,9 +1508,12 @@ class DFlowFMModel(Model):
         ]
         frictions = frictions.drop_duplicates(subset="frictionId")
 
+        self.dfmmodel.geometry.frictfile = []
         # create a new friction
-        fric_model = FrictionModel(global_=frictions.to_dict("record"))
-        self.dfmmodel.geometry.frictfile[0] = fric_model
+        for i, row in frictions.iterrows():
+            fric_model = FrictionModel(global_=row.to_dict())
+            fric_model.filepath = f"roughness_{i}.ini"
+            self.dfmmodel.geometry.frictfile.append(fric_model)
 
     def _write_crosssections(self):
         """write crosssections into hydrolib-core crsloc and crsdef objects"""
@@ -1604,10 +1587,10 @@ class DFlowFMModel(Model):
         self._dfmmodel.geometry.crossdeffile.filepath = outputdir.joinpath("crsdef.ini")
         self._dfmmodel.geometry.crosslocfile = CrossLocModel()
         self._dfmmodel.geometry.crosslocfile.filepath = outputdir.joinpath("crsloc.ini")
-        self._dfmmodel.geometry.frictfile = [FrictionModel()]
-        self._dfmmodel.geometry.frictfile[0].filepath = outputdir.joinpath(
-            "roughness.ini"
-        )
+        # self._dfmmodel.geometry.frictfile = [FrictionModel()]
+        # self._dfmmodel.geometry.frictfile[0].filepath = outputdir.joinpath(
+        #    "roughness.ini"
+        # )
 
     @property
     def branches(self):
@@ -1639,13 +1622,7 @@ class DFlowFMModel(Model):
         self.set_staticgeoms(gpd.GeoDataFrame(branches, crs=self.crs), "branches")
 
         self.logger.debug(f"Updating branches in network.")
-        mesh.mesh1d_add_branch(
-            self.dfmmodel.geometry.netfile.network,
-            self.staticgeoms["branches"].geometry.to_list(),
-            node_distance=40,
-            branch_names=self.staticgeoms["branches"].branchId.to_list(),
-            branch_orders=self.staticgeoms["branches"].branchOrder.to_list(),
-        )
+
     def add_branches(self, new_branches: gpd.GeoDataFrame, branchtype: str):
         """Add new branches of branchtype to the branches object"""
         branches = self.branches.copy()
@@ -1655,6 +1632,14 @@ class DFlowFMModel(Model):
         branches = branches.append(new_branches, ignore_index=True)
         # Check if we need to do more check/process to make sure everything is well connected
         validate_branches(branches)
+        # Add to dfmmodel network
+        mesh.mesh1d_add_branch(
+            self.dfmmodel.geometry.netfile.network,
+            new_branches.geometry.to_list(),
+            node_distance=40,
+            branch_names=new_branches.branchId.to_list(),
+            branch_orders=new_branches.branchOrder.to_list(),
+        )
         self.set_branches(branches)
 
     def set_branches_component(self, name):
@@ -1703,13 +1688,13 @@ class DFlowFMModel(Model):
         if "crosssections" in self.staticgeoms:
             gdf = self.staticgeoms["crosssections"]
         else:
-            gdf = gpd.GeoDataFrame()
+            gdf = gpd.GeoDataFrame(crs=self.crs)
         return gdf
 
     def set_crosssections(self, crosssections: gpd.GeoDataFrame):
         """Updates crosssections in staticgeoms with new ones"""
         if len(self.crosssections) > 0:
             crosssections = gpd.GeoDataFrame(
-                pd.concat([self.crosssections, crosssections])
+                pd.concat([self.crosssections, crosssections]), crs=self.crs
             )
         self.set_staticgeoms(crosssections, name="crosssections")
