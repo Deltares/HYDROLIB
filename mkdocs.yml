@@ -68,17 +68,14 @@ extra_css:
 nav:
   - Home: "index.md"
   - How-to: 
-      - Installation: 
-          - "guides/setup.md"
-      - Contributing:
-          - "guides/contributing.md"
-      - Documentation:
-          - "guides/documentation.md"
+      - Installation: "guides/setup.md"
+      - Contributing: "guides/contributing.md"
+      - Documentation: "guides/documentation.md"
   - Tools:
       - Introduction: "tools/tools_introduction.md"
       - HydroMT-Delft3D FM plugin: "!include ./hydrolib/hydromt_delft3dfm/mkdocs.yml"
   - Reference: 
-          - "references/api.md"
+          - "reference/api.md"
   - Changelog: 
           - "changelog.md"
   
