@@ -221,9 +221,11 @@ class DFLowFMModelWriter:
         cs_circle = self.hydamo.crosssections.crosssection_def[self.hydamo.crosssections.crosssection_def.type=='circle']
         cs = [CircleCrsDef(**cs) for cs in cs_circle.to_dict('records')]
         [[setattr(c.comments, field[0], "") for field in c.comments] for c in cs]
+        self.crossdefs += cs
         cs_yz = self.hydamo.crosssections.crosssection_def[self.hydamo.crosssections.crosssection_def.type=='yz']
         cs = [YZCrsDef(**cs) for cs in cs_yz.to_dict('records')]
         [[setattr(c.comments, field[0], "") for field in c.comments] for c in cs]
+        self.crossdefs += cs
         cs_rect = self.hydamo.crosssections.crosssection_def[self.hydamo.crosssections.crosssection_def.type=='rectangle']
         cs = [RectangleCrsDef(**cs) for cs in cs_rect.to_dict('records')]
         [[setattr(c.comments, field[0], "") for field in c.comments] for c in cs]        
@@ -345,14 +347,14 @@ class DFLowFMModelWriter:
 
     def inifields_to_dhydro(self):
         for level in self.hydamo.external_forcings.initial_waterlevel_polygons.itertuples():
-            inifield = InitialField(quantity='waterlevel', datafiletype='1dField',unit='m', datafile='1dfield.ini')       
+            inifield = InitialField(quantity='waterlevel', datafiletype='1dField',unit='m', datafile='initialwaterdepth.ini')       
             if level.geometry is None:
                 onedfield = OneDFieldGlobal(quantity='waterlevel', locationtype=level.locationtype,unit='m', value=str(level.value))
             self.inifields.append(inifield)
             self.onedfields.append(onedfield)
 
         for depth in self.hydamo.external_forcings.initial_waterdepth_polygons.itertuples():
-            inifield = InitialField(quantity='waterdepth', datafiletype='1dField',unit='m', datafile='1dfield.ini')
+            inifield = InitialField(quantity='waterdepth', datafiletype='1dField',unit='m', datafile='initialwaterdepth.ini')
             if depth.geometry is None:
                 onedfield = OneDFieldGlobal(quantity='waterdepth', locationtype=depth.locationtype,unit='m', value=str(depth.waterdepth))
             self.inifields.append(inifield)

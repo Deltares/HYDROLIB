@@ -36,7 +36,66 @@ class CrossSectionsIO:
 
     def __init__(self, crosssections):
         self.crosssections = crosssections
-       
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def from_datamodel(self, crsdefs:pd.DataFrame=None, crslocs:pd.DataFrame=None) -> None:
+        """"
+        From parsed data models of crsdefs and crslocs
+        """
+
+        if crslocs is not None:
+            for crsloc_idx, crsloc in crslocs.iterrows():
+                # add location
+                self.crosssections.add_crosssection_location(branchid=crsloc['branch_id'],
+                                                             chainage=crsloc['branch_offset'],
+                                                             shift=crsloc['shift'],
+                                                             definition=crsloc['crosssectiondefinitionid'])
+
+        if crsdefs is not None:
+            crsdefs = crsdefs.drop_duplicates(subset=['crosssectiondefinitionid'])
+            for crsdef_idx, crsdef in crsdefs.iterrows():
+                # Set roughness value on default if cross-section has non defined (e.g. culverts)
+                roughtype = crsdef['frictionid'].split('_')[0] if isinstance(crsdef['frictionid'], str) else 'Chezy'
+                roughval = float(crsdef['frictionid'].split('_')[-1]) if isinstance(crsdef['frictionid'], str) else 45
+                # add definition
+                if crsdef['type'] == 'circle':
+                    self.crosssections.add_circle_definition(diameter=crsdef['diameter'],
+                                                             roughnesstype=roughtype,
+                                                             roughnessvalue=roughval,
+                                                             name=crsdef['crosssectiondefinitionid'])
+                elif crsdef['type'] == 'rectangle':
+                    self.crosssections.add_rectangle_definition(height=crsdef['height'],
+                                                                width=crsdef['width'],
+                                                                closed=crsdef['closed'],
+                                                                roughnesstype=roughtype,
+                                                                roughnessvalue=roughval,
+                                                                name=crsdef['crosssectiondefinitionid'])
+
+                elif crsdef['type'] == 'trapezium':
+                    self.crosssections.add_trapezium_definition(slope=(crsdef['t_width'] - crsdef['width'])/2/crsdef['height'],
+                                                                maximumflowwidth=crsdef['t_width'],
+                                                                bottomwidth=crsdef['width'],
+                                                                closed=crsdef['closed'],
+                                                                roughnesstype=roughtype,
+                                                                roughnessvalue=roughval,
+                                                                name=crsdef['crosssectiondefinitionid'])
+                    
+                elif crsdef['type'] == 'zw':
+                    self.crosssections.add_zw_definition(numLevels=crsdef["numlevels"],
+                                                         levels=crsdef["levels"],
+                                                         flowWidths=crsdef["flowwidths"],
+                                                         totalWidths=crsdef["totalwidths"],
+                                                         roughnesstype=roughtype,
+                                                         roughnessvalue=roughval,
+                                                         name=crsdef['crosssectiondefinitionid'])
+
+                elif crsdef['type'] == 'yz':
+                    # TODO BMA: add yz
+                    raise NotImplementedError
+
+                else:
+                    raise NotImplementedError
+ 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def profiles(self, crosssections:ExtendedGeoDataFrame=None,
                           crosssection_roughness:ExtendedDataFrame=None, 
@@ -269,7 +328,52 @@ class StructuresIO:
 
     def __init__(self, structures):
         self.structures = structures
-      
+    
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def generalstructures_from_datamodel(self, generalstructures:pd.DataFrame) -> None:
+        """From parsed data model of orifices
+
+        Args:
+            generalstructures (pd.DataFrame): dataframe containing the data
+        """
+        
+        for generalstructure_idx, generalstructure in generalstructures.iterrows():
+            self.structures.add_generalstructure(
+                id=generalstructure.id,
+                name=generalstructure.name if 'name' in generalstructure.index else np.nan,
+                branchid=generalstructure.branch_id,
+                chainage=generalstructure.branch_offset,
+                allowedflowdir='both',
+                upstream1width=generalstructure.upstream1width if 'upstream1width' in generalstructure.index else np.nan,
+                upstream1level=generalstructure.upstream1level if 'upstream1level' in generalstructure.index else np.nan,
+                upstream2width=generalstructure.upstream2width if 'upstream2width' in generalstructure.index else np.nan,
+                upstream2level=generalstructure.upstream2level if 'upstream2level' in generalstructure.index else np.nan,
+                crestwidth=generalstructure.crestwidth if 'crestwidth' in generalstructure.index else np.nan,
+                crestlevel=generalstructure.crestlevel if 'crestlevel' in generalstructure.index else np.nan,
+                crestlength=generalstructure.crestlength if 'crestlength' in generalstructure.index else np.nan,
+                downstream1width=generalstructure.downstream1width if 'downstream1width' in generalstructure.index else np.nan,
+                downstream1level=generalstructure.downstream1level if 'downstream1level' in generalstructure.index else np.nan,
+                downstream2width=generalstructure.downstream2width if 'downstream2width' in generalstructure.index else np.nan,
+                downstream2level=generalstructure.downstream2level if 'downstream2level' in generalstructure.index else np.nan,
+                gateloweredgelevel=generalstructure.gateloweredgelevel if 'gateloweredgelevel' in generalstructure.index else np.nan,
+                posfreegateflowcoeff=generalstructure.posfreegateflowcoeff if 'posfreegateflowcoeff' in generalstructure.index else np.nan,
+                posdrowngateflowcoeff=generalstructure.posdrowngateflowcoeff if 'posdrowngateflowcoeff' in generalstructure.index else np.nan,
+                posfreeweirflowcoeff=generalstructure.posfreeweirflowcoeff if 'posfreeweirflowcoeff' in generalstructure.index else np.nan,
+                posdrownweirflowcoeff=generalstructure.posdrownweirflowcoeff if 'posdrownweirflowcoeff' in generalstructure.index else np.nan,
+                poscontrcoeffreegate=generalstructure.poscontrcoeffreegate if 'poscontrcoeffreegate' in generalstructure.index else np.nan,
+                negfreegateflowcoeff=generalstructure.negfreegateflowcoeff if 'negfreegateflowcoeff' in generalstructure.index else np.nan,
+                negdrowngateflowcoeff=generalstructure.negdrowngateflowcoeff if 'negdrowngateflowcoeff' in generalstructure.index else np.nan,
+                negfreeweirflowcoeff=generalstructure.negfreeweirflowcoeff if 'negfreeweirflowcoeff' in generalstructure.index else np.nan,
+                negdrownweirflowcoeff=generalstructure.negdrownweirflowcoeff if 'negdrownweirflowcoeff' in generalstructure.index else np.nan,
+                negcontrcoeffreegate=generalstructure.negcontrcoeffreegate if 'negcontrcoeffreegate' in generalstructure.index else np.nan,
+                extraresistance=generalstructure.extraresistance if 'extraresistance' in generalstructure.index else np.nan,
+                gateheight=generalstructure.gateheight if 'gateheight' in generalstructure.index else np.nan,
+                gateopeningwidth=generalstructure.gateopeningwidth if 'gateopeningwidth' in generalstructure.index else np.nan,
+                gateopeninghorizontaldirection=generalstructure.gateopeninghorizontaldirection if 'gateopeninghorizontaldirection' in generalstructure.index else np.nan,
+                usevelocityheight=generalstructure.usevelocityheight if 'usevelocityheight' in generalstructure.index else np.nan,
+            )
+
+
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def weirs(self,   weirs:ExtendedGeoDataFrame=None,  
                                   profile_groups:ExtendedDataFrame=None,  
@@ -371,9 +475,56 @@ class StructuresIO:
                            numlevels = counts,
                            yvalues =  ' '.join([f'{yz[0]:7.3f}' for yz in yzvalues]),
                            zvalues =  ' '.join([f'{yz[1]:7.3f}' for yz in yzvalues]))
-           
     
-  
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))       
+    def weirs_from_datamodel(self, weirs:pd.DataFrame) -> None:
+        """"From parsed data model of weirs"""
+        for weir_idx, weir in weirs.iterrows():
+            self.structures.add_weir(
+                id=weir.id,
+                name=weir.name if 'name' in weir.index else np.nan,
+                branchid=weir.branch_id,
+                chainage=weir.branch_offset,
+                crestlevel=weir.crestlevel,
+                crestwidth=weir.crestwidth,
+                corrcoeff=weir.corrcoeff
+            )
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))       
+    def orifices_from_datamodel(self, orifices:pd.DataFrame) -> None:
+        """"From parsed data model of orifices"""
+        for orifice_idx, orifice in orifices.iterrows():
+            self.structures.add_orifice(
+                id=orifice.id,
+                name=orifice.name if 'name' in orifice.index else np.nan,
+                branchid=orifice.branch_id,
+                chainage=orifice.branch_offset,
+                allowedflowdir='both',
+                crestlevel=orifice.crestlevel,
+                crestwidth=orifice.crestwidth,
+                gateloweredgelevel=orifice.gateloweredgelevel,
+                corrcoeff=orifice.corrcoef,
+                uselimitflowpos=orifice.uselimitflowpos,
+                limitflowpos=orifice.limitflowpos,
+                uselimitflowneg=orifice.uselimitflowneg,
+                limitflowneg=orifice.limitflowneg,
+            )
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))       
+    def uweirs_from_datamodel(self, uweirs:pd.DataFrame) -> None:
+        """"From parsed data model of universal weirs"""
+        for uweir_idx, uweir in uweirs.iterrows():
+            self.structures.add_uweir(
+                id=uweir.id,
+                name=uweir.name if 'name' in uweir.index else np.nan,
+                branchid=uweir.branch_id,
+                chainage=uweir.branch_offset,                
+                crestlevel=uweir.crestlevel,
+                yvalues=uweir.yvalues,
+                zvalues=uweir.zvalues,
+                allowedflowdir='both',
+                dischargecoeff=uweir.dischargecoeff                
+            ) 
+            
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def bridges(self, bridges:ExtendedGeoDataFrame, 
                                   profile_groups:ExtendedDataFrame=None, 
@@ -402,7 +553,8 @@ class StructuresIO:
             else:
                 name = bridge.code
             profile_id=prof.code.values[0]
-            self.structures.add_bridge(id=bridge.code,
+            self.structures.add_bridge(
+                            id=bridge.code,
                             name=name,
                             branchid=bridge.branch_id,
                             chainage = bridge.branch_offset,
@@ -414,6 +566,25 @@ class StructuresIO:
                             length = bridge.lengte,
                             frictiontype = bridge.typeruwheid,
                             friction = bridge.ruwheid )
+            
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))       
+    def bridges_from_datamodel(self, bridges:pd.DataFrame) -> None:
+        """"From parsed data model of bridges"""
+        for bridge_idx, bridge in bridges.iterrows():
+            self.structures.add_bridge(
+                            id=bridge.code,
+                            name=bridge.name if 'name' in bridge.index else np.nan,
+                            branchid=bridge.branch_id,
+                            chainage = bridge.branch_offset,
+                            csdefid = bridge.csdefid,
+                            shift = 0.0,
+                            allowedflowdir = 'both',
+                            inletlosscoeff = bridge.intreeverlies,
+                            outletlosscoeff = bridge.uittreeverlies,
+                            length = bridge.lengte,
+                            frictiontype = bridge.typeruwheid,
+                            friction = bridge.ruwheid
+                            )             
             
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def culverts(self, culverts:ExtendedGeoDataFrame, management_device:ExtendedDataFrame=None) -> None:
@@ -480,8 +651,35 @@ class StructuresIO:
                         losscoeff = losscoeff,
                         frictiontype = culvert.typeruwheid,
                         frictionvalue = culvert.ruwheid)          
-            
-  
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))      
+    def culverts_from_datamodel(self, culverts:pd.DataFrame) -> None:
+        """
+        From parsed model of culverts
+        """
+
+        # Add to dict
+        for culvert_idx, culvert in culverts.iterrows():
+            self.structures.add_culvert(
+                id=culvert.id,
+                name=culvert.name if 'name' in culvert.index else np.nan,
+                branchid=culvert.branch_id,
+                chainage=culvert.branch_offset,
+                leftlevel=culvert.leftlevel,
+                rightlevel=culvert.rightlevel,
+                crosssection=culvert.crosssectiondefinitionid,
+                length=culvert.geometry.length if 'geometry' in culvert.index else culvert.length,
+                inletlosscoeff=culvert.inletlosscoeff,
+                outletlosscoeff=culvert.outletlosscoeff,
+                allowedflowdir='both',
+                valveonoff=0,
+                numlosscoeff=0,
+                valveopeningheight=np.nan,
+                relopening=np.nan,
+                losscoeff=np.nan,
+                frictiontype=culvert.frictiontype,
+                frictionvalue=culvert.frictionvalue
+            )
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def pumps(self, pumpstations:ExtendedGeoDataFrame, pumps:ExtendedDataFrame=None, management:ExtendedDataFrame=None) -> None:
         """
@@ -545,6 +743,26 @@ class StructuresIO:
                         stoplevelsuctionside = stoplevelsuctionside,
                         startleveldeliveryside = startlevelsuctionside, 
                         stopleveldeliveryside = stoplevelsuctionside)
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def pumps_from_datamodel(self, pumps:pd.DataFrame) -> None:
+        """From parsed data model of pumps """
+        
+        for pump_idx, pump in pumps.iterrows():
+            self.structures.add_pump(
+                id=pump.id,
+                name=pump.name if 'name' in pump.index else np.nan,
+                branchid=pump.branch_id,
+                chainage=pump.branch_offset,
+                orientation='positive',
+                numstages=1,
+                controlside=pump.controlside,
+                capacity=pump.maximumcapacity,
+                startlevelsuctionside=pump.startlevelsuctionside,
+                stoplevelsuctionside=pump.stoplevelsuctionside,
+                startleveldeliveryside=pump.startleveldeliveryside,
+                stopleveldeliveryside=pump.stopleveldeliveryside
+            )
                     
 class StorageNodesIO:
 

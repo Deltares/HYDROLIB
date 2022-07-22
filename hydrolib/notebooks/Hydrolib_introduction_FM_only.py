@@ -345,7 +345,9 @@ forcingmodel.forcing = writer.laterals_bc + writer.boundaries_bc
 fm.external_forcing.extforcefilenew = extmodel
 fm.external_forcing.forcingfile = forcingmodel
 fm.geometry.inifieldfile = IniFieldModel(initial=writer.inifields)
-fm.geometry.onedfieldfile = [OneDFieldModel(global_=writer.onedfields[0])]
+onedfieldmodel  = OneDFieldModel(global_=writer.onedfields[0])
+onedfieldmodel.filepath = Path('initialwaterdepth.ini')
+fm.geometry.onedfieldfile = [onedfieldmodel]
 
 drrmodel.d3b_parameters['Timestepsize'] = 300
 drrmodel.d3b_parameters['StartTime'] = "'2016/06/01;00:00:00'" # should be equal to refdate for D-HYDRO
