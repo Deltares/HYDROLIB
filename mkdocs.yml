@@ -33,7 +33,9 @@ plugins:
         python:
           rendering:
             show_root_toc_entry: false
+            show_root_heading: false
             show_source: true
+            show_if_no_docstring: false
             show_signature_annotations: true
             heading_level: 3
             show_category_heading: false
