@@ -107,11 +107,7 @@ class DFlowFMModel(Model):
 
         kind, region = hydromt.workflows.parse_region(region, logger=self.logger)
         if kind == "bbox":
-            if crs:
-                geom = gpd.GeoDataFrame(geometry=[box(*region["bbox"])], crs=crs)
-            else:
-                self.logger.info("No crs given with region bbox, assuming 4326.")
-                geom = gpd.GeoDataFrame(geometry=[box(*region["bbox"])], crs=4326)
+            geom = gpd.GeoDataFrame(geometry=[box(*region["bbox"])], crs=4326)
         elif kind == "grid":
             geom = region["grid"].raster.box
         elif kind == "geom":
@@ -164,6 +160,10 @@ class DFlowFMModel(Model):
             gdf_br = update_data_columns_attribute_from_query(
                 gdf_br, spacing, attribute_name="spacing"
             )
+        # Line smoothing for pipes
+        smooth_branches = False
+        if br_type == "pipe":
+            smooth_branches = True
 
         self.logger.info(f"Processing branches")
         branches, branches_nodes = process_branches(
@@ -172,6 +172,7 @@ class DFlowFMModel(Model):
             id_col="branchId",
             snap_offset=snap_offset,
             allow_intersection_snapping=allow_intersection_snapping,
+            smooth_branches=smooth_branches,
             logger=self.logger,
         )
 
@@ -448,6 +449,7 @@ class DFlowFMModel(Model):
         pipes_fn: str,
         pipes_defaults_fn: Union[str, None] = None,
         pipe_filter: Union[str, None] = None,
+        spacing: float = 50,
         friction_type: str = "WhiteColebrook",
         friction_value: float = 0.003,
         crosssections_shape: str = "circle",
@@ -493,6 +495,8 @@ class DFlowFMModel(Model):
             Path to a csv file containing all defaults values per 'branchType'.
         pipe_filter: str, optional
             Keyword in branchType column of pipes_fn used to filter pipe lines. If None all lines in pipes_fn are used (default).
+        spacing, float, optional
+            Spacing value in meters to split the pipes lines into smaller computation units. By default 50 meters.
         friction_type : str, optional
             Type of friction tu use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
             By default "WhiteColeBrook".
@@ -527,7 +531,7 @@ class DFlowFMModel(Model):
 
         # Read the pipes data
         gdf_pipe = self.data_catalog.get_geodataframe(
-            pipes_fn, geom=self.region, buffer=10, predicate="contains"
+            pipes_fn, geom=self.region, predicate="contains"
         )
         # Filter features based on pipe_filter
         if pipe_filter is not None and "branchType" in gdf_pipe.columns:
@@ -580,7 +584,8 @@ class DFlowFMModel(Model):
         allowed_columns = set(_allowed_columns).intersection(gdf_pipe.columns)
         gdf_pipe = gpd.GeoDataFrame(gdf_pipe[allowed_columns], crs=gdf_pipe.crs)
 
-        # Add friction to defaults
+        # Add spacing and friction to defaults
+        defaults["spacing"] = spacing
         defaults["frictionType"] = friction_type
         defaults["frictionValue"] = friction_value
 
@@ -674,7 +679,7 @@ class DFlowFMModel(Model):
         self.set_staticgeoms(pipe_nodes, "pipe_nodes")
 
         # add to branches
-        self.add_branches(pipes, branchtype="pipe")
+        self.add_branches(pipes, branchtype="pipe", node_distance=np.inf)
 
     def _setup_crosssections(
         self,
@@ -1623,7 +1628,12 @@ class DFlowFMModel(Model):
 
         self.logger.debug(f"Updating branches in network.")
 
-    def add_branches(self, new_branches: gpd.GeoDataFrame, branchtype: str):
+    def add_branches(
+        self,
+        new_branches: gpd.GeoDataFrame,
+        branchtype: str,
+        node_distance: float = 40.0,
+    ):
         """Add new branches of branchtype to the branches object"""
         branches = self.branches.copy()
         # Check if "branchType" in new_branches column, else add
@@ -1632,11 +1642,11 @@ class DFlowFMModel(Model):
         branches = branches.append(new_branches, ignore_index=True)
         # Check if we need to do more check/process to make sure everything is well connected
         validate_branches(branches)
-        # Add to dfmmodel network
+        # # Add to dfmmodel network
         mesh.mesh1d_add_branch(
             self.dfmmodel.geometry.netfile.network,
             new_branches.geometry.to_list(),
-            node_distance=40,
+            node_distance=node_distance,
             branch_names=new_branches.branchId.to_list(),
             branch_orders=new_branches.branchOrder.to_list(),
         )

@@ -3,6 +3,7 @@
 import logging
 import geopandas as gpd
 import xarray as xr
+from shapely.geometry import Point
 
 
 logger = logging.getLogger(__name__)
@@ -30,13 +31,13 @@ def invert_levels_from_dem(gdf: gpd.GeoDataFrame, dem: xr.DataArray, depth: int 
     """
     # Upstream
     upnodes = gpd.GeoDataFrame({}, index=gdf.index, crs=gdf.crs)
-    upnodes["geometry"] = [l.coords[0] for l in gdf.geometry]
-    gdf["elevtn_up"] = dem.raster.sample(
-        upnodes
-    ).values  # reproject of dem is done in sample method
+    upnodes["geometry"] = [Point(l.coords[0]) for l in gdf.geometry]
+
+    # reproject of dem is done in sample method
+    gdf["elevtn_up"] = dem.raster.sample(upnodes).values
     # Downstream
     dnnodes = gpd.GeoDataFrame({}, index=gdf.index, crs=gdf.crs)
-    dnnodes["geometry"] = [l.coords[-1] for l in gdf.geometry]
+    dnnodes["geometry"] = [Point(l.coords[-1]) for l in gdf.geometry]
     gdf["elevtn_dn"] = dem.raster.sample(dnnodes).values
 
     # circle profile

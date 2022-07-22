@@ -161,6 +161,7 @@ def process_branches(
     id_col: str = "branchId",
     snap_offset: float = 0.01,
     allow_intersection_snapping: bool = True,
+    smooth_branches: bool = False,
     logger=logger,
 ):
 
@@ -178,7 +179,7 @@ def process_branches(
 
     logger.debug(f"Splitting branches based on spacing")
     # TODO: add check, if spacing is used, then in branch cross section cannot be setup later
-    branches = space_branches(branches, logger=logger)
+    branches = space_branches(branches, smooth_branches=smooth_branches, logger=logger)
 
     logger.debug(f"Generating branchnodes")
     branch_nodes = generate_branchnodes(branches, id_col, logger=logger)
@@ -223,6 +224,14 @@ def cleanup_branches(
     n = np.sum(list(branches_length <= 0.1))
     branches = branches[branches_length >= 0.1]
     logger.debug(f"Removing {n} branches that are shorter than 0.1 meter.")
+    # remove branches with ring geometries
+    first_nodes = [l.coords[0] for l in branches.geometry]
+    last_nodes = [l.coords[-1] for l in branches.geometry]
+    duplicate_ids = np.isclose(first_nodes, last_nodes)
+    duplicate_ids = [
+        branches.index[i] for i in range(len(branches)) if np.all(duplicate_ids[i])
+    ]
+    branches = branches.drop(duplicate_ids, axis=0)
 
     # sort index
     if id_col in [
@@ -295,13 +304,16 @@ def cleanup_branches(
 
 def space_branches(
     branches: gpd.GeoDataFrame,
-    spacing_col="spacing",  # TODO: seperate situation where interpolation is needed and interpolation is not needed
+    spacing_col: str = "spacing",  # TODO: seperate situation where interpolation is needed and interpolation is not needed
+    smooth_branches: bool = False,
     logger=logger,
 ):
     """function to space branches based on spacing_col on branch"""
 
     # split branches based on spacing
-    branches_ = split_branches(branches, spacing_col=spacing_col)
+    branches_ = split_branches(
+        branches, spacing_col=spacing_col, smooth_branches=smooth_branches
+    )
     logger.debug(f"clipping branches into {len(branches_)} segments")
 
     # remove spacing column
@@ -371,6 +383,7 @@ def split_branches(
     branches: gpd.GeoDataFrame,
     spacing_const: float = float("inf"),
     spacing_col: str = None,
+    smooth_branches: bool = False,
     logger=logger,
 ):
     """
@@ -379,7 +392,7 @@ def split_branches(
     If spacing_const is used (overwrite), apply spacing as a constant -  distance used to split branches.
     Raise Error if neither exist.
 
-    NOTE! branch generated will be straight line
+    If ``smooth_branches``, split branches generated will be straight line.
 
     Parameters
     ----------
@@ -388,17 +401,23 @@ def split_branches(
         Constent spacing which will overwrite the spacing_col.
     spacing_col: str
         Name of the column in branchs that contains spacing information.
+    smooth_branches: bool, optional
+        Swith to split branches into straight lines. By default False.
 
     Returns
     split_branches : gpd.GeoDataFrame
-        Branches after split, new ids will be overwritten for the bracn index. Old ids are stored in "OLD_" + index.
+        Branches after split, new ids will be overwritten for the branch index. Old ids are stored in "OLD_" + index.
     """
 
     id_col = branches.index.name
     if spacing_col is None:
         logger.info(f"Splitting branches with spacing of {spacing_const} [m]")
         split_branches = _split_branches_by_spacing_const(
-            branches, spacing_const, id_col=id_col, logger=logger
+            branches,
+            spacing_const,
+            id_col=id_col,
+            smooth_branches=smooth_branches,
+            logger=logger,
         )
 
     elif branches[spacing_col].astype(float).notna().any():
@@ -409,7 +428,10 @@ def split_branches(
         for spacing_subset, branches_subset in branches.groupby(spacing_col):
             if spacing_subset:
                 split_branches_subset = _split_branches_by_spacing_const(
-                    branches_subset, spacing_subset, id_col=id_col
+                    branches_subset,
+                    spacing_subset,
+                    id_col=id_col,
+                    smooth_branches=smooth_branches,
                 )
             else:
                 branches_subset.loc[:, f"ORIG_{id_col}"] = branches_subset[id_col]
@@ -426,9 +448,11 @@ def split_branches(
     return split_branches
 
 
-# fixme BMA: not generic functions
 def _split_branches_by_spacing_const(
-    branches: gpd.GeoDataFrame, spacing_const: float, id_col="BRANCH_ID"
+    branches: gpd.GeoDataFrame,
+    spacing_const: float,
+    id_col: str = "BRANCH_ID",
+    smooth_branches: bool = False,
 ):
     """
     Helper function to split branches based on a given spacing constant.
@@ -440,8 +464,11 @@ def _split_branches_by_spacing_const(
         Constant spacing which will overwrite the spacing_col.
     id_col: str
         Name of the column in branches that contains the id of the branches.
+    smooth_branches: bool, optional
+        Swith to split branches into straight lines. By default False.
 
     Returns
+    -------
     split_branches : gpd.GeoDataFrame
         Branches after split, new ids will be stored in id_col. Original ids are stored in "ORIG_" + id_col.
     """
@@ -473,31 +500,40 @@ def _split_branches_by_spacing_const(
         line = b.geometry
         num_new_lines = int(np.ceil(line.length / spacing_const))
 
-        # interpolate geometry
-        new_edges = split_lines(line, num_new_lines)
-        offsets = np.linspace(0, line.length, num_new_lines + 1)
+        if num_new_lines > 0:
+            # interpolate geometry
+            new_edges = split_lines(line, num_new_lines)
+            if smooth_branches:
+                for i in range(len(new_edges)):
+                    ed = new_edges[i]
+                    new_edges[i] = LineString(
+                        [Point(ed.coords[0]), Point(ed.coords[-1])]
+                    )
+            offsets = np.linspace(0, line.length, num_new_lines + 1)
 
-        # interpolate values
-        edge_geom.extend(new_edges)
-        edge_offset.extend(offsets[1:])
-        if interp_invlev:
-            edge_invertup.extend(
-                np.interp(
-                    offsets[:-1], [0, offsets[-1]], [b.invlev_up, b.invlev_dn]
-                )  # TODO: renaming needed
-            )
-            edge_invertdn.extend(
-                np.interp(offsets[1:], [0, offsets[-1]], [b.invlev_up, b.invlev_dn])
-            )
-        if interp_bedlev:
-            edge_bedlevup.extend(
-                np.interp(offsets[:-1], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn])
-            )
-            edge_bedlevdn.extend(
-                np.interp(offsets[1:], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn])
-            )
-        edge_index.extend([bid + "_E" + str(i) for i in range(len(new_edges))])
-        branch_index.extend([bid] * len(new_edges))
+            # interpolate values
+            edge_geom.extend(new_edges)
+            edge_offset.extend(offsets[1:])
+            if interp_invlev:
+                edge_invertup.extend(
+                    np.interp(
+                        offsets[:-1], [0, offsets[-1]], [b.invlev_up, b.invlev_dn]
+                    )  # TODO: renaming needed
+                )
+                edge_invertdn.extend(
+                    np.interp(offsets[1:], [0, offsets[-1]], [b.invlev_up, b.invlev_dn])
+                )
+            if interp_bedlev:
+                edge_bedlevup.extend(
+                    np.interp(
+                        offsets[:-1], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn]
+                    )
+                )
+                edge_bedlevdn.extend(
+                    np.interp(offsets[1:], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn])
+                )
+            edge_index.extend([bid + "_E" + str(i) for i in range(len(new_edges))])
+            branch_index.extend([bid] * len(new_edges))
 
     edges = gpd.GeoDataFrame(
         {
