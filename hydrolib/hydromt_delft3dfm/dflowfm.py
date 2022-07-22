@@ -16,6 +16,7 @@ from hydromt import gis_utils, io, raster
 from hydromt.models.model_api import Model
 from rasterio.warp import transform_bounds
 from shapely.geometry import box, Point
+from datetime import datetime, timedelta
 
 from hydrolib.core.io.crosssection.models import *
 from hydrolib.core.io.friction.models import *
@@ -682,6 +683,185 @@ class DFlowFMModel(Model):
         # 4. set boundaries
         self.set_boundaries(boundaries_branch_type)
 
+
+    def setup_boundary_timeseries(self,
+                                boundaries_geodataset_fn:str,
+                                branch_type: str,
+                                boundary_type:str,
+                                boundaries_timeseries_fn: str = None,
+                                snap_offset:float = 1.0):
+        """
+        Prepares the 1D boundaries to branches using timeseries for a specific ``branch_type``
+
+        Use ``boundaries_geodataset_fn`` to set the boundary from a dataset of point location
+        timeseries. Only locations within the model region + 10m are selected. They are snapped to the model
+        boundary locations within a max distance defined in ``snap_offset``.
+
+        The dataset/timeseries are clipped to the model time based on the model config
+        tstart and tstop entries.
+
+        Adds/Updates model layers:
+                * **boundaries** geom: 1D boundaries vector
+
+        Parameters
+        ----------
+        boundaries_geodataset_fn: str, Path
+            Path or data source name for geospatial point timeseries file.
+            This can either be a netcdf file with geospatial coordinates
+            or a combined point location file with a timeseries data csv file
+            which can be setup through the data_catalog yml file.
+
+            * Required variables if netcdf: ['discharge', 'waterlevel'] depending on ``boundary_type``
+            * Required coordinates if netcdf: ['time', 'index', 'y', 'x']
+
+            * Required variables if a combined point location file: ['index'] with type int
+            * Required index types if a time series data csv file: int
+        branch_type: str
+            Type of branch to apply boundaries on. One of ["river", "pipe"].
+        boundary_type : str
+            Type of boundary tu use. One of ["waterlevel", "discharge"].
+            By default "waterlevel".
+        boundaries_fn: str
+             Name of data source for boundaries parameters, see data/data_sources.yml. Allowed geometry type: Points.
+             Note only the points that are within the region polygon + 10m buffer will be used.
+             * Optional variables: [boundary_type, boundary_value, boundary_unit]
+        boundaries_timeseries_fn: str, Path
+            Path to tabulated timeseries csv file with time index in first column
+            and location IDs in the first row,
+            see :py:meth:`hydromt.open_timeseries_from_table`, for details.
+            NOTE: tabulated timeseries files can only in combination with point location
+            coordinates be set as a geodataset in the data_catalog yml file.
+        snap_offset : float, optional
+        	Snapping tolerance to automatically applying boundaries at the correct network nodes.
+            By default 0.1, a small snapping is applied to avoid precision errors.
+        """
+
+        self.logger.info(f"Preparing 1D boundaries timeseries.")
+        boundaries = self.boundaries.copy()
+        refdate, tstart, tstop = self.get_model_time()  # time slice
+
+        # 1. get potential boundary locations based on branch_type
+        boundaries_branch_type = boundaries.loc[boundaries["branchType"] == branch_type, :]
+
+        # 2. read boundary from user data
+        # TODO support time series data
+        da_bnd = (
+            self.data_catalog.get_geodataset(
+                boundaries_geodataset_fn,
+                geom=self.region,
+                variables=[boundary_type],
+                time_tuple=(tstart, tstop),
+                crs=self.crs.to_epsg(),  # assume model crs if none defined
+                # **kwargs,
+            )
+                # .fillna(0.0)
+                .rename(boundary_type)
+        )
+        # convert to location
+        gdf_bnd = da_bnd.vector.to_gdf()
+        gdf_bnd["_index"] = gdf_bnd.index
+
+        # snap user boundary to potential boundary locations
+        boundaries_branch_type = hydromt.gis_utils.nearest_merge(boundaries_branch_type, gdf_bnd,
+                                                     max_dist=snap_offset,
+                                                     overwrite=True,
+                                                     ) # _index will be float
+
+        # add external forcing columns
+        boundaries_branch_type["extforcing_nodeId"] = boundaries_branch_type["nodeId"]
+        boundaries_branch_type["extforcing_quantity"] = boundary_type
+
+        # add forcing file columns
+        boundaries_branch_type["forcing_name"] = boundaries_branch_type["nodeId"]
+        boundaries_branch_type["forcing_function"] = "timeseries"
+        boundaries_branch_type["forcing_timeInterpolation"] = "linear"
+        boundaries_branch_type["forcing_quantityunitpair"] = boundaries_branch_type["boundary_type"] + 'bnd_' + boundaries_branch_type["boundary_unit"]
+        boundaries_branch_type["forcing_datablock"] = boundaries_branch_type["boundary_value"]
+
+        # 3. validate boundaries
+        if branch_type == 'river':
+            validate_boundaries(boundaries_branch_type, branch_type=branch_type)
+
+        # 4. set boundaries
+        self.set_boundaries(boundaries_branch_type)
+        self.set_forcing(da_bnd, name = 'boundary')
+
+
+    def set_forcing_1d(self, name, ts=None, xy=None):
+        """Set 1D forcing and update staticgoms and config accordingly.
+
+        For waterlevel and discharge forcing point locations are required to set the
+        combined src/dis and bnd/bzs files. If only point locations (and no timeseries)
+        are given a dummy timeseries with zero values is set.
+
+        If ts and xy are both None, the
+
+        Parameters
+        ----------
+        name: {'waterlevel', 'discharge', 'precip'}
+            Name of forcing type.
+        ts: pandas.DataFrame, xarray.DataArray
+            Timeseries data. If DataArray it should contain time and index dims; if
+            DataFrame the index should be a datetime index and the columns the location
+            index.
+        xy: geopandas.GeoDataFrame
+            Forcing point locations
+        """
+        fname, gname = self._FORCING.get(name, (None, None))
+        if fname is None:
+            names = [f[0] for f in self._FORCING.values() if "net" not in f[0]]
+            raise ValueError(f'Unknown forcing "{name}", select from {names}')
+        # sort out ts and xy types
+        if isinstance(ts, (pd.DataFrame, pd.Series)):
+            assert np.dtype(ts.index).type == np.datetime64
+            ts.index.name = "time"
+            if isinstance(ts, pd.DataFrame):
+                ts.columns.name = "index"
+                ts = xr.DataArray(ts, dims=("time", "index"), name=fname)
+            else:  # spatially uniform forcing
+                ts = xr.DataArray(ts, dims=("time"), name=fname)
+        if isinstance(xy, gpd.GeoDataFrame):
+            if ts is not None:
+                ts = GeoDataArray.from_gdf(xy, ts, index_dim="index")
+            else:
+                ts = self._dummy_ts(xy, name, fill_value=0)  # dummy timeseries
+            for c in xy.columns:
+                if c in ["geometry", ts.vector.index_dim]:
+                    continue
+                ts[c] = xr.IndexVariable("index", xy[c].values)
+        if not isinstance(ts, xr.DataArray):
+            raise ValueError(
+                f"{name} forcing: Unknown type for ts {type(ts)} should be xarray.DataArray."
+            )
+        # check if locations (bzs / dis)
+        if gname is not None:
+            assert len(ts.dims) == 2
+            # make sure time is on last dim
+            ts = ts.transpose(ts.vector.index_dim, ts.vector.time_dim)
+            # set crs
+            if ts.vector.crs is None:
+                ts.vector.set_crs(self.crs.to_epsg())
+            elif ts.vector.crs != self.crs:
+                ts = ts.vector.to_crs(self.crs.to_epsg())
+            # fix order based on x_dim after setting crs (for comparability between OS)
+            ts = ts.sortby([ts.vector.x_dim, ts.vector.y_dim], ascending=True)
+            # reset index
+            dim = ts.vector.index_dim
+            ts[dim] = xr.IndexVariable(dim, np.arange(1, ts[dim].size + 1, dtype=int))
+            n = ts.vector.index.size
+            self.logger.debug(f"{name} forcing: setting {gname} data for {n} points.")
+        else:
+            if not (len(ts.dims) == 1 and "time" in ts.dims):
+                raise ValueError(
+                    f"{name} forcing: uniform forcing should have single 'time' dimension."
+                )
+
+        # set forcing
+        self.logger.debug(f"{name} forcing: setting {fname} data.")
+        ts.attrs.update(**self._ATTRS.get(fname, {}))
+        self.set_forcing(ts, fname)
+
+
     def read(self):
         """Method to read the complete model schematization and configuration from file."""
         self.logger.info(f"Reading model data from {self.root}")
@@ -1057,3 +1237,10 @@ class DFlowFMModel(Model):
             task_last = lambda s1, s2: s2
             boundaries = self.boundaries.combine(boundaries, func=task_last, overwrite=True)
         self.set_staticgeoms(boundaries, name="boundaries")
+
+    def get_model_time(self):
+        """Return (refdate, tstart, tstop) tuple with parsed model reference datem start and end time"""
+        refdate = datetime.strptime(str(self.get_config('Time.refDate')), '%Y%m%d')
+        tstart = refdate + timedelta(seconds = float(self.get_config('Time.tStart')))
+        tstop = refdate + timedelta(seconds = float(self.get_config('Time.tStop')))
+        return refdate, tstart, tstop
