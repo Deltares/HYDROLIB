@@ -76,7 +76,7 @@ def inun_dhydro(
         results.append("1d_meshnodes")
     if domain.upper() != "2D" and filter == True:
         results.append("1d_branches")
-    if domain.upper() != "1D" and filter == True:
+    if domain.upper() != "1D":
         results.append("2d_faces")
 
     # add to geometry to 1D and 2D
@@ -144,7 +144,6 @@ def inun_dhydro(
 
     # create template array
     nan_array = np.empty((len(dtm), len(dtm[0]))).astype("float32")
-    nan_array[:] = np.nan
 
     with rasterio.open(
         os.path.join(output_folder, "waterdepth.tif"), "w", **meta
@@ -153,6 +152,7 @@ def inun_dhydro(
         if type == "depth":
             print("Exporteren van modelresultaten.")
             areas = ((geom, value) for geom, value in zip(gdf2.geometry, gdf2["max"]))
+            nan_array[:] = np.nan
             values = features.rasterize(
                 shapes=areas, fill=np.nan, out=nan_array, transform=out.transform
             )
@@ -179,6 +179,7 @@ def inun_dhydro(
                     (geom, value)
                     for geom, value in zip(gdf1_area.geometry, gdf1_area["max"])
                 )
+                nan_array[:] = np.nan
                 values1D = features.rasterize(
                     shapes=areas1D, fill=np.nan, out=nan_array, transform=out.transform
                 )
@@ -189,6 +190,7 @@ def inun_dhydro(
                 areas2D = (
                     (geom, value) for geom, value in zip(gdf2.geometry, gdf2["max"])
                 )
+                nan_array[:] = np.nan
                 values2D = features.rasterize(
                     shapes=areas2D, fill=np.nan, out=nan_array, transform=out.transform
                 )
@@ -239,6 +241,7 @@ def inun_dhydro(
                             inun2D_gdf_sel.geometry, inun2D_gdf_sel["dum"]
                         )
                     )
+                    nan_array[:] = np.nan
                     filter2D = rasterio.features.rasterize(
                         shapes=shapes, fill=0, out=nan_array, transform=out.transform
                     )
@@ -293,6 +296,7 @@ def inun_dhydro(
                             inun1D_gdf_sel.geometry, inun1D_gdf_sel["dum"]
                         )
                     )
+                    nan_array[:] = np.nan
                     filter1D = rasterio.features.rasterize(
                         shapes=shapes, fill=0, out=nan_array, transform=out.transform
                     )
@@ -329,6 +333,6 @@ if __name__ == "__main__":
         dtm_path=dtm_path,
         sdate="",
         edate="",
-        domain="1D",
+        domain="",
         filter=True,
     )
