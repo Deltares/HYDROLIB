@@ -9,9 +9,9 @@ import pandas as pd
 import rasterio
 from geovoronoi import points_to_coords, voronoi_regions_from_coords
 from rasterio import features
+from read_dhydro import net_nc2gdf, read_nc_data
 from shapely.geometry import box
 
-from read_dhydro import net_nc2gdf, read_nc_data
 
 def inun_dhydro(
     nc_path,
@@ -83,11 +83,19 @@ def inun_dhydro(
         raise ("Onbekend type: " + str(type))
 
     # filter data based on time
-    sdata = min(df1.index.min() if len(df1>0) else datetime(9999, 1, 1),df2.index.min() if len(df2>0) else datetime(9999, 1, 1),df3.index.min() if len(df3>0) else datetime(9999, 1, 1))
-    edata = max(df1.index.max() if len(df1>0) else datetime(1, 1, 1),df2.index.max() if len(df2>0) else datetime(1, 1, 1),df3.index.max() if len(df3>0) else datetime(1, 1, 1))
+    sdata = min(
+        df1.index.min() if len(df1 > 0) else datetime(9999, 1, 1),
+        df2.index.min() if len(df2 > 0) else datetime(9999, 1, 1),
+        df3.index.min() if len(df3 > 0) else datetime(9999, 1, 1),
+    )
+    edata = max(
+        df1.index.max() if len(df1 > 0) else datetime(1, 1, 1),
+        df2.index.max() if len(df2 > 0) else datetime(1, 1, 1),
+        df3.index.max() if len(df3 > 0) else datetime(1, 1, 1),
+    )
     if sdate != "":
         if sdate > edata:
-            raise("start date later then end date in model results")
+            raise ("start date later then end date in model results")
         if len(df1) > 0:
             df1 = df1[df1.index >= datetime.strptime(sdate, "%Y/%m/%d")]
         if len(df2) > 0:
@@ -96,7 +104,7 @@ def inun_dhydro(
             df3 = df3[df3.index >= datetime.strptime(sdate, "%Y/%m/%d")]
     if edate != "":
         if edate < sdata:
-            raise("end date earlier then start date in model results")
+            raise ("end date earlier then start date in model results")
         if len(df1) > 0:
             df1 = df1[df1.index <= datetime.strptime(edate, "%Y/%m/%d")]
         if len(df2) > 0:
@@ -139,28 +147,35 @@ def inun_dhydro(
         # correct possible wrong nodata
         dtm[dtm <= -999] = np.nan
         dtm[dtm >= 9999] = np.nan
-        #geom_dtm = Polygon([(src.bounds.left,src.bounds.top),(src.bounds.right,src.bounds.top),(src.bounds.right,src.bounds.bottom),(src.bounds.left,src.bounds.bottom)])
-        geom_dtm = box(src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top)
+        # geom_dtm = Polygon([(src.bounds.left,src.bounds.top),(src.bounds.right,src.bounds.top),(src.bounds.right,src.bounds.bottom),(src.bounds.left,src.bounds.bottom)])
+        geom_dtm = box(
+            src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top
+        )
 
     # create voronois for 1D
     if len(gdf1) > 0:
         # select points outside 2D
-        if len(gdf2)>0 and filter == True: # without filtering this will result in wrong results
+        if (
+            len(gdf2) > 0 and filter == True
+        ):  # without filtering this will result in wrong results
             gdf1_sel = gdf1[~gdf1.geometry.within(gdf2.geometry.unary_union)]
         else:
             gdf1_sel = gdf1
         coords = points_to_coords(gdf1_sel.geometry)
-        #gdf1_sel = gdf1[~gdf1.geometry.within(geom_dtm)]
-        geom_areas = pd.concat([gpd.GeoDataFrame(geometry=[geom_dtm.buffer(geom_dtm.area**0.5/10)]), gpd.GeoDataFrame(geometry=[gdf1.unary_union.envelope])]).geometry.unary_union
-        vr_area, vr_points, vr_links = voronoi_regions_from_coords(coords, geom_areas) 
+        # gdf1_sel = gdf1[~gdf1.geometry.within(geom_dtm)]
+        geom_areas = pd.concat(
+            [
+                gpd.GeoDataFrame(geometry=[geom_dtm.buffer(geom_dtm.area ** 0.5 / 10)]),
+                gpd.GeoDataFrame(geometry=[gdf1.unary_union.envelope]),
+            ]
+        ).geometry.unary_union
+        vr_area, vr_points, vr_links = voronoi_regions_from_coords(coords, geom_areas)
         gdf1_area = gpd.GeoDataFrame(geometry=vr_area, crs=EPSG)
         # clip 2D results out of 1D results
         if len(gdf2) > 0:
             gdf1_area = gdf1_area.overlay(
                 gdf2, how="difference", keep_geom_type=True
-            ).explode(
-                ignore_index=True
-            ) 
+            ).explode(ignore_index=True)
         gdf1_area = gpd.sjoin(gdf1_area, gdf1_sel, how="inner", predicate="intersects")
         gdf1_area.drop(columns=["index_right"], inplace=True)
     else:
@@ -175,7 +190,7 @@ def inun_dhydro(
 
     # extrapolate 2D waterlevels, only when using waterlevel
     if len(gdf2) > 0:
-        if type == "level" and extrapol>0:
+        if type == "level" and extrapol > 0:
             gdf2_buf = gpd.GeoDataFrame(
                 gdf2.copy(), geometry=gdf2.buffer(gdf2.area ** 0.5 * extrapol), crs=EPSG
             )
@@ -219,7 +234,8 @@ def inun_dhydro(
                 inun1D = np.where(inun1D <= 0, np.nan, inun1D)
             if len(gdf2_extp) > 0:
                 areas2D = (
-                    (geom, value) for geom, value in zip(gdf2_extp.geometry, gdf2_extp["max"])
+                    (geom, value)
+                    for geom, value in zip(gdf2_extp.geometry, gdf2_extp["max"])
                 )
                 nan_array[:] = np.nan
                 values2D = features.rasterize(
@@ -366,5 +382,5 @@ if __name__ == "__main__":
         edate="",
         domain="",
         filter=True,
-        extrapol = 1.0
+        extrapol=1.0,
     )
