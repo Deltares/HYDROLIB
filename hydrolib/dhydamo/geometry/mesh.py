@@ -8,9 +8,6 @@ from hydrolib.dhydamo.geometry import common
 from hydrolib.dhydamo.geometry.models import GeometryList
 
 
-
-
-
 def mesh2d_add_rectilinear(
     network: Network,
     polygon: Union[Polygon, MultiPolygon],
@@ -172,6 +169,8 @@ def mesh1d_add_branch(
 ) -> None:
     """Add branch to 1d mesh, from a (list of) (Multi)LineString geometry.
     The branch is discretized with the given node distance.
+    if node distance is given as inifinity, no discretization will be performed at mid point of the branch,
+    i.e. branch is treated as a pipe
 
     Args:
         network (Network): Network to which the branch is added
@@ -180,13 +179,26 @@ def mesh1d_add_branch(
         branch_names (Union[str, list[str]]): Branch names to be used in the mesh1d object
         branch_orfers (Union[float, int, list[Union[float, int]]]): Branch orders to be used in the mesh1d object
     """
-    if branch_names is None and branch_orders is None:
-        for line in common.as_linestring_list(branches):
-            branch = Branch(geometry=np.array(line.coords[:]))
-            branch.generate_nodes(node_distance)
-            network.mesh1d_add_branch(branch)
+
+    if node_distance == np.inf:
+        force_midpoint = False
     else:
-        for line, branch_name, branch_order in zip(common.as_linestring_list(branches), branch_names, branch_orders):
-            branch = Branch(geometry=np.array(line.coords[:]))
-            branch.generate_nodes(node_distance)
-            network.mesh1d_add_branch(branch, name=branch_name, branch_order=int(branch_order))
+        force_midpoint = True
+
+    if branch_names is None:
+        branch_names = np.repeat(None, len(branches))
+
+    if branch_orders is None:
+        branch_orders = np.repeat(-1, len(branches))
+
+    for line, branch_name, branch_order in zip(
+        common.as_linestring_list(branches), branch_names, branch_orders
+    ):
+        branch = Branch(geometry=np.array(line.coords[:]))
+        branch.generate_nodes(node_distance)
+        network.mesh1d_add_branch(
+            branch,
+            name=branch_name,
+            branch_order=int(branch_order),
+            force_midpoint=force_midpoint,
+        )

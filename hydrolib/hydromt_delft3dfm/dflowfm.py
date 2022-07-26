@@ -449,39 +449,37 @@ class DFlowFMModel(Model):
         pipes_fn: str,
         pipes_defaults_fn: Union[str, None] = None,
         pipe_filter: Union[str, None] = None,
-        spacing: float = 50,
+        spacing: float = np.inf,
         friction_type: str = "WhiteColebrook",
         friction_value: float = 0.003,
         crosssections_shape: str = "circle",
         crosssections_value: Union[int, list] = 0.5,
         dem_fn: Union[str, None] = None,
-        pipes_depth: int = -2.0,
-        pipes_invlev: int = -2.5,
+        pipes_depth: float = 2.0,
+        pipes_invlev: float = -2.5,
         snap_offset: float = 0.0,
         allow_intersection_snapping: bool = True,
     ):
         """Prepares the 1D pipes and adds to 1D branches.
 
-        1D pipes must contain valid geometry, friction, crosssections and up- and downstream invert levels.
+        1D pipes must contain valid geometry, friction and crosssections.
 
-        The pipe geometry is read from ``pipes_fn``. If defaults attributes
-        [branchOrder, spacing, material] are not present in ``pipes_fn``,
-        they are added from defaults values in ``pipes_defaults_fn``. For branchId and branchType, they are created on the fly
-        if not available in pipes_fn ("pipe" for Type and "pipe_{i}" for Id).
+        The pipe geometry is read from ``pipes_fn``.
+        if branchType is present in ``pipes_fn``, it is possible to filter pipe geometry using an additional filter specificed in``pipe_filter``.
+        If defaults attributes ["branchOrder"] are not present in ``pipes_fn``, they are added from defaults values in ``pipes_defaults_fn``.
+        For branchId and branchType, if they are not present in ``pipes_fn``, they are created on the fly ("pipe" for branchType and "pipe_{i}" for branchId).
+        The pipe geometry can be processed using splitting based on ``spacing``.
 
-        Friction attributes are either taken from ``pipes_fn`` or filled in using ``friction_type`` and
+        Friction attributes ["frictionType", "frictionValue"] are either taken from ``pipes_fn`` or filled in using ``friction_type`` and
         ``friction_value`` arguments.
         Note for now only branch friction or global friction is supported.
 
-        Crosssections attributes are either taken from ``pipes_fn`` attributes ["shape", "diameter", "width", "height"]
-        or filled in using ``crosssections_shape`` and ``crosssections_value``.
-
-        Up- and downstream invert levels are either taken from ``pipes_fn`` ["invlev_up", "invlev_dn"], or derived from ``dem_fn``
-        minus a fixed depth ``pipe_depth`` [m], or from a constant ``pipe_invlev`` [m asl] (not recommended! should be edited before a model run).
+        Crosssections definition attributes ["shape", "diameter", "width", "height", "closed"] are either taken from ``pipes_fn`` or filled in using ``crosssections_shape`` and ``crosssections_value``.
+        Crosssections location attributes ["invlev_up", "invlev_dn"] are either taken from ``pipes_fn``, or derived from ``dem_fn`` minus a fixed depth ``pipe_depth`` [m], or from a constant ``pipe_invlev`` [m asl] (not recommended! should be edited before a model run).
 
         Adds/Updates model layers:
 
-        * **rivers** geom: 1D rivers vector
+        * **pipes** geom: 1D pipes vector
         * **branches** geom: 1D branches vector
         * **crosssections** geom: 1D crosssection vector
 
@@ -490,34 +488,36 @@ class DFlowFMModel(Model):
         pipes_fn : str
             Name of data source for pipes parameters, see data/data_sources.yml.
             Note only the lines that are within the region polygon + 10m buffer will be used.
-            * Optional variables: [branchId, branchType, branchOrder, spacing, material, friction_type, friction_value, shape, diameter, width, height, invlev_up, invlev_dn]
+            * Optional variables: [branchId, branchType, branchOrder, spacing, frictionType, frictionValue, shape, diameter, width, height, closed, invlev_up, invlev_dn]
+            #TODO: material table is used for friction which is not implemented
         pipes_defaults_fn : str Path
-            Path to a csv file containing all defaults values per 'branchType'.
+            Path to a csv file containing all defaults values per "branchType"'".
         pipe_filter: str, optional
             Keyword in branchType column of pipes_fn used to filter pipe lines. If None all lines in pipes_fn are used (default).
         spacing, float, optional
-            Spacing value in meters to split the pipes lines into smaller computation units. By default 50 meters.
+            Spacing value in meters to split the long pipelines lines into shorter pipes. By default inf - no splitting is applied.
         friction_type : str, optional
-            Type of friction tu use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
+            Type of friction to use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
             By default "WhiteColeBrook".
         friction_value : float, optional.
-            Units corresponding to [friction_type] are ["Chézy C [m 1/2 /s]", "Manning n [s/m 1/3 ]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Strickler k_s [m 1/3 /s]", "De Bos-Bijkerk γ [1/s]"]
+            Units corresponding to ''friction_type'' are ["Chézy C [m 1/2 /s]", "Manning n [s/m 1/3 ]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Strickler k_s [m 1/3 /s]", "De Bos-Bijkerk γ [1/s]"]
             Friction value. By default 0.003.
         crosssections_shape : str, optional
             Shape of pipe crosssections. Either "circle" (default) or "rectangle".
         crosssections_value : int or list of int, optional
             Crosssections parameter value.
             If ``crosssections_shape`` = "circle", expects a diameter (default with 0.5 m) [m]
-            If ``crosssections_shape`` = "rectangle", expects a list with [width, height] (e.g. [1.0, 1.0]) [m]
+            If ``crosssections_shape`` = "rectangle", expects a list with [width, height] (e.g. [1.0, 1.0]) [m]. closed rectangle by default.
         dem_fn: str, optional
             Name of data source for dem data. Used to derive default invert levels values (DEM - pipes_depth - pipes diameter/height).
             * Required variables: [elevtn]
-        pipes_depth: int, optional
-            Depth of the pipes in the ground [m] (default -2.0 m). Used to derive defaults invert levels values (DEM - pipes_depth - pipes diameter/height).
-        pipes_invlev: int, optional
-            Constant default invert levels of the pipes [m asl] (default -2.5 m asl). This is not a recommended method.
+            # FIXME: dem method can have remaining nan values. For now no interpolation method is used for filling in nan value. Use ``pipes_invlev`` to further fill in nodata.
+        pipes_depth: float, optional
+            Depth of the pipes underground [m] (default 2.0 m). Used to derive defaults invert levels values (DEM - pipes_depth - pipes diameter/height).
+        pipes_invlev: float, optional
+            Constant default invert levels of the pipes [m asl] (default -2.5 m asl). This method is recommended to be used together with the dem method to fill remaining nan values. It slone is not a recommended method.
         snap_offset: float, optional
-            Snapping tolenrance to automatically connecting branches.
+            Snapping tolenrance to automatically connecting branches. Tolenrance must be smaller than the shortest pipe length.
             By default 0.0, no snapping is applied.
         allow_intersection_snapping: bool, optional
             Switch to choose whether snapping of multiple branch ends are allowed when ``snap_offset`` is used.
@@ -526,13 +526,18 @@ class DFlowFMModel(Model):
         See Also
         ----------
         dflowfm._setup_branches
+        dflowfm._setup_crosssections
         """
+
         self.logger.info(f"Preparing 1D pipes.")
 
         # Read the pipes data
         gdf_pipe = self.data_catalog.get_geodataframe(
-            pipes_fn, geom=self.region, predicate="contains"
+            pipes_fn, geom=self.region, buffer=10, predicate="contains"
         )
+        # reproject
+        gdf_pipe = gdf_pipe.to_crs(self.crs)
+
         # Filter features based on pipe_filter
         if pipe_filter is not None and "branchType" in gdf_pipe.columns:
             gdf_pipe = gdf_pipe[gdf_pipe["branchType"] == pipe_filter]
@@ -555,6 +560,26 @@ class DFlowFMModel(Model):
         gdf_pipe.index = gdf_pipe[id_col]
         gdf_pipe.index.name = id_col
 
+        # filter for allowed columns
+        _allowed_columns = [
+            "geometry",
+            "branchId",
+            "branchType",
+            "branchOrder",
+            "material",
+            "spacing",
+            "frictionType",
+            "frictionValue",
+            "shape",  # circle or rectangle
+            "diameter",  # circle
+            "width",  # rectangle
+            "height",  # rectangle
+            "invlev_up",
+            "inlev_dn",
+        ]
+        allowed_columns = set(_allowed_columns).intersection(gdf_pipe.columns)
+        gdf_pipe = gpd.GeoDataFrame(gdf_pipe[allowed_columns], crs=gdf_pipe.crs)
+
         # assign default attributes
         if pipes_defaults_fn is None or not pipes_defaults_fn.is_file():
             self.logger.warning(
@@ -566,26 +591,10 @@ class DFlowFMModel(Model):
         defaults = pd.read_csv(pipes_defaults_fn)
         self.logger.info(f"pipe default settings read from {pipes_defaults_fn}.")
 
-        # filter for allowed columns
-        _allowed_columns = [
-            "geometry",
-            "branchId",
-            "branchType",
-            "branchOrder",
-            "material",
-            "spacing",
-            "shape",  # circle or rectangle
-            "diameter",  # circle
-            "width",  # rectangle
-            "height",  # rectangle
-            "invlev_up",
-            "inlev_dn",
-        ]
-        allowed_columns = set(_allowed_columns).intersection(gdf_pipe.columns)
-        gdf_pipe = gpd.GeoDataFrame(gdf_pipe[allowed_columns], crs=gdf_pipe.crs)
-
-        # Add spacing and friction to defaults
+        # Add spacing o defaults
         defaults["spacing"] = spacing
+
+        # add friction to defaults
         defaults["frictionType"] = friction_type
         defaults["frictionValue"] = friction_value
 
@@ -604,6 +613,9 @@ class DFlowFMModel(Model):
             if isinstance(crosssections_value, list) and len(crosssections_value) == 2:
                 defaults["shape"] = crosssections_shape
                 defaults["width"], defaults["height"] = crosssections_value
+                defaults[
+                    "closed"
+                ] = "yes"  # default rectangle crosssection for pipes are closed
             else:
                 # TODO: warning or error?
                 self.logger.warning(
@@ -621,17 +633,19 @@ class DFlowFMModel(Model):
             gdf_br=gdf_pipe,
             defaults=defaults,
             br_type="pipe",
-            spacing=None,  # for now only single default value implemented
+            spacing=None,  # for now only single default value implemented, use "spacing" column
             snap_offset=snap_offset,
             allow_intersection_snapping=allow_intersection_snapping,
         )
 
+        # setup roughness
         # Add friction_id column based on {friction_type}_{friction_value}
         pipes["frictionId"] = [
             f"{ftype}_{fvalue}"
             for ftype, fvalue in zip(pipes["frictionType"], pipes["frictionValue"])
         ]
 
+        # setup crosssections
         # setup invert levels
         # 1. check if invlev up and dn are fully filled in (nothing needs to be done)
         if "invlev_up" and "invlev_dn" in pipes.columns:
@@ -646,16 +660,20 @@ class DFlowFMModel(Model):
         else:
             fill_invlev = True
             self.logger.info(
-                f"{pipes_fn} does not have columns [invlev_up, invlev_dn]. INvert levels will be generated from dem_fn or default value {pipes_invlev}"
+                f"{pipes_fn} does not have columns [invlev_up, invlev_dn]. Invert levels will be generated from dem_fn or default value {pipes_invlev}"
             )
-        # 2. else use dem_fn + pipe_depth
+        # 2. filling use dem_fn + pipe_depth
         if fill_invlev and dem_fn is not None:
             dem = self.data_catalog.get_rasterdataset(
                 dem_fn, geom=self.region, variables=["elevtn"]
             )
             pipes = invert_levels_from_dem(gdf=pipes, dem=dem, depth=pipes_depth)
-        # 3. else use default value
-        else:
+            if pipes[["invlev_up", "invlev_dn"]].isnull().sum().sum() > 0:
+                fill_invlev = True
+            else:
+                fill_invlev = False
+        # 3. filling use pipes_invlev
+        if fill_invlev and pipes_invlev is not None:
             self.logger.warning(
                 "!Using a constant up and down invert levels for all pipes. May cause issues when running the delft3dfm model.!"
             )
@@ -676,10 +694,12 @@ class DFlowFMModel(Model):
         # setup staticgeoms
         self.logger.debug(f"Adding pipes and pipe_nodes vector to staticgeoms.")
         self.set_staticgeoms(pipes, "pipes")
-        self.set_staticgeoms(pipe_nodes, "pipe_nodes")
+        self.set_staticgeoms(pipe_nodes, "pipe_nodes")  # TODO: for manholes
 
         # add to branches
-        self.add_branches(pipes, branchtype="pipe", node_distance=np.inf)
+        self.add_branches(
+            pipes, branchtype="pipe", node_distance=np.inf
+        )  # use node_distance to generate computational nodes at pipe ends only
 
     def _setup_crosssections(
         self,
@@ -1532,7 +1552,7 @@ class DFlowFMModel(Model):
         gpd_crsdef = gpd_crsdef.rename(
             columns={c: c.split("_")[1] for c in gpd_crsdef.columns}
         )
-        # TODO: check if CrossDefModel drops duplicates definitionId else drop here first
+        gpd_crsdef = gpd_crsdef.drop_duplicates(subset="id")
         crsdef = CrossDefModel(definition=gpd_crsdef.to_dict("records"))
         self.dfmmodel.geometry.crossdeffile = crsdef
 
