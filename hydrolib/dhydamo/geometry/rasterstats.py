@@ -8,6 +8,10 @@ import PIL.Image
 import PIL.ImageDraw
 import rasterio
 
+from rasterio.windows import Window
+from pathlib import Path
+from typing import Union
+
 from hydrolib.dhydamo.geometry import common
 
 logger = logging.getLogger(__name__)
@@ -18,10 +22,10 @@ class RasterPart:
     def __init__(self, f, xmin, ymin, xmax, ymax):
         self.f = f
         # Indices, not coordinates
-        self.xmin = xmin
-        self.xmax = xmax
-        self.ymin = ymin
-        self.ymax = ymax
+        self.xmin = max(xmin, 0)
+        self.xmax = min(xmax, self.f.shape[1])
+        self.ymin = max(ymin, 0)
+        self.ymax = min(ymax, self.f.shape[0])
 
         self.set_window()
 
@@ -29,12 +33,14 @@ class RasterPart:
 
     @classmethod
     def from_bounds(cls, f, bnds):
+        # Convert xy bounds to indices
         idxs = list(f.index(bnds[0], bnds[1]))[::-1] + list(f.index(bnds[2], bnds[3]))[::-1]
         return cls(f, min(idxs[0], idxs[2]), min(idxs[1], idxs[3]), max(idxs[0], idxs[2]), max(idxs[1], idxs[3]))
 
     def set_window(self):
-        self.window = ((self.ymin, self.ymax), (self.xmin, self.xmax))
+        self.window = Window(col_off=self.xmin, row_off=self.ymin, width=(self.xmax - self.xmin), height=(self.ymax - self.ymin))
         self.shape = (self.ymax - self.ymin, self.xmax - self.xmin)
+
 
     def get_corners(self):
         x0 = self.f.xy(self.ymax, self.xmin)[0]
@@ -52,7 +58,8 @@ class RasterPart:
         return x, y
 
     def read(self, layeridx):
-        return self.f.read(layeridx, window=self.window)
+        arr = self.f.read(layeridx, window=self.window)
+        return arr
 
     def get_pts_in_part(self, pts, buffer=0):
         self.get_corners()
@@ -107,13 +114,21 @@ def get_mask(linestring, lowerleft, cellsize, shape, outline=1):
     return mask
 
 
-def raster_in_parts(f, ncols, nrows, facedata=None):
-    """
-    Certain rasters are too big to read into memory at once.
+def raster_in_parts(f: rasterio.io.DatasetReader, ncols: int, nrows: int, facedata) -> RasterPart:
+    """Certain rasters are too big to read into memory at once.
     This function helps splitting them in equal parts of (+- ncols x nrows pixels)
 
     If facedata is given, each part is extended such that whole faces
     are covered by the parts
+    
+    Args:
+        f (_type_): _description_
+        ncols (_type_): _description_
+        nrows (_type_): _description_
+        facedata (_type_): _description_
+
+    Yields:
+        _type_: _description_
     """
     nx = max(1, f.shape[1] // ncols)
     ny = max(1, f.shape[0] // nrows)
@@ -134,9 +149,9 @@ def raster_in_parts(f, ncols, nrows, facedata=None):
             if not idx.any():
                 continue
 
-            crds = facedata['crds']
-            ll = list(zip(*[crds[i].min(axis=0) for i in np.where(idx)[0] + 1]))
-            ur = list(zip(*[crds[i].max(axis=0) for i in np.where(idx)[0] + 1]))
+            crds = facedata['crds'].tolist()
+            ll = list(zip(*[crds[i].min(axis=0) for i in np.where(idx)[0]]))
+            ur = list(zip(*[crds[i].max(axis=0) for i in np.where(idx)[0]]))
             bounds = (min(ll[0]), min(ll[1]), max(ur[0]), max(ur[1]))
 
             # Get new part based on extended bounds
@@ -190,9 +205,10 @@ def check_geodateframe_rasterstats(facedata):
         facedata['crds'] =[row.coords[:] for row in facedata.geometry]
 
 
-def raster_stats_fine_cells(rasterpath, facedata, stats=['mean']):
+def raster_stats_fine_cells(rasterpath: Union[str, Path], facedata, stats=['mean']):
     """
-    Get raster stats
+    Calculate statistic from a raster, where the raster resoltion is (much)
+    smaller than the cell size.
 
     Parameters
     ----------
@@ -201,8 +217,7 @@ def raster_stats_fine_cells(rasterpath, facedata, stats=['mean']):
     facedata : geopandas.GeoDataFrame
         Dataframe with polygons in which the raster statistics are derived.
     stats : list
-        List of statistics to retrieve. Should all be present as functions that
-        can be applied to pandas group by
+        List of statistics to retrieve. Should be numpy functions that require one argument
     """
 
     # Create empty array for stats
@@ -212,8 +227,6 @@ def raster_stats_fine_cells(rasterpath, facedata, stats=['mean']):
     check_geodateframe_rasterstats(facedata)
 
     # Open raster file
-    first = True
-    i = 0
     with rasterio.open(rasterpath, 'r') as f:
 
         # Split file in parts based on shape
@@ -226,9 +239,10 @@ def raster_stats_fine_cells(rasterpath, facedata, stats=['mean']):
             valid = (arr != f.nodata)
             if not valid.any():
                 continue
-
+            
             # Rasterize the cells in the part
             cellidx_sel = rasterize_cells(facedata.loc[prt.idx], prt)
+            assert cellidx_sel.shape == valid.shape
             cellidx_sel[~valid] = 0
             valid = (cellidx_sel != 0)
 

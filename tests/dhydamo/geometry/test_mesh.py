@@ -1,15 +1,19 @@
-import pytest
-from meshkernel.py_structures import DeleteMeshOption
-from shapely.geometry import box, Polygon, MultiPolygon, LineString, MultiLineString
-
-from hydrolib.core.io.mdu.models import FMModel
-from hydrolib.dhydamo.geometry import mesh, viz, common
-import numpy as np
+from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
+import pytest
+from meshkernel.py_structures import DeleteMeshOption
+from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box
+from shapely.affinity import translate
 
+from hydrolib.core.io.mdu.models import FMModel
+from hydrolib.dhydamo.geometry import common, mesh, viz
 from hydrolib.dhydamo.geometry.models import GeometryList
 
+from hydrolib.dhydamo.core.hydamo import HyDAMO
+
+hydamo_data_path = Path(__file__).parent / '..' / '..' / '..' / 'hydrolib' / 'tests' / 'data'
 
 @pytest.mark.plots
 def test_create_2d_rectilinear():
@@ -564,3 +568,78 @@ def test_links1d2d_add_links_2d_to_1d_lateral():
     ax.autoscale_view()
 
     plt.show()
+
+
+def _prepare_hydamo():
+    
+    # initialize a hydamo object
+    extent_file = hydamo_data_path / "OLO_stroomgebied_incl.maas.shp"
+    assert extent_file.exists()
+    hydamo = HyDAMO(extent_file=extent_file)
+
+    # all data is contained in one geopackage called 'Example model'
+    gpkg_file = hydamo_data_path / "Example_model.gpkg"
+    assert gpkg_file.exists()
+
+    # read branchs
+    hydamo.branches.read_gpkg_layer(str(gpkg_file), layer_name="HydroObject", index_col="code")
+
+    return hydamo
+    
+
+def test_create_hydamo_object():
+
+    # initialize a hydamo object
+    hydamo = _prepare_hydamo()
+    # TODO Add test to check content
+    
+@pytest.mark.parametrize(
+    "where,fill_option,fill_value,outcome",
+    [
+        ('face', 'interpolate', 10., 8629.457),
+        ('face', 'fill_value', 10., 8629.457),
+        ('face', 'nearest', None, 9050.678),
+        ('node', 'interpolate', 10., 6541.3794),
+        ('node', 'fill_value', 10., 6526.3926),
+        ('node', 'nearest', None, 6978.6045),
+    ],
+)
+def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
+
+    rasterpath = hydamo_data_path / 'rasters' / 'AHN_2m_clipped_filled.tif'
+    assert rasterpath.exists()
+
+    # Create HyDAMO object for extent
+    hydamo = _prepare_hydamo()
+    extent2d = hydamo.branches.unary_union.buffer(200)
+    # Shift extent 2 km to right, such that some cells will have no-data values
+    extent2d = translate(extent2d, xoff=2000)
+    
+    # Create FMModel
+    fm = FMModel()
+    cellsize = 200
+
+    # Add 2D Mesh, partly triangular, partly rectangular
+    xcenter = extent2d.centroid.coords[0][0]
+    centerline = LineString([(xcenter, -1e6), (xcenter, 1e6)]).buffer(cellsize / 2)
+    parts = extent2d.difference(centerline).geoms
+
+    network = fm.geometry.netfile.network
+    mesh.mesh2d_add_triangular(network=network, polygon=parts[0], edge_length=cellsize)
+    mesh.mesh2d_add_rectilinear(network=network, polygon=parts[1], dx=cellsize, dy=cellsize * 1.5)
+
+
+    # Derive z-values from ahn
+    mesh.mesh2d_altitude_from_raster(network=network, rasterpath=rasterpath, where=where, stat='mean', fill_option=fill_option, fill_value=fill_value)
+
+    assert getattr(network._mesh2d, f'mesh2d_{where}_z').sum() == np.float32(outcome)
+
+    # # Plot the final result verify
+    # fig, ax = plt.subplots(figsize=(5, 5))
+
+    # viz.plot_network(network, ax=ax)
+    # ax.scatter(x=network._mesh2d.mesh2d_face_x, y=network._mesh2d.mesh2d_face_y, c=network._mesh2d.mesh2d_face_z, s=5)
+    # ax.set_aspect(1.0)
+    # ax.autoscale_view()
+
+    # plt.show()

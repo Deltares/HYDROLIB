@@ -1,9 +1,21 @@
 import logging
+from typing import List, Tuple
 
+import geopandas as gpd
 import numpy as np
 from matplotlib import path
+from scipy.spatial import Voronoi
 from shapely import affinity
-from shapely.geometry import LineString, Point
+from shapely.geometry import (
+    LineString,
+    MultiLineString,
+    MultiPolygon,
+    Point,
+    Polygon,
+    box,
+)
+from shapely.prepared import prep
+from hydrolib.dhydamo.geometry import common
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +167,7 @@ def find_nearest_branch(branches, geometries, method='overal', maxdist=5):
                 offset = max(mindist, min(branchgeo.length - mindist, round(branchgeo.project(geo), 3)))
                 geometries.at[geometry.Index, 'branch_offset'] = offset
 
-def orthogonal_line(line, offset, width=1.0):
+def orthogonal_line(line: LineString, offset: float, width: float=1.0) -> List[Tuple[float]]:
     """
     Parameters
     ----------
@@ -186,7 +198,7 @@ def orthogonal_line(line, offset, width=1.0):
 
     return line
 
-def extend_linestring(line, near_pt, length):
+def extend_linestring(line: LineString, near_pt: Point, length: float) -> LineString:
 
     # Get the nearest end
     nearest_end = (0, 1) if line.project(near_pt) < line.length / 2 else (-1, -2)
@@ -201,7 +213,7 @@ def extend_linestring(line, near_pt, length):
 
     return LineString([(x0, y0), (x0 - dx, y0 - dy)])
 
-def points_in_polygon(points, polygon):
+def points_in_polygon(points: np.ndarray, polygon: Polygon) -> np.ndarray:
     """
     Determine points that are inside a polygon, taking
     holes into account.
@@ -244,3 +256,55 @@ def points_in_polygon(points, polygon):
 
     return mainindex
 
+def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Creates voronoi polygons around face nodes.
+
+    Args:
+        nodes (np.ndarray): xy coordinates of face nodes
+        facedata (gpd.GeoDataFrame): GeoDataFrame with face properties
+
+    Returns:
+        gpd.GeoDataFrame: Creating GeoDataFrame with created polygons and their properties
+    """
+    # Creat voronoi polygon
+    # Add border to limit polygons
+    border = box(nodes[:, 0].min(), nodes[:, 1].min(), nodes[:, 0].max(), nodes[:, 1].max()).buffer(1000).exterior
+    borderpts = [border.interpolate(dist).coords[0] for dist in np.linspace(0, border.length, max(20, int(border.length / 100)))]
+    vor = Voronoi(points=nodes.tolist()+borderpts)
+    clippoly = facedata.unary_union
+    # Get lines
+    lines = []
+    for poly in common.as_polygon_list(clippoly):
+        lines.append(poly.exterior)
+        lines.extend([line for line in poly.interiors])
+    linesprep = prep(MultiLineString(lines))
+    clipprep = prep(clippoly)
+
+    # Collect polygons
+    data = []
+    for (pr, pt) in zip(vor.point_region, nodes):
+        region = vor.regions[pr]
+        if pr == -1:
+            break
+        while -1 in region:
+            region.remove(-1)
+        if len(region) < 3:
+            continue
+        crds = vor.vertices[region]
+        if clipprep.intersects(Point(pt)):
+            poly = Polygon(crds)
+            if linesprep.intersects(poly):
+                poly = poly.intersection(clippoly)
+                if isinstance(poly, MultiPolygon):
+                    poly = poly.buffer(0.001)
+                if isinstance(poly, MultiPolygon):
+                    logger.warning('Got multipolygon when clipping voronoi polygon. Only adding coordinates for largest of the polygons.')
+                    poly = poly[np.argmax([p.area for p in common.as_polygon_list(poly)])]
+                crds = np.vstack(poly.exterior.coords[:])
+            data.append({'geometry': poly, 'crds': crds})
+            
+    # Limit to model extend
+    facedata = gpd.GeoDataFrame(data)
+    facedata.index=np.arange(len(nodes), dtype=np.uint32) + 1
+
+    return facedata

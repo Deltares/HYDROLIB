@@ -1,20 +1,39 @@
+import logging
 from typing import List, Union
+from enum import Enum
 
 import numpy as np
 from shapely.geometry import (
     LineString,
     MultiLineString,
-    MultiPolygon,
-    Polygon,
-    Point,
     MultiPoint,
+    MultiPolygon,
+    Point,
+    Polygon,
     box,
 )
 from shapely.prepared import prep
 
 from hydrolib.core.io.net.models import Branch, Network
-from hydrolib.dhydamo.geometry import common
+from hydrolib.dhydamo.geometry import common, rasterstats, spatial
 from hydrolib.dhydamo.geometry.models import GeometryList
+
+from scipy.spatial import KDTree
+from scipy.interpolate import LinearNDInterpolator
+
+import geopandas as gpd
+
+logger = logging.getLogger(__name__)
+
+
+class FillOption(Enum):
+    INTERPOLATE = "interpolate"
+    FILL_VALUE = "fill_value"
+    NEAREST = "nearest"
+
+class RasterStatPosition(Enum):
+    NODE = "node"
+    FACE = "face"
 
 
 def mesh2d_add_rectilinear(
@@ -485,3 +504,87 @@ def links1d2d_add_links_2d_to_1d_lateral(
     ]
     network._link1d2d.link1d2d_id = network._link1d2d.link1d2d_id[keep]
     network._link1d2d.link1d2d_long_name = network._link1d2d.link1d2d_long_name[keep]
+
+
+def mesh2d_altitude_from_raster(network, rasterpath, where: RasterStatPosition='face', stat='mean', fill_option: FillOption="fill_value", fill_value=None):
+    """
+    Method to determine level of nodes
+
+    This function works faster for large amounts of cells, since it does not
+    draw polygons but checks for nearest neighbours (voronoi) based
+    on interpolation.
+
+    Note that the raster is not clipped. Any values outside the bounds are
+    also taken into account.
+    """
+
+    if isinstance(fill_option, str):
+        fill_option = FillOption(fill_option)
+
+    if isinstance(where, str):
+        where = RasterStatPosition(where)
+
+    # Select points on faces or nodes
+    logger.info('Creating GeoDataFrame of cell faces.')
+
+    # Get coordinates where z-values are derived or centered
+    xy = np.stack([getattr(network._mesh2d, f'mesh2d_{where.value}_x'), getattr(network._mesh2d, f'mesh2d_{where.value}_y')], axis=1)
+    
+    # Create cells as polygons
+    xy_facenodes = np.stack([network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1)
+    cells = network._mesh2d.mesh2d_face_nodes
+    nodatavalue = np.iinfo(cells.dtype).min
+    indices = cells != nodatavalue
+    cells = [xy_facenodes[cell[index]] for cell, index in zip(cells, indices)]
+    facedata = gpd.GeoDataFrame(geometry=[Polygon(cell) for cell in cells])
+    
+    if where == RasterStatPosition.FACE:
+        # Get raster statistics
+        facedata.index = np.arange(len(xy), dtype=np.uint32) + 1
+        facedata['crds'] = [cell for cell in cells]
+    
+        df = rasterstats.raster_stats_fine_cells(rasterpath, facedata, stats=[stat])
+        # Get z values
+        zvalues = df[stat].values
+
+    elif where == RasterStatPosition.NODE:
+
+        logger.info('Generating voronoi polygons around cell centers for determining raster statistics.')
+        
+        facedata = spatial.get_voronoi_around_nodes(xy, facedata)
+        # Get raster statistics
+        df = rasterstats.raster_stats_fine_cells(rasterpath, facedata, stats=[stat])
+        # Get z values
+        zvalues = df[stat].values
+
+    isnan = np.isnan(zvalues)
+    if isnan.any():
+        
+        # If interpolation or fill_option, but all are NaN, raise error.
+        if isnan.all() and fill_option in [FillOption.NEAREST, FillOption.INTERPOLATE]:
+            raise ValueError('Only NaN values found, interpolation or nearest not possible.')
+        
+        # Fill fill_option values
+        if fill_option == FillOption.FILL_VALUE:
+            if fill_value is None:
+                raise ValueError('Provide a fill_value (keyword argument).')
+            # With default value
+            zvalues[isnan] = fill_value
+
+        elif fill_option == FillOption.NEAREST:
+            # By looking for the nearest value in the grid
+            # Create a KDTree of the known points
+            tree = KDTree(data=xy[~isnan])
+            idx = tree.query(x=xy[isnan])[1]
+            zvalues[isnan] = zvalues[~isnan][idx]
+
+        elif fill_option == FillOption.INTERPOLATE:
+            if fill_value is None:
+                raise ValueError('Provide a fill_value (keyword argument) to fill values that cannot be interpolated.')
+            # By interpolating
+            isnan = np.isnan(zvalues)
+            interp = LinearNDInterpolator(xy[~isnan], zvalues[~isnan], fill_value=fill_value)
+            zvalues[isnan] = interp(xy[isnan])
+        
+    # Set values to mesh geometry
+    setattr(network._mesh2d, f'mesh2d_{where.value}_z', zvalues)

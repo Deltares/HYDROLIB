@@ -11,8 +11,7 @@ import logging
 
 from copy import deepcopy
 
-from hydrolib.dhydamo.geometry import geometry
-
+from hydrolib.dhydamo.geometry import spatial
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
@@ -626,7 +625,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
     def snap_to_branch(self, branches, snap_method, maxdist=5):
         """Snap the geometries to the branch"""
-        geometry.find_nearest_branch(
+        spatial.find_nearest_branch(
             branches=branches, geometries=self, method=snap_method, maxdist=maxdist
         )
 
