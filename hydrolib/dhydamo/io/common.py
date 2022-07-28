@@ -280,7 +280,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         geometries = []
         new_feats = []
         for i, f in enumerate(features):
-            geometry = wkb.loads(georefs[i].ExportToWkb())
+            geometry = wkb.loads(bytes(list(georefs[i].ExportToWkb())))
             if (geometry.type == "MultiPolygon") | (geometry.type == "MultiPoint"):
                 new_geoms = list(geometry)
                 geometries.extend(new_geoms)
