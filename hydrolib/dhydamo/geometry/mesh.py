@@ -163,6 +163,11 @@ def mesh2d_refine(
         polygon (Union[GeometryList, Union[Polygon, MultiPolygon]]): Polygon within which the mesh is clipped
         steps (int): Number of steps in the refinement
     """
+    # Check if any polygon contains holes (does not work)
+    for polygon in common.as_polygon_list(polygon):
+        if len(polygon.interiors) > 0:
+            raise NotImplementedError('Refining within polygons with holes does not work. Remove holes before using this function (e.g., polygon = Polygon(polygon.exterior)).')
+
     for polygon in common.as_polygon_list(polygon):
         network.mesh2d_refine_mesh(GeometryList.from_geometry(polygon), level=steps)
 
