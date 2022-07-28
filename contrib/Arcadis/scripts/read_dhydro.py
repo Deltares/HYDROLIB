@@ -540,7 +540,7 @@ def branch_gui2df(branch_file):
 
 def read_nc_data(ds, par):
     """
-    
+
 
     Parameters
     ----------
@@ -568,7 +568,9 @@ def read_nc_data(ds, par):
     data = ds[par].data.tolist()
     index = ds["time"].data
     if id in ds.variables:
-        columns = [id.tostring().decode("utf-8").strip() for id in ds.variables[id].data]
+        columns = [
+            id.tostring().decode("utf-8").strip() for id in ds.variables[id].data
+        ]
     else:
         columns = list(range(len(data[0])))
 
