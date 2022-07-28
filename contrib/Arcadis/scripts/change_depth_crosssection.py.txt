@@ -1,0 +1,78 @@
+# =========================================================================================
+#
+# License: LGPL
+#
+# Author: Stefan de Vries, Waterschap Drents Overijsselse Delta
+#
+# =========================================================================================
+import os
+import sys
+from pathlib import Path
+
+import geopandas as gpd
+import pandas as pd
+from read_dhydro import net_nc2gdf
+
+from hydrolib.core.io.mdu.models import FMModel, FrictionModel
+
+#TO DO
+#Type cross section
+#Dubbelingen in shared definition scheiden
+
+
+def change_depth_crosssection(mdu_path, shape_path, netnc_path, output_path):
+    
+    """
+       Adjust the depth of a cross section. 
+       
+       There are two options. 
+       - Deepen the bottom of the crosssection, e.g. due to maintenance/dredging activities
+       - Heighten/increase the bottom level of the crosssection, e.g. due to sedimentation processes
+
+       Parameters:
+            mdu_path : str
+               Path to mdu file containing the D-hydro model structure
+            shape_path : str
+               Path to shape file with polygons describing in which areas to adjust the cross section. The 
+               user can define multiple polygons within the shapefile and these can have different setting
+            column_vertical : str
+                column name in the shapefile that gives the dimensions with which the cross sections should be
+                deepened/heightened. column should contain float numbers and unit is meters.
+            type_column_vertical : str, only two options
+                The cross section can be adjusted vertically using two options
+                - 'relative' --> indicates that the bottom is adjusted with a certain relative distance. 
+                Positive number is increasing the bottom level, negative number is lowering the bottom level. 
+                E.g. if the column_vertical contains the number -0.5, the bottom of the cross section is lowered
+                with 0.5 meters
+                - 'absolute' --> indicates that the bottom is adjusted to a certain height that is defined 
+                with a vertical datum. In the Netherlands, we use meters in Amsterdam Ordnance Datum or 
+                Normaal Amsterdams Peil (NAP). 
+            column_horizontal : str
+                Horizontal width (always in meters) over which the cross section bottom is adjusted. The 
+                horizontal width/section is always placed in the deepest part of (current) cross section. 
+                The tool identifies the lowest point of the profile and than looks to the left 
+                and right the find the lowest section (with the defined width).
+
+    ___________________________________________________________________________________________________________
+       Warning:
+               ...
+    """
+    
+    fm = FMModel(mdu_path)
+    
+    
+    gdf_frict = gpd.read_file(shape_path)
+
+
+
+
+if __name__ == "__main__":
+    # Read shape
+    input_mdu = Path(r"C:\Users\svries2\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\flowFM.mdu")
+    vvvvDGFGshape_path = r"C:\Users\delanger3781\OneDrive - ARCADIS\Documents\DHydro\Zwolle-Minimodel\Zwolle-Minimodel\frictfiles.shp"
+
+    
+    netnc_path = r"C:\Users\delanger3781\OneDrive - ARCADIS\Documents\DHydro\Zwolle-Minimodel\Zwolle-Minimodel\1D2D-DIMR\dflowfm\FlowFM_net.nc"
+    output_path = r"C:\TEMP\AHT_test_output"
+
+    change_friction_shape(input_mdu, shape_path, netnc_path, output_path)
