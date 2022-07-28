@@ -9,7 +9,9 @@ import PIL.ImageDraw
 import rasterio
 from matplotlib import path
 from shapely import affinity
-from shapely.geometry import MultiLineString, LineString, MultiPolygon, Polygon, MultiPoint, Point
+from shapely.geometry import LineString, Point
+
+from hydrolib.dhydamo.geometry import common
 
 #from delft3dfmpy.core import checks
 # from delft3dfmpy.core.logging import ProgressLogger
@@ -320,7 +322,7 @@ def geometry_to_mask(polygons, lowerleft, cellsize, shape):
     # Initialize mask
     mask = np.zeros(shape)
 
-    for polygon in as_polygon_list(polygons):
+    for polygon in common.as_polygon_list(polygons):
         # Create from exterior
         mask += get_mask(polygon.exterior, lowerleft, cellsize, shape)
         # Subtract interiors
@@ -403,7 +405,6 @@ def rasterize_cells(facedata, prt):
     maskIm = PIL.Image.new('I', (prt.shape[1], prt.shape[0]), 0)
     todraw = PIL.ImageDraw.Draw(maskIm)
 
-    cellnumber = np.zeros(prt.shape)
     cellsize = abs(prt.f.transform.a)
 
     for row in facedata.itertuples():
@@ -528,8 +529,6 @@ def waterdepth_ahn(dempath, facedata, outpath, column):
         first = True
         out_meta = f.meta.copy()
 
-        cell_area = abs(f.transform.a * f.transform.e)
-
         # Split file in parts based on shape
         parts = raster_in_parts(f, ncols=250, nrows=250, facedata=facedata)
 
@@ -588,40 +587,3 @@ def compress(path):
         out_meta['compress'] = 'deflate'
     with rasterio.open(path, 'w', **out_meta) as f:
         f.write(arr)
-
-def as_geometry_list(geometry, singletype, multitype):
-    """Convenience method to return a list with one or more
-
-Polygons/LineString/Point from a given Polygon/LineString/Point
-    or MultiPolygon/MultiLineString/MultiPoint.
-
-    Parameters
-    ----------
-    polygon : list or Polygon or MultiPolygon
-        Object to be converted
-
-    Returns
-    -------
-    list
-        list of Polygons
-    """
-    if isinstance(geometry, singletype):
-        return [geometry]
-    elif isinstance(geometry, multitype):
-        return [p for p in geometry]
-    elif isinstance(geometry, list):
-        lst = []
-        for item in geometry:
-            lst.extend(as_geometry_list(item, singletype, multitype))
-        return lst
-    else:
-        raise TypeError(f'Expected {singletype} or {multitype}. Got "{type(geometry)}"')
-        
-def as_linestring_list(linestring):
-    return as_geometry_list(linestring, LineString, MultiLineString)
-
-def as_polygon_list(polygon):
-    return as_geometry_list(polygon, Polygon, MultiPolygon)
-
-def as_point_list(point):
-    return as_geometry_list(point, Point, MultiPoint)
