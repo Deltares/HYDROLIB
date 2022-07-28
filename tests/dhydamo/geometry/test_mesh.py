@@ -633,13 +633,3 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
     mesh.mesh2d_altitude_from_raster(network=network, rasterpath=rasterpath, where=where, stat='mean', fill_option=fill_option, fill_value=fill_value)
 
     assert getattr(network._mesh2d, f'mesh2d_{where}_z').sum() == np.float32(outcome)
-
-    # # Plot the final result verify
-    # fig, ax = plt.subplots(figsize=(5, 5))
-
-    # viz.plot_network(network, ax=ax)
-    # ax.scatter(x=network._mesh2d.mesh2d_face_x, y=network._mesh2d.mesh2d_face_y, c=network._mesh2d.mesh2d_face_z, s=5)
-    # ax.set_aspect(1.0)
-    # ax.autoscale_view()
-
-    # plt.show()

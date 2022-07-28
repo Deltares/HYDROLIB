@@ -197,6 +197,7 @@ def mesh1d_add_branch(
         LineString, MultiLineString, List[Union[LineString, MultiLineString]]
     ],
     node_distance: Union[float, int],
+    name: Union[str, None] = None
 ) -> List[str]:
     """Add branch to 1d mesh, from a (list of) (Multi)LineString geometry.
     The branch is discretized with the given node distance.
@@ -214,7 +215,7 @@ def mesh1d_add_branch(
     for line in common.as_linestring_list(branches):
         branch = Branch(geometry=np.array(line.coords[:]))
         branch.generate_nodes(node_distance)
-        branchid = network.mesh1d_add_branch(branch)
+        branchid = network.mesh1d_add_branch(branch, name=name)
         branchids.append(branchid)
 
     return branchids
