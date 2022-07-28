@@ -569,6 +569,28 @@ def test_links1d2d_add_links_2d_to_1d_lateral():
 
     plt.show()
 
+@pytest.mark.plots
+def test_linkd1d2d_remove_links_within_polygon():
+
+    network, within, _ = _prepare_1d2d_mesh()
+    within = within.buffer(-2)
+
+    # Generate all links
+    mesh.links1d2d_add_links_1d_to_2d(network)
+    mesh.links1d2d_remove_within(network, within=within)
+
+    # Plot to verify
+    fig, ax = plt.subplots(figsize=(5, 5))
+
+    viz.plot_network(network, ax=ax)
+
+    for polygon in common.as_polygon_list(within):
+        ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
+        ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
+    ax.set_aspect(1.0)
+    ax.autoscale_view()
+
+    plt.show()
 
 def _prepare_hydamo():
     

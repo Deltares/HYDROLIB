@@ -506,6 +506,51 @@ def links1d2d_add_links_2d_to_1d_lateral(
     network._link1d2d.link1d2d_id = network._link1d2d.link1d2d_id[keep]
     network._link1d2d.link1d2d_long_name = network._link1d2d.link1d2d_long_name[keep]
 
+def links1d2d_remove_within(network: Network, within: Union[Polygon, MultiPolygon]) -> None:
+    """Remove 1d2d links within a given polygon or multipolygon
+
+    Args:
+        network (Network): The network from which the links are removed
+        within (Union[Polygon, MultiPolygon]): The polygon that indicates which to remove
+    """
+
+    # Create an array with 2d facecenters and 1d nodes, that form the links
+    nodes1d = np.stack(
+        [network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1
+    )[network._link1d2d.link1d2d[:, 0]]
+    faces2d = np.stack(
+        [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
+    )[network._link1d2d.link1d2d[:, 1]]
+
+
+    # Create GeometryList MultiPoint object
+    mpgl_faces2d = GeometryList(*faces2d.T.copy())
+    mpgl_nodes1d = GeometryList(*nodes1d.T.copy())
+    idx = np.zeros(len(network._link1d2d.link1d2d), dtype=bool)
+
+    # Check which links intersect the provided area
+    for polygon in common.as_polygon_list(within):
+        subarea = GeometryList.from_geometry(polygon)
+        idx |= (
+            network.meshkernel.polygon_get_included_points(subarea, mpgl_faces2d).values == 1.0
+        )
+        idx |= (
+            network.meshkernel.polygon_get_included_points(subarea, mpgl_nodes1d).values == 1.0
+        )
+
+    # Remove these links
+    keep = ~idx
+    network._link1d2d.link1d2d = network._link1d2d.link1d2d[keep]
+    network._link1d2d.link1d2d_contact_type = network._link1d2d.link1d2d_contact_type[
+        keep
+    ]
+    network._link1d2d.link1d2d_id = network._link1d2d.link1d2d_id[keep]
+    network._link1d2d.link1d2d_long_name = network._link1d2d.link1d2d_long_name[keep]
+
+    
+
+
+
 
 def mesh2d_altitude_from_raster(network, rasterpath, where: RasterStatPosition='face', stat='mean', fill_option: FillOption="fill_value", fill_value=None):
     """
