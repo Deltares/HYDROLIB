@@ -199,11 +199,6 @@ def extend_linestring(line, near_pt, length):
     dx /= (segmentlength * length)
     dy /= (segmentlength * length)
 
-    # if nearest_end[0] == 0:
-    #     coords = LineString[(x0 - dx, y0 - dy)] + coords
-    # else:
-    #     coords = coords + [(x0 - dx, y0 - dy)]
-
     return LineString([(x0, y0), (x0 - dx, y0 - dy)])
 
 def points_in_polygon(points, polygon):
