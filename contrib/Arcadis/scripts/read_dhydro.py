@@ -539,25 +539,40 @@ def branch_gui2df(branch_file):
 
 
 def read_nc_data(ds, par):
+    """
+    
+
+    Parameters
+    ----------
+    ds : xarray.DataArray
+        Data array of the nc file.
+    par : str
+        String of the chosen parameter to read.
+
+    Returns
+    -------
+    df : DataFrame
+        DataFrame containing the time as index, columns with data.
+
+    """
 
     data_params = [
         x
         for x in list(ds.variables)
-        if x.startswith(ds.variables[par].mesh + "_" + ds.variables[par].location)
+        if x.startswith(ds[par].mesh + "_" + ds[par].location)
     ]
-    data_coords = ds.variables[par].coordinates.split(" ")
+    ds_params_coords = list(ds[par].coords)[0:2]
 
-    id = ds.variables[par].mesh + "_" + ds.variables[par].location + "_id"
+    id = ds[par].mesh + "_" + ds[par].location + "_id"
 
-    data = ds.variables[par][:].tolist()
-    index = ds.variables["time"][:].tolist()
+    data = ds[par].data.tolist()
+    index = ds["time"].data
     if id in ds.variables:
-        columns = [id.tostring().decode("utf-8").strip() for id in ds.variables[id][:]]
+        columns = [id.tostring().decode("utf-8").strip() for id in ds.variables[id].data]
     else:
         columns = list(range(len(data[0])))
 
     df = pd.DataFrame(data=data, index=index, columns=columns)
-    df.index = pd.to_datetime(df.index, unit="s", origin=pd.Timestamp("2000-01-01"))
     return df
 
 
