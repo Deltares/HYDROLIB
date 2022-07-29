@@ -703,7 +703,7 @@ class CrossSections:
     def __init__(self, hydamo):
         self.hydamo = hydamo
         self.crosssections = []
-        self.default_definition = ""
+        self.default_definition = None
         self.default_definition_shift = 0.0
         self.default_location = ""
 
@@ -752,11 +752,11 @@ class CrossSections:
         self.default_definition = definition
         self.default_definition_shift = shift
 
-    def set_default_locations(self, locations):
-        """
-        Add default profile locations
-        """
-        self.default_locations = locations
+    # def set_default_locations(self, locations):
+    #     """
+    #     Add default profile locations
+    #     """
+    #     self.default_locations = locations
 
     def add_yz_definition(
         self, yz=None, thalweg=None, roughnesstype=None, roughnessvalue=None, name=None
@@ -2000,190 +2000,3 @@ def remove_nan_values(base):
             if np.isnan(v):
                 base_copy.pop(k)
     return base_copy
-
-
-#     def compound_structures(self, idlist, structurelist):
-#         """
-#         Method to add compound structures to the model.
-
-#         """
-#         geconverteerd = hydamo_to_dflowfm.generate_compounds(idlist, structurelist, self.structures)
-
-#          # Add to dict
-#         for compound in geconverteerd.itertuples():
-#             self.structures.add_compound(
-#                 id=compound.code,
-#                 numstructures=compound.numstructures,
-#     	        structurelist=compound.structurelist
-#             )
-
-#     def __init__(self, crosssections):
-#         self.crosssections = crosssections
-
-#     def from_datamodel(self, crsdefs=None, crslocs=None):
-#         """"
-#         From parsed data models of crsdefs and crs locs
-#         """
-
-#         if crslocs is not None:
-#             for crsloc_idx, crsloc in crslocs.iterrows():
-#                 # add location
-#                 self.crosssections.add_crosssection_location(branchid=crsloc['branch_id'],
-#                                                              chainage=crsloc['branch_offset'],
-#                                                              shift=crsloc['shift'],
-#                                                              definition=crsloc['crosssectiondefinitionid'])
-
-#         if crsdefs is not None:
-#             crsdefs = crsdefs.drop_duplicates(subset=['crosssectiondefinitionid'])
-#             for crsdef_idx, crsdef in crsdefs.iterrows():
-#                 # Set roughness value on default if cross-section has non defined (e.g. culverts)
-#                 roughtype = crsdef['frictionid'].split('_')[0] if isinstance(crsdef['frictionid'], str) else 'Chezy'
-#                 roughval = float(crsdef['frictionid'].split('_')[-1]) if isinstance(crsdef['frictionid'], str) else 45
-#                 # add definition
-#                 if crsdef['type'] == 'circle':
-#                     self.crosssections.add_circle_definition(diameter=crsdef['diameter'],
-#                                                              roughnesstype=roughtype,
-#                                                              roughnessvalue=roughval,
-#                                                              name=crsdef['crosssectiondefinitionid'])
-#                 elif crsdef['type'] == 'rectangle':
-#                     self.crosssections.add_rectangle_definition(height=crsdef['height'],
-#                                                                 width=crsdef['width'],
-#                                                                 closed=crsdef['closed'],
-#                                                                 roughnesstype=roughtype,
-#                                                                 roughnessvalue=roughval,
-#                                                                 name=crsdef['crosssectiondefinitionid'])
-
-#                 elif crsdef['type'] == 'trapezium':
-#                     self.crosssections.add_trapezium_definition(slope=(crsdef['t_width'] - crsdef['width'])/2/crsdef['height'],
-#                                                                 maximumflowwidth=crsdef['t_width'],
-#                                                                 bottomwidth=crsdef['width'],
-#                                                                 closed=crsdef['closed'],
-#                                                                 roughnesstype=roughtype,
-#                                                                 roughnessvalue=roughval,
-#                                                                 name=crsdef['crosssectiondefinitionid'])
-
-#                 elif crsdef['type'] == 'zw':
-#                     self.crosssections.add_zw_definition(numLevels=crsdef["numlevels"],
-#                                                          levels=crsdef["levels"],
-#                                                          flowWidths=crsdef["flowwidths"],
-#                                                          totalWidths=crsdef["totalwidths"],
-#                                                          roughnesstype=roughtype,
-#                                                          roughnessvalue=roughval,
-#                                                          name=crsdef['crosssectiondefinitionid'])
-
-#                 elif crsdef['type'] == 'yz':
-#                     # TODO BMA: add yz
-#                     raise NotImplementedError
-
-#                 else:
-#                     raise NotImplementedError
-
-
-# class ExternalForcingsIO:
-
-#     def __init__(self, external_forcings):
-#         self.external_forcings = external_forcings
-
-#     def from_hydamo(self, boundary_conditions):
-
-#         # Read from Hydamo
-#         bcdct = hydamo_to_dflowfm.generate_boundary_conditions(boundary_conditions, self.external_forcings.dflowfmmodel.network.schematised)
-
-#         # Add all items
-#         for key, item in bcdct.items():
-#             self.external_forcings.add_boundary_condition(key, item['geometry'], item['bctype'], item['value'], branchid=item['branchid'])
-#             # # Add to dataframe
-#             # self.external_forcings.boundaries.loc[key] = item
-#             # Check if a 1d2d link should be removed
-#             #self.external_forcings.dflowfmmodel.network.links1d2d.check_boundary_link(self.external_forcings.boundaries.loc[key])
-
-#     def read_laterals(self, locations, lateral_discharges=None, rr_boundaries=None):
-#         """
-#         Process laterals
-
-#         Parameters
-#         ----------
-#         locations: gpd.GeoDataFrame
-#             GeoDataFrame with at least 'geometry' (Point) and the column 'code'
-#         lateral_discharges: pd.DataFrame
-#             DataFrame with lateral discharges. The index should be a time object (datetime or similar).
-#         rr_boundaries: pd.DataFrame
-#             DataFrame with RR-catchments that are coupled
-#         """
-
-#         if rr_boundaries is None: rr_boundaries = []
-#         # Check argument
-#         checks.check_argument(locations, 'locations', gpd.GeoDataFrame, columns=['geometry'])
-#         if lateral_discharges is not None:
-#             checks.check_argument(lateral_discharges, 'lateral_discharges', pd.DataFrame)
-
-#         # Check if network has been loaded
-#         network1d = self.external_forcings.dflowfmmodel.network.mesh1d
-#         if not network1d.meshgeomdim.numnode:
-#             raise ValueError('1d network has not been generated or loaded. Do this before adding laterals.')
-
-#         # in case of 3d points, remove the 3rd dimension
-#         locations['geometry2'] = [Point([point.geometry.x, point.geometry.y]) for _,point in locations.iterrows()]
-#         locations.drop('geometry', inplace=True, axis=1)
-#         locations.rename(columns={'geometry2':'geometry'}, inplace=True)
-
-#         # Find nearest 1d node per location and find the nodeid
-#         #lateral_crds = np.vstack([loc.geometry.coords[0] for loc in locations.itertuples()])
-#         #nodes1d = network1d.get_nodes()
-#         #get_nearest = KDTree(nodes1d)
-#         #_, nearest_idx = get_nearest.query(lateral_crds[:,0:2])
-
-#         # Get time series and add to dictionary
-#         #for nidx, lateral in zip(nearest_idx, locations.itertuples()):
-#         for lateral in locations.itertuples():
-#             # crd = nodes1d[nearest_idx]
-#             #nid = f'{nodes1d[nidx][0]:g}_{nodes1d[nidx][1]:g}'
-
-#             # Check if a time is provided for the lateral
-#             if lateral.code in rr_boundaries:
-#                 # Add to dictionary
-#                 self.external_forcings.laterals[lateral.code] = {
-#                     'branchid': lateral.branch_id,
-#                     'branch_offset': str(lateral.branch_offset)
-#                 }
-#             else:
-#                 if lateral_discharges is None:
-#                     logger.warning(f'No lateral_discharges provied. {lateral.code} expects them. Skipping.')
-#                     continue
-#                 else:
-#                     if lateral.code not in lateral_discharges.columns:
-#                         logger.warning(f'No data found for {lateral.code}. Skipping.')
-#                         continue
-
-#                 # Get timeseries
-#                 series = lateral_discharges.loc[:, lateral.code]
-
-#                 # Add to dictionary
-#                 self.external_forcings.laterals[lateral.code] = {
-#                     'branchid': lateral.branch_id,
-#                     'branch_offset': str(lateral.branch_offset),
-#                     'timeseries': series
-#                 }
-
-
-# class StorageNodesIO:
-
-#     def __init__(self, storagenodes):
-#         self.storagenodes = storagenodes
-
-#     def storagenodes_from_datamodel(self, storagenodes):
-#         """"From parsed data model of storage nodes"""
-#         for storagenode_idx, storagenode in storagenodes.iterrows():
-#             self.storagenodes.add_storagenode(
-#                 id=storagenode.id,
-#                 name=storagenode.name if 'name' in storagenode.code else np.nan,
-#                 usestreetstorage=storagenode.usestreetstorage,
-#                 nodetype='unspecified',
-#                 nodeid=storagenode.nodeid,
-#                 usetable='false',
-#                 bedlevel=storagenode.bedlevel,
-#                 area=storagenode.area,
-#                 streetlevel=storagenode.streetlevel,
-#                 streetstoragearea=storagenode.streetstoragearea,
-#                 storagetype=storagenode.storagetype
-#             )

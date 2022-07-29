@@ -1,7 +1,15 @@
-from hydrolib.dhydamo.core.hydamo import HyDAMO
 from pathlib import Path
 
-hydamo_data_path = Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
+import numpy as np
+import pandas as pd
+
+from hydrolib.core.io.bc.models import ForcingModel
+from hydrolib.dhydamo.core.hydamo import HyDAMO
+from hydrolib.dhydamo.io.dfmwriter import DFLowFMModelWriter
+
+hydamo_data_path = (
+    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
+)
 
 
 def test_create_hydamo_object():
@@ -18,7 +26,9 @@ def test_create_hydamo_object():
     assert gpkg_file.exists()
 
     # Read branches
-    hydamo.branches.read_gpkg_layer(str(gpkg_file), layer_name="HydroObject", index_col="code")
+    hydamo.branches.read_gpkg_layer(
+        str(gpkg_file), layer_name="HydroObject", index_col="code"
+    )
     assert len(hydamo.branches) == 61
     assert hydamo.branches.length.sum() == 28371.461117125935
 
@@ -51,7 +61,9 @@ def test_create_hydamo_object():
     # TODO: Add tests
 
     # Read culverts
-    hydamo.culverts.read_gpkg_layer(gpkg_file, layer_name="DuikerSifonHevel", index_col="code")
+    hydamo.culverts.read_gpkg_layer(
+        gpkg_file, layer_name="DuikerSifonHevel", index_col="code"
+    )
     hydamo.culverts.snap_to_branch(hydamo.branches, snap_method="ends", maxdist=5)
     hydamo.culverts.dropna(axis=0, inplace=True, subset=["branch_offset"])
     assert len(hydamo.culverts) == 90
@@ -59,17 +71,26 @@ def test_create_hydamo_object():
 
     # Read management device
     hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-    idx = hydamo.management_device.loc[hydamo.management_device["duikersifonhevelid"].notnull()].index
+    idx = hydamo.management_device.loc[
+        hydamo.management_device["duikersifonhevelid"].notnull()
+    ].index
     for i in idx:
         globid = hydamo.culverts.loc[
-            hydamo.culverts["code"].eq(hydamo.management_device.at[i, "duikersifonhevelid"]), "globalid"
+            hydamo.culverts["code"].eq(
+                hydamo.management_device.at[i, "duikersifonhevelid"]
+            ),
+            "globalid",
         ].values[0]
         hydamo.management_device.at[i, "duikersifonhevelid"] = globid
     assert len(hydamo.management_device) == 27
 
     # Read pumpstations
-    hydamo.pumpstations.read_gpkg_layer(gpkg_file, layer_name="Gemaal", index_col="code")
-    hydamo.pumpstations.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
+    hydamo.pumpstations.read_gpkg_layer(
+        gpkg_file, layer_name="Gemaal", index_col="code"
+    )
+    hydamo.pumpstations.snap_to_branch(
+        hydamo.branches, snap_method="overal", maxdist=10
+    )
     hydamo.pumps.read_gpkg_layer(gpkg_file, layer_name="Pomp", index_col="code")
     hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
     # TODO: Add tests
@@ -84,11 +105,15 @@ def test_create_hydamo_object():
     hydamo.boundary_conditions.read_gpkg_layer(
         gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code"
     )
-    hydamo.boundary_conditions.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
+    hydamo.boundary_conditions.snap_to_branch(
+        hydamo.branches, snap_method="overal", maxdist=10
+    )
     # TODO: Add tests
 
     # Read catchments
-    hydamo.catchments.read_gpkg_layer(gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code")
+    hydamo.catchments.read_gpkg_layer(
+        gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code"
+    )
     # TODO: Add tests
 
     # Read laterals
@@ -109,14 +134,41 @@ def test_create_hydamo_object():
         hydamo.opening,
         hydamo.management_device,
     )
-    hydamo.structures.convert.culverts(hydamo.culverts, management_device=hydamo.management_device)
+    hydamo.structures.convert.culverts(
+        hydamo.culverts, management_device=hydamo.management_device
+    )
     hydamo.structures.convert.bridges(
         hydamo.bridges,
         profile_groups=hydamo.profile_group,
         profile_lines=hydamo.profile_line,
         profiles=hydamo.profile,
     )
-    hydamo.structures.convert.pumps(hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management)
+    hydamo.structures.convert.pumps(
+        hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
+    )
+
+    hydamo.crosssections.convert.profiles(
+        crosssections=hydamo.profile,
+        crosssection_roughness=hydamo.profile_roughness,
+        profile_groups=hydamo.profile_group,
+        profile_lines=hydamo.profile_line,
+        param_profile=hydamo.param_profile,
+        param_profile_values=hydamo.param_profile_values,
+        branches=hydamo.branches,
+        roughness_variant="High",
+    )
+
+    # Set a default cross section
+    default = hydamo.crosssections.add_rectangle_definition(
+        height=5.0,
+        width=5.0,
+        closed=False,
+        roughnesstype="Strickler",
+        roughnessvalue=30,
+        name="default",
+    )
+    hydamo.crosssections.set_default_definition(definition=default, shift=10.0)
+
     # TODO: Add tests
 
     # Add structures manually
@@ -192,3 +244,22 @@ def test_create_hydamo_object():
     )
 
     return hydamo
+
+
+def test_write_laterals():
+
+    # Get full hydamo object
+    hydamo = test_create_hydamo_object()
+
+    series = pd.Series(np.sin(np.linspace(2, 8, 100) * -1) + 1.0)
+    series.index = [
+        pd.Timestamp("2016-01-01 00:00:00") + pd.Timedelta(hours=i) for i in range(100)
+    ]
+    series.plot()
+    hydamo.external_forcings.add_lateral("LAT_01", "W_242209_0", "5.0", series)
+
+    # we first need to set the forcing model, because it is referred to in the ext model components
+    forcingmodel = ForcingModel()
+    # forcingmodel.filepath = Path(output_path) / "fm" / "boundaryconditions.bc"
+
+    writer = DFLowFMModelWriter(hydamo, forcingmodel)
