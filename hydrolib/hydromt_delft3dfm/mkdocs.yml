@@ -16,7 +16,6 @@ nav:
       - Model methods and components: "user_guide/working_with_the_delft3dfm_model/model_methods_and_components.md"
       - Building a model: "user_guide/working_with_the_delft3dfm_model/building_a_model.md"
       - Updating a model: "user_guide/working_with_the_delft3dfm_model/updating_a_model.md"
-      - Clipping a model: "user_guide/working_with_the_delft3dfm_model/clipping_a_model.md"
   - API reference: "reference/api.md"
   - Developments: developments/developments.md
 
