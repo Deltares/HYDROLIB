@@ -22,15 +22,14 @@ import os
 import numpy as np
 import pandas as pd
 import xarray as xr
+from hydrolib.core.io.mdu.models import FMModel
+from read_dhydro import read_locations
+from pathlib import Path
+from read_dhydro import branch_gui2df, net_nc2gdf
+from hydrolib.core.io.obs.models import ObservationPointModel
 
-# ER MOET NOG INGEBOUWD WORDEN DAT JE DE KEUZE KAN MAKEN IN WELKE CHANNELS JE WILT
-
-
-def aht_make_obs_points(input_file, output_path, observation_len):
+def make_obs_points(mdu_path, output_path,prefix = 'rOut',fraction = 0.95):
     """
-    ### Beschrijf hier wat je script precies doet. ###
-    Dit script maakt observation points op de 1D watergangen op verschillende punten, wat gekozen kan worden door de gebruiker.
-    Dit script maakt enkel nog een observatiepunt elke 100 meter per watergang. Het herkent niet of watergangen in elkaar overlopen.
     ___________________________________________________________________________________________________________
 
     Ontwikkelaar: Robbert de Lange
@@ -54,58 +53,28 @@ def aht_make_obs_points(input_file, output_path, observation_len):
     De naam van het bestand is "1DObservationpoints.ini". Dit kan handmatig worden aangepast.
 
     """
-    ###DIT MOET NOG AANGEPAST WORDEN, DIT IS SPECIFIEK VOOR HET D-HYDRO GEVAL VAN WRIJ
-    df = get_channel_data(input_file)[:55]
+    fm = FMModel(Path(mdu_path))
+    net_nc = fm.geometry.netfile.filepath
 
-    ################################
-
-    obslen = 500
-    output_file = os.path.join(output_path, "1DObservationpoints.ini")
-    with open(output_file, "w") as file:
-        file.write(
-            "[General]\n    fileVersion           = 2.00\n    fileType              = obsPoints\n"
-        )
-
-        for index, row in df.iterrows():
-            maxlen = row["lengte"]
-            steps = np.arange(0, maxlen, obslen)
-            for chainage in steps:
-                file.write(
-                    "\n[ObservationPoint]\n    name                  = "
-                    + "obs_"
-                    + str(index)
-                    + "_"
-                    + str(int(chainage))
-                    + "\n    branchId              = "
-                    + str(index)
-                    + "\n    chainage              = "
-                    + str(chainage)
-                    + "\n "
-                )
-
-
-def aht_get_channels(file):
-    df = get_channel_data(input_file)
-    return [df.index]
-
-
-def load_dataset(input_path):
-    return xr.open_dataset(input_path)
-
-
-def get_channel_data(input_path):
-    ds = load_dataset(input_path)
-    names = [x.decode("utf-8").strip() for x in ds["network_branch_id"].data]
-    data = list(ds["network_edge_length"].data)
-    df = pd.DataFrame(data=data, index=names, columns=["lengte"])
-    # print (data)
-    # par = choose_param(ds)
-    # extensie = '.csv'  #input('Extentension choice (.csv, .jpg or .shp)')
-    ds.close()
-    return df
-
+    branches = net_nc2gdf(os.path.join(Path(mdu_path).parent,net_nc), results = ['1d_branches'])['1d_branches']
+    obs_branches = branches[branches.id.str.startswith(prefix)].copy()
+    obs_branches.rename(columns={"id":"branchid"}, inplace=True)
+    obs_branches.drop(columns = ['name', 'order'], inplace=True)
+    obs_branches.insert(0,'name',"meas"+obs_branches.branchid)
+    # obs_branches.insert(2,'locationtype',"1d")
+    obs_branches.insert(2,'chainage',obs_branches.length*fraction)
+    obs_branches.drop(columns = ['length', 'geometry', 'branchType','isLengthCustom'], inplace=True)
+    
+    towrite = ObservationPointModel(observationpoint = obs_branches.to_dict("records"))
+    towrite.save(Path(output_path) / (str("1d_obspoints.ini")))
+    
+   
 
 if __name__ == "__main__":
-    input_file = r"\\chh6RD93\Arcadis\WRIJ_overstromingsberekeningen\DR48\1D2D_modelbouw\036_nieuw_uitstroom\dflowfm\dr48_net.nc"
+    mdu_path = r"C:\scripts\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\flowFM.mdu"
     output_path = r"C:\scripts\AHT_scriptjes\make_obs_points"
-    aht_make_obs_points(input_file, output_path, 1000)
+    # branches = branch_gui2df(os.path.join(Path(mdu_path).parent, fm.geometry.branchfile))
+    
+    
+    print ('dummy')
+    
