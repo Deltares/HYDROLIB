@@ -146,3 +146,4 @@ hydrolib/core/*
 
 # Notebook test output
 hydrolib/tests/model/*
+hydrolib/notebooks/dimr_config.xml
