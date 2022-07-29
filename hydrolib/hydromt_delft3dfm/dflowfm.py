@@ -312,7 +312,7 @@ class DFlowFMModel(Model):
         ----------
         rivers_fn : str
             Name of data source for rivers parameters, see data/data_sources.yml.
-            Note only the lines that are within the region polygon + 10m buffer will be used.
+            Note only the lines that are intersects with the region polygon will be used.
             * Optional variables: [branchId, branchType, branchOrder, material, friction_type, friction_value]
         rivers_defaults_fn : str Path
             Path to a csv file containing all defaults values per 'branchType'.
@@ -349,7 +349,7 @@ class DFlowFMModel(Model):
 
         # Read the rivers data
         gdf_riv = self.data_catalog.get_geodataframe(
-            rivers_fn, geom=self.region, buffer=10, predicate="contains"
+            rivers_fn, geom=self.region, buffer=0, predicate="intersects"
         )
         # Filter features based on river_filter
         if river_filter is not None and "branchType" in gdf_riv.columns:
@@ -487,7 +487,7 @@ class DFlowFMModel(Model):
         ----------
         pipes_fn : str
             Name of data source for pipes parameters, see data/data_sources.yml.
-            Note only the lines that are within the region polygon + 10m buffer will be used.
+            Note only the lines that are within the region polygon will be used.
             * Optional variables: [branchId, branchType, branchOrder, spacing, frictionType, frictionValue, shape, diameter, width, height, closed, invlev_up, invlev_dn]
             #TODO: material table is used for friction which is not implemented
         pipes_defaults_fn : str Path
@@ -533,7 +533,7 @@ class DFlowFMModel(Model):
 
         # Read the pipes data
         gdf_pipe = self.data_catalog.get_geodataframe(
-            pipes_fn, geom=self.region, buffer=10, predicate="contains"
+            pipes_fn, geom=self.region, buffer=0, predicate="contains"
         )
         # reproject
         gdf_pipe = gdf_pipe.to_crs(self.crs)
