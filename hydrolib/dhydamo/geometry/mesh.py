@@ -31,6 +31,7 @@ class FillOption(Enum):
     FILL_VALUE = "fill_value"
     NEAREST = "nearest"
 
+
 class RasterStatPosition(Enum):
     NODE = "node"
     FACE = "face"
@@ -185,40 +186,110 @@ def mesh2d_refine(
     # Check if any polygon contains holes (does not work)
     for polygon in common.as_polygon_list(polygon):
         if len(polygon.interiors) > 0:
-            raise NotImplementedError('Refining within polygons with holes does not work. Remove holes before using this function (e.g., polygon = Polygon(polygon.exterior)).')
+            raise NotImplementedError(
+                "Refining within polygons with holes does not work. Remove holes before using this function (e.g., polygon = Polygon(polygon.exterior))."
+            )
 
     for polygon in common.as_polygon_list(polygon):
         network.mesh2d_refine_mesh(GeometryList.from_geometry(polygon), level=steps)
 
 
-def mesh1d_add_branch(
+def mesh1d_add_branch_from_linestring(
     network: Network,
-    branches: Union[
-        LineString, MultiLineString, List[Union[LineString, MultiLineString]]
-    ],
+    linestring: LineString,
     node_distance: Union[float, int],
-    name: Union[str, None] = None
-) -> List[str]:
-    """Add branch to 1d mesh, from a (list of) (Multi)LineString geometry.
+    name: Union[str, None] = None,
+    structure_chainage: Union[List[float], None] = None,
+    max_dist_to_struc: Union[float, None] = None,
+) -> str:
+    """Add branch to 1d mesh, from a LineString geometry.
     The branch is discretized with the given node distance.
+    The position of a structure can be provided, just like the max distance
+    of a mesh node to a structure
 
     Args:
         network (Network): Network to which the branch is added
-        branches (Union[ LineString, MultiLineString, List[Union[LineString, MultiLineString]] ]): Geometry object(s) for which the branch is created
+        linestring (LineString): The geometry of the new branch
         node_distance (Union[float, int]): Preferred node distance between branch nodes
+        name (Union[str, None], optional): Name of the branch. If not given, a name is generated. Defaults to None.
+        structure_chainage (Union[List[float], None], optional): Positions of structures along the branch. Defaults to Union[float, None]=None.
+        max_dist_to_struc (Union[float, None], optional): Max distance of a mesh point to a structure. Defaults to Union[float, None]=None.
 
     Returns:
-        List[str]: List of names of added branches
+        str: name of added branch
     """
 
-    branchids = []
-    for line in common.as_linestring_list(branches):
-        branch = Branch(geometry=np.array(line.coords[:]))
-        branch.generate_nodes(node_distance)
-        branchid = network.mesh1d_add_branch(branch, name=name)
-        branchids.append(branchid)
+    branch = Branch(geometry=np.array(linestring.coords[:]))
+    branch.generate_nodes(
+        mesh1d_edge_length=node_distance,
+        structure_chainage=structure_chainage,
+        max_dist_to_struc=max_dist_to_struc,
+    )
+    branchid = network.mesh1d_add_branch(branch, name=name)
 
-    return branchids
+    return branchid
+
+
+def mesh1d_add_branches_from_gdf(
+    network: Network,
+    branches,
+    branch_name_col: str,
+    node_distance: float,
+    max_dist_to_struc: float = None,
+    structures=None,
+) -> None:
+    """Function to generate branches from geodataframe
+
+    Args:
+        network (Network): The network to which the branches are added
+        branches (gpd.GeoDataFrame): GeoDataFrame with branches
+        branch_name_col (str): Name of the column in the GeoDataFrame with the branchnames
+        node_distance (float): Preferred 1d mesh distance
+        max_dist_to_struc (float, optional): Maximum distance to structure. Defaults to None.
+        structures (gpd.GeoDataFrame, optional): GeoDataFrame with structures. Must contain a column branchid and chainage. Defaults to None.
+    """
+
+    # Create empty dictionary for structure chainage
+    structure_chainage = {}
+
+    # If structures are given, collect offsets per branch
+    if structures is not None:
+        # Get structure data from dfs
+        ids_offsets = structures[["branchid", "chainage"]].copy()
+        idx = structures["branchid"] != ""
+        if idx.any():
+            logger.warning("Some structures are not linked to a branch.")
+        ids_offsets = ids_offsets.loc[idx, :]
+
+        # For each branch
+        for branchid, group in ids_offsets.groupby("branchid")["chainage"]:
+            # Check if structures are located at the same offset
+            u, c = np.unique(group, return_counts=True)
+            if any(c > 1):
+                logger.warning(
+                    "Structures {} have the same location.".format(
+                        group.loc[np.isin(group, u[c > 1])].index.tolist()
+                    )
+                )
+            # Add to dictionary
+            structure_chainage[branchid] = u
+
+    # Loop over all branches, and add structures
+    for branchname, geometry in zip(
+        branches[branch_name_col].tolist(), branches["geometry"].tolist()
+    ):
+
+        # Create branch
+        branch = Branch(geometry=np.array(geometry.coords[:]))
+        # Generate nodes on branch
+        branch.generate_nodes(
+            mesh1d_edge_length=node_distance,
+            structure_chainage=structure_chainage[branchname]
+            if branchname in structure_chainage
+            else None,
+            max_dist_to_struc=max_dist_to_struc,
+        )
+        network.mesh1d_add_branch(branch, name=branchname)
 
 
 def links1d2d_add_links_1d_to_2d(
@@ -499,14 +570,12 @@ def links1d2d_add_links_2d_to_1d_lateral(
             keep.append(i)
 
     # Select the remaining links
-    network._link1d2d.link1d2d = network._link1d2d.link1d2d[keep]
-    network._link1d2d.link1d2d_contact_type = network._link1d2d.link1d2d_contact_type[
-        keep
-    ]
-    network._link1d2d.link1d2d_id = network._link1d2d.link1d2d_id[keep]
-    network._link1d2d.link1d2d_long_name = network._link1d2d.link1d2d_long_name[keep]
+    _filter_links_on_idx(network, keep)
 
-def links1d2d_remove_within(network: Network, within: Union[Polygon, MultiPolygon]) -> None:
+
+def links1d2d_remove_within(
+    network: Network, within: Union[Polygon, MultiPolygon]
+) -> None:
     """Remove 1d2d links within a given polygon or multipolygon
 
     Args:
@@ -522,7 +591,6 @@ def links1d2d_remove_within(network: Network, within: Union[Polygon, MultiPolygo
         [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
     )[network._link1d2d.link1d2d[:, 1]]
 
-
     # Create GeometryList MultiPoint object
     mpgl_faces2d = GeometryList(*faces2d.T.copy())
     mpgl_nodes1d = GeometryList(*nodes1d.T.copy())
@@ -532,27 +600,27 @@ def links1d2d_remove_within(network: Network, within: Union[Polygon, MultiPolygo
     for polygon in common.as_polygon_list(within):
         subarea = GeometryList.from_geometry(polygon)
         idx |= (
-            network.meshkernel.polygon_get_included_points(subarea, mpgl_faces2d).values == 1.0
+            network.meshkernel.polygon_get_included_points(subarea, mpgl_faces2d).values
+            == 1.0
         )
         idx |= (
-            network.meshkernel.polygon_get_included_points(subarea, mpgl_nodes1d).values == 1.0
+            network.meshkernel.polygon_get_included_points(subarea, mpgl_nodes1d).values
+            == 1.0
         )
 
     # Remove these links
     keep = ~idx
-    network._link1d2d.link1d2d = network._link1d2d.link1d2d[keep]
-    network._link1d2d.link1d2d_contact_type = network._link1d2d.link1d2d_contact_type[
-        keep
-    ]
-    network._link1d2d.link1d2d_id = network._link1d2d.link1d2d_id[keep]
-    network._link1d2d.link1d2d_long_name = network._link1d2d.link1d2d_long_name[keep]
-
-    
+    _filter_links_on_idx(network, keep)
 
 
-
-
-def mesh2d_altitude_from_raster(network, rasterpath, where: RasterStatPosition='face', stat='mean', fill_option: FillOption="fill_value", fill_value=None):
+def mesh2d_altitude_from_raster(
+    network,
+    rasterpath,
+    where: RasterStatPosition = "face",
+    stat="mean",
+    fill_option: FillOption = "fill_value",
+    fill_value=None,
+):
     """
     Method to determine level of nodes
 
@@ -571,32 +639,42 @@ def mesh2d_altitude_from_raster(network, rasterpath, where: RasterStatPosition='
         where = RasterStatPosition(where)
 
     # Select points on faces or nodes
-    logger.info('Creating GeoDataFrame of cell faces.')
+    logger.info("Creating GeoDataFrame of cell faces.")
 
     # Get coordinates where z-values are derived or centered
-    xy = np.stack([getattr(network._mesh2d, f'mesh2d_{where.value}_x'), getattr(network._mesh2d, f'mesh2d_{where.value}_y')], axis=1)
-    
+    xy = np.stack(
+        [
+            getattr(network._mesh2d, f"mesh2d_{where.value}_x"),
+            getattr(network._mesh2d, f"mesh2d_{where.value}_y"),
+        ],
+        axis=1,
+    )
+
     # Create cells as polygons
-    xy_facenodes = np.stack([network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1)
+    xy_facenodes = np.stack(
+        [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
+    )
     cells = network._mesh2d.mesh2d_face_nodes
     nodatavalue = np.iinfo(cells.dtype).min
     indices = cells != nodatavalue
     cells = [xy_facenodes[cell[index]] for cell, index in zip(cells, indices)]
     facedata = gpd.GeoDataFrame(geometry=[Polygon(cell) for cell in cells])
-    
+
     if where == RasterStatPosition.FACE:
         # Get raster statistics
         facedata.index = np.arange(len(xy), dtype=np.uint32) + 1
-        facedata['crds'] = [cell for cell in cells]
-    
+        facedata["crds"] = [cell for cell in cells]
+
         df = rasterstats.raster_stats_fine_cells(rasterpath, facedata, stats=[stat])
         # Get z values
         zvalues = df[stat].values
 
     elif where == RasterStatPosition.NODE:
 
-        logger.info('Generating voronoi polygons around cell centers for determining raster statistics.')
-        
+        logger.info(
+            "Generating voronoi polygons around cell centers for determining raster statistics."
+        )
+
         facedata = spatial.get_voronoi_around_nodes(xy, facedata)
         # Get raster statistics
         df = rasterstats.raster_stats_fine_cells(rasterpath, facedata, stats=[stat])
@@ -605,15 +683,17 @@ def mesh2d_altitude_from_raster(network, rasterpath, where: RasterStatPosition='
 
     isnan = np.isnan(zvalues)
     if isnan.any():
-        
+
         # If interpolation or fill_option, but all are NaN, raise error.
         if isnan.all() and fill_option in [FillOption.NEAREST, FillOption.INTERPOLATE]:
-            raise ValueError('Only NaN values found, interpolation or nearest not possible.')
-        
+            raise ValueError(
+                "Only NaN values found, interpolation or nearest not possible."
+            )
+
         # Fill fill_option values
         if fill_option == FillOption.FILL_VALUE:
             if fill_value is None:
-                raise ValueError('Provide a fill_value (keyword argument).')
+                raise ValueError("Provide a fill_value (keyword argument).")
             # With default value
             zvalues[isnan] = fill_value
 
@@ -626,11 +706,15 @@ def mesh2d_altitude_from_raster(network, rasterpath, where: RasterStatPosition='
 
         elif fill_option == FillOption.INTERPOLATE:
             if fill_value is None:
-                raise ValueError('Provide a fill_value (keyword argument) to fill values that cannot be interpolated.')
+                raise ValueError(
+                    "Provide a fill_value (keyword argument) to fill values that cannot be interpolated."
+                )
             # By interpolating
             isnan = np.isnan(zvalues)
-            interp = LinearNDInterpolator(xy[~isnan], zvalues[~isnan], fill_value=fill_value)
+            interp = LinearNDInterpolator(
+                xy[~isnan], zvalues[~isnan], fill_value=fill_value
+            )
             zvalues[isnan] = interp(xy[isnan])
-        
+
     # Set values to mesh geometry
-    setattr(network._mesh2d, f'mesh2d_{where.value}_z', zvalues)
+    setattr(network._mesh2d, f"mesh2d_{where.value}_z", zvalues)
