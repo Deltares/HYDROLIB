@@ -286,7 +286,9 @@ class DFLowFMModelWriter:
             self.boundaries_bc.append(bnd_bc)
 
     def laterals_to_dhydro(self, forcingmodel):
-        for lateral in self.hydamo.external_forcings.lateral_nodes.itertuples():
+        for lateral in self.hydamo.dict_to_dataframe(self.hydamo.external_forcings.lateral_nodes).itertuples():
+            
+            # If constant value
             if isinstance(lateral.discharge,str):                                
                 lat_ext = Lateral(id=lateral.Index,
                                 name = lateral.Index,
@@ -295,6 +297,8 @@ class DFLowFMModelWriter:
                                 branchId = lateral.branchid,
                                 chainage = lateral.chainage,                              
                                 discharge = lateral.discharge)                                    
+        
+            # Else, assume time series
             else:
                 lat_ext = Lateral(id=lateral.Index,
                                 name = lateral.Index,
@@ -318,7 +322,7 @@ class DFLowFMModelWriter:
                                     quantity='lateral_discharge', 
                                     unit='m3/s',
                                     datablock=[[lateral.value]])                
-                self.laterals_bc.append(lat_bc)
+                    self.laterals_bc.append(lat_bc)
             # [[setattr(c.comments, field[0], "") for field in c.comments] for c in lat_bc]  
             # [[setattr(c.comments, field[0], "") for field in c.comments] for c in lat_ext]  
             self.laterals_ext.append(lat_ext)
