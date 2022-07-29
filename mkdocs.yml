@@ -23,7 +23,6 @@ plugins:
   - search
   - mkdocs-jupyter
   - autorefs
-  - table-reader
   - monorepo
   - macros:
       module_name: docs/include/mkdocs-macros/main
