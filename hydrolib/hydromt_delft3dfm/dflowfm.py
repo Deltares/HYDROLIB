@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import pyproj
 import xarray as xr
+import xugrid as xu
 from hydromt import gis_utils, io, raster
 from hydromt.models.model_api import Model
 from rasterio.warp import transform_bounds
@@ -78,6 +79,7 @@ class DFlowFMModel(Model):
         # model specific
         self._dfmmodel = None
         self._branches = gpd.GeoDataFrame()
+        self._mesh = xr.Dataset()
         self._config_fn = (
             join("dflowfm", self._CONF) if config_fn is None else config_fn
         )
@@ -571,630 +573,70 @@ class DFlowFMModel(Model):
         # TODO: sort out the crosssections, e.g. remove branch crosssections if point/xyz exist etc
         # TODO: setup river crosssections, set contrains based on branch types
 
-    # def setup_branches(
-    #     self,
-    #     branches_fn: str,
-    #     branches_ini_fn: str = None,
-    #     snap_offset: float = 0.0,
-    #     id_col: str = "branchId",
-    #     branch_query: str = None,
-    #     pipe_query: str = 'branchType == "Channel"',  # TODO update to just TRUE or FALSE keywords instead of full query
-    #     channel_query: str = 'branchType == "Pipe"',
-    #     **kwargs,
-    # ):
-    #     """This component prepares the 1D branches
+    def setup_mesh2d(
+        self,
+        mesh2d_fn : str = None,
+        geom_fn : str = None,
+        bbox : list = None,
+        resolution : float = 100.0
+    ):
+        """ Creates 2D grid
 
-    #     Adds model layers:
+        1D rivers must contain valid geometry, friction and crosssections.
 
-    #     * **branches** geom: 1D branches vector
+        The river geometry is read from ``rivers_fn``. If defaults attributes
+        [material, friction_type, friction_value] are not present in ``rivers_fn``,
+        they are added from defaults values in ``rivers_defaults_fn``.
 
-    #     Parameters
-    #     ----------
-    #     branches_fn : str
-    #         Name of data source for branches parameters, see data/data_sources.yml.
+        The river friction is read from attributes [friction_type, friction_value]. Friction attributes are either taken
+        from ``rivers_fn`` or filled in using ``friction_type`` and ``friction_value`` arguments.
+        Note for now only branch friction or global friction is supported.
 
-    #         * Required variables: branchId, branchType, # TODO: now still requires some cross section stuff
+        Crosssections are read from ``crosssections_fn`` based on the ``crosssections_type``.
 
-    #         * Optional variables: []
+        Adds/Updates model layers:
 
-    #     """
-    #     self.logger.info(f"Preparing 1D branches.")
+        * **rivers** geom: 1D rivers vector
+        * **branches** geom: 1D branches vector
+        * **crosssections** geom: 1D crosssection vector
 
-    #     # initialise data model
-    #     branches_ini = helper.parse_ini(
-    #         Path(self._DATADIR).joinpath("dflowfm", f"branch_settings.ini")
-    #     )  # TODO: make this default file complete, need 2 more argument, spacing? yes/no, has_in_branch crosssection? yes/no, or maybe move branches, cross sections and roughness into basemap
-    #     branches = None
-    #     branch_nodes = None
-    #     # TODO: initilise hydrolib-core object --> build
-    #     # TODO: call hydrolib-core object --> update
+        Parameters
+        ----------
+        mesh2D_fn : str Path, optional
+            Name of data source for branches parameters, see data/data_sources.yml.
+            Note only the lines that are within the region polygon + 10m buffer will be used.
+            * Required variables: [branchId, branchType]
+            * Optional variables: [material, friction_type, friction_value, branchOrder]
+        geom_fn : str Path, optional
+            Path to a csv file containing all defaults values per 'branchType'.
+        bbox: list, optional
+            Snapping tolenrance to automatically connecting branches.
+            By default 0.0, no snapping is applied.
+        resolution: float, optional
+            Switch to choose whether snapping of multiple branch ends are allowed when ``snap_offset`` is used.
+            By default True.
 
-    #     # read branch_ini
-    #     if branches_ini_fn is None or not branches_ini_fn.is_file():
-    #         self.logger.warning(
-    #             f"branches_ini_fn ({branches_ini_fn}) does not exist. Fall back choice to defaults. "
-    #         )
-    #         branches_ini_fn = Path(self._DATADIR).joinpath(
-    #             "dflowfm", f"branch_settings.ini"
-    #         )
+        See Also
+        ----------
+        
+        """
+        #TODO: Set logger
+        #TODO: deviate between the use of existing grid or grid generation
+        #TODO: Check location of existing grid
+        #TODO: geom_fn --> check if within region and with the same crs--> check if it is not empty after reading it
+        #TODO: bbox  --> generatie geometry and check if within regionp--> check if it is not empty after reading it
+        #TODO: Use region
+        #TODO: generate grid
+        #TODO: set as mesh
 
-    #     branches_ini.update(helper.parse_ini(branches_ini_fn))
-    #     self.logger.info(f"branch default settings read from {branches_ini_fn}.")
-
-    #     # read branches
-    #     if branches_fn is None:
-    #         raise ValueError("branches_fn must be specified.")
-
-    #     branches = self._get_geodataframe(branches_fn, id_col=id_col, **kwargs)
-    #     self.logger.info(f"branches read from {branches_fn} in Data Catalogue.")
-
-    #     branches = helper.append_data_columns_based_on_ini_query(branches, branches_ini)
-
-    #     # select branches to use
-    #     if helper.check_geodataframe(branches) and branch_query is not None:
-    #         branches = branches.query(branch_query)
-    #         self.logger.info(f"Query branches for {branch_query}")
-
-    #     # process branches and generate branch_nodes
-    #     if helper.check_geodataframe(branches):
-    #         self.logger.info(f"Processing branches")
-    #         branches, branch_nodes = process_branches(
-    #             branches,
-    #             branch_nodes,
-    #             branches_ini=branches_ini,  # TODO:  make the branch_setting.ini [global] functions visible in the setup functions. Use kwargs to allow user interaction. Make decisions on what is neccessary and what not
-    #             id_col=id_col,
-    #             snap_offset=snap_offset,
-    #             logger=self.logger,
-    #         )
-
-    #     # validate branches
-    #     # TODO: integrate below into validate module
-    #     if helper.check_geodataframe(branches):
-    #         self.logger.info(f"Validating branches")
-    #         validate_branches(branches)
-
-    #     # finalise branches
-    #     # setup channels
-    #     branches.loc[branches.query(channel_query).index, "branchType"] = "Channel"
-    #     # setup pipes
-    #     branches.loc[branches.query(pipe_query).index, "branchType"] = "Pipe"
-    #     # assign crs
-    #     branches.crs = self.crs
-
-    #     # setup staticgeoms
-    #     self.logger.debug(f"Adding branches and branch_nodes vector to staticgeoms.")
-    #     self.set_staticgeoms(branches, "branches")
-    #     self.set_staticgeoms(branch_nodes, "branch_nodes")
-
-    #     # TODO: assign hydrolib-core object
-
-    #     return branches, branch_nodes
-    #
-    # def setup_roughness(
-    #     self,
-    #     generate_roughness_from_branches: bool = True,
-    #     roughness_ini_fn: str = None,
-    #     branch_query: str = None,
-    #     **kwargs,
-    # ):
-    #     """"""
-    #
-    #     self.logger.info(f"Preparing 1D roughness.")
-    #
-    #     # initialise ini settings and data
-    #     roughness_ini = helper.parse_ini(
-    #         Path(self._DATADIR).joinpath("dflowfm", f"roughness_settings.ini")
-    #     )
-    #     # TODO: how to make sure if defaults are given, we can also know it based on friction name or cross section definiation id (can we use an additional column for that? )
-    #     roughness = None
-    #
-    #     # TODO: initilise hydrolib-core object --> build
-    #     # TODO: call hydrolib-core object --> update
-    #
-    #     # update ini settings
-    #     if roughness_ini_fn is None or not roughness_ini_fn.is_file():
-    #         self.logger.warning(
-    #             f"roughness_ini_fn ({roughness_ini_fn}) does not exist. Fall back choice to defaults. "
-    #         )
-    #         roughness_ini_fn = Path(self._DATADIR).joinpath(
-    #             "dflowfm", f"roughness_settings.ini"
-    #         )
-    #
-    #     roughness_ini.update(helper.parse_ini(roughness_ini_fn))
-    #     self.logger.info(f"roughness default settings read from {roughness_ini}.")
-    #
-    #     if generate_roughness_from_branches == True:
-    #
-    #         self.logger.info(f"Generating roughness from branches. ")
-    #
-    #         # update data by reading user input
-    #         _branches = self.staticgeoms["branches"]
-    #
-    #         # update data by combining ini settings
-    #         self.logger.debug(
-    #             f'1D roughness initialised with the following attributes: {list(roughness_ini.get("default", {}))}.'
-    #         )
-    #         branches = helper.append_data_columns_based_on_ini_query(
-    #             _branches, roughness_ini
-    #         )
-    #
-    #         # select branches to use e.g. to facilitate setup a selection each time setup_* is called
-    #         if branch_query is not None:
-    #             branches = branches.query(branch_query)
-    #             self.logger.info(f"Query branches for {branch_query}")
-    #
-    #         # process data
-    #         if helper.check_geodataframe(branches):
-    #             roughness, branches = generate_roughness(branches, roughness_ini)
-    #
-    #         # add staticgeoms
-    #         if helper.check_geodataframe(roughness):
-    #             self.logger.debug(f"Updating branches vector to staticgeoms.")
-    #             self.set_staticgeoms(branches, "branches")
-    #
-    #             self.logger.debug(f"Updating roughness vector to staticgeoms.")
-    #             self.set_staticgeoms(roughness, "roughness")
-    #
-    #         # TODO: add hydrolib-core object
-    #
-    #     else:
-    #
-    #         # TODO: setup roughness from other data types
-    #
-    #         pass
-    #
-    # def setup_crosssections(
-    #     self,
-    #     generate_crosssections_from_branches: bool = True,
-    #     crosssections_ini_fn: str = None,
-    #     branch_query: str = None,
-    #     **kwargs,
-    # ):
-    #     """"""
-    #
-    #     self.logger.info(f"Preparing 1D crosssections.")
-    #
-    #     # initialise ini settings and data
-    #     crosssections_ini = helper.parse_ini(
-    #         Path(self._DATADIR).joinpath("dflowfm", f"crosssection_settings.ini")
-    #     )
-    #     crsdefs = None
-    #     crslocs = None
-    #     # TODO: initilise hydrolib-core object --> build
-    #     # TODO: call hydrolib-core object --> update
-    #
-    #     # update ini settings
-    #     if crosssections_ini_fn is None or not crosssections_ini_fn.is_file():
-    #         self.logger.warning(
-    #             f"crosssection_ini_fn ({crosssections_ini_fn}) does not exist. Fall back choice to defaults. "
-    #         )
-    #         crosssections_ini_fn = Path(self._DATADIR).joinpath(
-    #             "dflowfm", f"crosssection_settings.ini"
-    #         )
-    #
-    #     crosssections_ini.update(helper.parse_ini(crosssections_ini_fn))
-    #     self.logger.info(
-    #         f"crosssections default settings read from {crosssections_ini}."
-    #     )
-    #
-    #     if generate_crosssections_from_branches == True:
-    #
-    #         # set crosssections from branches (1D)
-    #         self.logger.info(f"Generating 1D crosssections from 1D branches.")
-    #
-    #         # update data by reading user input
-    #         _branches = self.staticgeoms["branches"]
-    #
-    #         # update data by combining ini settings
-    #         self.logger.debug(
-    #             f'1D crosssections initialised with the following attributes: {list(crosssections_ini.get("default", {}))}.'
-    #         )
-    #         branches = helper.append_data_columns_based_on_ini_query(
-    #             _branches, crosssections_ini
-    #         )
-    #
-    #         # select branches to use e.g. to facilitate setup a selection each time setup_* is called
-    #         if branch_query is not None:
-    #             branches = branches.query(branch_query)
-    #             self.logger.info(f"Query branches for {branch_query}")
-    #
-    #         if helper.check_geodataframe(branches):
-    #             crsdefs, crslocs, branches = generate_crosssections(
-    #                 branches, crosssections_ini
-    #             )
-    #
-    #         # update new branches with crsdef info to staticgeoms
-    #         self.logger.debug(f"Updating branches vector to staticgeoms.")
-    #         self.set_staticgeoms(branches, "branches")
-    #
-    #         # add new crsdefs to staticgeoms
-    #         self.logger.debug(f"Adding crsdefs vector to staticgeoms.")
-    #         self.set_staticgeoms(
-    #             gpd.GeoDataFrame(
-    #                 crsdefs,
-    #                 geometry=gpd.points_from_xy([0] * len(crsdefs), [0] * len(crsdefs)),
-    #             ),
-    #             "crsdefs",
-    #         )  # FIXME: make crsdefs a vector to be add to static geoms. using dummy locations --> might cause issue for structures
-    #
-    #         # add new crslocs to staticgeoms
-    #         self.logger.debug(f"Adding crslocs vector to staticgeoms.")
-    #         self.set_staticgeoms(crslocs, "crslocs")
-    #
-    #     else:
-    #
-    #         # TODO: setup roughness from other data types, e.g. points, xyz
-    #
-    #         pass
-    #         # raise NotImplementedError()
-    #
-    # def setup_manholes(
-    #     self,
-    #     manholes_ini_fn: str = None,
-    #     manholes_fn: str = None,
-    #     id_col: str = None,
-    #     snap_offset: float = 1,
-    #     rename_map: dict = None,
-    #     required_columns: list = None,
-    #     required_dtypes: list = None,
-    #     logger=logging,
-    # ):
-    #     """"""
-    #
-    #     self.logger.info(f"Preparing manholes.")
-    #     _branches = self.staticgeoms["branches"]
-    #
-    #     # Setup of branches and manholes
-    #     manholes, branches = delft3dfmpy_setupfuncs.setup_manholes(
-    #         _branches,
-    #         manholes_fn=delft3dfmpy_setupfuncs.parse_arg(
-    #             manholes_fn
-    #         ),  # FIXME: hydromt config parser could not parse '' to None
-    #         manholes_ini_fn=delft3dfmpy_setupfuncs.parse_arg(
-    #             manholes_ini_fn
-    #         ),  # FIXME: hydromt config parser could not parse '' to None
-    #         snap_offset=snap_offset,
-    #         id_col=id_col,
-    #         rename_map=delft3dfmpy_setupfuncs.parse_arg(
-    #             rename_map
-    #         ),  # TODO: replace with data adaptor
-    #         required_columns=delft3dfmpy_setupfuncs.parse_arg(
-    #             required_columns
-    #         ),  # TODO: replace with data adaptor
-    #         required_dtypes=delft3dfmpy_setupfuncs.parse_arg(
-    #             required_dtypes
-    #         ),  # TODO: replace with data adaptor
-    #         logger=logger,
-    #     )
-    #
-    #     self.logger.debug(f"Adding manholes vector to staticgeoms.")
-    #     self.set_staticgeoms(manholes, "manholes")
-    #
-    #     self.logger.debug(f"Updating branches vector to staticgeoms.")
-    #     self.set_staticgeoms(branches, "branches")
-    #
-    # def setup_bridges(
-    #     self,
-    #     roughness_ini_fn: str = None,
-    #     bridges_ini_fn: str = None,
-    #     bridges_fn: str = None,
-    #     id_col: str = None,
-    #     branch_query: str = None,
-    #     snap_method: str = "overall",
-    #     snap_offset: float = 1,
-    #     rename_map: dict = None,
-    #     required_columns: list = None,
-    #     required_dtypes: list = None,
-    #     logger=logging,
-    # ):
-    #     """"""
-    #
-    #     self.logger.info(f"Preparing bridges.")
-    #     _branches = self.staticgeoms["branches"]
-    #     _crsdefs = self.staticgeoms["crsdefs"]
-    #     _crslocs = self.staticgeoms["crslocs"]
-    #
-    #     bridges, crsdefs = delft3dfmpy_setupfuncs.setup_bridges(
-    #         _branches,
-    #         _crsdefs,
-    #         _crslocs,
-    #         delft3dfmpy_setupfuncs.parse_arg(roughness_ini_fn),
-    #         delft3dfmpy_setupfuncs.parse_arg(bridges_ini_fn),
-    #         delft3dfmpy_setupfuncs.parse_arg(bridges_fn),
-    #         id_col,
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             branch_query
-    #         ),  # TODO: replace with data adaptor
-    #         snap_method,
-    #         snap_offset,
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             rename_map
-    #         ),  # TODO: replace with data adaptor
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             required_columns
-    #         ),  # TODO: replace with data adaptor
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             required_dtypes
-    #         ),  # TODO: replace with data adaptor
-    #         logger,
-    #     )
-    #
-    #     self.logger.debug(f"Adding bridges vector to staticgeoms.")
-    #     self.set_staticgeoms(bridges, "bridges")
-    #
-    #     self.logger.debug(f"Updating crsdefs vector to staticgeoms.")
-    #     self.set_staticgeoms(crsdefs, "crsdefs")
-    #
-    # def setup_gates(
-    #     self,
-    #     roughness_ini_fn: str = None,
-    #     gates_ini_fn: str = None,
-    #     gates_fn: str = None,
-    #     id_col: str = None,
-    #     branch_query: str = None,
-    #     snap_method: str = "overall",
-    #     snap_offset: float = 1,
-    #     rename_map: dict = None,
-    #     required_columns: list = None,
-    #     required_dtypes: list = None,
-    #     logger=logging,
-    # ):
-    #     """"""
-    #
-    #     self.logger.info(f"Preparing gates.")
-    #     _branches = self.staticgeoms["branches"]
-    #     _crsdefs = self.staticgeoms["crsdefs"]
-    #     _crslocs = self.staticgeoms["crslocs"]
-    #
-    #     gates = delft3dfmpy_setupfuncs.setup_gates(
-    #         _branches,
-    #         _crsdefs,
-    #         _crslocs,
-    #         delft3dfmpy_setupfuncs.parse_arg(roughness_ini_fn),
-    #         delft3dfmpy_setupfuncs.parse_arg(gates_ini_fn),
-    #         delft3dfmpy_setupfuncs.parse_arg(gates_fn),
-    #         id_col,
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             branch_query
-    #         ),  # TODO: replace with data adaptor
-    #         snap_method,
-    #         snap_offset,
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             rename_map
-    #         ),  # TODO: replace with data adaptor
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             required_columns
-    #         ),  # TODO: replace with data adaptor
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             required_dtypes
-    #         ),  # TODO: replace with data adaptor
-    #         logger,
-    #     )
-    #
-    #     self.logger.debug(f"Adding gates vector to staticgeoms.")
-    #     self.set_staticgeoms(gates, "gates")
-    #
-    # def setup_pumps(
-    #     self,
-    #     roughness_ini_fn: str = None,
-    #     pumps_ini_fn: str = None,
-    #     pumps_fn: str = None,
-    #     id_col: str = None,
-    #     branch_query: str = None,
-    #     snap_method: str = "overall",
-    #     snap_offset: float = 1,
-    #     rename_map: dict = None,
-    #     required_columns: list = None,
-    #     required_dtypes: list = None,
-    #     logger=logging,
-    # ):
-    #     """"""
-    #
-    #     self.logger.info(f"Preparing gates.")
-    #     _branches = self.staticgeoms["branches"]
-    #     _crsdefs = self.staticgeoms["crsdefs"]
-    #     _crslocs = self.staticgeoms["crslocs"]
-    #
-    #     pumps = delft3dfmpy_setupfuncs.setup_pumps(
-    #         _branches,
-    #         _crsdefs,
-    #         _crslocs,
-    #         delft3dfmpy_setupfuncs.parse_arg(roughness_ini_fn),
-    #         delft3dfmpy_setupfuncs.parse_arg(pumps_ini_fn),
-    #         delft3dfmpy_setupfuncs.parse_arg(pumps_fn),
-    #         id_col,
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             branch_query
-    #         ),  # TODO: replace with data adaptor
-    #         snap_method,
-    #         snap_offset,
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             rename_map
-    #         ),  # TODO: replace with data adaptor
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             required_columns
-    #         ),  # TODO: replace with data adaptor
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             required_dtypes
-    #         ),  # TODO: replace with data adaptor
-    #         logger,
-    #     )
-    #
-    #     self.logger.debug(f"Adding pumps vector to staticgeoms.")
-    #     self.set_staticgeoms(pumps, "pumps")
-    #
-    # def setup_culverts(
-    #     self,
-    #     roughness_ini_fn: str = None,
-    #     culverts_ini_fn: str = None,
-    #     culverts_fn: str = None,
-    #     id_col: str = None,
-    #     branch_query: str = None,
-    #     snap_method: str = "overall",
-    #     snap_offset: float = 1,
-    #     rename_map: dict = None,
-    #     required_columns: list = None,
-    #     required_dtypes: list = None,
-    #     logger=logging,
-    # ):
-    #     """"""
-    #
-    #     self.logger.info(f"Preparing culverts.")
-    #     _branches = self.staticgeoms["branches"]
-    #     _crsdefs = self.staticgeoms["crsdefs"]
-    #     _crslocs = self.staticgeoms["crslocs"]
-    #
-    #     culverts, crsdefs = delft3dfmpy_setupfuncs.setup_culverts(
-    #         _branches,
-    #         _crsdefs,
-    #         _crslocs,
-    #         delft3dfmpy_setupfuncs.parse_arg(roughness_ini_fn),
-    #         delft3dfmpy_setupfuncs.parse_arg(culverts_ini_fn),
-    #         delft3dfmpy_setupfuncs.parse_arg(culverts_fn),
-    #         id_col,
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             branch_query
-    #         ),  # TODO: replace with data adaptor
-    #         snap_method,
-    #         snap_offset,
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             rename_map
-    #         ),  # TODO: replace with data adaptor
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             required_columns
-    #         ),  # TODO: replace with data adaptor
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             required_dtypes
-    #         ),  # TODO: replace with data adaptor
-    #         logger,
-    #     )
-    #
-    #     self.logger.debug(f"Adding culverts vector to staticgeoms.")
-    #     self.set_staticgeoms(culverts, "culverts")
-    #
-    #     self.logger.debug(f"Updating crsdefs vector to staticgeoms.")
-    #     self.set_staticgeoms(crsdefs, "crsdefs")
-    #
-    # def setup_compounds(
-    #     self,
-    #     roughness_ini_fn: str = None,
-    #     compounds_ini_fn: str = None,
-    #     compounds_fn: str = None,
-    #     id_col: str = None,
-    #     branch_query: str = None,
-    #     snap_method: str = "overall",
-    #     snap_offset: float = 1,
-    #     rename_map: dict = None,
-    #     required_columns: list = None,
-    #     required_dtypes: list = None,
-    #     logger=logging,
-    # ):
-    #     """"""
-    #
-    #     self.logger.info(f"Preparing compounds.")
-    #     _structures = [
-    #         self.staticgeoms[s]
-    #         for s in ["bridges", "gates", "pumps", "culverts"]
-    #         if s in self.staticgeoms.keys()
-    #     ]
-    #
-    #     compounds = delft3dfmpy_setupfuncs.setup_compounds(
-    #         _structures,
-    #         delft3dfmpy_setupfuncs.parse_arg(roughness_ini_fn),
-    #         delft3dfmpy_setupfuncs.parse_arg(compounds_ini_fn),
-    #         delft3dfmpy_setupfuncs.parse_arg(compounds_fn),
-    #         id_col,
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             branch_query
-    #         ),  # TODO: replace with data adaptor
-    #         snap_method,
-    #         snap_offset,
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             rename_map
-    #         ),  # TODO: replace with data adaptor
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             required_columns
-    #         ),  # TODO: replace with data adaptor
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             required_dtypes
-    #         ),  # TODO: replace with data adaptor
-    #         logger,
-    #     )
-    #
-    #     self.logger.debug(f"Adding compounds vector to staticgeoms.")
-    #     self.set_staticgeoms(compounds, "compounds")
-    #
-    # def setup_boundaries(
-    #     self,
-    #     boundaries_fn: str = None,
-    #     boundaries_fn_ini: str = None,
-    #     id_col: str = None,
-    #     rename_map: dict = None,
-    #     required_columns: list = None,
-    #     required_dtypes: list = None,
-    #     logger=logging,
-    # ):
-    #     """"""
-    #
-    #     self.logger.info(f"Preparing boundaries.")
-    #     _structures = [
-    #         self.staticgeoms[s]
-    #         for s in ["bridges", "gates", "pumps", "culverts"]
-    #         if s in self.staticgeoms.keys()
-    #     ]
-    #
-    #     boundaries = delft3dfmpy_setupfuncs.setup_boundaries(
-    #         delft3dfmpy_setupfuncs.parse_arg(boundaries_fn),
-    #         delft3dfmpy_setupfuncs.parse_arg(boundaries_fn_ini),
-    #         id_col,
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             rename_map
-    #         ),  # TODO: replace with data adaptor
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             required_columns
-    #         ),  # TODO: replace with data adaptor
-    #         delft3dfmpy_setupfuncs.parse_arg(
-    #             required_dtypes
-    #         ),  # TODO: replace with data adaptor
-    #         logger,
-    #     )
-    #
-    #     self.logger.debug(f"Adding boundaries vector to staticgeoms.")
-    #     self.set_staticgeoms(boundaries, "boundaries")
-    #
-    # def _setup_datamodel(self):
-    #
-    #     """setup data model using dfm and drr naming conventions"""
-    #     if self._datamodel == None:
-    #         self._datamodel = delft3dfmpy_setupfuncs.setup_dm(
-    #             self.staticgeoms, logger=self.logger
-    #         )
-    #
-    # def setup_dflowfm(
-    #     self,
-    #     model_type: str = "1d",
-    #     one_d_mesh_distance: float = 40,
-    # ):
-    #     """ """
-    #     self.logger.info(f"Preparing DFlowFM 1D model.")
-    #
-    #     self._setup_datamodel()
-    #
-    #     self._dfmmodel = delft3dfmpy_setupfuncs.setup_dflowfm(
-    #         self._datamodel,
-    #         model_type=model_type,
-    #         one_d_mesh_distance=one_d_mesh_distance,
-    #         logger=self.logger,
-    #     )
-    #
     # ## I/O
-
     def read(self):
         """Method to read the complete model schematization and configuration from file."""
         self.logger.info(f"Reading model data from {self.root}")
         self.read_config()
         self.read_staticmaps()
         self.read_staticgeoms()
+        self.read_mesh()
         self.read_dfmmodel()
 
     def write(self):  # complete model
@@ -1211,6 +653,8 @@ class DFlowFMModel(Model):
             self.write_staticmaps()
         if self._staticgeoms:
             self.write_staticgeoms()
+        if self._mesh:
+            self.write_mesh()
         if self.dfmmodel:
             self.write_dfmmodel()
         if self._forcing:
@@ -1254,6 +698,29 @@ class DFlowFMModel(Model):
                 fn_out, driver="GeoJSON"
             )  # FIXME: does not work if does not reset index
 
+    def read_mesh(self):
+        """Read mesh at <root/?/> and parse to xarray Dataset """
+        #FIXME: it can at the moment only read 2D/1D or network. Not all at once.
+        if not self._write:
+            # start fresh in read-only mode
+            self._mesh = xu.Dataset()
+        if isfile(join(self.root, "mesh","FlowFM_2D_net.nc")): #Change of file not implemented yet
+            self._mesh = xu.open_dataset(join(self.root, "mesh","FlowFM_2D_net.nc"))
+
+    def write_mesh(self):
+        """Write grid at <root/?/> in xarray.Dataset """
+        if not self._write:
+            raise IOError("Model opened in read-only mode")
+        elif not self._mesh:
+            self.logger.warning("No mesh to write - Exiting")
+            return
+        # filename
+        #FIXME: change filename when xugrid can read combined networkfiles
+        fn_default = join(self.root, "mesh","FlowFM_2D_net.nc")
+        self.logger.info(f"Write mesh to {self.root}")
+        ds_out = self.mesh
+        ds_out.to_netcdf(fn_default)
+
     def read_forcing(self):
         """Read forcing at <root/?/> and parse to dict of xr.DataArray"""
         return self._forcing
@@ -1276,6 +743,9 @@ class DFlowFMModel(Model):
 
         # write 1D mesh
         self._write_mesh1d()  # FIXME None handling
+
+        # write 2d mesh
+        #TODO: create self._write_mesh2d() using hydrolib-core funcitonalities
 
         # write friction
         self._write_friction()  # FIXME: ask Rinske, add global section correctly
@@ -1468,3 +938,47 @@ class DFlowFMModel(Model):
                 pd.concat([self.crosssections, crosssections])
             )
         self.set_staticgeoms(crosssections, name="crosssections")
+
+    @property
+    def mesh(self):
+        """xarray.Dataset representation of all mesh"""
+        if len(self._mesh) == 0:
+            if self._read:
+                self.read_mesh()
+        return self._mesh
+
+    def set_mesh(self, data, name=None):
+        """Add data to mesh object.
+        -Describe specifics of the mesh object (for example related to the network and ugrid representation)
+        Parameters
+        ----------
+        data: xugrid.UgridDataArray or xugrid.UgridDataset
+            new layer to add to mesh
+        name: str, optional
+            Name of new object layer, this is used to overwrite the name of a DataArray
+            or to select a variable from a Dataset.
+        """
+        if name is None:
+            if isinstance(data, xu.UgridDataArray) and data.name is not None:
+                name = data.name
+            elif not isinstance(data, xu.UgridDataset):
+                raise ValueError("Setting a mesh parameter requires a name")
+        elif name is not None and isinstance(data, xu.UgridDataset):
+            data_vars = list(data.data_vars)
+            if len(data_vars) == 1 and name not in data_vars:
+                data = data.rename_vars({data_vars[0]: name})
+            elif name not in data_vars:
+                raise ValueError("Name not found in DataSet")
+            else:
+                data = data[[name]]
+        if isinstance(data, xu.UgridDataArray):
+            data.name = name
+            data = data.to_dataset()
+        if len(self._mesh) == 0:  # new data
+            self._mesh = data
+        else:
+            for dvar in data.data_vars.keys():
+                if dvar in self._mesh:
+                    if self._read:
+                        self.logger.warning(f"Replacing mesh parameter: {dvar}")
+                self._mesh[dvar] = data[dvar]
