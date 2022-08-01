@@ -130,7 +130,8 @@ class GeometryList(GeometryListMK):
 
         for geometry_list in geometries:
             # Check if polygon, by comparing first and last coordinates
-            is_polygon = geometry_list.x_coordinates[0] == geometry_list.x_coordinates[-1]
+            exterior = split_by(geometry_list, self.inner_outer_separator)[0]
+            is_polygon = exterior.x_coordinates[0] == exterior.x_coordinates[-1]
             # Check if linestring, by checking the length of coordinate sequences
             is_linestring = (len(geometry_list.x_coordinates) > 1) and (not is_polygon)
 
