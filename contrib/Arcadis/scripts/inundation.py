@@ -4,10 +4,10 @@ from datetime import datetime
 
 import geopandas as gpd
 import netCDF4 as nc
-import xarray as xr
 import numpy as np
 import pandas as pd
 import rasterio
+import xarray as xr
 from geovoronoi import points_to_coords, voronoi_regions_from_coords
 from rasterio import features
 from read_dhydro import net_nc2gdf, read_nc_data
@@ -24,7 +24,7 @@ def inun_dhydro(
     domain="",
     filter=False,
     extrapol=0.5,
-    debug=False
+    debug=False,
 ):
 
     """
@@ -211,7 +211,6 @@ def inun_dhydro(
 
     # create template array
     nan_array = np.empty((len(dtm), len(dtm[0]))).astype("float32")
-
 
     if type == "depth":
         # write model results if type is depth
