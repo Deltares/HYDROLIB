@@ -88,9 +88,9 @@ class DFlowFMModel(Model):
         self._config_fn = (
             join("dflowfm", self._CONF) if config_fn is None else config_fn
         )
-        self.write_config()  #  create the mdu file in order to initialise dfmmodedl properly and at correct output location
+        self.write_config() #  create the mdu file in order to initialise dfmmodedl properly and at correct output location
         self._dfmmodel = self.init_dfmmodel()
-
+        
     def setup_basemaps(
         self,
         region: dict,
@@ -974,7 +974,7 @@ class DFlowFMModel(Model):
             branch_names=self.staticgeoms["branches"].branchId.to_list(),
             branch_orders=self.staticgeoms["branches"].branchOrder.to_list(),
         )
-
+    
     def add_branches(self, new_branches: gpd.GeoDataFrame, branchtype: str):
         """Add new branches of branchtype to the branches object"""
         branches = self.branches.copy()
