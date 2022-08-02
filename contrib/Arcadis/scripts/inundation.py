@@ -7,6 +7,7 @@ import netCDF4 as nc
 import numpy as np
 import pandas as pd
 import rasterio
+import xarray as xr
 from geovoronoi import points_to_coords, voronoi_regions_from_coords
 from rasterio import features
 from read_dhydro import net_nc2gdf, read_nc_data
@@ -15,7 +16,7 @@ from shapely.geometry import box
 
 def inun_dhydro(
     nc_path,
-    output_folder,
+    result_path,
     type="level",
     dtm_path="",
     sdate="",
@@ -23,6 +24,7 @@ def inun_dhydro(
     domain="",
     filter=False,
     extrapol=0.5,
+    debug=False,
 ):
 
     """
@@ -31,8 +33,8 @@ def inun_dhydro(
        Parameters:
             nc_path : str
                Path to input nc-file containing the D-hydro model results
-            output_folder : str
-               Path to the output folder
+            result_path : str
+               Path to the output file
             type: str
                Analysis type ("type" and "level")
             dtm_path: str
@@ -47,6 +49,8 @@ def inun_dhydro(
                 Optional filtering of the inundations, based on connectivity
             extrapol: float
                 Optional extrapolation of 2D results
+            debug: bool
+                Write aditional information about the calculation
     ___________________________________________________________________________________________________________
        Warning:
            only 2D results will be used if type=depth
@@ -54,7 +58,9 @@ def inun_dhydro(
            without filter 1D will only be used outside of 2D.
     """
 
-    ds = nc.Dataset(nc_path)
+    output_folder = os.path.dirname(result_path)
+
+    ds = xr.open_dataset(nc_path)
     EPSG = "EPSG:" + str(ds["projected_coordinate_system"].epsg)
     variables = list(ds.variables)
 
@@ -145,6 +151,7 @@ def inun_dhydro(
         meta.update(compress="lzw", count=1, dtype=rasterio.float32)
         resx = src.transform[0]
         # correct possible wrong nodata
+        dtm[dtm.mask] = np.nan
         dtm[dtm <= -999] = np.nan
         dtm[dtm >= 9999] = np.nan
         # geom_dtm = Polygon([(src.bounds.left,src.bounds.top),(src.bounds.right,src.bounds.top),(src.bounds.right,src.bounds.bottom),(src.bounds.left,src.bounds.bottom)])
@@ -183,10 +190,11 @@ def inun_dhydro(
 
     # write areas if present
     filename = "waterlevel" if type == "level" else "waterdepth"
-    if len(gdf1_area) > 0:
-        gdf1_area.to_file(os.path.join(output_folder, filename + "1D.shp"))
-    if len(gdf2) > 0:
-        gdf2.to_file(os.path.join(output_folder, filename + "2D.shp"))
+    if debug == True:
+        if len(gdf1_area) > 0:
+            gdf1_area.to_file(os.path.join(output_folder, filename + "1D.shp"))
+        if len(gdf2) > 0:
+            gdf2.to_file(os.path.join(output_folder, filename + "2D.shp"))
 
     # extrapolate 2D waterlevels, only when using waterlevel
     if len(gdf2) > 0:
@@ -198,172 +206,171 @@ def inun_dhydro(
         else:
             gdf2_extp = gdf2
         gdf2_extp.dropna(subset=["max"], inplace=True)
+    else:
+        gdf2_extp = gpd.GeoDataFrame()
 
     # create template array
     nan_array = np.empty((len(dtm), len(dtm[0]))).astype("float32")
 
-    with rasterio.open(
-        os.path.join(output_folder, "waterdepth.tif"), "w", **meta
-    ) as out:
+    if type == "depth":
         # write model results if type is depth
-        if type == "depth":
-            print("Exporteren van modelresultaten.")
-            areas = ((geom, value) for geom, value in zip(gdf2.geometry, gdf2["max"]))
-            nan_array[:] = np.nan
-            values = features.rasterize(
-                shapes=areas, fill=np.nan, out=nan_array, transform=out.transform
-            )
-            values[values <= -999] = np.nan
-            out.write_band(1, values)
+        print("Exporteren van modelresultaten.")
+        areas = ((geom, value) for geom, value in zip(gdf2.geometry, gdf2["max"]))
+        nan_array[:] = np.nan
+        inun = features.rasterize(
+            shapes=areas, fill=np.nan, out=nan_array, transform=meta["transform"]
+        )
+        inun[inun <= -999] = np.nan
+    elif type == "level":
         # calcualte inundations from waterlevel
-        elif type == "level":
-            print("Berekenen van inundaties.")
+        print("Berekenen van inundaties.")
 
-            # create waterlevel raster and calculate inundations
+        # create waterlevel raster and calculate inundations
+        if len(gdf1_area) > 0:
+            areas1D = (
+                (geom, value)
+                for geom, value in zip(gdf1_area.geometry, gdf1_area["max"])
+            )
+            nan_array[:] = np.nan
+            values1D = features.rasterize(
+                shapes=areas1D, fill=np.nan, out=nan_array, transform=meta["transform"]
+            )
+            values1D[values1D <= -999] = np.nan
+            inun1D = np.where(dtm == np.nan, np.nan, values1D - dtm)
+            inun1D = np.where(inun1D <= 0, np.nan, inun1D)
+        if len(gdf2_extp) > 0:
+            areas2D = (
+                (geom, value)
+                for geom, value in zip(gdf2_extp.geometry, gdf2_extp["max"])
+            )
+            nan_array[:] = np.nan
+            values2D = features.rasterize(
+                shapes=areas2D, fill=np.nan, out=nan_array, transform=out.transform
+            )
+            values2D[values2D <= -999] = np.nan
+            inun2D = np.where(dtm == np.nan, np.nan, values2D - dtm)
+            inun2D = np.where(inun2D <= 0, np.nan, inun2D)
+
+        # filter inundation area
+        if filter == True:
+            print("Filter inundaties.")
+            # filter 2D
+            if len(gdf2) > 0:
+                # create polygons from 2D inundationraster
+                geoms = list(
+                    {"properties": {"raster_val": v}, "geometry": s}
+                    for i, (s, v) in enumerate(
+                        rasterio.features.shapes(
+                            np.where(inun2D > 0, 1, 0),
+                            mask=None,
+                            transform=src.transform,
+                        )
+                    )
+                )
+                inun2D_gdf = gpd.GeoDataFrame.from_features(geoms)
+                inun2D_gdf = inun2D_gdf[inun2D_gdf.raster_val > 0]
+
+                # apply buffer to determine isolated 2D inundations, for instance behind a road or dike.
+                inun2D_gdf["dum"] = 1
+                inun2D_gdf.loc[
+                    inun2D_gdf.is_valid == False, "geometry"
+                ] = inun2D_gdf.loc[inun2D_gdf.is_valid == False].geometry.buffer(
+                    0
+                )  # repair invalid geometry
+                inun2D_gdf_buf = gpd.GeoDataFrame(
+                    geometry=inun2D_gdf.dissolve(by="dum").buffer(resx), crs=EPSG
+                ).explode(
+                    index_parts=False
+                )  # todo: deside how big buffer should be
+
+                # identify small isolated inundations, based on the 2D cellsize
+                cellsize = gdf2.area.max() ** 0.5
+                inun2D_gdf_sel = inun2D_gdf_buf[
+                    inun2D_gdf_buf.area > cellsize ** 2 * 2
+                ].reset_index()  # todo: deside how big areas should be
+                shapes = (
+                    (geom, value)
+                    for geom, value in zip(
+                        inun2D_gdf_sel.geometry, inun2D_gdf_sel["dum"]
+                    )
+                )
+                nan_array[:] = np.nan
+                filter2D = rasterio.features.rasterize(
+                    shapes=shapes, fill=0, out=nan_array, transform=out.transform
+                )
+
+                # finally filter inundations
+                inun2D = np.where(filter2D > 0, inun2D, np.nan)
+
+            # filter 1D
             if len(gdf1_area) > 0:
-                areas1D = (
+                # create polygons from 1D inundations
+                geoms = list(
+                    {"properties": {"raster_val": v}, "geometry": s}
+                    for i, (s, v) in enumerate(
+                        rasterio.features.shapes(
+                            np.where(inun1D > 0, 1, 0),
+                            mask=None,
+                            transform=src.transform,
+                        )
+                    )
+                )
+                inun1D_gdf = gpd.GeoDataFrame.from_features(geoms)
+                inun1D_gdf = inun1D_gdf[inun1D_gdf.raster_val > 0]
+
+                # apply buffer to determine isolated 1D inundations,
+                inun1D_gdf["dum"] = 1
+                inun1D_gdf.loc[
+                    inun1D_gdf.is_valid == False, "geometry"
+                ] = inun1D_gdf.loc[inun1D_gdf.is_valid == False].geometry.buffer(
+                    0
+                )  # repair invalid geometry
+                inun1D_gdf_buf = gpd.GeoDataFrame(
+                    geometry=inun1D_gdf.dissolve(by="dum").buffer(resx), crs=EPSG
+                ).explode(
+                    index_parts=False
+                )  # todo: deside how big buffer should be
+
+                # identify small isolated inundations, based on connection to 1D
+                gdf_branches = gdfs["1d_branches"]
+                gdf_branches["dum"] = 1
+                gdf_branches = gpd.GeoDataFrame(
+                    geometry=gdf_branches.dissolve(by="dum").geometry, crs=EPSG
+                ).reset_index(drop=True)
+                inun1D_gdf_sel = gpd.sjoin(
+                    inun1D_gdf_buf,
+                    gdf_branches,
+                    how="inner",
+                    predicate="intersects",
+                ).reset_index()
+                shapes = (
                     (geom, value)
-                    for geom, value in zip(gdf1_area.geometry, gdf1_area["max"])
+                    for geom, value in zip(
+                        inun1D_gdf_sel.geometry, inun1D_gdf_sel["dum"]
+                    )
                 )
                 nan_array[:] = np.nan
-                values1D = features.rasterize(
-                    shapes=areas1D, fill=np.nan, out=nan_array, transform=out.transform
+                filter1D = rasterio.features.rasterize(
+                    shapes=shapes, fill=0, out=nan_array, transform=out.transform
                 )
-                values1D[values1D <= -999] = np.nan
-                inun1D = np.where(dtm == np.nan, np.nan, values1D - dtm)
-                inun1D = np.where(inun1D <= 0, np.nan, inun1D)
-            if len(gdf2_extp) > 0:
-                areas2D = (
-                    (geom, value)
-                    for geom, value in zip(gdf2_extp.geometry, gdf2_extp["max"])
-                )
-                nan_array[:] = np.nan
-                values2D = features.rasterize(
-                    shapes=areas2D, fill=np.nan, out=nan_array, transform=out.transform
-                )
-                values2D[values2D <= -999] = np.nan
-                inun2D = np.where(dtm == np.nan, np.nan, values2D - dtm)
-                inun2D = np.where(inun2D <= 0, np.nan, inun2D)
 
-            # filter inundation area
-            if filter == True:
-                print("Filter inundaties.")
-                # filter 2D
-                if len(gdf2) > 0:
-                    # create polygons from 2D inundationraster
-                    geoms = list(
-                        {"properties": {"raster_val": v}, "geometry": s}
-                        for i, (s, v) in enumerate(
-                            rasterio.features.shapes(
-                                np.where(inun2D > 0, 1, 0),
-                                mask=None,
-                                transform=src.transform,
-                            )
-                        )
-                    )
-                    inun2D_gdf = gpd.GeoDataFrame.from_features(geoms)
-                    inun2D_gdf = inun2D_gdf[inun2D_gdf.raster_val > 0]
+                # finally filter inundations
+                inun1D = np.where(filter1D > 0, inun1D, np.nan)
 
-                    # apply buffer to determine isolated 2D inundations, for instance behind a road or dike.
-                    inun2D_gdf["dum"] = 1
-                    inun2D_gdf.loc[
-                        inun2D_gdf.is_valid == False, "geometry"
-                    ] = inun2D_gdf.loc[inun2D_gdf.is_valid == False].geometry.buffer(
-                        0
-                    )  # repair invalid geometry
-                    inun2D_gdf_buf = gpd.GeoDataFrame(
-                        geometry=inun2D_gdf.dissolve(by="dum").buffer(resx), crs=EPSG
-                    ).explode(
-                        index_parts=False
-                    )  # todo: deside how big buffer should be
+        # combine inundations, priorityze 2D
+        if len(gdf1_area) > 0 and len(gdf2) > 0:
+            inun = np.where(inun2D > 0, inun2D, inun1D)
+        elif len(gdf1_area) > 0:
+            inun = inun1D
+        elif len(gdf2) > 0:
+            inun = inun2D
+        else:
+            raise ("no inundations calculated from 1D and 2D")
 
-                    # identify small isolated inundations, based on the 2D cellsize
-                    cellsize = gdf2.area.max() ** 0.5
-                    inun2D_gdf_sel = inun2D_gdf_buf[
-                        inun2D_gdf_buf.area > cellsize ** 2 * 2
-                    ].reset_index()  # todo: deside how big areas should be
-                    shapes = (
-                        (geom, value)
-                        for geom, value in zip(
-                            inun2D_gdf_sel.geometry, inun2D_gdf_sel["dum"]
-                        )
-                    )
-                    nan_array[:] = np.nan
-                    filter2D = rasterio.features.rasterize(
-                        shapes=shapes, fill=0, out=nan_array, transform=out.transform
-                    )
-
-                    # finally filter inundations
-                    inun2D = np.where(filter2D > 0, inun2D, np.nan)
-
-                # filter 1D
-                if len(gdf1_area) > 0:
-                    # create polygons from 1D inundations
-                    geoms = list(
-                        {"properties": {"raster_val": v}, "geometry": s}
-                        for i, (s, v) in enumerate(
-                            rasterio.features.shapes(
-                                np.where(inun1D > 0, 1, 0),
-                                mask=None,
-                                transform=src.transform,
-                            )
-                        )
-                    )
-                    inun1D_gdf = gpd.GeoDataFrame.from_features(geoms)
-                    inun1D_gdf = inun1D_gdf[inun1D_gdf.raster_val > 0]
-
-                    # apply buffer to determine isolated 1D inundations,
-                    inun1D_gdf["dum"] = 1
-                    inun1D_gdf.loc[
-                        inun1D_gdf.is_valid == False, "geometry"
-                    ] = inun1D_gdf.loc[inun1D_gdf.is_valid == False].geometry.buffer(
-                        0
-                    )  # repair invalid geometry
-                    inun1D_gdf_buf = gpd.GeoDataFrame(
-                        geometry=inun1D_gdf.dissolve(by="dum").buffer(resx), crs=EPSG
-                    ).explode(
-                        index_parts=False
-                    )  # todo: deside how big buffer should be
-
-                    # identify small isolated inundations, based on connection to 1D
-                    gdf_branches = gdfs["1d_branches"]
-                    gdf_branches["dum"] = 1
-                    gdf_branches = gpd.GeoDataFrame(
-                        geometry=gdf_branches.dissolve(by="dum").geometry, crs=EPSG
-                    ).reset_index(drop=True)
-                    inun1D_gdf_sel = gpd.sjoin(
-                        inun1D_gdf_buf,
-                        gdf_branches,
-                        how="inner",
-                        predicate="intersects",
-                    ).reset_index()
-                    shapes = (
-                        (geom, value)
-                        for geom, value in zip(
-                            inun1D_gdf_sel.geometry, inun1D_gdf_sel["dum"]
-                        )
-                    )
-                    nan_array[:] = np.nan
-                    filter1D = rasterio.features.rasterize(
-                        shapes=shapes, fill=0, out=nan_array, transform=out.transform
-                    )
-
-                    # finally filter inundations
-                    inun1D = np.where(filter1D > 0, inun1D, np.nan)
-
-            # combine inundations, priorityze 2D
-            if len(gdf1_area) > 0 and len(gdf2) > 0:
-                inun = np.where(inun2D > 0, inun2D, inun1D)
-            elif len(gdf1_area) > 0:
-                inun = inun1D
-            elif len(gdf2) > 0:
-                inun = inun2D
-            else:
-                raise ("no inundations calculated from 1D and 2D")
-
-            # export tif
-            print("Exporteren van inundaties.")
-            out.write(inun, 1)
+    # export tif
+    with rasterio.open(result_path, "w", **meta) as out:
+        print("Exporteren van inundaties.")
+        out.write(inun, 1)
 
     print("\nMaken van inundatiegrid afgerond")
 
@@ -373,14 +380,15 @@ if __name__ == "__main__":
     dtm_path = r"C:\Users\buijerta\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\06 Work in Progress\GIS\ahn\dr49\ahn3_2x2_combi_dr49.tif"
     type = "level"  # depth
     output_folder = r"C:/temp/aht"
+    result_path = r"C:/temp/aht/inundation.tif"
     inun_dhydro(
         input_path,
-        output_folder,
+        result_path,
         type=type,
         dtm_path=dtm_path,
         sdate="",
         edate="",
-        domain="",
-        filter=True,
+        domain="1D",
+        filter=False,
         extrapol=1.0,
     )
