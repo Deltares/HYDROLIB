@@ -5,8 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e17ae184-fc0e-4c24-8eeb-2fb065132b9d" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/test/dflowfm_build_test.ini" beforeDir="false" afterPath="$PROJECT_DIR$/examples/test/dflowfm_build_test.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -60,5 +59,49 @@
       <updated>1659092675775</updated>
     </task>
     <servers />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
+          <line>639</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
+          <line>667</line>
+          <option name="timeStamp" value="4" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
+          <line>665</line>
+          <option name="timeStamp" value="5" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://C:/Miniconda3/envs/hydrolib-hydromt/Lib/site-packages/xarray/core/merge.py</url>
+          <line>62</line>
+          <option name="timeStamp" value="9" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
+          <line>800</line>
+          <option name="timeStamp" value="13" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
+          <line>797</line>
+          <option name="timeStamp" value="22" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+    <watches-manager>
+      <configuration name="PythonConfigurationType">
+        <watch expression="mesh.obj" language="Python" />
+        <watch expression="ds_out.ugrid.obj" />
+        <watch expression="ds_out.ugrid.grid" />
+        <watch expression="ds_out.ugrid.obj.Mesh2d_edge_x.Mesh2d_edge_x.Mesh2d_edge_x.Mesh2d_edge_x.Mesh2d_edge_x.Mesh2d_edge_x.Mesh2d_edge_x.Mesh2d_edge_x.Mesh2d_edge_x" />
+      </configuration>
+    </watches-manager>
   </component>
 </project>

@@ -52,7 +52,7 @@ class DFlowFMModel(Model):
     # TODO: write static geom as geojson dataset, so that we dont get limitation for the 10 characters
     _GEOMS = {}  # FIXME Mapping from hydromt names to model specific names
     _MAPS = {}  # FIXME Mapping from hydromt names to model specific names
-    _FOLDERS = ["dflowfm", "staticgeoms"]
+    _FOLDERS = ["dflowfm", "staticgeoms", "mesh"]
 
     def __init__(
         self,
@@ -79,7 +79,7 @@ class DFlowFMModel(Model):
         # model specific
         self._dfmmodel = None
         self._branches = gpd.GeoDataFrame()
-        self._mesh = xr.Dataset()
+        self._mesh = None
         self._config_fn = (
             join("dflowfm", self._CONF) if config_fn is None else config_fn
         )
@@ -580,54 +580,64 @@ class DFlowFMModel(Model):
         bbox : list = None,
         resolution : float = 100.0
     ):
-        """ Creates 2D grid
+        """ Creates an 2D unstructured mesh or prepares an existing 2D mesh according UGRID conventions.
 
-        1D rivers must contain valid geometry, friction and crosssections.
+        An 2D unstructured mesh will be created as 2D rectangular grid from a geometry (geom_fn) or bbox. If an existing
+        2D mesh is given, then no new mesh will be generated
 
-        The river geometry is read from ``rivers_fn``. If defaults attributes
-        [material, friction_type, friction_value] are not present in ``rivers_fn``,
-        they are added from defaults values in ``rivers_defaults_fn``.
+        2D mesh contains ...
 
-        The river friction is read from attributes [friction_type, friction_value]. Friction attributes are either taken
-        from ``rivers_fn`` or filled in using ``friction_type`` and ``friction_value`` arguments.
-        Note for now only branch friction or global friction is supported.
-
-        Crosssections are read from ``crosssections_fn`` based on the ``crosssections_type``.
+        Note that:
+        (1) Refinement of the mesh is a seperate setup function, however a refined existing grid (mesh_fn) can already
+        be read.
+        (2) If no geometry, bbox or existing grid is specified for this setup function, then the self.region is used as
+         mesh extent to generate the unstructured mesh.
+        (3) Validation checks have been added to check if the mesh extent is within model region.
+        (4) Only existing meshed with only 2D grid can be read.
+        #FIXME: read existing 1D2D network file and extract 2D part.
 
         Adds/Updates model layers:
 
-        * **rivers** geom: 1D rivers vector
-        * **branches** geom: 1D branches vector
-        * **crosssections** geom: 1D crosssection vector
+        * **1D2D links** geom: By any changes in 2D grid
 
         Parameters
         ----------
         mesh2D_fn : str Path, optional
-            Name of data source for branches parameters, see data/data_sources.yml.
-            Note only the lines that are within the region polygon + 10m buffer will be used.
-            * Required variables: [branchId, branchType]
-            * Optional variables: [material, friction_type, friction_value, branchOrder]
+            Name of data source for an existing unstructured 2D mesh
         geom_fn : str Path, optional
-            Path to a csv file containing all defaults values per 'branchType'.
+            Path to a polygon used to generate unstructured 2D mesh
         bbox: list, optional
-            Snapping tolenrance to automatically connecting branches.
-            By default 0.0, no snapping is applied.
+            Describing the mesh extent of interest [xmin, ymin, xmax, ymax].
         resolution: float, optional
-            Switch to choose whether snapping of multiple branch ends are allowed when ``snap_offset`` is used.
-            By default True.
+            Resolution used to generate 2D mesh. By default a value of 100 m is applied.
 
         See Also
         ----------
         
         """
-        #TODO: Set logger
-        #TODO: deviate between the use of existing grid or grid generation
-        #TODO: Check location of existing grid
-        #TODO: geom_fn --> check if within region and with the same crs--> check if it is not empty after reading it
-        #TODO: bbox  --> generatie geometry and check if within regionp--> check if it is not empty after reading it
-        #TODO: Use region
-        #TODO: generate grid
+        self.logger.info(f"Preparing 2D mesh.")
+
+        if mesh2d_fn != None:
+            self.logger.info(f"An existing 2D grid is used to prepare 2D mesh.")
+            try:
+                mesh2d = xu.open_dataset(mesh2d_fn)
+            except:
+                raise NotImplementedError(f"{mesh2d_fn} cannot be opened. Please check if the existing grid is "
+                                  f"an 2D mesh and not 1D2D mesh. This option is not yet available for 1D2D meshes.")
+                # TODO: read existing 1D2D network file and extract 2D part.
+            self.set_mesh(mesh2d)
+
+
+
+
+            #TODO: deviate between the use of existing grid or grid generation
+            #TODO: Check location of existing grid
+            #TODO: geom_fn --> check if within region and with the same crs--> check if it is not empty after reading it
+            #TODO: bbox  --> generatie geometry and check if within regionp--> check if it is not empty after reading it
+            #TODO: Use region
+            #TODO: generate grid
         #TODO: set as mesh
+        a=1
 
     # ## I/O
     def read(self):
@@ -719,7 +729,12 @@ class DFlowFMModel(Model):
         fn_default = join(self.root, "mesh","FlowFM_2D_net.nc")
         self.logger.info(f"Write mesh to {self.root}")
         ds_out = self.mesh
-        ds_out.to_netcdf(fn_default)
+        #FIXME: remove pass if Huite has solution.
+        ds_new = xu.UgridDataset(grid=ds_out.ugrid.grid)
+        ds_new.ugrid.to_netcdf(fn_default)
+
+
+        #ds_out.ugrid.to_netcdf(fn_default)
 
     def read_forcing(self):
         """Read forcing at <root/?/> and parse to dict of xr.DataArray"""
@@ -745,6 +760,7 @@ class DFlowFMModel(Model):
         self._write_mesh1d()  # FIXME None handling
 
         # write 2d mesh
+        self._write_mesh2d()
         #TODO: create self._write_mesh2d() using hydrolib-core funcitonalities
 
         # write friction
@@ -771,6 +787,20 @@ class DFlowFMModel(Model):
             branch_names=branches.branchId.to_list(),
             branch_orders=branches.branchOrder.to_list(),
         )
+
+    def _write_mesh2d(self):
+        """
+        TODO: write docstring
+
+        :return:
+        """
+        # Get meshkernel Mesh2d objec
+        mesh2d = self._mesh.ugrid.grid.mesh
+
+        # add mesh2d
+        self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
+
+
 
     def _write_friction(self):
 
@@ -942,7 +972,7 @@ class DFlowFMModel(Model):
     @property
     def mesh(self):
         """xarray.Dataset representation of all mesh"""
-        if len(self._mesh) == 0:
+        if self._mesh is None:
             if self._read:
                 self.read_mesh()
         return self._mesh
@@ -974,7 +1004,7 @@ class DFlowFMModel(Model):
         if isinstance(data, xu.UgridDataArray):
             data.name = name
             data = data.to_dataset()
-        if len(self._mesh) == 0:  # new data
+        if self._mesh is None:  # new data
             self._mesh = data
         else:
             for dvar in data.data_vars.keys():
