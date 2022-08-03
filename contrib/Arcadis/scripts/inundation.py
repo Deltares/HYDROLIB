@@ -3,16 +3,16 @@ import sys
 from datetime import datetime
 
 import geopandas as gpd
-import netCDF4 as nc
 import xarray as xr
 import numpy as np
 import pandas as pd
 import rasterio
-from geovoronoi import points_to_coords, voronoi_regions_from_coords
+
 from rasterio import features
 from read_dhydro import net_nc2gdf, read_nc_data
 from shapely.geometry import box
 
+from voronoi import voronoi_extra
 
 def inun_dhydro(
     nc_path,
@@ -24,7 +24,8 @@ def inun_dhydro(
     domain="",
     filter=False,
     extrapol=0.5,
-    debug=False
+    debug=False,
+    areas1D=""
 ):
 
     """
@@ -51,11 +52,13 @@ def inun_dhydro(
                 Optional extrapolation of 2D results
             debug: bool
                 Write aditional information about the calculation
+            areas1D: str
+                Path to areas that limit 1D voronoi generation (catchments or watersheds)
     ___________________________________________________________________________________________________________
        Warning:
-           only 2D results will be used if type=depth
+           only 2D results will be used if type="depth"
            2D depth is used when both 1D and 2D inundation is plausible
-           without filter 1D will only be used outside of 2D.
+           without filter 1D will only be used outside of 2D to prevent weird errors.
     """
 
     output_folder = os.path.dirname(result_path)
@@ -161,30 +164,35 @@ def inun_dhydro(
 
     # create voronois for 1D
     if len(gdf1) > 0:
-        # select points outside 2D
-        if (
-            len(gdf2) > 0 and filter == True
-        ):  # without filtering this will result in wrong results
-            gdf1_sel = gdf1[~gdf1.geometry.within(gdf2.geometry.unary_union)]
-        else:
-            gdf1_sel = gdf1
-        coords = points_to_coords(gdf1_sel.geometry)
+        # select points outside 2D todo: deside method, removing this creates many aditional inundations
+        #if (
+        #    len(gdf2) > 0 and filter == True
+        #):  # without filtering this will result in wrong results
+        #    gdf1_sel = gdf1[~gdf1.geometry.within(gdf2.geometry.unary_union)]
+        #else:
+        gdf1_sel = gdf1
+        #coords = points_to_coords(gdf1_sel.geometry)
         # gdf1_sel = gdf1[~gdf1.geometry.within(geom_dtm)]
-        geom_areas = pd.concat(
-            [
-                gpd.GeoDataFrame(geometry=[geom_dtm.buffer(geom_dtm.area ** 0.5 / 10)]),
-                gpd.GeoDataFrame(geometry=[gdf1.unary_union.envelope]),
-            ]
-        ).geometry.unary_union
-        vr_area, vr_points, vr_links = voronoi_regions_from_coords(coords, geom_areas)
-        gdf1_area = gpd.GeoDataFrame(geometry=vr_area, crs=EPSG)
+        if areas1D == "":
+            geom_areas = pd.concat(
+                [
+                    gpd.GeoDataFrame(geometry=[geom_dtm.buffer(geom_dtm.area ** 0.5 / 10)]),
+                    gpd.GeoDataFrame(geometry=[gdf1.unary_union.envelope]),
+                ]
+            ).geometry.unary_union
+            gdf_areas1D = gpd.GeoDataFrame(geometry=[geom_areas])
+        else:
+            gdf_areas1D = gpd.read_file(areas1D)
+        #vr_area, vr_points = voronoi_regions_from_coords(coords, geom_areas)
+        #gdf1_area = gpd.GeoDataFrame(geometry=vr_area, crs=EPSG)
+        gdf1_area = voronoi_extra(gdf1_sel,gdf_areas1D)
         # clip 2D results out of 1D results
-        if len(gdf2) > 0:
+        if len(gdf2) > 0 and filter == False:
             gdf1_area = gdf1_area.overlay(
                 gdf2, how="difference", keep_geom_type=True
             ).explode(ignore_index=True)
-        gdf1_area = gpd.sjoin(gdf1_area, gdf1_sel, how="inner", predicate="intersects")
-        gdf1_area.drop(columns=["index_right"], inplace=True)
+        #gdf1_area = gpd.sjoin(gdf1_area, gdf1_sel, how="inner", predicate="intersects")
+        #gdf1_area.drop(columns=["index_right"], inplace=True)
     else:
         gdf1_area = gpd.GeoDataFrame()
 
@@ -238,7 +246,10 @@ def inun_dhydro(
             )
             values1D[values1D <= -999] = np.nan
             inun1D = np.where(dtm == np.nan, np.nan, values1D - dtm)
-            inun1D = np.where(inun1D <= 0, np.nan, inun1D)
+            inun1D = np.where(inun1D <= 0, np.nan, inun1D)            
+            if debug == True:
+                with rasterio.open(os.path.join(output_folder,"inun1d.tif"), "w", **meta) as out:
+                    out.write(inun1D, 1)
         if len(gdf2_extp) > 0:
             areas2D = (
                 (geom, value)
@@ -246,11 +257,14 @@ def inun_dhydro(
             )
             nan_array[:] = np.nan
             values2D = features.rasterize(
-                shapes=areas2D, fill=np.nan, out=nan_array, transform=out.transform
+                shapes=areas2D, fill=np.nan, out=nan_array, transform=meta["transform"]
             )
             values2D[values2D <= -999] = np.nan
             inun2D = np.where(dtm == np.nan, np.nan, values2D - dtm)
             inun2D = np.where(inun2D <= 0, np.nan, inun2D)
+            if debug == True:
+                with rasterio.open(os.path.join(output_folder,"inun2d.tif"), "w", **meta) as out:
+                    out.write(inun2D, 1)
 
         # filter inundation area
         if filter == True:
@@ -297,11 +311,15 @@ def inun_dhydro(
                 )
                 nan_array[:] = np.nan
                 filter2D = rasterio.features.rasterize(
-                    shapes=shapes, fill=0, out=nan_array, transform=out.transform
+                    shapes=shapes, fill=0, out=nan_array, transform=meta["transform"]
                 )
 
                 # finally filter inundations
+                filter2D = np.where(filter2D > 0, 2, np.where(inun2D>0,-2,np.nan))
                 inun2D = np.where(filter2D > 0, inun2D, np.nan)
+                if debug == True:
+                    with rasterio.open(os.path.join(output_folder,"filter2d.tif"), "w", **meta) as out:
+                        out.write(filter2D, 1)
 
             # filter 1D
             if len(gdf1_area) > 0:
@@ -352,11 +370,15 @@ def inun_dhydro(
                 )
                 nan_array[:] = np.nan
                 filter1D = rasterio.features.rasterize(
-                    shapes=shapes, fill=0, out=nan_array, transform=out.transform
+                    shapes=shapes, fill=0, out=nan_array, transform=meta["transform"]
                 )
 
                 # finally filter inundations
+                filter1D = np.where(filter1D > 0, 1, np.where(inun1D>0,-1,np.nan))
                 inun1D = np.where(filter1D > 0, inun1D, np.nan)
+                if debug == True:
+                    with rasterio.open(os.path.join(output_folder,"filter1d.tif"), "w", **meta) as out:
+                        out.write(filter1D, 1)
 
         # combine inundations, priorityze 2D
         if len(gdf1_area) > 0 and len(gdf2) > 0:
@@ -382,6 +404,7 @@ if __name__ == "__main__":
     type = "level"  # depth
     output_folder = r"C:/temp/aht"
     result_path = r"C:/temp/aht/inundation.tif"
+    areas1D_path = r"C:/temp/aht/areas.shp"
     inun_dhydro(
         input_path,
         result_path,
@@ -390,6 +413,8 @@ if __name__ == "__main__":
         sdate="",
         edate="",
         domain="1D",
-        filter=False,
+        filter=True,
         extrapol=1.0,
+        debug=True,
+        areas1D=areas1D_path
     )
