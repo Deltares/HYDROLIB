@@ -1,8 +1,0 @@
-matplotlib==3.5.2
-netCDF4==1.6.0
-numpy==1.23.1
-pandas==1.4.3
-pydantic==1.9.1
-rasterio==1.2.10
-scipy==1.9.0
-UGrid==0.13.0
