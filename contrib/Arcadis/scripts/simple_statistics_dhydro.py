@@ -126,6 +126,7 @@ def statistics_dhydro(
             df = df[df.index <= datetime.strptime(edate, "%Y/%m/%d")]
 
     # create geometry
+    # TODO als het een edge is werkt het nog niet. 
     network_type = (
         "2d_faces" if "mesh2d" in ds[par].mesh.lower() else "1d_meshnodes"
     )  # todo line and structure info    gdfs = net_nc2gdf(input_path,results=[network_type])
