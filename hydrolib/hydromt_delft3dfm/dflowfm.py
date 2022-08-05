@@ -625,6 +625,8 @@ class DFlowFMModel(Model):
                 raise NotImplementedError(f"{mesh2d_fn} cannot be opened. Please check if the existing grid is "
                                   f"an 2D mesh and not 1D2D mesh. This option is not yet available for 1D2D meshes.")
                 # TODO: read existing 1D2D network file and extract 2D part.
+
+            #FIXME: check if crs is specified and if the same as crs used.
             self.set_mesh(mesh2d)
 
 
@@ -798,6 +800,7 @@ class DFlowFMModel(Model):
         mesh2d = self._mesh.ugrid.grid.mesh
 
         # add mesh2d
+        #FIXME: improve the way of adding a 2D mesh
         self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
 
 
