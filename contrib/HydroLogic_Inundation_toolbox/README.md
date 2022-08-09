@@ -3,7 +3,7 @@ This module contains readers and tools to extract inundation information (arriva
 
 ## Sub directories
 
-- Data: contains D-HYDRO model output for two example models. The Tol case is provided by HydroLogic, the Zwolle case if by Arcadis (through HYDROLIB).
+- Data: contains D-HYDRO model output for two example models. The Tol case is provided by HydroLogic, the Zwolle case is by Arcadis (through HYDROLIB).
 - Examples: containts Jupyter notebooks with example usage of the toolbox and readers.
 - Readers: contains flowmeshreader and hisreader.
 
