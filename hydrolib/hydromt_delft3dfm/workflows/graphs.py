@@ -16,10 +16,12 @@ logger = logging.getLogger(__name__)
 
 def gpd_to_digraph(data: gpd.GeoDataFrame) -> nx.DiGraph():
 
-    data["from_node"] = [row.geometry.coords[0] for index, row in data.iterrows()]
-    data["to_node"] = [row.geometry.coords[-1] for index, row in data.iterrows()]
+    _ = data.copy()
+
+    _["from_node"] = [row.geometry.coords[0] for index, row in _.iterrows()]
+    _["to_node"] = [row.geometry.coords[-1] for index, row in _.iterrows()]
     G = nx.from_pandas_edgelist(
-        data,
+        _,
         source="from_node",
         target="to_node",
         create_using=nx.DiGraph,
