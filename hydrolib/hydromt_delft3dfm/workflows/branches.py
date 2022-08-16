@@ -417,7 +417,6 @@ def split_branches(
             spacing_const,
             id_col=id_col,
             smooth_branches=smooth_branches,
-            logger=logger,
         )
 
     elif branches[spacing_col].astype(float).notna().any():
