@@ -5,7 +5,8 @@ import logging
 from os import times
 from os.path import basename, isfile, join
 from pathlib import Path
-from typing import Union
+from turtle import st
+from typing import List, Union
 
 import geopandas as gpd
 import hydromt
@@ -63,13 +64,31 @@ class DFlowFMModel(Model):
 
     def __init__(
         self,
-        root=None,
-        mode="w",
-        config_fn=None,  # hydromt config contain glob section, anything needed can be added here as args
-        data_libs=None,  # yml # TODO: how to choose global mapping files (.csv) and project specific mapping files (.csv)
+        root: Union[str,Path] = None,
+        mode: str = "w",
+        config_fn: str = None,  # hydromt config contain glob section, anything needed can be added here as args
+        data_libs: List[str] = [],  # yml # TODO: how to choose global mapping files (.csv) and project specific mapping files (.csv)
         logger=logger,
-        deltares_data=False,  # data from pdrive,
+        deltares_data = False,  # data from pdrive,
     ):
+        """ Initialize the DFlowFMModel.
+    
+        Parameters
+        ----------
+        root : str or Path
+            The model root location.
+        mode : {'w','r','r+'}
+            Write/read/append mode.
+            Default is "w".
+        config_fn : str, optional
+            The D-Flow FM model configuration file (.mdu). If None, default configuration file is used.
+            Default is None.
+        data_libs : list of str, optional
+            List of data catalog yaml files.
+            Default is None.
+        logger
+            The logger used to log messages.
+        """
 
         if not isinstance(root, (str, Path)):
             raise ValueError("The 'root' parameter should be a of str or Path.")
@@ -104,12 +123,18 @@ class DFlowFMModel(Model):
 
         Parameters
         ----------
-        region: dict
+        region : dict
             Dictionary describing region of interest, e.g. {'bbox': [xmin, ymin, xmax, ymax]}.
             See :py:meth:`~hydromt.workflows.parse_region()` for all options.
         crs : int, optional
             Coordinate system (EPSG number) of the model. If not provided, equal to the region crs
             if "grid" or "geom" option are used, and to 4326 if "bbox" is used.
+
+        Raises
+        ------
+        ValueError
+            If the region kind in `region` is not supported for D-Flow FM.
+            Supported regions are: "bbox", "grid" and "geom".
         """
 
         kind, region = hydromt.workflows.parse_region(region, logger=self.logger)
@@ -156,7 +181,7 @@ class DFlowFMModel(Model):
         gdf_br : gpd.GeoDataFrame
             GeoDataFrame with the new branches to add.
         spacing : pd.DataFrame
-            DatFrame containing spacing values per 'branchType', 'shape', 'width' or 'diameter'.
+            DataFrame containing spacing values per 'branchType', 'shape', 'width' or 'diameter'.
 
         """
         if gdf_br.crs.is_geographic:  # needed for length and splitting
@@ -216,11 +241,18 @@ class DFlowFMModel(Model):
             * Optional variables: [spacing, material, shape, diameter, width, t_width, t_width_up, width_up,
               width_dn, t_width_dn, height, height_up, height_dn, inlev_up, inlev_dn, bedlev_up, bedlev_dn,
               closed, manhole_up, manhole_dn]
-        channels_defaults_fn : str Path
+        channels_defaults_fn : str, optional
             Path to a csv file containing all defaults values per 'branchType'.
-        spacing : str Path
+            Default is None.
+        spacing_fn : str, optional
             Path to a csv file containing spacing values per 'branchType', 'shape', 'width' or 'diameter'.
-
+            Default is None.
+        snap_offset : float, optional
+            Maximum distance between branch end points. If the distance is larger, they are not snapped.
+            Default is 0.0.
+        allow_intersection_snapping : bool, optional
+            Allow snapping at all branch ends, including intersections.
+            Default is True.
         """
         self.logger.info(f"Preparing 1D channels.")
 
@@ -287,12 +319,18 @@ class DFlowFMModel(Model):
 
         Parameters
         ----------
-        gdf : gpd.GeoDataFrame, required
-            GeoDataFrame to be checked
-        required_columns: list of strings, optional
-            Check if the geodataframe contains all required columns
-        raise_error: boolean, optional
-            Raise error if the check failed
+        gdf : gpd.GeoDataFrame
+            GeoDataFrame to be checked.
+        required_columns : list of str
+            The list of required columns.
+        raise_error : boolean, optional
+            Raise error if the check failed.
+            Default is False.
+
+        Raises
+        ------
+        ValueError
+            If `raise_error` is true and `gdf` does not contain required attributes.
         """
         if not (set(required_columns).issubset(gdf.columns)):
             if raise_error:
@@ -344,21 +382,22 @@ class DFlowFMModel(Model):
             Note only the lines that are within the region polygon + 10m buffer will be used.
             * Required variables: [branchId, branchType]
             * Optional variables: [material, friction_type, friction_value, branchOrder]
-        rivers_defaults_fn : str Path
+        rivers_defaults_fn : str or Path
             Path to a csv file containing all defaults values per 'branchType'.
-        snap_offset: float, optional
-            Snapping tolenrance to automatically connecting branches.
+            By default None.
+        snap_offset : float, optional
+            Snapping tolerance to automatically connecting branches.
             By default 0.0, no snapping is applied.
-        allow_intersection_snapping: bool, optional
+        allow_intersection_snapping : bool, optional
             Switch to choose whether snapping of multiple branch ends are allowed when ``snap_offset`` is used.
             By default True.
         friction_type : str, optional
-            Type of friction tu use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
+            Type of friction to use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
             By default "Manning".
         friction_value : float, optional.
             Units corresponding to [friction_type] are ["Chézy C [m 1/2 /s]", "Manning n [s/m 1/3 ]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Strickler k_s [m 1/3 /s]", "De Bos-Bijkerk γ [1/s]"]
             Friction value. By default 0.023.
-        crosssections_fn : str Path, optional
+        crosssections_fn : str or Path, optional
             Name of data source for crosssections, see data/data_sources.yml.
             If ``crosssections_type`` = "xyzpoints"
             * Required variables: crsId, order, z
@@ -471,7 +510,7 @@ class DFlowFMModel(Model):
         self.add_branches(rivers, branchtype="river")
 
     def _setup_crosssections(
-        self, branches, crosssections_fn: str = None, crosssections_type: str = "branch"
+        self, branches: gpd.GeoDataFrame, crosssections_fn: str = None, crosssections_type: str = "branch"
     ):
         """Prepares 1D crosssections.
         crosssections can be set from branchs, xyzpoints, # TODO to be extended also from dem data for rivers/channels?
@@ -508,9 +547,9 @@ class DFlowFMModel(Model):
             * Required variables: crsId, order, z
             * Optional variables:
             By default None, crosssections will be set from branches
-        crosssections_type : str, optional
+        crosssections_type : {'branch', 'xyz', 'point'}
             Type of crosssections read from crosssections_fn. One of ["xyzpoints"].
-            By default None.
+            By default `branch`.
         """
 
         # setup crosssections
@@ -611,7 +650,7 @@ class DFlowFMModel(Model):
 
         Parameters
         ----------
-        boundaries_geodataset_fn: str, Path
+        boundaries_geodataset_fn : str, Path
             Path or data source name for geospatial point timeseries file.
             This can either be a netcdf file with geospatial coordinates
             or a combined point location file with a timeseries data csv file
@@ -986,7 +1025,7 @@ class DFlowFMModel(Model):
         validate_branches(branches)
         self.set_branches(branches)
 
-    def set_branches_component(self, name):
+    def set_branches_component(self, name: str):
         gdf_comp = self.branches[self.branches["branchType"] == name]
         if gdf_comp.index.size > 0:
             self.set_staticgeoms(gdf_comp, name=f"{name}s")
