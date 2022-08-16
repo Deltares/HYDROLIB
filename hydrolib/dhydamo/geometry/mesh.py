@@ -2,6 +2,7 @@ from typing import List, Union
 
 import numpy as np
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon
+from shapely.wkt import loads,dumps
 
 from hydrolib.core.io.net.models import Branch, Network
 from hydrolib.dhydamo.geometry import common
@@ -194,7 +195,7 @@ def mesh1d_add_branch(
     for line, branch_name, branch_order in zip(
         common.as_linestring_list(branches), branch_names, branch_orders
     ):
-        branch = Branch(geometry=np.array(line.coords[:]))
+        branch = Branch(geometry= np.array(loads(dumps(line, rounding_precision=6)).coords[:])) # avoid error caused by rounding precision
         branch.generate_nodes(node_distance)
         network.mesh1d_add_branch(
             branch,
