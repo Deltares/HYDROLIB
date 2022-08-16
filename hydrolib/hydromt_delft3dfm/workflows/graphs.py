@@ -15,7 +15,18 @@ logger = logging.getLogger(__name__)
 
 
 def gpd_to_digraph(data: gpd.GeoDataFrame) -> nx.DiGraph():
+    """Convert a `gpd.GeoDataFrame` to a `nx.DiGraph` by taking the first and last coordinate in a row as source and target, respectively. 
 
+    Parameters
+    ----------
+    data: gpd.GeoDataFrame
+        The data to convert.
+
+    Returns
+    -------
+    nx.DiGraph
+        The converted directed graph.
+    """
     _ = data.copy()
 
     _["from_node"] = [row.geometry.coords[0] for index, row in _.iterrows()]

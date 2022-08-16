@@ -26,16 +26,20 @@ __all__ = [
 ]
 
 
-def generate_boundaries_from_branches(branches: gpd.GeoDataFrame, where: str = "both"):
-    """function to get possible boundary locations from branches with id
+def generate_boundaries_from_branches(branches: gpd.GeoDataFrame, where: str = "both") -> gpd.GeoDataFrame:
+    """Get the possible boundary locations from the branches with id.
 
-    [ ] convert branches to graph
-    [ ] get boundary locations at where
-
-    parameters:
-    where: str
-        Options available aare: ['upstream', 'downstream', 'both']
+    Parameters
+    ----------
+    where : {'both', 'upstream', 'downstream'}
         Where at the branches should the boundaries be derived.
+        An upstream end node is defined as a node which has 0 incoming branches and 1 outgoing branch.
+        A downstream end node is defined as a node which has 1 incoming branch and 0 outgoing branches.
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        A data frame containing all the upstream and downstream end nodes of the branches
     """
 
     # convert branches to graph
@@ -91,8 +95,30 @@ def select_boundary_type(
     boundary_type: str,
     boundary_locs: str,
     logger=logger,
-):
-    """Select boundary location per branch type and boundary type"""
+) -> pd.DataFrame:
+    """Select boundary location per branch type and boundary type.
+    
+    Parameters
+    ----------
+
+    boundaries : gpd.GeoDataFrame
+        The boundaries.
+    branch_type : {'river', 'pipe'}
+        The branch type.
+    boundary_type : {'waterlevel', 'discharge'}
+        For rivers 'waterlevel' and 'discharge' are supported.
+        For pipes 'waterlevel' is supported.
+    boundary_locs : {'both', 'upstream', 'downstream'}
+        The boundary location to use. 
+    logger
+        The logger to log messages with.
+    
+    Returns
+    -------
+    pd.DataFrame
+        A data frame containing the boundary location per branch type and boundary type.
+    """
+
     boundaries_branch_type = boundaries.loc[boundaries["branchType"] == branch_type, :]
     if branch_type == "river":
         if boundary_type == "waterlevel":
@@ -125,7 +151,17 @@ def select_boundary_type(
 
 
 def validate_boundaries(boundaries: gpd.GeoDataFrame, branch_type: str = "river"):
-    """Validate boundaries per branch type"""
+    """Validate boundaries per branch type.
+    Will log a warning if the validation fails.
+    
+    Parameters
+    ----------
+    boundaries : gpd.GeoDataFrame
+        The boundaries.
+    branch_type : {'river', 'pipe'}
+        The branch type.   
+    
+    """
 
     if branch_type == "river":  # TODO add other open system branch_type
         for _, bnd in boundaries.iterrows():
@@ -140,10 +176,8 @@ def validate_boundaries(boundaries: gpd.GeoDataFrame, branch_type: str = "river"
             # TODO extended
             if bnd["where"] == "upstream":
                 logger.warning(
-                    f'Boundary type voilets modeller suggestions: using upstream boundary at branch {bnd["branchId"]}'
+                    f'Boundary type violates modeller suggestions: using upstream boundary at branch {bnd["branchId"]}'
                 )
-
-    return None
 
 
 def compute_boundary_values(
@@ -160,21 +194,20 @@ def compute_boundary_values(
 
     Parameters
     ----------
-    boundaries: gpd.GeoDataFrame
-        Poit locations of the 1D boundaries to which to add data.
+    boundaries : gpd.GeoDataFrame
+        Point locations of the 1D boundaries to which to add data.
 
         * Required variables: ['nodeId']
-    da_bnd: xr.DataArray, optional
+    da_bnd : xr.DataArray, optional
         xr.DataArray containing the boundary timeseries values. If None, uses a constant values for all boundaries.
 
         * Required variables if netcdf: [``boundary_type``]
     boundary_value : float, optional
         Constant value to use for all boundaries if ``da_bnd`` is None and to
         fill in missing data. By default -2.5 m.
-    boundary_type : str, optional
-        Type of boundary tu use. One of ["waterlevel", "discharge"].
-        By default "waterlevel".
-    boundary_unit : str, optional.
+    boundary_type : {'waterlevel', 'discharge'}
+        Type of boundary to use. By default "waterlevel".
+    boundary_unit : {'m', 'm3/s'}
         Unit corresponding to [boundary_type].
         If ``boundary_type`` = "waterlevel"
             Allowed unit is [m]
@@ -184,6 +217,8 @@ def compute_boundary_values(
     snap_offset : float, optional
         Snapping tolerance to automatically applying boundaries at the correct network nodes.
         By default 0.1, a small snapping is applied to avoid precision errors.
+    logger
+        Logger to log messages.
     """
     nodata_ids = []
     # Timeseries boundary values
