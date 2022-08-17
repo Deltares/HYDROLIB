@@ -867,7 +867,7 @@ class DFlowFMModel(Model):
             Shift applied to lowest pipe invert levels to derive manhole bedlevels [m] (default -0.5 m, meaning bedlevel = pipe invert - 0.5m).
         snap_offset: float, optional
             Snapping tolenrance to automatically connecting manholes to network nodes.
-            By default 0.001. Use a higher value if large number of user manholes are missing. 
+            By default 0.001. Use a higher value if large number of user manholes are missing.
         """
 
         # staticgeom columns for manholes
@@ -1214,7 +1214,8 @@ class DFlowFMModel(Model):
         self._write_crosssections()  # FIXME None handling, if there are no crosssections
 
         # write manholes
-        self._write_manholes()
+        if "manholes" in self._staticgeoms:
+            self._write_manholes()
 
         # save model
         self.dfmmodel.save(recurse=True)
