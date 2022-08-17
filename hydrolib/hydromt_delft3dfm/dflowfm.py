@@ -19,7 +19,7 @@ from rasterio.warp import transform_bounds
 from shapely.geometry import box, Point
 from datetime import datetime, timedelta
 
-from hydrolib.core.io.storagenode.models import *
+from hydrolib.core.io.storagenode.models import StorageNodeModel
 from hydrolib.core.io.crosssection.models import *
 from hydrolib.core.io.friction.models import *
 from hydrolib.core.io.ext.models import *
@@ -829,7 +829,7 @@ class DFlowFMModel(Model):
                        manhole_defaults_fn: str = None,
                        bedlevel_shift: float = -0.5,
                        dem_fn: str = None,
-                       snap_offset:float = 0.0,
+                       snap_offset:float = 1E-3,
                        ):
         """
         Prepares the 1D manholes to pipes or tunnels. Can only be used after all branches are setup
@@ -867,7 +867,7 @@ class DFlowFMModel(Model):
             Shift applied to lowest pipe invert levels to derive manhole bedlevels [m] (default -0.5 m, meaning bedlevel = pipe invert - 0.5m).
         snap_offset: float, optional
             Snapping tolenrance to automatically connecting manholes to network nodes.
-            By default 0.1, no snapping is applied (risky due to precision).
+            By default 0.001. Use a higher value if large number of user manholes are missing. 
         """
 
         # staticgeom columns for manholes
@@ -928,7 +928,7 @@ class DFlowFMModel(Model):
             self.logger.debug(
                 f"overwriting generated manholes using user manholes."
             )
-            hydromt.gis_utils.nearest_merge(manholes, gdf_manhole, max_dist=snap_offset, overwrite=True)
+            manholes = hydromt.gis_utils.nearest_merge(manholes, gdf_manhole, max_dist=snap_offset, overwrite=True)
 
         # generate manhole streetlevels from dem
         if dem_fn is not None:
@@ -940,7 +940,7 @@ class DFlowFMModel(Model):
             )
             # reproject of dem is done in sample method
             manholes["_streetLevel_dem"] = dem.raster.sample(manholes).values
-            manholes["_streetLevel_dem"].fillna(df["streetLevel"] , inplace=True)
+            manholes["_streetLevel_dem"].fillna(manholes["streetLevel"] , inplace=True)
             manholes["streetLevel"] = manholes["_streetLevel_dem"]
             self.logger.debug(
                 f'street level mean is {np.mean(manholes["streetLevel"])}')
