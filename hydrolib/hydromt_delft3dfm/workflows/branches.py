@@ -112,7 +112,7 @@ def update_data_columns_attribute_from_query(
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
                         branches.branchType != row.branchType,
-                        branches.shape != row.shape,
+                        branches["shape"] != row.shape,  # shape is reserved
                     ),
                     getattr(row, attribute_name),
                 )
@@ -120,7 +120,7 @@ def update_data_columns_attribute_from_query(
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
                         branches.branchType != row.branchType,
-                        branches.shape != row.shape,
+                        branches["shape"] != row.shape,  # shape is reserved
                         branches.width != row.width,
                     ),
                     getattr(row, attribute_name),
@@ -130,7 +130,7 @@ def update_data_columns_attribute_from_query(
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
                         branches.branchType != row.branchType,
-                        branches.shape != row.shape,
+                        branches["shape"] != row.shape,  # shape is reserved
                     ),
                     getattr(row, attribute_name),
                 )
@@ -138,7 +138,7 @@ def update_data_columns_attribute_from_query(
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
                         branches.branchType != row.branchType,
-                        branches.shape != row.shape,
+                        branches["shape"] != row.shape,  # shape is reserved
                         branches.diameter != row.diameter,
                     ),
                     getattr(row, attribute_name),
@@ -146,7 +146,8 @@ def update_data_columns_attribute_from_query(
         else:
             branches[attribute_name] = branches[attribute_name].where(
                 np.logical_and(
-                    branches.branchType != row.branchType, branches.shape != row.shape
+                    branches.branchType != row.branchType,
+                    branches["shape"] != row.shape,  # shape is reserved
                 ),
                 getattr(row, attribute_name),
             )
