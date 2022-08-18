@@ -17,41 +17,55 @@ __all__ = [
 
 def generate_manholes_on_branches(
     branches: gpd.GeoDataFrame,
+    use_branch_variables: list[str] = ['diameter', 'width'],
     bedlevel_shift: float = 0.0,
-    id_col: str = "manholeId",
-    id_prefix: str = "manhole_",
+    id_prefix: str = "",
     id_suffix: str = "",
     logger=logging,
 ):
-    """generate manhole location and bedlevel from pipes"""
+    """Generate manhole location and bedlevel from branches.
 
+    Manholes will be generated at locations upstream and downstream of each pipe. No manholes will be generated at pipe/tunnel outlets into the channels/rivers.
+
+    A new geom of manholes will be created.
+    manholeId will be generated following the convension of id_prefix, id, and id_suffix.
+    bedlevel will be generated from the lowest invert levels of the connecting pipes.
+    Otehr attributes can be summersized from exisiting branch variables defined in ''use_branch_variables''.
+
+    Adds:
+        * **manholes** geom: 1D manholes vector
+    Updates:
+        * **branches** geom: 1D branches vector
+
+    Parameters
+    ----------
+    branches: gpd.GeoDataFrame
+        branches where manholes need to be generated. Use the entire network branches.
+        Required columns: ['branchId', 'branchType', 'invlev_up', 'invlev_dn']
+        Optional columns: ones defined in use_branch_variables
+    use_branch_variables: list of str, Optional
+        list of branch variables to include as attributes for manholes.
+        If multiple branches connects to a single manhole, then the maximum will be taken.
+        By default ['diameter', 'width'].
+    bedlevel_shift: float, optional
+        Shift applied to lowest pipe invert levels to derive manhole bedlevels [m] (bedlevel = pipe invert + bedlevel shift).
+        By default 0.0 m, no shift is applied.
+    id_prefix: str, optional
+        prefix to add to the id convention
+        By default "", no prefix are used.
+    id_suffix: str, optional
+        suffix to add to the id convention
+        By default "", no suffix are used.
+
+    """
     # generate
     logger.info("Generating manholes on pipes and/or tunnels")
-    manholes_generated, branches_generated = _generate_manholes(
-        branches, id_col, id_prefix, id_suffix
-    )
-    # apply additional shifts for bedlevel and streetlevel
-    logger.info(
-        f"Shifting manholes bedlevels based on bedlevel_shift = {bedlevel_shift}"
-    )
-    manholes_generated["bedLevel"] = manholes_generated["bedLevel"] + bedlevel_shift
-
-    return manholes_generated, branches_generated
-
-
-def _generate_manholes(
-    branches: gpd.GeoDataFrame,
-    id_col: str = "manholeId",
-    id_prefix="manhole_",
-    id_suffix="",
-):
-    """generate manhole locations !Do not split anymore"""
 
     # prepare branches
     if branches.index.name is None:  # add temp index
         branches.index.name = "_index"
-    pipes = branches.query('branchType == "pipe" | branchType == "tunnel"')
-    channels = branches.query(' branchType == "river" | branchType == "Channel"')
+    pipes = branches.query('branchType == "pipe" | branchType == "tunnel"') # include both pipes and tunnels
+    channels = branches.query('branchType == "river" | branchType == "Channel"') # include both channels and rivers
 
     # generate nodes upstream and downstream for every pipe
     _nodes_pipes_up = pd.DataFrame(
@@ -69,72 +83,66 @@ def _generate_manholes(
         columns=["geometry", "bedLevel", pipes.index.name],
     )
     _nodes_pipes = pd.concat([_nodes_pipes_up, _nodes_pipes_dn])
+    _nodes_pipes["where"] = _nodes_pipes["geometry"].apply(lambda geom: geom.wkb)
 
-    # get connecting pipes characteristics based on statistical functions
-    # left join based on pipe index to get pipe charactersitics
+    # get branch variables
     nodes_pipes = (
         _nodes_pipes.set_index(pipes.index.name)
         .merge(
-            pipes[["branchId", "ORIG_branchId", "branchType", "diameter", "width"]],
+            pipes[["branchId", "branchType"] + use_branch_variables],
             on=pipes.index.name,
         )
         .reset_index()
     )
 
-    # apply statistical funcs
-    nodes_pipes["where"] = nodes_pipes["geometry"].apply(lambda geom: geom.wkb)
+    # summarize branch variables
     nodes_pipes = _get_pipe_stats_for_manholes(nodes_pipes, "where", "diameter", "max")
     nodes_pipes = _get_pipe_stats_for_manholes(nodes_pipes, "where", "width", "max")
-    nodes_pipes = _get_pipe_stats_for_manholes(nodes_pipes, "where", "bedLevel", "min")
     nodes_pipes = _get_pipe_stats_for_manholes(
-        nodes_pipes, "where", "ORIG_branchId", ";".join
+        nodes_pipes, "where", "branchId", ";".join
     )
 
+    # get bed level, use the lowest of all pipe inverts
+    nodes_pipes = _get_pipe_stats_for_manholes(nodes_pipes, "where", "bedLevel", "min")
+    # apply additional shifts for bedlevel and streetlevel
+    if bedlevel_shift != 0:
+        logger.info(
+            f"Shifting manholes bedlevels based on bedlevel_shift = {bedlevel_shift}"
+        )
+        nodes_pipes["bedLevel"] = nodes_pipes["bedLevel"] + bedlevel_shift
+
+    # internal admin
     # drop duplicated nodes
     nodes_pipes = nodes_pipes.loc[nodes_pipes["where"].drop_duplicates().index, :]
-    nodes_pipes.drop(columns="where", inplace=True)
 
-    # remove pipes nodes on channels
-    # generate nodes on channels
+    # drop pipe nodes that are outlets (located at channels)
     _nodes_channels = pd.DataFrame(
         [(Point(l.coords[0]), li) for li, l in channels["geometry"].iteritems()]
         + [(Point(l.coords[-1]), li) for li, l in channels["geometry"].iteritems()],
         columns=["geometry", channels.index.name],
     )
-    nodes_channels = _nodes_channels.set_index(channels.index.name).merge(
-        channels[["branchId", "ORIG_branchId", "branchType"]], on=channels.index.name
-    )
-
-    # snap channel nodes to pipe nodes
-    # TODO: when connection between open and closed systm is done, remove snapping with max_dist
-    nodes_channels = gis_utils.nearest_merge(
-        gpd.GeoDataFrame(nodes_channels, crs=branches.crs),
-        gpd.GeoDataFrame(nodes_pipes, crs=branches.crs),
-        max_dist=0.1,
-        overwrite=True,
-    )
-
-    # if snapped, meaning there should be a channel nodes, therefore remove pipe nodes
-    mask = ~nodes_pipes.index.isin(nodes_channels.index_right)
-    nodes_pipes = nodes_pipes.loc[mask].reset_index(drop=True)
+    _nodes_channels["where"] = _nodes_channels["geometry"].apply(lambda geom: geom.wkb)
+    nodes_pipes = nodes_pipes.loc[~nodes_pipes["where"].isin(_nodes_channels["where"]), :]
 
     # manhole generated
-    manholes_generated = gpd.GeoDataFrame(nodes_pipes)
-    manholes_generated.loc[:, id_col] = [
-        "%s%s%s" % (id_prefix, str(x), id_suffix)
+    manholes_generated = gpd.GeoDataFrame(nodes_pipes.drop(columns="where"), crs = branches.crs)
+
+    # add manholeId
+    manholes_generated.loc[:, 'manholeId'] = [
+        f"{id_prefix}{x}{id_suffix}"
         for x in range(len(manholes_generated))
     ]
-    manholes_generated.index = manholes_generated.loc[:, id_col]
+    manholes_generated.set_index('manholeId')
 
     # update manholes generated to pipes
-    pipes = _update_pipes_from_manholes(manholes_generated, pipes)
+    pipes_updated = _update_pipes_from_manholes(manholes_generated, pipes)
 
-    # merge pipe and channels
-    branches_generated = pd.concat([pipes, channels], join="outer")
-    if branches_generated.index.name == "_index":  # remove temp index
-        branches_generated.index.name = None
+    # merge updated pipe and channels into branches
+    branches_updated = pd.concat([pipes_updated, channels], join="outer")
+    if branches_updated.index.name == "_index":  # remove temp index
+        branches_updated.index.name = None
 
-    return manholes_generated, branches_generated
+    return manholes_generated, branches_updated
 
 
 def _update_pipes_from_manholes(manholes: gpd.GeoDataFrame, pipes: gpd.GeoDataFrame):

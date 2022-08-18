@@ -893,10 +893,10 @@ class DFlowFMModel(Model):
         self.logger.info(f"generating manholes locations and bedlevels. ")
         manholes, branches = generate_manholes_on_branches(
             self.branches,
-            id_col="manholeId",
+            bedlevel_shift=bedlevel_shift,
+            use_branch_variables=['diameter', 'width'],
             id_prefix="manhole_",
             id_suffix="_generated",
-            bedlevel_shift=bedlevel_shift,
             logger=self.logger,
         )
         self.set_branches(branches)
