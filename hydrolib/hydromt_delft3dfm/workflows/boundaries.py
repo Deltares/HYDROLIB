@@ -195,6 +195,16 @@ def compute_boundary_values(
         _TIMESTR = {"D": "days", "H": "hours", "T": "minutes", "S": "seconds"}
         dt = pd.to_timedelta((da_bnd.time[1].values - da_bnd.time[0].values))
         freq = dt.resolution_string
+        if freq == "D":
+            logger.error(
+                "time unit days is not supported by the current GUI version: 2022.04"
+            )  # FIXME: require update in the future
+        if len(
+            pd.date_range(da_bnd.time[0].values, da_bnd.time[-1].values, freq=freq)
+        ) != len(da_bnd.time):
+            logger.error(
+                "does not support non-equidistant time-series."
+            ) 
         freq_name = _TIMESTR[freq]
         freq_step = getattr(dt.components, freq_name)
         bd_times = np.array([(i * freq_step) for i in range(len(da_bnd.time))])
@@ -216,7 +226,7 @@ def compute_boundary_values(
                 timeInterpolation="Linear",
                 quantity=f"{boundary_type}",
                 units=f"{boundary_unit}",
-                time_unit=f"{freq_name} since {da_bnd.time[0].values}",
+                time_unit=f"{freq_name} since {pd.to_datetime(da_bnd.time[0].values)}",  # support only yyyy-mm-dd HH:MM:SS
             ),
         )
         da_out.name = f"{boundary_type}bnd"
