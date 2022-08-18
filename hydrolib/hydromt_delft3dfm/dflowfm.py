@@ -39,7 +39,7 @@ from .workflows import (
     update_data_columns_attributes,
     validate_branches,
     generate_boundaries_from_branches,
-	invert_levels_from_dem,
+    invert_levels_from_dem,
     select_boundary_type,
     validate_boundaries,
     compute_boundary_values,
@@ -93,7 +93,7 @@ class DFlowFMModel(Model):
         )
         self.write_config()  #  create the mdu file in order to initialise dfmmodedl properly and at correct output location
         self._dfmmodel = self.init_dfmmodel()
-        
+
     def setup_basemaps(
         self,
         region: dict,
@@ -824,17 +824,18 @@ class DFlowFMModel(Model):
         # TODO: sort out the crosssections, e.g. remove branch crosssections if point/xyz exist etc
         # TODO: setup river crosssections, set contrains based on branch types
 
-    def setup_manholes(self,
-                       manholes_fn: str = None,
-                       manhole_defaults_fn: str = None,
-                       bedlevel_shift: float = -0.5,
-                       dem_fn: str = None,
-                       snap_offset:float = 1E-3,
-                       ):
+    def setup_manholes(
+        self,
+        manholes_fn: str = None,
+        manhole_defaults_fn: str = None,
+        bedlevel_shift: float = -0.5,
+        dem_fn: str = None,
+        snap_offset: float = 1e-3,
+    ):
         """
         Prepares the 1D manholes to pipes or tunnels. Can only be used after all branches are setup
 
-        The manholes can be either generated based on a set of standards specified in ``manhole_defaults_fn`` (default)  or read from ``manholes_fn``.
+        The manholes are generated based on a set of standards specified in ``manhole_defaults_fn`` (default)  and can be overwritten with manholes read from ``manholes_fn``.
 
         Use ``manholes_fn`` to set the manholes from a dataset of point locations.
         Only locations within the model region are selected. They are snapped to the model
@@ -854,11 +855,14 @@ class DFlowFMModel(Model):
         manholes_fn: str Path, optional
             Path or data source name for manholes see data/data_sources.yml.
             Note only the points that are within the region polygon will be used.
+
             * Optional variables: ["area", "streetStorageArea", "storageType", "streetLevel"]
         manholes_defaults_fn : str Path, optional
             Path to a csv file containing all defaults values per "branchType".
             Use multiple rows to apply defaults per ["shape", "diameter"/"width"] pairs.
             By default `hydrolib.hydromt_delft3dfm.data.manholes.manholes_defaults.csv` is used.
+
+            * Allowed variables: ["area", "streetLevel", "streeStorageArea", "storageType"]
         dem_fn: str, optional
             Name of data source for dem data. Used to derive default invert levels values (DEM - pipes_depth - pipes diameter/height).
             * Required variables: [elevtn]
@@ -873,7 +877,7 @@ class DFlowFMModel(Model):
         # staticgeom columns for manholes
         _allowed_columns = [
             "geometry",
-            "id", # storage node id, considered identical to manhole id when using single compartment manholes
+            "id",  # storage node id, considered identical to manhole id when using single compartment manholes
             "name",
             "manholeId",
             "nodeId",
@@ -886,13 +890,16 @@ class DFlowFMModel(Model):
         ]
 
         # generate manhole locations and bedlevels
-        self.logger.info(
-            f"generating manholes locations and bedlevels. "
+        self.logger.info(f"generating manholes locations and bedlevels. ")
+        manholes, branches = generate_manholes_on_branches(
+            self.branches,
+            id_col="manholeId",
+            id_prefix="manhole_",
+            id_suffix="_generated",
+            bedlevel_shift=bedlevel_shift,
+            logger=self.logger,
         )
-        manholes, branches = generate_manholes_on_branches(self.branches, id_col="manholeId", id_prefix='manhole_',id_suffix='_generated',
-                             bedlevel_shift=bedlevel_shift, logger=self.logger)
         self.set_branches(branches)
-
 
         # add manhole attributes from defaults
         if manhole_defaults_fn is None or not manhole_defaults_fn.is_file():
@@ -909,41 +916,41 @@ class DFlowFMModel(Model):
 
         # read user manhole
         if manholes_fn:
-            self.logger.info(
-                f"reading manholes street level from file {manholes_fn}. "
-            )
+            self.logger.info(f"reading manholes street level from file {manholes_fn}. ")
             # read
             gdf_manhole = self.data_catalog.get_geodataframe(
                 manholes_fn, geom=self.region, buffer=0, predicate="contains"
             )
             # reproject
-            gdf_manhole = gdf_manhole.to_crs(self.crs)
+            if gdf_manhole.crs != self.crs:
+                gdf_manhole = gdf_manhole.to_crs(self.crs)
             # filter for allowed columns
             allowed_columns = set(_allowed_columns).intersection(gdf_manhole.columns)
             self.logger.debug(
                 f'filtering for allowed columns:{",".join(allowed_columns)}'
             )
-            gdf_manhole = gpd.GeoDataFrame(gdf_manhole[allowed_columns], crs=gdf_manhole.crs)
-            # replace generated manhole using user manholes
-            self.logger.debug(
-                f"overwriting generated manholes using user manholes."
+            gdf_manhole = gpd.GeoDataFrame(
+                gdf_manhole[allowed_columns], crs=gdf_manhole.crs
             )
-            manholes = hydromt.gis_utils.nearest_merge(manholes, gdf_manhole, max_dist=snap_offset, overwrite=True)
+            # replace generated manhole using user manholes
+            self.logger.debug(f"overwriting generated manholes using user manholes.")
+            manholes = hydromt.gis_utils.nearest_merge(
+                manholes, gdf_manhole, max_dist=snap_offset, overwrite=True
+            )
 
         # generate manhole streetlevels from dem
         if dem_fn is not None:
-            self.logger.info(
-                f"overwriting manholes street level from dem. "
-            )
+            self.logger.info(f"overwriting manholes street level from dem. ")
             dem = self.data_catalog.get_rasterdataset(
                 dem_fn, geom=self.region, variables=["elevtn"]
             )
             # reproject of dem is done in sample method
             manholes["_streetLevel_dem"] = dem.raster.sample(manholes).values
-            manholes["_streetLevel_dem"].fillna(manholes["streetLevel"] , inplace=True)
+            manholes["_streetLevel_dem"].fillna(manholes["streetLevel"], inplace=True)
             manholes["streetLevel"] = manholes["_streetLevel_dem"]
             self.logger.debug(
-                f'street level mean is {np.mean(manholes["streetLevel"])}')
+                f'street level mean is {np.mean(manholes["streetLevel"])}'
+            )
 
         # internal administration
         # drop duplicated manholeId
@@ -954,18 +961,21 @@ class DFlowFMModel(Model):
             manholes, self.network1d_nodes, max_dist=0.1, overwrite=False
         )
         # add additional required columns
-        manholes["id"] = manholes["manholeId"] # id of the storage nodes id, identical to manholeId when single compartment manholes are used
+        manholes["id"] = manholes[
+            "manholeId"
+        ]  # id of the storage nodes id, identical to manholeId when single compartment manholes are used
         manholes["name"] = manholes["manholeId"]
         manholes["useTable"] = False
 
         # validate
         if manholes[_allowed_columns].isna().any().any():
-            self.logger.error("manholes contain no data. use manholes_defaults_fn to apply no data filling.")
+            self.logger.error(
+                "manholes contain no data. use manholes_defaults_fn to apply no data filling."
+            )
 
         # setup staticgeoms
         self.logger.debug(f"Adding manholes vector to staticgeoms.")
         self.set_staticgeoms(manholes, "manholes")
-
 
     def setup_1dboundary(
         self,
@@ -1270,7 +1280,6 @@ class DFlowFMModel(Model):
         storagenodes = StorageNodeModel(storagenode=gpd_mh.to_dict("records"))
         self.dfmmodel.geometry.storagenodefile = storagenodes
 
-
     def read_states(self):
         """Read states at <root/?/> and parse to dict of xr.DataArray"""
         return self._states
@@ -1353,7 +1362,7 @@ class DFlowFMModel(Model):
         self.set_staticgeoms(gpd.GeoDataFrame(branches, crs=self.crs), "branches")
 
         self.logger.debug(f"Updating branches in network.")
-    
+
     def add_branches(
         self,
         new_branches: gpd.GeoDataFrame,
@@ -1367,8 +1376,15 @@ class DFlowFMModel(Model):
             new_branches["branchType"] = np.repeat(branchtype, len(new_branches.index))
         branches = branches.append(new_branches, ignore_index=True)
         # add "systemType" based on branchType
-        systemtypes = {"river": "closedsystem", "channel": "closedsystem", "pipe": "opensystem", "tunnel":"opensystem"}
-        new_branches["systemType"] = np.repeat(systemtypes[branchtype], len(new_branches.index))
+        systemtypes = {
+            "river": "closedsystem",
+            "channel": "closedsystem",
+            "pipe": "opensystem",
+            "tunnel": "opensystem",
+        }
+        new_branches["systemType"] = np.repeat(
+            systemtypes[branchtype], len(new_branches.index)
+        )
         # Check if we need to do more check/process to make sure everything is well connected
         validate_branches(branches)
         # # Add to dfmmodel network

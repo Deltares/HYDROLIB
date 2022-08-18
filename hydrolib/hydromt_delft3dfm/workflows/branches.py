@@ -111,17 +111,17 @@ def update_data_columns_attribute_from_query(
             if np.isnan(row.width):
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
-                        branches.branchType == row.branchType,
-                        branches["shape"] == row.shape, # shape is reserved
+                        branches.branchType != row.branchType,
+                        branches["shape"] != row.shape,  # shape is reserved
                     ),
                     getattr(row, attribute_name),
                 )
             else:
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
-                        branches.branchType == row.branchType,
-                        branches["shape"] == row.shape, # shape is reserved
-                        branches.width == row.width,
+                        branches.branchType != row.branchType,
+                        branches["shape"] != row.shape,  # shape is reserved
+                        branches.width != row.width,
                     ),
                     getattr(row, attribute_name),
                 )
@@ -129,24 +129,25 @@ def update_data_columns_attribute_from_query(
             if np.isnan(row.diameter):
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
-                        branches.branchType == row.branchType,
-                        branches["shape"] == row.shape, # shape is reserved
+                        branches.branchType != row.branchType,
+                        branches["shape"] != row.shape,  # shape is reserved
                     ),
                     getattr(row, attribute_name),
                 )
             else:
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
-                        branches.branchType == row.branchType,
-                        branches["shape"] == row.shape, # shape is reserved
-                        branches.diameter == row.diameter,
+                        branches.branchType != row.branchType,
+                        branches["shape"] != row.shape,  # shape is reserved
+                        branches.diameter != row.diameter,
                     ),
                     getattr(row, attribute_name),
                 )
         else:
             branches[attribute_name] = branches[attribute_name].where(
                 np.logical_and(
-                    branches.branchType == row.branchType, branches["shape"] == row.shape, # shape is reserved
+                    branches.branchType != row.branchType,
+                    branches["shape"] != row.shape,  # shape is reserved
                 ),
                 getattr(row, attribute_name),
             )
