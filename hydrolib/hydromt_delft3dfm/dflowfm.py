@@ -2,6 +2,7 @@
 
 import glob
 import logging
+from os import times
 from os.path import basename, isfile, join
 from pathlib import Path
 from typing import Union, Tuple
@@ -17,10 +18,13 @@ from hydromt.raster import GEO_MAP_COORD
 from hydromt.models import MeshModel
 from hydromt.models.model_auxmaps import AuxmapsMixin
 from rasterio.warp import transform_bounds
-from shapely.geometry import box
+from shapely.geometry import box, Point
+from datetime import datetime, timedelta
 
 from hydrolib.core.io.crosssection.models import *
 from hydrolib.core.io.friction.models import *
+from hydrolib.core.io.ext.models import *
+from hydrolib.core.io.bc.models import *
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.core.io.net.models import *
 from hydrolib.core.io.inifield.models import IniFieldModel
@@ -36,6 +40,10 @@ from .workflows import (
     update_data_columns_attribute_from_query,
     update_data_columns_attributes,
     validate_branches,
+    generate_boundaries_from_branches,
+    select_boundary_type,
+    validate_boundaries,
+    compute_boundary_values,
 )
 
 __all__ = ["DFlowFMModel"]
@@ -73,12 +81,13 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             logger=logger,
         )
         # model specific
-        self._dfmmodel = None
-        self._branches = gpd.GeoDataFrame()
+        self._branches = None
         self._config_fn = (
             join("dflowfm", self._CONF) if config_fn is None else config_fn
         )
         self.data_catalog.from_yml(self._CATALOGS)
+        self.write_config()  #  create the mdu file in order to initialise dfmmodedl properly and at correct output location
+        self._dfmmodel = self.init_dfmmodel()
 
     def setup_region(
         self,
@@ -560,6 +569,131 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         self.set_crosssections(gdf_cs)
         # TODO: sort out the crosssections, e.g. remove branch crosssections if point/xyz exist etc
         # TODO: setup river crosssections, set contrains based on branch types
+    
+    def setup_1dboundary(
+        self,
+        boundaries_geodataset_fn: str = None,
+        boundaries_timeseries_fn: str = None,
+        boundary_value: float = -2.5,
+        branch_type: str = "river",
+        boundary_type: str = "waterlevel",
+        boundary_unit: str = "m",
+        boundary_locs: str = "downstream",
+        snap_offset: float = 1.0,
+    ):
+        """
+        Prepares the 1D ``boundary_type`` boundaries to branches using timeseries or a constant for a
+        specific ``branch_type`` at the ``boundary_locs`` locations.
+        E.g. 'waterlevel' boundaries for 'downstream''river' branches.
+
+        The values can either be a constant using ``boundary_value`` (default) or timeseries read from ``boundaries_geodataset_fn``.
+
+        Use ``boundaries_geodataset_fn`` to set the boundary values from a dataset of point location
+        timeseries. Only locations within the model region + 10m are selected. They are snapped to the model
+        boundary locations within a max distance defined in ``snap_offset``. If ``boundaries_geodataset_fn``
+        has missing values, the constant ``boundary_value`` will be used.
+
+        The dataset/timeseries are clipped to the model time based on the model config
+        tstart and tstop entries.
+
+        Adds/Updates model layers:
+            * **{boundary_type}bnd_{branch_type}** forcing: 1D boundaries DataArray
+
+        Parameters
+        ----------
+        boundaries_geodataset_fn: str, Path
+            Path or data source name for geospatial point timeseries file.
+            This can either be a netcdf file with geospatial coordinates
+            or a combined point location file with a timeseries data csv file
+            which can be setup through the data_catalog yml file.
+
+            * Required variables if netcdf: ['discharge', 'waterlevel'] depending on ``boundary_type``
+            * Required coordinates if netcdf: ['time', 'index', 'y', 'x']
+
+            * Required variables if a combined point location file: ['index'] with type int
+            * Required index types if a time series data csv file: int
+            NOTE: Require equidistant time series
+        boundaries_timeseries_fn: str, Path
+            Path to tabulated timeseries csv file with time index in first column
+            and location IDs in the first row,
+            see :py:meth:`hydromt.open_timeseries_from_table`, for details.
+            NOTE: tabulated timeseries files can only in combination with point location
+            coordinates be set as a geodataset in the data_catalog yml file.
+            NOTE: Require equidistant time series
+        boundary_value : float, optional
+            Constant value to use for all boundaries if ``boundaries_geodataset_fn`` is None and to
+            fill in missing data. By default -2.5 m.
+        branch_type: str
+            Type of branch to apply boundaries on. One of ["river", "pipe"].
+        boundary_type : str, optional
+            Type of boundary tu use. One of ["waterlevel", "discharge"].
+            By default "waterlevel".
+        boundary_unit : str, optional.
+            Unit corresponding to [boundary_type].
+            If ``boundary_type`` = "waterlevel"
+                Allowed unit is [m]
+            if ''boundary_type`` = "discharge":
+               Allowed unit is [m3/s]
+            By default m.
+        boundary_locs:
+            Boundary locations to consider. One of ["upstream", "downstream", "both"].
+            Only used for river waterlevel which can be upstream, downstream or both. By default "downstream".
+            For the others, it is automatically derived from branch_type and boundary_type.
+        snap_offset : float, optional
+                Snapping tolerance to automatically applying boundaries at the correct network nodes.
+            By default 0.1, a small snapping is applied to avoid precision errors.
+        """
+
+        self.logger.info(f"Preparing 1D {boundary_type} boundaries for {branch_type}.")
+        boundaries = self.boundaries.copy()
+        refdate, tstart, tstop = self.get_model_time()  # time slice
+
+        # 1. get potential boundary locations based on branch_type and boundary_type
+        boundaries_branch_type = select_boundary_type(
+            boundaries, branch_type, boundary_type, boundary_locs
+        )
+
+        # 2. read boundary from user data
+        if boundaries_geodataset_fn is not None:
+            da_bnd = self.data_catalog.get_geodataset(
+                boundaries_geodataset_fn,
+                geom=self.region,
+                variables=[boundary_type],
+                time_tuple=(tstart, tstop),
+                crs=self.crs.to_epsg(),  # assume model crs if none defined
+            ).rename(boundary_type)
+            # error if time mismatch
+            if np.logical_and(
+                pd.to_datetime(da_bnd.time.values[0]) == pd.to_datetime(tstart),
+                pd.to_datetime(da_bnd.time.values[-1]) == pd.to_datetime(tstop),
+            ):
+                pass
+            else:
+                self.logger.error(
+                    f"forcing has different start and end time. Please check the forcing file. support yyyy-mm-dd HH:MM:SS. "
+                )
+            # reproject if needed and convert to location
+            if da_bnd.vector.crs != self.crs:
+                da_bnd.vector.to_crs(self.crs)
+        elif boundaries_timeseries_fn is not None:
+            raise NotImplementedError()
+        else:
+            da_bnd = None
+
+        # 3. Derive DataArray with boundary values at boundary locations in boundaries_branch_type
+        da_out = compute_boundary_values(
+            boundaries=boundaries_branch_type,
+            da_bnd=da_bnd,
+            boundary_value=boundary_value,
+            boundary_type=boundary_type,
+            boundary_unit=boundary_unit,
+            snap_offset=snap_offset,
+            logger=self.logger,
+        )
+
+        # 4. set boundaries
+        self.set_forcing(da_out, name=f"{da_out.name}_{branch_type}")
+
 
     def setup_mesh2d(
         self,
@@ -742,9 +876,56 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # raise NotImplementedError()
 
     def write_forcing(self) -> None:
-        """write forcing at <root/?/> in model ready format"""
-        pass
-        # raise NotImplementedError()
+        """write forcing into hydrolib-core ext and forcing models"""
+        extdict = list()
+        bcdict = list()
+        # Loop over forcing dict
+        for name, da in self.forcing.items():
+            for i in da.index.values:
+                bc = da.attrs.copy()
+                # Boundary
+                ext = dict()
+                ext["quantity"] = bc["quantity"]
+                ext["nodeId"] = i
+                extdict.append(ext)
+                # Forcing
+                bc["name"] = i
+                if bc["function"] == "constant":
+                    # one quantityunitpair
+                    bc["quantityunitpair"] = [tuple((da.name, bc["units"]))]
+                    # only one value column (no times)
+                    bc["datablock"] = [[da.sel(index=i).values.item()]]
+                else:
+                    # two quantityunitpair
+                    bc["quantityunitpair"] = [
+                        tuple(("time", bc["time_unit"])),
+                        tuple((da.name, bc["units"])),
+                    ]
+                    bc.pop("time_unit")
+                    # time/value datablock
+                    bc["datablock"] = [
+                        [t, x] for t, x in zip(da.time.values, da.sel(index=i).values)
+                    ]
+                bc.pop("quantity")
+                bc.pop("units")
+                bcdict.append(bc)
+
+        forcing_model = ForcingModel(forcing=bcdict)
+        forcing_model_filename = forcing_model._filename() + ".bc"
+
+        ext_model = ExtModel()
+        ext_model_filename = ext_model._filename() + ".ext"
+        for i in range(len(extdict)):
+            ext_model.boundary.append(
+                Boundary(**{**extdict[i], "forcingFile": forcing_model})
+            )
+        # assign to model
+        self.dfmmodel.external_forcing.extforcefilenew = ext_model
+        self.dfmmodel.external_forcing.extforcefilenew.save(
+            self.dfmmodel.filepath.with_name(ext_model_filename), recurse=True
+        )
+        # save relative path to mdu
+        self.dfmmodel.external_forcing.extforcefilenew.filepath = ext_model_filename
 
     def read_dfmmodel(self):
         """Read dfmmodel at <root/?/> and parse to model class (deflt3dfmpy)"""
@@ -757,7 +938,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             raise IOError("Model opened in read-only mode")
         self.logger.info(f"Writing dfmmodel in {self.root}")
         # write 1D mesh
-        self._write_mesh1d()  # FIXME None handling
+        # self._write_mesh1d()  # FIXME None handling
 
         # write 2d mesh
         self._write_mesh2d()
@@ -909,9 +1090,9 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         Returns the branches (gpd.GeoDataFrame object) representing the 1D network.
         Contains several "branchType" for : channel, river, pipe, tunnel.
         """
-        if self._branches.empty:
+        if self._branches is None:
             # self.read_branches() #not implemented yet
-            self._branches = gpd.GeoDataFrame()
+            self._branches = gpd.GeoDataFrame(crs=self.crs)
         return self._branches
 
     def set_branches(self, branches: gpd.GeoDataFrame):
@@ -927,13 +1108,22 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         _ = self.set_branches_component(name="channel")
         _ = self.set_branches_component(name="pipe")
 
-        # update geom #FIXME: do we need branches as geom?
+        # update geom
         self.logger.debug(f"Adding branches vector to geoms.")
         self.set_geoms(gpd.GeoDataFrame(branches, crs=self.crs), "branches")
 
+        self.logger.debug(f"Updating branches in network.")
+        mesh.mesh1d_add_branch(
+            self.dfmmodel.geometry.netfile.network,
+            self.staticgeoms["branches"].geometry.to_list(),
+            node_distance=40,
+            branch_names=self.staticgeoms["branches"].branchId.to_list(),
+            branch_orders=self.staticgeoms["branches"].branchOrder.to_list(),
+        )
+
     def add_branches(self, new_branches: gpd.GeoDataFrame, branchtype: str):
         """Add new branches of branchtype to the branches object"""
-        branches = self._branches.copy()
+        branches = self.branches.copy()
         # Check if "branchType" in new_branches column, else add
         if "branchType" not in new_branches.columns:
             new_branches["branchType"] = np.repeat(branchtype, len(new_branches.index))
@@ -947,6 +1137,14 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         if gdf_comp.index.size > 0:
             self.set_geoms(gdf_comp, name=f"{name}s")
         return gdf_comp
+
+    @property
+    def rivers(self):
+        if "rivers" in self.staticgeoms:
+            gdf = self.staticgeoms["rivers"]
+        else:
+            gdf = self.set_branches_component("rivers")
+        return gdf
 
     @property
     def channels(self):
@@ -965,6 +1163,16 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         return gdf
 
     @property
+    def opensystem(self):
+        gdf = self.branches[self.branches["branchType"].isin(["river", "channel"])]
+        return gdf
+
+    @property
+    def closedsystem(self):
+        gdf = self.branches[self.branches["branchType"].isin(["pipe", "tunnel"])]
+        return gdf
+
+    @property
     def crosssections(self):
         """Quick accessor to crosssections geoms"""
         if "crosssections" in self.geoms:
@@ -980,3 +1188,55 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
                 pd.concat([self.crosssections, crosssections])
             )
         self.set_geoms(crosssections, name="crosssections")
+
+    @property
+    def boundaries(self):
+        """Quick accessor to boundaries staticgeoms"""
+        if "boundaries" in self.staticgeoms:
+            gdf = self.staticgeoms["boundaries"]
+        else:
+            gdf = self.get_boundaries()
+        return gdf
+
+    def get_boundaries(self):
+        """Get all boundary locations from the network
+        branch ends are possible locations for boundaries
+        for open system, both upstream and downstream ends are allowed to have boundaries
+        for closed system, only downstream ends are allowed to have boundaries
+        """
+
+        # generate all possible and allowed boundary locations
+        _boundaries = generate_boundaries_from_branches(self.branches, where="both")
+
+        # get networkids to complete the boundaries
+        _network1d_nodes = gpd.points_from_xy(
+            x=self.dfmmodel.geometry.netfile.network._mesh1d.network1d_node_x,
+            y=self.dfmmodel.geometry.netfile.network._mesh1d.network1d_node_y,
+            crs=self.crs,
+        )
+        _network1d_nodes = gpd.GeoDataFrame(
+            data={
+                "nodeId": self.dfmmodel.geometry.netfile.network._mesh1d.network1d_node_id,
+                "geometry": _network1d_nodes,
+            }
+        )
+        boundaries = hydromt.gis_utils.nearest_merge(
+            _boundaries, _network1d_nodes, max_dist=0.1, overwrite=False
+        )
+        return boundaries
+
+    def set_boundaries(self, boundaries: gpd.GeoDataFrame):
+        """Updates boundaries in staticgeoms with new ones"""
+        if len(self.boundaries) > 0:
+            task_last = lambda s1, s2: s2
+            boundaries = self.boundaries.combine(
+                boundaries, func=task_last, overwrite=True
+            )
+        self.set_staticgeoms(boundaries, name="boundaries")
+
+    def get_model_time(self):
+        """Return (refdate, tstart, tstop) tuple with parsed model reference datem start and end time"""
+        refdate = datetime.strptime(str(self.get_config("Time.refDate")), "%Y%m%d")
+        tstart = refdate + timedelta(seconds=float(self.get_config("Time.tStart")))
+        tstop = refdate + timedelta(seconds=float(self.get_config("Time.tStop")))
+        return refdate, tstart, tstop
