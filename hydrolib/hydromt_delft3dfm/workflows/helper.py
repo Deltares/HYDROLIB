@@ -275,7 +275,7 @@ def eval_funcs(gdf: gpd.GeoDataFrame, funcs: dict, logger=logger):
     gdf : gpd.GeoDataFrame
         The geo data frame to update.
     funcs : dict
-        A dictionary contains key-value pair describing a column name with a string describing the operation to evaluate.
+        A dictionary containing key-value pair describing a column name with a string describing the operation to evaluate.
     logger
         The logger to log messages with.
 

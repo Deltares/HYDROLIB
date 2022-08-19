@@ -25,17 +25,37 @@ def get_process_geodataframe(
 
     This function combines a wrapper around :py:meth:`~hydromt.data_adapter.DataCatalog.get_geodataframe`
 
-    Arguments
-    ---------
-    path_or_key: str
+    Parameters
+    ----------
+    path_or_key : str
         Data catalog key. If a path to a vector file is provided it will be added
         to the data_catalog with its based on the file basename without extension.
+    id_col : str
+        The id column name.
+    clip_buffer : float, optional
+        Buffer around the `bbox` or `geom` area of interest in meters. Defaults to 0.
+    clip_predicate : {'contains', 'intersects', 'within', 'overlaps', 'crosses', 'touches'}, optional
+        If predicate is provided, the GeoDataFrame is filtered by testing
+        the predicate function against each item. Requires bbox or mask.
+        Defaults to 'contains'.
+    retype : dict, optional
+        Dictionary containing retypes. Defaults to an empty dictionary.
+    funcs : dict, optional
+        A dictionary containing key-value pair describing a column name with a string describing the operation to evaluate. Defaults to an empty dictionary.
+    variables : list, optional
+        Names of GeoDataFrame columns to return. By default all columns are returned. Defaults to None.
+    required_query : str, optional
+        The required query. Defaults to None. 
 
     Returns
     -------
     gdf: geopandas.GeoDataFrame
         GeoDataFrame
 
+    Raises
+    ------
+    ValueError
+        If `id_col` does not exist in the opened data frame.
     """
 
     #    # pop kwargs from catalogue
