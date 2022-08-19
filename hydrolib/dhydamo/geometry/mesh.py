@@ -170,7 +170,7 @@ def mesh1d_add_branch(
 ) -> None:
     """Add branch to 1d mesh, from a (list of) (Multi)LineString geometry.
     The branch is discretized with the given node distance.
-    if node distance is given as inifinity, no discretization will be performed at mid point of the branch,
+    if node distance is given as infinity, no discretization will be performed at mid point of the branch,
     i.e. branch is treated as a pipe
 
     Args:
