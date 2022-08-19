@@ -403,7 +403,7 @@ def split_branches(
     spacing_col: str
         Name of the column in branchs that contains spacing information.
     smooth_branches: bool, optional
-        Swith to split branches into straight lines. By default False.
+        Switch to split branches into straight lines. By default False.
 
     Returns
     split_branches : gpd.GeoDataFrame
