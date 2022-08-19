@@ -253,13 +253,7 @@ def cleanup_branches(
     branches = branches[branches_length >= 0.1]
     logger.debug(f"Removing {n} branches that are shorter than 0.1 meter.")
     # remove branches with ring geometries
-    first_nodes = [l.coords[0] for l in branches.geometry]
-    last_nodes = [l.coords[-1] for l in branches.geometry]
-    duplicate_ids = np.isclose(first_nodes, last_nodes)
-    duplicate_ids = [
-        branches.index[i] for i in range(len(branches)) if np.all(duplicate_ids[i])
-    ]
-    branches = branches.drop(duplicate_ids, axis=0)
+    branches = _remove_branches_with_ring_geometries(branches)
 
     # sort index
     if id_col in [
@@ -524,40 +518,42 @@ def _split_branches_by_spacing_const(
         line = b.geometry
         num_new_lines = int(np.ceil(line.length / spacing_const))
 
-        if num_new_lines > 0:
-            # interpolate geometry
-            new_edges = split_lines(line, num_new_lines)
-            if smooth_branches:
-                for i in range(len(new_edges)):
-                    ed = new_edges[i]
-                    new_edges[i] = LineString(
-                        [Point(ed.coords[0]), Point(ed.coords[-1])]
-                    )
-            offsets = np.linspace(0, line.length, num_new_lines + 1)
+        if num_new_lines <= 0:
+            continue
 
-            # interpolate values
-            edge_geom.extend(new_edges)
-            edge_offset.extend(offsets[1:])
-            if interp_invlev:
-                edge_invertup.extend(
-                    np.interp(
-                        offsets[:-1], [0, offsets[-1]], [b.invlev_up, b.invlev_dn]
-                    )  # TODO: renaming needed
+        # interpolate geometry
+        new_edges = split_lines(line, num_new_lines)
+        if smooth_branches:
+            for i in range(len(new_edges)):
+                ed = new_edges[i]
+                new_edges[i] = LineString(
+                    [Point(ed.coords[0]), Point(ed.coords[-1])]
                 )
-                edge_invertdn.extend(
-                    np.interp(offsets[1:], [0, offsets[-1]], [b.invlev_up, b.invlev_dn])
+        offsets = np.linspace(0, line.length, num_new_lines + 1)
+
+        # interpolate values
+        edge_geom.extend(new_edges)
+        edge_offset.extend(offsets[1:])
+        if interp_invlev:
+            edge_invertup.extend(
+                np.interp(
+                    offsets[:-1], [0, offsets[-1]], [b.invlev_up, b.invlev_dn]
+                )  # TODO: renaming needed
+            )
+            edge_invertdn.extend(
+                np.interp(offsets[1:], [0, offsets[-1]], [b.invlev_up, b.invlev_dn])
+            )
+        if interp_bedlev:
+            edge_bedlevup.extend(
+                np.interp(
+                    offsets[:-1], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn]
                 )
-            if interp_bedlev:
-                edge_bedlevup.extend(
-                    np.interp(
-                        offsets[:-1], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn]
-                    )
-                )
-                edge_bedlevdn.extend(
-                    np.interp(offsets[1:], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn])
-                )
-            edge_index.extend([bid + "_E" + str(i) for i in range(len(new_edges))])
-            branch_index.extend([bid] * len(new_edges))
+            )
+            edge_bedlevdn.extend(
+                np.interp(offsets[1:], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn])
+            )
+        edge_index.extend([bid + "_E" + str(i) for i in range(len(new_edges))])
+        branch_index.extend([bid] * len(new_edges))
 
     edges = gpd.GeoDataFrame(
         {
@@ -895,3 +891,16 @@ def snap_newbranches_to_branches_at_snapnodes(
     branches_snapped = cleanup_branches(branches_snapped)
 
     return new_branches_snapped, branches_snapped
+
+
+def _remove_branches_with_ring_geometries(branches: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    first_nodes = [l.coords[0] for l in branches.geometry]
+    last_nodes = [l.coords[-1] for l in branches.geometry]
+    duplicate_ids = np.isclose(first_nodes, last_nodes)
+    duplicate_ids = [
+        branches.index[i] for i in range(len(branches)) if np.all(duplicate_ids[i])
+    ]
+    branches = branches.drop(duplicate_ids, axis=0)
+    logger.debug("Removing branches with ring geometries.")
+
+    return branches

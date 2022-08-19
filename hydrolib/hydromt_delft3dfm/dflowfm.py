@@ -1381,7 +1381,6 @@ class DFlowFMModel(Model):
         # Check if "branchType" in new_branches column, else add
         if "branchType" not in new_branches.columns:
             new_branches["branchType"] = np.repeat(branchtype, len(new_branches.index))
-<<<<<<< HEAD
 
         if len(self.opensystem) > 0:
             self.logger.info(
@@ -1427,19 +1426,6 @@ class DFlowFMModel(Model):
             # update the branches
             branches = branches.append(new_branches, ignore_index=True)
 
-=======
-        branches = branches.append(new_branches, ignore_index=True)
-        # add "systemType" based on branchType
-        systemtypes = {
-            "river": "closedsystem",
-            "channel": "closedsystem",
-            "pipe": "opensystem",
-            "tunnel": "opensystem",
-        }
-        new_branches["systemType"] = np.repeat(
-            systemtypes[branchtype], len(new_branches.index)
-        )
->>>>>>> hydromt_1dbranches
         # Check if we need to do more check/process to make sure everything is well connected
         workflows.validate_branches(branches)
 
