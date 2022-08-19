@@ -14,7 +14,6 @@ import pandas as pd
 import pyproj
 import xarray as xr
 import xugrid as xu
-from hydromt.raster import GEO_MAP_COORD
 from hydromt.models import MeshModel
 from hydromt.models.model_auxmaps import AuxmapsMixin
 from rasterio.warp import transform_bounds
