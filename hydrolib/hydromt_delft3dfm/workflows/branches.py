@@ -516,12 +516,8 @@ def _split_branches_by_spacing_const(
     branch_index = []
 
     # Check for attributes
-    interp_invlev = False
-    interp_bedlev = False
-    if "invlev_up" and "invlev_dn" in branches.columns:
-        interp_invlev = True
-    if "bedlev_up" and "bedlev_dn" in branches.columns:
-        interp_bedlev = True
+    interp_invlev = "invlev_up" and "invlev_dn" in branches.columns
+    interp_bedlev = "bedlev_up" and "bedlev_dn" in branches.columns
 
     for bid, b in branches.iterrows():
         # prepare for splitting
