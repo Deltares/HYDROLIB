@@ -42,23 +42,17 @@ def invert_levels_from_dem(
     dnnodes["geometry"] = [Point(l.coords[-1]) for l in gdf.geometry]
     gdf["elevtn_dn"] = dem.raster.sample(dnnodes).values
 
-    # circle profile
-    circle_indexes = gdf.loc[gdf["shape"] == "circle", :].index
-    for bi in circle_indexes:
-        gdf.loc[bi, "invlev_up"] = (
-            gdf.loc[bi, "elevtn_up"] - depth - gdf.loc[bi, "diameter"]
-        )
-        gdf.loc[bi, "invlev_dn"] = (
-            gdf.loc[bi, "elevtn_dn"] - depth - gdf.loc[bi, "diameter"]
-        )
-    # rectangle profile
-    rectangle_indexes = gdf.loc[gdf["shape"] == "rectangle", :].index
-    for bi in rectangle_indexes:
-        gdf.loc[bi, "invlev_up"] = (
-            gdf.loc[bi, "elevtn_up"] - depth - gdf.loc[bi, "height"]
-        )
-        gdf.loc[bi, "invlev_dn"] = (
-            gdf.loc[bi, "elevtn_dn"] - depth - gdf.loc[bi, "height"]
-        )
+    def invert_levels_cross_sections(shape: str, attribute: str):
+        indices = gdf.loc[gdf["shape"] == shape, :].index
+        for bi in indices:
+            gdf.loc[bi, "invlev_up"] = (
+                gdf.loc[bi, "elevtn_up"] - depth - gdf.loc[bi, attribute]
+            )
+            gdf.loc[bi, "invlev_dn"] = (
+                gdf.loc[bi, "elevtn_dn"] - depth - gdf.loc[bi, attribute]
+            )
+
+    invert_levels_cross_sections("circle", "diameter")
+    invert_levels_cross_sections("rectangle", "height")
 
     return gdf
