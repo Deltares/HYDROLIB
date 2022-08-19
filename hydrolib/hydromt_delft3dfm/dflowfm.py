@@ -19,6 +19,7 @@ from rasterio.warp import transform_bounds
 from shapely.geometry import box, Point
 from datetime import datetime, timedelta
 
+from hydrolib.core.io.storagenode.models import StorageNodeModel
 from hydrolib.core.io.crosssection.models import *
 from hydrolib.core.io.friction.models import *
 from hydrolib.core.io.ext.models import *
@@ -79,7 +80,6 @@ class DFlowFMModel(Model):
         )
         self.write_config()  #  create the mdu file in order to initialise dfmmodedl properly and at correct output location
         self._dfmmodel = self.init_dfmmodel()
-
         # Gloabl options for generation of the mesh1d network
         self._network_snap_offset = network_snap_offset
         self._openwater_computation_node_distance = openwater_computation_node_distance
@@ -102,7 +102,7 @@ class DFlowFMModel(Model):
             See :py:meth:`~hydromt.workflows.parse_region()` for all options.
         crs : int, optional
             Coordinate system (EPSG number) of the model. If not provided, equal to the region crs
-            if "grid" or "geom" option are used, and to 4326 if "bbox" is used.
+            if "grid" or "geom" option are used, and to 4326 if "bbox" is used, i.e. specified crs will be ignored.
         """
 
         kind, region = hydromt.workflows.parse_region(region, logger=self.logger)
@@ -163,9 +163,7 @@ class DFlowFMModel(Model):
                 gdf_br, spacing, attribute_name="spacing"
             )
         # Line smoothing for pipes
-        smooth_branches = False
-        if br_type == "pipe":
-            smooth_branches = True
+        smooth_branches = br_type == "pipe"
 
         self.logger.info(f"Processing branches")
         branches, branches_nodes = workflows.process_branches(
@@ -504,7 +502,7 @@ class DFlowFMModel(Model):
             Path to a csv file containing all defaults values per "branchType"'".
         pipe_filter: str, optional
             Keyword in branchType column of pipes_fn used to filter pipe lines. If None all lines in pipes_fn are used (default).
-        spacing, float, optional
+        spacing: float, optional
             Spacing value in meters to split the long pipelines lines into shorter pipes. By default inf - no splitting is applied.
         friction_type : str, optional
             Type of friction to use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
@@ -828,6 +826,159 @@ class DFlowFMModel(Model):
         # TODO: sort out the crosssections, e.g. remove branch crosssections if point/xyz exist etc
         # TODO: setup river crosssections, set contrains based on branch types
 
+    def setup_manholes(
+        self,
+        manholes_fn: str = None,
+        manhole_defaults_fn: str = None,
+        bedlevel_shift: float = -0.5,
+        dem_fn: str = None,
+        snap_offset: float = 1e-3,
+    ):
+        """
+        Prepares the 1D manholes to pipes or tunnels. Can only be used after all branches are setup
+
+        The manholes are generated based on a set of standards specified in ``manhole_defaults_fn`` (default)  and can be overwritten with manholes read from ``manholes_fn``.
+
+        Use ``manholes_fn`` to set the manholes from a dataset of point locations.
+        Only locations within the model region are selected. They are snapped to the model
+        network nodes locations within a max distance defined in ``snap_offset``.
+
+        Manhole attributes ["area", "streetStorageArea", "storageType", "streetLevel"] are either taken from ``manholes_fn`` or filled in using defaults in ``manhole_defaults_fn``.
+        Manhole attribute ["bedLevel"] is always generated from invert levels of the pipe/tunnel network plus a shift defined in ``bedlevel_shift``. This is needed for numerical stability.
+        Manhole attribute ["streetLevel"]  can also be overwriten with values dervied from "dem_fn".
+        #FIXME the above will change once auxmaps are implemented from hydromt.
+        #TODO probably needs another parameter to apply different samplinf method for the manholes, e.g. min within 2 m radius.
+
+        Adds/Updates model layers:
+            * **manholes** geom: 1D manholes vector
+
+        Parameters
+        ----------
+        manholes_fn: str Path, optional
+            Path or data source name for manholes see data/data_sources.yml.
+            Note only the points that are within the region polygon will be used.
+
+            * Optional variables: ["area", "streetStorageArea", "storageType", "streetLevel"]
+        manholes_defaults_fn : str Path, optional
+            Path to a csv file containing all defaults values per "branchType".
+            Use multiple rows to apply defaults per ["shape", "diameter"/"width"] pairs.
+            By default `hydrolib.hydromt_delft3dfm.data.manholes.manholes_defaults.csv` is used.
+
+            * Allowed variables: ["area", "streetLevel", "streeStorageArea", "storageType"]
+        dem_fn: str, optional
+            Name of data source for dem data. Used to derive default invert levels values (DEM - pipes_depth - pipes diameter/height).
+            * Required variables: [elevtn]
+            # FIXME: dem method can have remaining nan values. For now no interpolation method is used for filling in nan value. Use ``pipes_invlev`` to further fill in nodata.
+        bedlevel_shift: float, optional
+            Shift applied to lowest pipe invert levels to derive manhole bedlevels [m] (default -0.5 m, meaning bedlevel = pipe invert - 0.5m).
+        snap_offset: float, optional
+            Snapping tolenrance to automatically connecting manholes to network nodes.
+            By default 0.001. Use a higher value if large number of user manholes are missing.
+        """
+
+        # staticgeom columns for manholes
+        _allowed_columns = [
+            "geometry",
+            "id",  # storage node id, considered identical to manhole id when using single compartment manholes
+            "name",
+            "manholeId",
+            "nodeId",
+            "area",
+            "bedLevel",
+            "streetLevel",
+            "streetStorageArea",
+            "storageType",
+            "useTable",
+        ]
+
+        # generate manhole locations and bedlevels
+        self.logger.info(f"generating manholes locations and bedlevels. ")
+        manholes, branches = generate_manholes_on_branches(
+            self.branches,
+            bedlevel_shift=bedlevel_shift,
+            use_branch_variables=['diameter', 'width'],
+            id_prefix="manhole_",
+            id_suffix="_generated",
+            logger=self.logger,
+        )
+        self.set_branches(branches)
+
+        # add manhole attributes from defaults
+        if manhole_defaults_fn is None or not manhole_defaults_fn.is_file():
+            self.logger.warning(
+                f"manhole_defaults_fn ({manhole_defaults_fn}) does not exist. Fall back choice to defaults. "
+            )
+            manhole_defaults_fn = Path(self._DATADIR).joinpath(
+                "manholes", "manholes_defaults.csv"
+            )
+        defaults = pd.read_csv(manhole_defaults_fn)
+        self.logger.info(f"manhole default settings read from {manhole_defaults_fn}.")
+        # add defaults
+        manholes = update_data_columns_attributes(manholes, defaults)
+
+        # read user manhole
+        if manholes_fn:
+            self.logger.info(f"reading manholes street level from file {manholes_fn}. ")
+            # read
+            gdf_manhole = self.data_catalog.get_geodataframe(
+                manholes_fn, geom=self.region, buffer=0, predicate="contains"
+            )
+            # reproject
+            if gdf_manhole.crs != self.crs:
+                gdf_manhole = gdf_manhole.to_crs(self.crs)
+            # filter for allowed columns
+            allowed_columns = set(_allowed_columns).intersection(gdf_manhole.columns)
+            self.logger.debug(
+                f'filtering for allowed columns:{",".join(allowed_columns)}'
+            )
+            gdf_manhole = gpd.GeoDataFrame(
+                gdf_manhole[allowed_columns], crs=gdf_manhole.crs
+            )
+            # replace generated manhole using user manholes
+            self.logger.debug(f"overwriting generated manholes using user manholes.")
+            manholes = hydromt.gis_utils.nearest_merge(
+                manholes, gdf_manhole, max_dist=snap_offset, overwrite=True
+            )
+
+        # generate manhole streetlevels from dem
+        if dem_fn is not None:
+            self.logger.info(f"overwriting manholes street level from dem. ")
+            dem = self.data_catalog.get_rasterdataset(
+                dem_fn, geom=self.region, variables=["elevtn"]
+            )
+            # reproject of dem is done in sample method
+            manholes["_streetLevel_dem"] = dem.raster.sample(manholes).values
+            manholes["_streetLevel_dem"].fillna(manholes["streetLevel"], inplace=True)
+            manholes["streetLevel"] = manholes["_streetLevel_dem"]
+            self.logger.debug(
+                f'street level mean is {np.mean(manholes["streetLevel"])}'
+            )
+
+        # internal administration
+        # drop duplicated manholeId
+        self.logger.debug(f"dropping duplicated manholeId")
+        manholes.drop_duplicates(subset="manholeId")
+        # add nodeId to manholes
+        manholes = hydromt.gis_utils.nearest_merge(
+            manholes, self.network1d_nodes, max_dist=0.1, overwrite=False
+        )
+        # add additional required columns
+        manholes["id"] = manholes[
+            "manholeId"
+        ]  # id of the storage nodes id, identical to manholeId when single compartment manholes are used
+        manholes["name"] = manholes["manholeId"]
+        manholes["useTable"] = False
+
+        # validate
+        if manholes[_allowed_columns].isna().any().any():
+            self.logger.error(
+                "manholes contain no data. use manholes_defaults_fn to apply no data filling."
+            )
+
+        # setup staticgeoms
+        self.logger.debug(f"Adding manholes vector to staticgeoms.")
+        self.set_staticgeoms(manholes, "manholes")
+
     def setup_1dboundary(
         self,
         boundaries_geodataset_fn: str = None,
@@ -1074,6 +1225,10 @@ class DFlowFMModel(Model):
         # write crosssections
         self._write_crosssections()  # FIXME None handling, if there are no crosssections
 
+        # write manholes
+        if "manholes" in self._staticgeoms:
+            self._write_manholes()
+
         # save model
         self.dfmmodel.save(recurse=True)
 
@@ -1117,6 +1272,15 @@ class DFlowFMModel(Model):
 
         crsloc = CrossLocModel(crosssection=gpd_crsloc.to_dict("records"))
         self.dfmmodel.geometry.crosslocfile = crsloc
+
+    def _write_manholes(self):
+        """write manholes into hydrolib-core storage nodes objects"""
+
+        # preprocessing for manholes from staticgeoms
+        gpd_mh = self._staticgeoms["manholes"]
+
+        storagenodes = StorageNodeModel(storagenode=gpd_mh.to_dict("records"))
+        self.dfmmodel.geometry.storagenodefile = storagenodes
 
     def read_states(self):
         """Read states at <root/?/> and parse to dict of xr.DataArray"""
@@ -1189,6 +1353,7 @@ class DFlowFMModel(Model):
             self.logger.error(
                 "'branchType' column absent from the new branches, could not update."
             )
+
         # Update channels/pipes in staticgeoms
         _ = self.set_branches_component(name="river")
         _ = self.set_branches_component(name="channel")
@@ -1216,6 +1381,7 @@ class DFlowFMModel(Model):
         # Check if "branchType" in new_branches column, else add
         if "branchType" not in new_branches.columns:
             new_branches["branchType"] = np.repeat(branchtype, len(new_branches.index))
+<<<<<<< HEAD
 
         if len(self.opensystem) > 0:
             self.logger.info(
@@ -1261,6 +1427,19 @@ class DFlowFMModel(Model):
             # update the branches
             branches = branches.append(new_branches, ignore_index=True)
 
+=======
+        branches = branches.append(new_branches, ignore_index=True)
+        # add "systemType" based on branchType
+        systemtypes = {
+            "river": "closedsystem",
+            "channel": "closedsystem",
+            "pipe": "opensystem",
+            "tunnel": "opensystem",
+        }
+        new_branches["systemType"] = np.repeat(
+            systemtypes[branchtype], len(new_branches.index)
+        )
+>>>>>>> hydromt_1dbranches
         # Check if we need to do more check/process to make sure everything is well connected
         workflows.validate_branches(branches)
 
@@ -1396,19 +1575,8 @@ class DFlowFMModel(Model):
         )
 
         # get networkids to complete the boundaries
-        _network1d_nodes = gpd.points_from_xy(
-            x=self.dfmmodel.geometry.netfile.network._mesh1d.network1d_node_x,
-            y=self.dfmmodel.geometry.netfile.network._mesh1d.network1d_node_y,
-            crs=self.crs,
-        )
-        _network1d_nodes = gpd.GeoDataFrame(
-            data={
-                "nodeId": self.dfmmodel.geometry.netfile.network._mesh1d.network1d_node_id,
-                "geometry": _network1d_nodes,
-            }
-        )
         boundaries = hydromt.gis_utils.nearest_merge(
-            _boundaries, _network1d_nodes, max_dist=0.1, overwrite=False
+            _boundaries, self.network1d_nodes, max_dist=0.1, overwrite=False
         )
         return boundaries
 
@@ -1427,3 +1595,20 @@ class DFlowFMModel(Model):
         tstart = refdate + timedelta(seconds=float(self.get_config("Time.tStart")))
         tstop = refdate + timedelta(seconds=float(self.get_config("Time.tStop")))
         return refdate, tstart, tstop
+
+    @property
+    def network1d_nodes(self):
+        """get network1d nodes as gdp"""
+        # get networkids to complete the boundaries
+        _network1d_nodes = gpd.points_from_xy(
+            x=self.dfmmodel.geometry.netfile.network._mesh1d.network1d_node_x,
+            y=self.dfmmodel.geometry.netfile.network._mesh1d.network1d_node_y,
+            crs=self.crs,
+        )
+        _network1d_nodes = gpd.GeoDataFrame(
+            data={
+                "nodeId": self.dfmmodel.geometry.netfile.network._mesh1d.network1d_node_id,
+                "geometry": _network1d_nodes,
+            }
+        )
+        return _network1d_nodes

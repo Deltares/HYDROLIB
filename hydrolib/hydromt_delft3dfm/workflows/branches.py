@@ -111,7 +111,7 @@ def update_data_columns_attribute_from_query(
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
                         branches.branchType != row.branchType,
-                        branches.shape != row.shape,
+                        branches["shape"] != row.shape,  # shape is reserved
                     ),
                     getattr(row, attribute_name),
                 )
@@ -119,7 +119,7 @@ def update_data_columns_attribute_from_query(
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
                         branches.branchType != row.branchType,
-                        branches.shape != row.shape,
+                        branches["shape"] != row.shape,  # shape is reserved
                         branches.width != row.width,
                     ),
                     getattr(row, attribute_name),
@@ -129,7 +129,7 @@ def update_data_columns_attribute_from_query(
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
                         branches.branchType != row.branchType,
-                        branches.shape != row.shape,
+                        branches["shape"] != row.shape,  # shape is reserved
                     ),
                     getattr(row, attribute_name),
                 )
@@ -137,7 +137,7 @@ def update_data_columns_attribute_from_query(
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
                         branches.branchType != row.branchType,
-                        branches.shape != row.shape,
+                        branches["shape"] != row.shape,  # shape is reserved
                         branches.diameter != row.diameter,
                     ),
                     getattr(row, attribute_name),
@@ -145,7 +145,8 @@ def update_data_columns_attribute_from_query(
         else:
             branches[attribute_name] = branches[attribute_name].where(
                 np.logical_and(
-                    branches.branchType != row.branchType, branches.shape != row.shape
+                    branches.branchType != row.branchType,
+                    branches["shape"] != row.shape,  # shape is reserved
                 ),
                 getattr(row, attribute_name),
             )
@@ -163,6 +164,34 @@ def process_branches(
     smooth_branches: bool = False,
     logger=logger,
 ):
+    """preprocessing of branches geometry, including cleaning up of invalid geometries, snapping branch ends and splace branches.
+
+    Parameters
+    ----------
+    branches: gpd.GeoDataFrame
+        Branches.
+    branch_nodes: gpd.GeoDataFrame
+        Branch nodes.
+    id_col: str, optional
+        Defalt to branchId.
+    snap_offset: float, optional
+        off set used to snap branch ends.
+        Default is 0.01 geometry unit
+    allow_intersection_snapping: bool, optional
+        whether to when there are more than 2 branches
+        Default to True
+    smooth_branches: bool, optional
+        whether to return branches that are smoothed (straightend) , needed for pipes
+        Default to False.
+
+    Returns
+    -------
+    branches : gpd.GeoDataFrame
+        Preprocessed branches.
+    branches_nodes : gpd.GeoDataFrame
+        Preprocessed branches' nodes.
+    """
+
 
     logger.debug(f"Cleaning up branches")
     # TODO: maybe add arguments,use branch cross sections
@@ -401,7 +430,7 @@ def split_branches(
     spacing_col: str
         Name of the column in branchs that contains spacing information.
     smooth_branches: bool, optional
-        Swith to split branches into straight lines. By default False.
+        Switch to split branches into straight lines. By default False.
 
     Returns
     -------
