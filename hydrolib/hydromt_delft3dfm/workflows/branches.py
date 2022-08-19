@@ -810,7 +810,11 @@ def find_nearest_branch(
                 geometries.at[geometry.Index, "branch_offset"] = offset
 
 
-def snap_newbranches_to_branches_at_snapnodes(new_branches:gpd.GeoDataFrame, branches:gpd.GeoDataFrame, snapnodes:gpd.GeoDataFrame):
+def snap_newbranches_to_branches_at_snapnodes(
+    new_branches: gpd.GeoDataFrame,
+    branches: gpd.GeoDataFrame,
+    snapnodes: gpd.GeoDataFrame,
+):
     """function to snap new_branches to branches at snapnodes.
     snapnodes are located at branches. new branches will be snapped, and branches will be splitted.
     # NOTE: no interpolation of crosssection is needed because inter branch interpolation is turned on using branchorder
@@ -836,15 +840,22 @@ def snap_newbranches_to_branches_at_snapnodes(new_branches:gpd.GeoDataFrame, bra
 
         # modify new branches
         new_branch = new_branches.loc[snapnode.branchId]
-        snapped_line = LineString([snapnode.geometry_right
-                                   if Point(xy).equals(snapnode.geometry_left) else Point(xy)
-            for xy in new_branch.geometry.coords[:]])
-        new_branches_snapped.at[snapnode.branchId, 'geometry'] = snapped_line
+        snapped_line = LineString(
+            [
+                snapnode.geometry_right
+                if Point(xy).equals(snapnode.geometry_left)
+                else Point(xy)
+                for xy in new_branch.geometry.coords[:]
+            ]
+        )
+        new_branches_snapped.at[snapnode.branchId, "geometry"] = snapped_line
 
         # modify old branches
-        branch = branches.loc[snapnode.branch_name]  # FIXME would the branch order in self.branches differ from network branches? check this when reading back self.dfmmodel.geometry.netfile.network._mesh1d.branches
+        branch = branches.loc[
+            snapnode.branch_name
+        ]  # FIXME would the branch order in self.branches differ from network branches? check this when reading back self.dfmmodel.geometry.netfile.network._mesh1d.branches
         snapped_line = MultiLineString(cut(branch.geometry, snapnode.branch_chainage))
-        branches_snapped.at[snapnode.branch_name, 'geometry'] = snapped_line
+        branches_snapped.at[snapnode.branch_name, "geometry"] = snapped_line
 
     # explode multilinestring after snapping
     branches_snapped = branches_snapped.explode()
