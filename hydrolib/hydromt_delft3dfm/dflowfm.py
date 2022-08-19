@@ -80,6 +80,7 @@ class DFlowFMModel(Model):
         )
         self.write_config()  #  create the mdu file in order to initialise dfmmodedl properly and at correct output location
         self._dfmmodel = self.init_dfmmodel()
+
         # Gloabl options for generation of the mesh1d network
         self._network_snap_offset = network_snap_offset
         self._openwater_computation_node_distance = openwater_computation_node_distance
@@ -1021,12 +1022,14 @@ class DFlowFMModel(Model):
 
             * Required variables if a combined point location file: ['index'] with type int
             * Required index types if a time series data csv file: int
+            NOTE: Require equidistant time series
         boundaries_timeseries_fn: str, Path
             Path to tabulated timeseries csv file with time index in first column
             and location IDs in the first row,
             see :py:meth:`hydromt.open_timeseries_from_table`, for details.
             NOTE: tabulated timeseries files can only in combination with point location
             coordinates be set as a geodataset in the data_catalog yml file.
+            NOTE: Require equidistant time series
         boundary_value : float, optional
             Constant value to use for all boundaries if ``boundaries_geodataset_fn`` is None and to
             fill in missing data. By default -2.5 m.
@@ -1069,6 +1072,16 @@ class DFlowFMModel(Model):
                 time_tuple=(tstart, tstop),
                 crs=self.crs.to_epsg(),  # assume model crs if none defined
             ).rename(boundary_type)
+            # error if time mismatch
+            if np.logical_and(
+                pd.to_datetime(da_bnd.time.values[0]) == pd.to_datetime(tstart),
+                pd.to_datetime(da_bnd.time.values[-1]) == pd.to_datetime(tstop),
+            ):
+                pass
+            else:
+                self.logger.error(
+                    f"forcing has different start and end time. Please check the forcing file. support yyyy-mm-dd HH:MM:SS. "
+                )
             # reproject if needed and convert to location
             if da_bnd.vector.crs != self.crs:
                 da_bnd.vector.to_crs(self.crs)
@@ -1162,7 +1175,6 @@ class DFlowFMModel(Model):
 
     def write_forcing(self):
         """write forcing into hydrolib-core ext and forcing models"""
-        forcing_fn = "boundaryconditions1d.bc"
         extdict = list()
         bcdict = list()
         # Loop over forcing dict
@@ -1180,7 +1192,7 @@ class DFlowFMModel(Model):
                     # one quantityunitpair
                     bc["quantityunitpair"] = [tuple((da.name, bc["units"]))]
                     # only one value column (no times)
-                    bc["datablock"] = [[x for x in da.sel(index=i).values]]
+                    bc["datablock"] = [[da.sel(index=i).values.item()]]
                 else:
                     # two quantityunitpair
                     bc["quantityunitpair"] = [
@@ -1197,17 +1209,21 @@ class DFlowFMModel(Model):
                 bcdict.append(bc)
 
         forcing_model = ForcingModel(forcing=bcdict)
-        forcing_model.filepath = forcing_fn  # join(self.root, 'dflowfm', forcing_fn)
+        forcing_model_filename = forcing_model._filename() + ".bc"
 
         ext_model = ExtModel()
-        ext_model.filepath = join(self.root, "dflowfm", "bnd.ext")
+        ext_model_filename = ext_model._filename() + ".ext"
         for i in range(len(extdict)):
             ext_model.boundary.append(
                 Boundary(**{**extdict[i], "forcingFile": forcing_model})
             )
+        # assign to model
         self.dfmmodel.external_forcing.extforcefilenew = ext_model
-        # Write forcing files
-        self.dfmmodel.external_forcing.extforcefilenew.save(recurse=True)
+        self.dfmmodel.external_forcing.extforcefilenew.save(
+            self.dfmmodel.filepath.with_name(ext_model_filename), recurse=True
+        )
+        # save relative path to mdu
+        self.dfmmodel.external_forcing.extforcefilenew.filepath = ext_model_filename
 
     def read_dfmmodel(self):
         """Read dfmmodel at <root/?/> and parse to model class (deflt3dfmpy)"""
@@ -1376,7 +1392,6 @@ class DFlowFMModel(Model):
         snap_offset = self._network_snap_offset
 
         branches = self.branches.copy()
-        mesh1d = self.mesh1d
 
         # Check if "branchType" in new_branches column, else add
         if "branchType" not in new_branches.columns:
