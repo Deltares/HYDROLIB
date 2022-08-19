@@ -617,12 +617,12 @@ def reduce_gdf_precision(gdf: gpd.GeoDataFrame, rounding_precision: int=8):
 
     Returns
     -------
-    gpd.GeoDataFrame:
+    gpd.GeoDataFrame
         The geo data frame with the rounded geometry.
 
     Raises
     ------
-    NotImplementedError:
+    NotImplementedError
         If the geometry is not a LineString or Point.
     """
     if isinstance(gdf.geometry[0], LineString):
