@@ -33,6 +33,15 @@ def set_branch_crosssections(
     Function to set regular cross-sections at the mid point of branch.
     only support rectangle and trapezoid.
 
+    Parameters
+    ----------
+    branches : gpd.GeoDataFrame
+        The branches.
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        The cross sections.
     """
 
     # 2. check if branches have the required columns and select only required columns
@@ -121,8 +130,20 @@ def set_xyz_crosssections(
     branches: gpd.GeoDataFrame,
     crosssections: gpd.GeoDataFrame,
 ):
-    """setup xyz crosssections
+    """ Set up xyz crosssections.
     xyz crosssections should be points gpd, column z and column order.
+
+    Parameters
+    ----------
+    branches : gpd.GeoDataFrame
+        The branches.
+    crosssections : gpd.GeoDataFrame
+        The crosssections.
+
+    Returns
+    -------
+    pd.DataFrame
+        The xyz cross sections.
     """
     # check if require columns exist
     required_columns = ["geometry", "crsId", "order", "z"]
@@ -130,7 +151,7 @@ def set_xyz_crosssections(
         crosssections = gpd.GeoDataFrame(crosssections[required_columns])
     else:
         logger.error(
-            f"Cannto setup crosssections from branch. Require columns {required_columns}."
+            f"Cannot setup crosssections from branch. Require columns {required_columns}."
         )
 
     # apply data type
@@ -223,8 +244,21 @@ def set_point_crosssections(
 
 
 def xyzp2xyzl(xyz: pd.DataFrame, sort_by: list = ["x", "y"]):
+    """ Convert xyz points to xyz lines.
+    
+    Parameters
+    ----------
+    xyz: pd.DataFrame
+        The xyz points.
+    sort_by: list, optional
+        List of attributes to sort by. Defaults to ["x", "y"]. 
 
-    """xyz point to xyz line"""
+    Returns
+    -------
+    gpd.GeoSeries
+        The xyz lines.
+    """
+
     sort_by = [s.lower() for s in sort_by]
 
     if xyz is not None:

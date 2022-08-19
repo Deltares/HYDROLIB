@@ -40,16 +40,14 @@ def update_data_columns_attributes(
 
     Parameters
     ----------
-    branches: gpd.GeoDataFrame
+    branches : gpd.GeoDataFrame
         Branches.
-    attribute: int or pd.DataFrame
+    attribute : int or pd.DataFrame
         Values of the attribute. Either int of float for fixed value for all or a pd.DataFrame with values per
         "branchType", "shape" and "width" (column names of the DataFrame).
-    attribute_name: str
+    attribute_name : str
         Name of the new attribute column in branches.
 
-    Returns
-    -------
     Returns
     -------
     branches : gpd.GeoDataFrame
@@ -89,12 +87,12 @@ def update_data_columns_attribute_from_query(
 
     Parameters
     ----------
-    branches: gpd.GeoDataFrame
+    branches : gpd.GeoDataFrame
         Branches.
-    attribute: pd.DataFrame
+    attribute : pd.DataFrame
         pd.DataFrame with specific attribute values per
         "branchType", "shape" and "width"/"diameter" (column names of the DataFrame).
-    attribute_name: str
+    attribute_name : str
         Name of the new attribute column in branches.
 
     Returns
@@ -163,6 +161,23 @@ def process_branches(
     allow_intersection_snapping: bool = True,
     logger=logger,
 ):
+    """Process the branches by cleaning up the branches, splitting them and generating branchnodes.
+
+    Parameters
+    ----------
+    branches : gpd.GeoDataFrame
+        The branches to process.
+    branch_nodes : gpd.GeoDataFrame
+        The branches nodes.
+    id_col : str, optional
+        The branch id column name. Defaults to 'BRANCH_ID'.
+    snap_offset : float, optional
+        Maximum distance in meters between end points. If the distance is larger, they are not snapped. Defaults to 0.01.
+    allow_intersection_snapping : bool, optional
+        Allow snapping at all branch ends, including intersections. Defaults to True.
+    logger
+        The logger to log messages with.
+    """
 
     logger.debug(f"Cleaning up branches")
     # TODO: maybe add arguments,use branch cross sections
@@ -193,8 +208,33 @@ def cleanup_branches(
     allow_intersection_snapping: bool = True,
     logger=logger,
 ):
+    """Clean up the branches by:
+    * Removing null geomtry
+    * Exploding branches with multiline strings
+    * Removing branches with duplicated geometry
+    * Removing branches that are shorter than 0.1 meters
+    * Renaming branches with duplicate IDs
+    * Reducing the precision of the branch geometry to 6 digits.
+    * Snapping the branches
 
-    """Function to clean up branches"""
+    Parameters
+    ----------
+    branches : gpd.GeoDataFrame
+        The branches to clean up.
+    id_col : str, optional
+        The branch id column name. Defaults to 'BRANCH_ID'.
+    snap_offset : float, optional
+        Maximum distance in meters between end points. If the distance is larger, they are not snapped. Defaults to 0.01.
+    allow_intersection_snapping : bool, optional
+        Allow snapping at all branch ends, including intersections. Defaults to True.
+    logger
+        The logger to log messages with.
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        The cleanup branches.
+    """
 
     # remove null geometry
     branches = branches.loc[~branches.geometry.isna(), :]
@@ -291,10 +331,26 @@ def cleanup_branches(
 
 def space_branches(
     branches: gpd.GeoDataFrame,
-    spacing_col="spacing",  # TODO: seperate situation where interpolation is needed and interpolation is not needed
+    spacing_col: str="spacing",  # TODO: seperate situation where interpolation is needed and interpolation is not needed
     logger=logger,
 ):
-    """function to space branches based on spacing_col on branch"""
+    """Space the branches based on the spacing_col on the branch.
+    Removes the spacing column from the branches afterwards.
+
+    Parameters
+    ----------
+    branches : gpd.GeoDataFrame
+        The branches to clean up.
+    spacing_col : str, optional
+        The branch id column name. Defaults to 'spacing'.
+    logger
+        The logger to log messages with.
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        The split branches.
+    """
 
     # split branches based on spacing
     branches_ = split_branches(branches, spacing_col=spacing_col)
@@ -308,10 +364,26 @@ def space_branches(
 
 def generate_branchnodes(
     branches: gpd.GeoDataFrame,
-    id_col=None,
+    id_col:str=None,
     logger=logger,
 ):
-    """function to generate branch nodes at branch ends"""
+    """Generate branch nodes at the branch ends.
+
+    Parameters
+    ----------
+    branches : gpd.GeoDataFrame
+        The branches to generate the end nodes for.
+    id_col : str, optional
+        The branch id column name. Defaults to None.
+    logger
+        The logger to log messages with.
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        The branch nodes.
+    """
+
     # generate node up and downstream
     nodes = pd.DataFrame(
         [Point(l.coords[0]) for li, l in branches["geometry"].iteritems()]
@@ -352,7 +424,16 @@ def generate_branchnodes(
 def validate_branches(
     branches: gpd.GeoDataFrame, logger=logger
 ):  # TODO: add more content and maybe make a seperate module
-    """function to validate branch geometry"""
+    """Validate the branches.
+    Logs an error when one or more branches have a length of 0 meter.
+
+    Parameters
+    ----------
+    branches : gpd.GeoDataFrame
+        The branches to validate.
+    logger
+        The logger to log messages with.
+    """
     # validate pipe geometry
     if sum(branches.geometry.length <= 0) == 0:
         logger.debug("Branches are valid.")
@@ -380,14 +461,17 @@ def split_branches(
     Parameters
     ----------
     branches : gpd.GeoDataFrame
-    spacing_const : float
-        Constent spacing which will overwrite the spacing_col.
-    spacing_col: str
-        Name of the column in branchs that contains spacing information.
+    spacing_const : float, optional
+        Constent spacing which will overwrite the spacing_col. Defaults to float("inf").
+    spacing_col : str, optional
+        Name of the column in branchs that contains spacing information. Default to None.
+    logger
+        The logger to log messages with.
 
     Returns
+    -------
     split_branches : gpd.GeoDataFrame
-        Branches after split, new ids will be overwritten for the bracn index. Old ids are stored in "OLD_" + index.
+        Branches after split, new ids will be overwritten for the branch index. Old ids are stored in "OLD_" + index.
     """
 
     id_col = branches.index.name
@@ -438,6 +522,7 @@ def _split_branches_by_spacing_const(
         Name of the column in branches that contains the id of the branches.
 
     Returns
+    -------
     split_branches : gpd.GeoDataFrame
         Branches after split, new ids will be stored in id_col. Original ids are stored in "ORIG_" + id_col.
     """
@@ -520,8 +605,26 @@ def _split_branches_by_spacing_const(
     return split_branches
 
 
-def reduce_gdf_precision(gdf: gpd.GeoDataFrame, rounding_precision=8):
+def reduce_gdf_precision(gdf: gpd.GeoDataFrame, rounding_precision: int=8):
+    """Reduce the geometry coordinate precision with the provided number of digits.
 
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        The geo data frame to reduce the precision for.
+    rounding_precision : int, optional
+        The number of digits to round the coordinates with. Defaults to 8.
+
+    Returns
+    -------
+    gpd.GeoDataFrame:
+        The geo data frame with the rounded geometry.
+
+    Raises
+    ------
+    NotImplementedError:
+        If the geometry is not a LineString or Point.
+    """
     if isinstance(gdf.geometry[0], LineString):
         branches = gdf.copy()
         for i_branch, branch in enumerate(branches.itertuples()):
@@ -551,27 +654,32 @@ def snap_branch_ends(
     offset: float = 0.01,
     subsets=[],
     max_points: int = np.inf,
-    id_col="BRANCH_ID",
+    id_col: str = "BRANCH_ID",
 ):
     """
     Helper to snap branch ends to other branch ends within a given offset.
 
-
     Parameters
     ----------
     branches : gpd.GeoDataFrame
-    offset : float [m]
-        Maximum distance between end points. If the distance is larger, they are not snapped.
-    subset : list
-        A list of branch id subset to perform snapping (forced snapping)
-    max_points: int
+    offset : float, optional
+        Maximum distance in meters between end points. If the distance is larger, they are not snapped. Default to 0.01.
+    subsets : list, optional
+        A list of branch id subset to perform snapping (forced snapping). Default to an empty list.
+    max_points : int, optional
         maximum points allowed in a group.
         if snapping branch ends only, use max_points = 2
         if not specified, branch intersections will also be snapped
+        Defaults to np.inf.
+    id_col : str, optional
+        The branch id column name. Defaults to 'BRANCH_ID'.
+
     Returns
+    -------
     branches : gpd.GeoDataFrame
-        Branches updated with snapped geometry
+        Branches updated with snapped geometry.
     """
+
     # Collect endpoints
     _endpoints = []
     for branch in branches.itertuples():
@@ -639,6 +747,7 @@ def possibly_intersecting(
     dataframebounds : numpy.array
     geometry : shapely.geometry.Polygon
     """
+    
 
     geobounds = geometry.bounds
     idx = (
@@ -666,15 +775,13 @@ def find_nearest_branch(
     Parameters
     ----------
     branches : geopandas.GeoDataFrame
-        Geodataframe with branches
+        Geodataframe with branches.
     geometries : geopandas.GeoDataFrame
-        Geodataframe with geometries to snap
-    method='overal' : str
-        Method for determine branch
-    maxdist=5 : int or float
-        Maximum distance for finding nearest geometry
-    minoffset : int or float
-        Minimum offset from the end of the corresponding branch in case of method=equal
+        Geodataframe with geometries to snap.
+    method : {'overal','intersecting','centroid','ends'}
+        Method for determine branch. Defaults to 'overal'.
+    maxdist: int or float
+        Maximum distance for finding nearest geometry. Defaults to 5.
     """
     # Check if method is in allowed methods
     allowed_methods = ["intersecting", "overal", "centroid", "ends"]

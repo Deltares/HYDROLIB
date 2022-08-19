@@ -19,7 +19,7 @@ def gpd_to_digraph(data: gpd.GeoDataFrame) -> nx.DiGraph():
 
     Parameters
     ----------
-    data: gpd.GeoDataFrame
+    data : gpd.GeoDataFrame
         The data to convert.
 
     Returns
