@@ -1148,11 +1148,13 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         elif geom_fn is not None:
             region = {"geom": str(geom_fn)}
         elif bbox is not None:
+            bbox = [float(v) for v in bbox]  # needs to be str in config file
             region = {"bbox": bbox}
-        else:
-            raise ValueError(
-                "At least one argument of mesh2d_fn, geom_fn or bbox must be provided."
-            )
+        else:  # use model region
+            # raise ValueError(
+            #    "At least one argument of mesh2d_fn, geom_fn or bbox must be provided."
+            # )
+            region = {"geom": self.region}
         # Get the 2dmesh TODO when ready with generation, pass other arg like resolution
         mesh2d = super().setup_mesh(region=region, crs=self.crs, res=res)
         # Check if intersects with region
