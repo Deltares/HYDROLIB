@@ -32,6 +32,7 @@ from .workflows import (
     generate_roughness,
     helper,
     process_branches,
+    snap_newbranches_to_branches_at_snapnodes,
     set_branch_crosssections,
     set_xyz_crosssections,
     update_data_columns_attribute_from_query,
@@ -1193,6 +1194,46 @@ class DFlowFMModel(Model):
         self.set_staticgeoms(gpd.GeoDataFrame(branches, crs=self.crs), "branches")
 
         self.logger.debug(f"Updating branches in network.")
+
+    @property
+    def mesh1d(self):
+        """
+        Returns the mesh1d (hydrolib-core Mesh1d object) representing the 1D mesh.
+        """
+        # When calling mesh1d also create mesh1d_nodes
+        mesh1d_nodes = gpd.points_from_xy(
+            x=self.dfmmodel.geometry.netfile.network._mesh1d.mesh1d_node_x,
+            y=self.dfmmodel.geometry.netfile.network._mesh1d.mesh1d_node_y,
+            crs=self.crs,
+        )
+        mesh1d_nodes = gpd.GeoDataFrame(
+            data={
+                "branch_id": self.dfmmodel.geometry.netfile.network._mesh1d.mesh1d_node_branch_id,
+                "branch_name":
+                    [list(self.dfmmodel.geometry.netfile.network._mesh1d.branches.keys())[i] for i in self.dfmmodel.geometry.netfile.network._mesh1d.mesh1d_node_branch_id],
+                "branch_chainage": self.dfmmodel.geometry.netfile.network._mesh1d.mesh1d_node_branch_offset,
+                "geometry": mesh1d_nodes,
+            }
+        )
+        self._mesh1d_nodes = mesh1d_nodes
+        return self.dfmmodel.geometry.netfile.network._mesh1d
+
+
+    def set_mesh1d(self, branches: gpd.GeoDataFrame, node_distance):
+        """update the mesh1d in hydrolib-core net object by overwrite and #TODO the xugrid mesh1d"""
+
+        # init mesh1d
+        self.dfmmodel.geometry.netfile.network._mesh1d = Mesh1d()
+
+        # add branches to mesh1d
+        mesh.mesh1d_add_branch(
+            self.dfmmodel.geometry.netfile.network,
+            branches.geometry.to_list(),
+            node_distance=node_distance,
+            branch_names=branches.branchId.to_list(),
+            branch_orders=branches.branchOrder.to_list(),
+        )
+
     
     def add_branches(
         self,
@@ -1200,23 +1241,56 @@ class DFlowFMModel(Model):
         branchtype: str,
         node_distance: float = 40.0,
     ):
-        """Add new branches of branchtype to the branches object"""
+        """Add new branches of branchtype to the branches and mesh1d object
+        """
+
+        snap_offset = 25  # FIXME: if/how to allow user specify this snap_offset?
+
         branches = self.branches.copy()
+        mesh1d = self.mesh1d
+
         # Check if "branchType" in new_branches column, else add
         if "branchType" not in new_branches.columns:
             new_branches["branchType"] = np.repeat(branchtype, len(new_branches.index))
-        branches = branches.append(new_branches, ignore_index=True)
+
+        if len(self.opensystem)> 0:
+            self.logger.info(f"snapping {branchtype} ends to exisiting network (opensystem only)")
+
+            # get possible connection points from new branches
+            if branchtype in ['pipe', 'tunnel']:
+                endnodes = generate_boundaries_from_branches(new_branches, where="downstream") # FIXME: make generate_boundaries_from_branches function more available
+            else:
+                endnodes = generate_boundaries_from_branches(new_branches, where="both")
+
+            # get possible connection points from exisiting open system
+            mesh1d_nodes = self._mesh1d_nodes
+            mesh1d_nodes = mesh1d_nodes.loc[mesh1d_nodes.branch_name.isin(
+                self.opensystem.branchId.tolist())]
+
+            # snap the new to exisiting
+            snapnodes = gis_utils.nearest_merge(endnodes, mesh1d_nodes, max_dist=snap_offset, overwrite=False)
+            snapnodes = snapnodes[snapnodes.index_right != -1] # drop not snapped
+            snapnodes['geometry_left'] = snapnodes['geometry']
+            snapnodes['geometry_right'] = [mesh1d_nodes.at[i,'geometry'] for i in snapnodes['index_right']]
+            logger.debug(f"snapped features: {len(snapnodes)}")
+            new_branches_snapped, branches_snapped = snap_newbranches_to_branches_at_snapnodes(new_branches, branches, snapnodes)
+
+            # update the branches
+            branches = branches_snapped.append(new_branches_snapped, ignore_index=True)
+
+        elif len(self.opensystem) > 0 and branchtype in ['river', 'channel']:
+            self.logger.error(f"Not implemented: snapping {branchtype} to exisiting network (opensystem only) ")
+
+        else:
+            # update the branches
+            branches = branches.append(new_branches, ignore_index=True)
+
         # Check if we need to do more check/process to make sure everything is well connected
         validate_branches(branches)
-        # # Add to dfmmodel network
-        mesh.mesh1d_add_branch(
-            self.dfmmodel.geometry.netfile.network,
-            new_branches.geometry.to_list(),
-            node_distance=node_distance,
-            branch_names=new_branches.branchId.to_list(),
-            branch_orders=new_branches.branchOrder.to_list(),
-        )
+
+        # set staticgeom and mesh1d
         self.set_branches(branches)
+        self.set_mesh1d(branches, node_distance)
 
     def set_branches_component(self, name):
         gdf_comp = self.branches[self.branches["branchType"] == name]
@@ -1250,12 +1324,18 @@ class DFlowFMModel(Model):
 
     @property
     def opensystem(self):
-        gdf = self.branches[self.branches["branchType"].isin(["river", "channel"])]
+        if len(self.branches) > 0:
+            gdf = self.branches[self.branches["branchType"].isin(["river", "channel"])]
+        else:
+            gdf = gpd.GeoDataFrame(crs=self.crs)
         return gdf
 
     @property
     def closedsystem(self):
-        gdf = self.branches[self.branches["branchType"].isin(["pipe", "tunnel"])]
+        if len(self.branches) > 0:
+            gdf = self.branches[self.branches["branchType"].isin(["pipe", "tunnel"])]
+        else:
+            gdf = gpd.GeoDataFrame(crs=self.crs)
         return gdf
 
     @property

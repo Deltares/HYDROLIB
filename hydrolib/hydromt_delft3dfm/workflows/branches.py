@@ -12,9 +12,9 @@ import pandas as pd
 import shapely
 from hydromt import config
 from scipy.spatial import distance
-from shapely.geometry import LineString, Point
-
-from .helper import split_lines
+from shapely.geometry import Point, LineString, MultiLineString
+from shapely.ops import snap, split
+from .helper import split_lines, cut
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ __all__ = [
     "validate_branches",
     "update_data_columns_attributes",
     "update_data_columns_attribute_from_query",
+    "snap_newbranches_to_branches_at_snapnodes",
 ]
 
 
@@ -807,3 +808,48 @@ def find_nearest_branch(
                     min(branchgeo.length - mindist, round(branchgeo.project(geo), 3)),
                 )
                 geometries.at[geometry.Index, "branch_offset"] = offset
+
+
+def snap_newbranches_to_branches_at_snapnodes(new_branches:gpd.GeoDataFrame, branches:gpd.GeoDataFrame, snapnodes:gpd.GeoDataFrame):
+    """function to snap new_branches to branches at snapnodes.
+    snapnodes are located at branches. new branches will be snapped, and branches will be splitted.
+    # NOTE: no interpolation of crosssection is needed because inter branch interpolation is turned on using branchorder
+
+    Parameters
+    ----------
+    new_branches : geopandas.GeoDataFrame
+        Geodataframe of new branches whose geometry will be modified: end nodes will be snapped to snapnodes
+    branches : geopandas.GeoDataFrame
+        Geodataframe who will be splitted at snapnodes to allow connection with the new_branches.
+    snapnodes : geopandas.GeoDataFrame
+        Geodataframe which contiains the spatial relation of the new_branches and branches.
+    """
+
+    new_branches.index = new_branches.branchId
+    branches.index = branches.branchId
+
+    # for each snapped endnodes
+    new_branches_snapped = new_branches.copy()
+    branches_snapped = branches.copy()
+
+    for snapnode in snapnodes.itertuples():
+
+        # modify new branches
+        new_branch = new_branches.loc[snapnode.branchId]
+        snapped_line = LineString([snapnode.geometry_right
+                                   if Point(xy).equals(snapnode.geometry_left) else Point(xy)
+            for xy in new_branch.geometry.coords[:]])
+        new_branches_snapped.at[snapnode.branchId, 'geometry'] = snapped_line
+
+        # modify old branches
+        branch = branches.loc[snapnode.branch_name]  # FIXME would the branch order in self.branches differ from network branches? check this when reading back self.dfmmodel.geometry.netfile.network._mesh1d.branches
+        snapped_line = MultiLineString(cut(branch.geometry, snapnode.branch_chainage))
+        branches_snapped.at[snapnode.branch_name, 'geometry'] = snapped_line
+
+    # explode multilinestring after snapping
+    branches_snapped = branches_snapped.explode()
+
+    # reset the idex
+    branches_snapped = cleanup_branches(branches_snapped)
+
+    return new_branches_snapped, branches_snapped
