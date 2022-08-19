@@ -732,6 +732,13 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         res: float, optional
             Resolution used to generate 2D mesh. By default a value of 100 m is applied.
 
+    	Raises
+        ------
+        ValueError
+            If `mesh2d_fn`, `geom_fn` and `bbox` are all None.
+        IndexError
+            If the grid of the spatial domain contains 0 x-coordinates or 0 y-coordinates. 
+            
         See Also
         ----------
 
