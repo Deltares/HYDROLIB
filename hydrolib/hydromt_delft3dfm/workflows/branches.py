@@ -51,8 +51,6 @@ def update_data_columns_attributes(
 
     Returns
     -------
-    Returns
-    -------
     branches : gpd.GeoDataFrame
         Branches with new attribute values.
     """
@@ -406,6 +404,7 @@ def split_branches(
         Swith to split branches into straight lines. By default False.
 
     Returns
+    -------
     split_branches : gpd.GeoDataFrame
         Branches after split, new ids will be overwritten for the branch index. Old ids are stored in "OLD_" + index.
     """
@@ -827,6 +826,13 @@ def snap_newbranches_to_branches_at_snapnodes(
         Geodataframe who will be splitted at snapnodes to allow connection with the new_branches.
     snapnodes : geopandas.GeoDataFrame
         Geodataframe which contiains the spatial relation of the new_branches and branches.
+
+    Returns
+    -------
+    new_branches_snapped : geopandas.GeoDataFrame
+        Geodataframe of new branches with endnodes be snapped to snapnodes in branches_snapped.
+    branches_snapped : geopandas.GeoDataFrame
+        Geodataframe of branches splitted at snapnodes to allow connection with the new_branches_snapped.
     """
 
     new_branches.index = new_branches.branchId

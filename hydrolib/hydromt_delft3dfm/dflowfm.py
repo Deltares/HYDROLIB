@@ -28,22 +28,7 @@ from hydrolib.core.io.net.models import *
 from hydrolib.dhydamo.geometry import common, mesh, viz
 
 from . import DATADIR
-from .workflows import (
-    generate_roughness,
-    helper,
-    process_branches,
-    snap_newbranches_to_branches_at_snapnodes,
-    set_branch_crosssections,
-    set_xyz_crosssections,
-    update_data_columns_attribute_from_query,
-    update_data_columns_attributes,
-    validate_branches,
-    generate_boundaries_from_branches,
-    invert_levels_from_dem,
-    select_boundary_type,
-    validate_boundaries,
-    compute_boundary_values,
-)
+from . import workflows
 
 __all__ = ["DFlowFMModel"]
 logger = logging.getLogger(__name__)
@@ -71,6 +56,8 @@ class DFlowFMModel(Model):
         data_libs=None,  # yml # TODO: how to choose global mapping files (.csv) and project specific mapping files (.csv)
         logger=logger,
         deltares_data=False,  # data from pdrive,
+        network_snap_offset=25,
+        openwater_computation_node_distance=40,
     ):
 
         if not isinstance(root, (str, Path)):
@@ -92,6 +79,10 @@ class DFlowFMModel(Model):
         )
         self.write_config()  #  create the mdu file in order to initialise dfmmodedl properly and at correct output location
         self._dfmmodel = self.init_dfmmodel()
+
+        # Gloabl options for generation of the mesh1d network
+        self._network_snap_offset = network_snap_offset
+        self._openwater_computation_node_distance = openwater_computation_node_distance
 
     def setup_basemaps(
         self,
@@ -161,12 +152,14 @@ class DFlowFMModel(Model):
             gdf_br = gdf_br.to_crs(3857)
 
         self.logger.info("Adding/Filling branches attributes values")
-        gdf_br = update_data_columns_attributes(gdf_br, defaults, brtype=br_type)
+        gdf_br = workflows.update_data_columns_attributes(
+            gdf_br, defaults, brtype=br_type
+        )
 
         # If specific spacing info from spacing_fn, update spacing attribute
         if spacing is not None:
             self.logger.info(f"Updating spacing attributes")
-            gdf_br = update_data_columns_attribute_from_query(
+            gdf_br = workflows.update_data_columns_attribute_from_query(
                 gdf_br, spacing, attribute_name="spacing"
             )
         # Line smoothing for pipes
@@ -175,7 +168,7 @@ class DFlowFMModel(Model):
             smooth_branches = True
 
         self.logger.info(f"Processing branches")
-        branches, branches_nodes = process_branches(
+        branches, branches_nodes = workflows.process_branches(
             gdf_br,
             branch_nodes=None,
             id_col="branchId",
@@ -186,7 +179,7 @@ class DFlowFMModel(Model):
         )
 
         self.logger.info(f"Validating branches")
-        validate_branches(branches)
+        workflows.validate_branches(branches)
 
         # convert to model crs
         branches = branches.to_crs(self.crs)
@@ -281,7 +274,11 @@ class DFlowFMModel(Model):
             self.set_staticgeoms(channel_nodes, "channel_nodes")
 
             # add to branches
-            self.add_branches(channels, branchtype="channel")
+            self.add_branches(
+                channels,
+                branchtype="channel",
+                node_distance=self._openwater_computation_node_distance,
+            )
 
     def setup_rivers(
         self,
@@ -451,7 +448,11 @@ class DFlowFMModel(Model):
         self.set_staticgeoms(river_nodes, "rivers_nodes")
 
         # add to branches
-        self.add_branches(rivers, branchtype="river")
+        self.add_branches(
+            rivers,
+            branchtype="river",
+            node_distance=self._openwater_computation_node_distance,
+        )
 
     def setup_pipes(
         self,
@@ -676,7 +677,9 @@ class DFlowFMModel(Model):
             dem = self.data_catalog.get_rasterdataset(
                 dem_fn, geom=self.region, variables=["elevtn"]
             )
-            pipes = invert_levels_from_dem(gdf=pipes, dem=dem, depth=pipes_depth)
+            pipes = workflows.invert_levels_from_dem(
+                gdf=pipes, dem=dem, depth=pipes_depth
+            )
             if pipes[["invlev_up", "invlev_dn"]].isnull().sum().sum() > 0:
                 fill_invlev = True
             else:
@@ -693,7 +696,9 @@ class DFlowFMModel(Model):
                     "invlev_dn": [pipes_invlev],
                 }
             )
-            pipes = update_data_columns_attributes(pipes, df_inv, brtype="pipe")
+            pipes = workflows.update_data_columns_attributes(
+                pipes, df_inv, brtype="pipe"
+            )
 
         # TODO: check that geometry lines are properly oriented from up to dn when deriving invert levels from dem
 
@@ -769,7 +774,7 @@ class DFlowFMModel(Model):
             # TODO: set a seperate type for rivers because other branch types might require upstream/downstream
 
             # read crosssection from branches
-            gdf_cs = set_branch_crosssections(branches, midpoint=midpoint)
+            gdf_cs = workflows.set_branch_crosssections(branches, midpoint=midpoint)
 
         elif crosssections_type == "xyz":
 
@@ -787,7 +792,7 @@ class DFlowFMModel(Model):
                     f"No {crosssections_fn} 1D xyz crosssections found within domain"
                 )
                 return None
-            valid_attributes = helper.heck_gpd_attributes(
+            valid_attributes = workflows.helper.heck_gpd_attributes(
                 gdf_cs, required_columns=["crsId", "order", "z"]
             )
             if not valid_attributes:
@@ -805,7 +810,7 @@ class DFlowFMModel(Model):
             gdf_cs.to_crs(self.crs)
 
             # set crsloc and crsdef attributes to crosssections
-            gdf_cs = set_xyz_crosssections(branches, gdf_cs)
+            gdf_cs = workflows.set_xyz_crosssections(branches, gdf_cs)
 
         elif crosssections_type == "point":
             # add setup point crosssections here
@@ -900,7 +905,7 @@ class DFlowFMModel(Model):
         refdate, tstart, tstop = self.get_model_time()  # time slice
 
         # 1. get potential boundary locations based on branch_type and boundary_type
-        boundaries_branch_type = select_boundary_type(
+        boundaries_branch_type = workflows.select_boundary_type(
             boundaries, branch_type, boundary_type, boundary_locs
         )
 
@@ -922,7 +927,7 @@ class DFlowFMModel(Model):
             da_bnd = None
 
         # 3. Derive DataArray with boundary values at boundary locations in boundaries_branch_type
-        da_out = compute_boundary_values(
+        da_out = workflows.compute_boundary_values(
             boundaries=boundaries_branch_type,
             da_bnd=da_bnd,
             boundary_value=boundary_value,
@@ -1195,48 +1200,6 @@ class DFlowFMModel(Model):
 
         self.logger.debug(f"Updating branches in network.")
 
-    @property
-    def mesh1d(self):
-        """
-        Returns the mesh1d (hydrolib-core Mesh1d object) representing the 1D mesh.
-        """
-        # When calling mesh1d also create mesh1d_nodes
-        mesh1d_nodes = gpd.points_from_xy(
-            x=self.dfmmodel.geometry.netfile.network._mesh1d.mesh1d_node_x,
-            y=self.dfmmodel.geometry.netfile.network._mesh1d.mesh1d_node_y,
-            crs=self.crs,
-        )
-        mesh1d_nodes = gpd.GeoDataFrame(
-            data={
-                "branch_id": self.dfmmodel.geometry.netfile.network._mesh1d.mesh1d_node_branch_id,
-                "branch_name": [
-                    list(
-                        self.dfmmodel.geometry.netfile.network._mesh1d.branches.keys()
-                    )[i]
-                    for i in self.dfmmodel.geometry.netfile.network._mesh1d.mesh1d_node_branch_id
-                ],
-                "branch_chainage": self.dfmmodel.geometry.netfile.network._mesh1d.mesh1d_node_branch_offset,
-                "geometry": mesh1d_nodes,
-            }
-        )
-        self._mesh1d_nodes = mesh1d_nodes
-        return self.dfmmodel.geometry.netfile.network._mesh1d
-
-    def set_mesh1d(self, branches: gpd.GeoDataFrame, node_distance):
-        """update the mesh1d in hydrolib-core net object by overwrite and #TODO the xugrid mesh1d"""
-
-        # init mesh1d
-        self.dfmmodel.geometry.netfile.network._mesh1d = Mesh1d()
-
-        # add branches to mesh1d
-        mesh.mesh1d_add_branch(
-            self.dfmmodel.geometry.netfile.network,
-            branches.geometry.to_list(),
-            node_distance=node_distance,
-            branch_names=branches.branchId.to_list(),
-            branch_orders=branches.branchOrder.to_list(),
-        )
-
     def add_branches(
         self,
         new_branches: gpd.GeoDataFrame,
@@ -1245,7 +1208,7 @@ class DFlowFMModel(Model):
     ):
         """Add new branches of branchtype to the branches and mesh1d object"""
 
-        snap_offset = 25  # FIXME: if/how to allow user specify this snap_offset?
+        snap_offset = self._network_snap_offset
 
         branches = self.branches.copy()
         mesh1d = self.mesh1d
@@ -1261,49 +1224,45 @@ class DFlowFMModel(Model):
 
             # get possible connection points from new branches
             if branchtype in ["pipe", "tunnel"]:
-                endnodes = generate_boundaries_from_branches(
+                endnodes = workflows.generate_boundaries_from_branches(
                     new_branches, where="downstream"
                 )  # FIXME: make generate_boundaries_from_branches function more available
             else:
-                endnodes = generate_boundaries_from_branches(new_branches, where="both")
+                endnodes = workflows.generate_boundaries_from_branches(
+                    new_branches, where="both"
+                )
 
             # get possible connection points from exisiting open system
-            mesh1d_nodes = self._mesh1d_nodes
-            mesh1d_nodes = mesh1d_nodes.loc[
+            mesh1d_nodes = self.mesh1d_nodes.copy()
+            mesh1d_nodes_open = mesh1d_nodes.loc[
                 mesh1d_nodes.branch_name.isin(self.opensystem.branchId.tolist())
             ]
 
             # snap the new to exisiting
             snapnodes = gis_utils.nearest_merge(
-                endnodes, mesh1d_nodes, max_dist=snap_offset, overwrite=False
+                endnodes, mesh1d_nodes_open, max_dist=snap_offset, overwrite=False
             )
             snapnodes = snapnodes[snapnodes.index_right != -1]  # drop not snapped
             snapnodes["geometry_left"] = snapnodes["geometry"]
             snapnodes["geometry_right"] = [
-                mesh1d_nodes.at[i, "geometry"] for i in snapnodes["index_right"]
+                mesh1d_nodes_open.at[i, "geometry"] for i in snapnodes["index_right"]
             ]
             logger.debug(f"snapped features: {len(snapnodes)}")
             (
                 new_branches_snapped,
                 branches_snapped,
-            ) = snap_newbranches_to_branches_at_snapnodes(
+            ) = workflows.snap_newbranches_to_branches_at_snapnodes(
                 new_branches, branches, snapnodes
             )
 
             # update the branches
             branches = branches_snapped.append(new_branches_snapped, ignore_index=True)
-
-        elif len(self.opensystem) > 0 and branchtype in ["river", "channel"]:
-            self.logger.error(
-                f"Not implemented: snapping {branchtype} to exisiting network (opensystem only) "
-            )
-
         else:
             # update the branches
             branches = branches.append(new_branches, ignore_index=True)
 
         # Check if we need to do more check/process to make sure everything is well connected
-        validate_branches(branches)
+        workflows.validate_branches(branches)
 
         # set staticgeom and mesh1d
         self.set_branches(branches)
@@ -1356,6 +1315,49 @@ class DFlowFMModel(Model):
         return gdf
 
     @property
+    def mesh1d(self):
+        """
+        Returns the mesh1d (hydrolib-core Mesh1d object) representing the 1D mesh.
+        """
+        return self.dfmmodel.geometry.netfile.network._mesh1d
+
+    @property
+    def mesh1d_nodes(self):
+        """Returns the nodes of mesh 1D as geodataframe"""
+        mesh1d_nodes = gpd.points_from_xy(
+            x=self.mesh1d.mesh1d_node_x,
+            y=self.mesh1d.mesh1d_node_y,
+            crs=self.crs,
+        )
+        mesh1d_nodes = gpd.GeoDataFrame(
+            data={
+                "branch_id": self.mesh1d.mesh1d_node_branch_id,
+                "branch_name": [
+                    list(self.mesh1d.branches.keys())[i]
+                    for i in self.mesh1d.mesh1d_node_branch_id
+                ],
+                "branch_chainage": self.mesh1d.mesh1d_node_branch_offset,
+                "geometry": mesh1d_nodes,
+            }
+        )
+        return mesh1d_nodes
+
+    def set_mesh1d(self, branches: gpd.GeoDataFrame, node_distance):
+        """update the mesh1d in hydrolib-core net object by overwrite and #TODO the xugrid mesh1d"""
+
+        # init mesh1d
+        self.dfmmodel.geometry.netfile.network._mesh1d = Mesh1d()
+
+        # add branches to mesh1d
+        mesh.mesh1d_add_branch(
+            self.dfmmodel.geometry.netfile.network,
+            branches.geometry.to_list(),
+            node_distance=node_distance,
+            branch_names=branches.branchId.to_list(),
+            branch_orders=branches.branchOrder.to_list(),
+        )
+
+    @property
     def crosssections(self):
         """Quick accessor to crosssections staticgeoms"""
         if "crosssections" in self.staticgeoms:
@@ -1389,7 +1391,9 @@ class DFlowFMModel(Model):
         """
 
         # generate all possible and allowed boundary locations
-        _boundaries = generate_boundaries_from_branches(self.branches, where="both")
+        _boundaries = workflows.generate_boundaries_from_branches(
+            self.branches, where="both"
+        )
 
         # get networkids to complete the boundaries
         _network1d_nodes = gpd.points_from_xy(
