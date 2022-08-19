@@ -160,9 +160,9 @@ Rouwav            = FR84
 Gammax            = 1
 
 [time]
-RefDate           = 20220817
+RefDate           = 20200101
 Tzone             = 0
-DtUser            = 3600
+DtUser            = 300
 DtNodal           =
 DtMax             = 30
 DtInit            = 1

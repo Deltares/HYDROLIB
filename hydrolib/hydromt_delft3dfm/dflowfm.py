@@ -894,7 +894,7 @@ class DFlowFMModel(Model):
 
         # generate manhole locations and bedlevels
         self.logger.info(f"generating manholes locations and bedlevels. ")
-        manholes, branches = generate_manholes_on_branches(
+        manholes, branches = workflows.generate_manholes_on_branches(
             self.branches,
             bedlevel_shift=bedlevel_shift,
             use_branch_variables=['diameter', 'width'],
@@ -915,7 +915,7 @@ class DFlowFMModel(Model):
         defaults = pd.read_csv(manhole_defaults_fn)
         self.logger.info(f"manhole default settings read from {manhole_defaults_fn}.")
         # add defaults
-        manholes = update_data_columns_attributes(manholes, defaults)
+        manholes = workflows.update_data_columns_attributes(manholes, defaults)
 
         # read user manhole
         if manholes_fn:
@@ -1592,9 +1592,9 @@ class DFlowFMModel(Model):
 
     def get_model_time(self):
         """Return (refdate, tstart, tstop) tuple with parsed model reference datem start and end time"""
-        refdate = datetime.strptime(str(self.get_config("Time.refDate")), "%Y%m%d")
-        tstart = refdate + timedelta(seconds=float(self.get_config("Time.tStart")))
-        tstop = refdate + timedelta(seconds=float(self.get_config("Time.tStop")))
+        refdate = datetime.strptime(str(self.get_config("time.RefDate")), "%Y%m%d") #FIXME: case senstivie might cause problem when changing template, consider use hydrolib.core reader for mdu files later.
+        tstart = refdate + timedelta(seconds=float(self.get_config("time.TStart")))
+        tstop = refdate + timedelta(seconds=float(self.get_config("time.TStop")))
         return refdate, tstart, tstop
 
     @property
