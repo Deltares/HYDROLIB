@@ -502,7 +502,7 @@ class DFlowFMModel(Model):
             Path to a csv file containing all defaults values per "branchType"'".
         pipe_filter: str, optional
             Keyword in branchType column of pipes_fn used to filter pipe lines. If None all lines in pipes_fn are used (default).
-        spacing, float, optional
+        spacing: float, optional
             Spacing value in meters to split the long pipelines lines into shorter pipes. By default inf - no splitting is applied.
         friction_type : str, optional
             Type of friction to use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
