@@ -786,7 +786,7 @@ class DFlowFMModel(Model):
                     f"No {crosssections_fn} 1D xyz crosssections found within domain"
                 )
                 return None
-            valid_attributes = helper.heck_gpd_attributes(
+            valid_attributes = helper.check_gpd_attributes(
                 gdf_cs, required_columns=["crsId", "order", "z"]
             )
             if not valid_attributes:
