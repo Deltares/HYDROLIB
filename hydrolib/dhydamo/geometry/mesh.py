@@ -195,7 +195,7 @@ def mesh1d_add_branch(
     for line, branch_name, branch_order in zip(
         common.as_linestring_list(branches), branch_names, branch_orders
     ):
-        branch = Branch(geometry= np.array(loads(dumps(line, rounding_precision=6)).coords[:])) # avoid error caused by rounding precision
+        branch = Branch(geometry= np.array(round_geometry.coords[:])) # avoid error caused by rounding precision
         branch.generate_nodes(node_distance)
         network.mesh1d_add_branch(
             branch,
@@ -203,3 +203,21 @@ def mesh1d_add_branch(
             branch_order=int(branch_order),
             force_midpoint=force_midpoint,
         )
+
+def round_geometry(geometry, rounding_precision: int = 6):
+    """
+    Round the coordinates of the geometry object to the provided precision.
+
+    Parameters
+    ----------
+    geometry
+        The geometry object.
+    rounding_preicision: int, optional
+        Round coordinates to the specified number of digits.
+        Defaults to 6.
+
+    Returns
+    -------
+    A shapely geometry object.
+    """
+    return loads(dumps(geometry, rounding_precision=rounding_precision))

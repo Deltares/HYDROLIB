@@ -112,7 +112,7 @@ class DFlowFMModel(Model):
             See :py:meth:`~hydromt.workflows.parse_region()` for all options.
         crs : int, optional
             Coordinate system (EPSG number) of the model. If not provided, equal to the region crs
-            if "grid" or "geom" option are used, and to 4326 if "bbox" is used.
+            if "grid" or "geom" option are used, and to 4326 if "bbox" is used, i.e. specified crs will be ignored.
         """
 
         kind, region = hydromt.workflows.parse_region(region, logger=self.logger)

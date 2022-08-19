@@ -165,6 +165,34 @@ def process_branches(
     smooth_branches: bool = False,
     logger=logger,
 ):
+    """preprocessing of branches geometry, including cleaning up of invalid geometries, snapping branch ends and splace branches.
+
+    Parameters
+    ----------
+    branches: gpd.GeoDataFrame
+        Branches.
+    branch_nodes: gpd.GeoDataFrame
+        Branch nodes.
+    id_col: str, optional
+        Defalt to branchId.
+    snap_offset: float, optional
+        off set used to snap branch ends.
+        Default is 0.01 geometry unit
+    allow_intersection_snapping: bool, optional
+        whether to when there are more than 2 branches
+        Default to True
+    smooth_branches: bool, optional
+        whether to return branches that are smoothed (straightend) , needed for pipes
+        Default to False.
+
+    Returns
+    -------
+    branches : gpd.GeoDataFrame
+        Preprocessed branches.
+    branches_nodes : gpd.GeoDataFrame
+        Preprocessed branches' nodes.
+    """
+
 
     logger.debug(f"Cleaning up branches")
     # TODO: maybe add arguments,use branch cross sections
