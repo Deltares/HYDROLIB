@@ -16,9 +16,11 @@
     CRS_ID: crsId
     Z: z
 dem:
-  path: ./data/dem_empty.tif
+  path: n:\Projects\11208000\11208014\F. Other information\028_HYDROLIB-HydroMT\003_testmaterial\example_data_layers\geojsons\dem.tif
   data_type: RasterDataset
   crs: 32647
+  rename:
+    dem: elevtn
   meta:
     category: dem
     history: temporary dem within model extent

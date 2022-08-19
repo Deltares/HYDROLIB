@@ -1,10 +1,10 @@
-"""Implement plugin model class"""
+"""Implement Delft3D-FM hydromt plugin model class"""
 
 import glob
 import logging
 from os.path import basename, isfile, join
 from pathlib import Path
-from typing import Union
+from typing import Union, Tuple
 
 import geopandas as gpd
 import hydromt
@@ -13,8 +13,9 @@ import pandas as pd
 import pyproj
 import xarray as xr
 import xugrid as xu
-from hydromt import gis_utils, io, raster
-from hydromt.models.model_api import Model
+from hydromt.raster import GEO_MAP_COORD
+from hydromt.models import MeshModel
+from hydromt.models.model_auxmaps import AuxmapsMixin
 from rasterio.warp import transform_bounds
 from shapely.geometry import box
 
@@ -22,6 +23,7 @@ from hydrolib.core.io.crosssection.models import *
 from hydrolib.core.io.friction.models import *
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.core.io.net.models import *
+from hydrolib.core.io.inifield.models import IniFieldModel
 from hydrolib.dhydamo.geometry import common, mesh, viz
 
 from . import DATADIR
@@ -40,51 +42,45 @@ __all__ = ["DFlowFMModel"]
 logger = logging.getLogger(__name__)
 
 
-class DFlowFMModel(Model):
-    """General and basic API for models in HydroMT"""
+class DFlowFMModel(AuxmapsMixin, MeshModel):
+    """API for Delft3D-FM models in HydroMT"""
 
-    # FIXME
     _NAME = "dflowfm"
     _CONF = "DFlowFM.mdu"
     _DATADIR = DATADIR
-    # TODO change below mapping table (hydrolib-core convention:shape file convention) to be read from data folder, maybe similar to _intbl for wflow
-    # TODO: we also need one reverse table to read from static geom back. maybe a dictionary of data frame is better?
-    # TODO: write static geom as geojson dataset, so that we dont get limitation for the 10 characters
-    _GEOMS = {}  # FIXME Mapping from hydromt names to model specific names
-    _MAPS = {}  # FIXME Mapping from hydromt names to model specific names
-    _FOLDERS = ["dflowfm", "staticgeoms", "mesh"]
+    _GEOMS = {}
+    _AUXMAPS = {
+        "elevtn": {"name": "bedlevel", "type": "initial"},
+        "roughness_manning": {"name": "frictioncoefficient", "type": "parameter"},
+    }
+    _FOLDERS = ["dflowfm", "geoms", "mesh", "auxmaps"]
+    _CLI_ARGS = {"region": "setup_region", "res": "setup_mesh2d"}
+    _CATALOGS = join(_DATADIR, "parameters_data.yml")
 
     def __init__(
         self,
         root=None,
         mode="w",
-        config_fn=None,  # hydromt config contain glob section, anything needed can be added here as args
-        data_libs=None,  # yml # TODO: how to choose global mapping files (.csv) and project specific mapping files (.csv)
+        config_fn=None,
+        data_libs=None,
         logger=logger,
-        deltares_data=False,  # data from pdrive,
     ):
-
-        if not isinstance(root, (str, Path)):
-            raise ValueError("The 'root' parameter should be a of str or Path.")
-
         super().__init__(
             root=root,
             mode=mode,
             config_fn=config_fn,
             data_libs=data_libs,
-            deltares_data=deltares_data,
             logger=logger,
         )
-
         # model specific
         self._dfmmodel = None
         self._branches = gpd.GeoDataFrame()
-        self._mesh = None
         self._config_fn = (
             join("dflowfm", self._CONF) if config_fn is None else config_fn
         )
+        self.data_catalog.from_yml(self._CATALOGS)
 
-    def setup_basemaps(
+    def setup_region(
         self,
         region: dict,
         crs: int = None,
@@ -129,9 +125,7 @@ class DFlowFMModel(Model):
             self.logger.info(f"Model region is set to crs: {geom.crs.to_epsg()}")
 
         # Set the model region geometry (to be accessed through the shortcut self.region).
-        self.set_staticgeoms(geom, "region")
-
-        # FIXME: how to deprecate WARNING:root:No staticmaps defined
+        self.set_geoms(geom, "region")
 
     def _setup_branches(
         self,
@@ -263,12 +257,10 @@ class DFlowFMModel(Model):
                 allow_intersection_snapping=allow_intersection_snapping,
             )
 
-            # setup staticgeoms #TODO do we still need channels?
-            self.logger.debug(
-                f"Adding branches and branch_nodes vector to staticgeoms."
-            )
-            self.set_staticgeoms(channels, "channels")
-            self.set_staticgeoms(channel_nodes, "channel_nodes")
+            # setup geoms #TODO do we still need channels?
+            self.logger.debug(f"Adding branches and branch_nodes vector to geoms.")
+            self.set_geoms(channels, "channels")
+            self.set_geoms(channel_nodes, "channel_nodes")
 
             # add to branches
             self.add_branches(channels, branchtype="channel")
@@ -455,10 +447,10 @@ class DFlowFMModel(Model):
             crosssections_type=crosssections_type,
         )
 
-        # setup staticgeoms #TODO do we still need channels?
-        self.logger.debug(f"Adding rivers and river_nodes vector to staticgeoms.")
-        self.set_staticgeoms(rivers, "rivers")
-        self.set_staticgeoms(river_nodes, "rivers_nodes")
+        # setup geoms
+        self.logger.debug(f"Adding rivers and river_nodes vector to geoms.")
+        self.set_geoms(rivers, "rivers")
+        self.set_geoms(river_nodes, "rivers_nodes")
 
         # add to branches
         self.add_branches(rivers, branchtype="river")
@@ -508,10 +500,6 @@ class DFlowFMModel(Model):
 
         # setup crosssections
         self.logger.info(f"Preparing 1D crosssections.")
-        # if 'crosssections' in self.staticgeoms.keys():
-        #    crosssections = self._staticgeoms['crosssections']
-        # else:
-        #    crosssections = gpd.GeoDataFrame()
 
         # TODO: allow multiple crosssection filenamess
 
@@ -567,20 +555,20 @@ class DFlowFMModel(Model):
                 f"Method {crosssections_type} is not implemented."
             )
 
-        # add crosssections to exisiting ones and update staticgeoms
-        self.logger.debug(f"Adding crosssections vector to staticgeoms.")
+        # add crosssections to exisiting ones and update geoms
+        self.logger.debug(f"Adding crosssections vector to geoms.")
         self.set_crosssections(gdf_cs)
         # TODO: sort out the crosssections, e.g. remove branch crosssections if point/xyz exist etc
         # TODO: setup river crosssections, set contrains based on branch types
 
     def setup_mesh2d(
         self,
-        mesh2d_fn : str = None,
-        geom_fn : str = None,
-        bbox : list = None,
-        resolution : float = 100.0
+        mesh2d_fn: str = None,
+        geom_fn: str = None,
+        bbox: list = None,
+        res: float = 100.0,
     ):
-        """ Creates an 2D unstructured mesh or prepares an existing 2D mesh according UGRID conventions.
+        """Creates an 2D unstructured mesh or prepares an existing 2D mesh according UGRID conventions.
 
         An 2D unstructured mesh will be created as 2D rectangular grid from a geometry (geom_fn) or bbox. If an existing
         2D mesh is given, then no new mesh will be generated
@@ -608,47 +596,45 @@ class DFlowFMModel(Model):
             Path to a polygon used to generate unstructured 2D mesh
         bbox: list, optional
             Describing the mesh extent of interest [xmin, ymin, xmax, ymax].
-        resolution: float, optional
+        res: float, optional
             Resolution used to generate 2D mesh. By default a value of 100 m is applied.
 
         See Also
         ----------
-        
+
         """
-        self.logger.info(f"Preparing 2D mesh.")
-
-        if mesh2d_fn != None:
-            self.logger.info(f"An existing 2D grid is used to prepare 2D mesh.")
-            try:
-                mesh2d = xu.open_dataset(mesh2d_fn)
-            except:
-                raise NotImplementedError(f"{mesh2d_fn} cannot be opened. Please check if the existing grid is "
-                                  f"an 2D mesh and not 1D2D mesh. This option is not yet available for 1D2D meshes.")
-                # TODO: read existing 1D2D network file and extract 2D part.
-
-            #FIXME: check if crs is specified and if the same as crs used.
-            self.set_mesh(mesh2d)
-
-
-
-
-            #TODO: deviate between the use of existing grid or grid generation
-            #TODO: Check location of existing grid
-            #TODO: geom_fn --> check if within region and with the same crs--> check if it is not empty after reading it
-            #TODO: bbox  --> generatie geometry and check if within regionp--> check if it is not empty after reading it
-            #TODO: Use region
-            #TODO: generate grid
-        #TODO: set as mesh
-        a=1
+        # Function moved to MeshModel in hydromt core
+        # Recreate region dict for core function
+        if mesh2d_fn is not None:
+            region = {"mesh": mesh2d_fn}
+        elif geom_fn is not None:
+            region = {"geom": str(geom_fn)}
+        elif bbox is not None:
+            region = {"bbox": bbox}
+        else:
+            raise ValueError(
+                "At least one argument of mesh2d_fn, geom_fn or bbox must be provided."
+            )
+        # Get the 2dmesh TODO when ready with generation, pass other arg like resolution
+        mesh2d = super().setup_mesh(region=region, crs=self.crs, res=res)
+        # Check if intersects with region
+        xmin, ymin, xmax, ymax = self.bounds
+        subset = mesh2d.ugrid.sel(y=slice(ymin, ymax), x=slice(xmin, xmax))
+        err = f"RasterDataset: No data within spatial domain for mesh."
+        if subset.grid.node_x.size == 0 or subset.grid.node_y.size == 0:
+            raise IndexError(err)
+        # TODO: if we want to keep the clipped mesh 2d uncomment the following line
+        # Else mesh2d is used as mesh instead of susbet
+        self._mesh = subset  # reinitialise mesh2d grid (set_mesh is used in super)
 
     # ## I/O
     def read(self):
         """Method to read the complete model schematization and configuration from file."""
         self.logger.info(f"Reading model data from {self.root}")
         self.read_config()
-        self.read_staticmaps()
-        self.read_staticgeoms()
-        self.read_mesh()
+        self.read_auxmaps()
+        self.read_geoms()
+        self.read_mesh(fn="mesh/FlowFM_2D_net.nc")
         self.read_dfmmodel()
 
     def write(self):  # complete model
@@ -661,89 +647,101 @@ class DFlowFMModel(Model):
 
         if self.config:  # try to read default if not yet set
             self.write_config()
-        if self._staticmaps:
-            self.write_staticmaps()
-        if self._staticgeoms:
-            self.write_staticgeoms()
+        if self._auxmaps:
+            self.write_auxmaps()
+        if self._geoms:
+            self.write_geoms()
         if self._mesh:
-            self.write_mesh()
-        if self.dfmmodel:
-            self.write_dfmmodel()
+            self.write_mesh(fn="mesh/FlowFM_2D_net.nc")
         if self._forcing:
             self.write_forcing()
+        if self.dfmmodel:
+            self.write_dfmmodel()
 
-    def read_staticmaps(self):
-        """Read staticmaps at <root/?/> and parse to xarray Dataset"""
-        # to read gdal raster files use: hydromt.open_mfraster()
-        # to read netcdf use: xarray.open_dataset()
+    def read_auxmaps(self) -> None:
+        """Read auxmaps at <root/?/> and parse to dict of xr.DataArray"""
+        return self._auxmaps
+        # raise NotImplementedError()
+
+    def write_auxmaps(self) -> None:
+        """Write auxmaps as tif files in auxmaps folder and update initial fields"""
+        # Global parameters
+        auxroot = join(self.root, "auxmaps")
+        inilist = []
+        paramlist = []
+        self.logger.info(f"Writing auxmaps files to {auxroot}")
+
+        def _prepare_inifields(da_dict, da):
+            # Write tif files
+            name = da_dict["name"]
+            type = da_dict["type"]
+            _fn = join(auxroot, f"{name}.tif")
+            if np.isnan(da.raster.nodata):
+                da.raster.set_nodata(-999)
+            da.raster.to_raster(_fn)
+            # Prepare dict
+            inidict = {
+                "quantity": name,
+                "dataFile": f"../auxmaps/{name}.tif",
+                "dataFileType": "GeoTIFF",
+                "interpolationMethod": "triangulation",
+                # "averagingType": "nearestNb",
+                "operand": "O",
+                "locationType": "2d",
+            }
+            if type == "initial":
+                inilist.append(inidict)
+            elif type == "parameter":
+                paramlist.append(inidict)
+
+        # Only write auxmaps that are listed in self._AUXMAPS, rename tif on the fly
+        for name, ds in self._auxmaps.items():
+            if isinstance(ds, xr.DataArray):
+                if name in self._AUXMAPS:
+                    _prepare_inifields(self._AUXMAPS[name], ds)
+            elif isinstance(ds, xr.Dataset):
+                for v in ds.data_vars:
+                    if v in self._AUXMAPS:
+                        _prepare_inifields(self._AUXMAPS[v], ds[v])
+
+        # Assign initial fields to model and write
+        inifield_model = IniFieldModel(initial=inilist, parameter=paramlist)
+        inifield_model_filename = inifield_model._filename() + ".ini"
+        self.dfmmodel.geometry.inifieldfile = inifield_model
+        self.dfmmodel.geometry.inifieldfile.save(
+            self.dfmmodel.filepath.with_name(inifield_model_filename),
+            recurse=False,
+        )
+        # save relative path to mdu
+        self.dfmmodel.geometry.inifieldfile.filepath = inifield_model_filename
+
+    def read_geoms(self) -> None:
+        """Read geoms at <root/?/> and parse to dict of geopandas"""
         if not self._write:
             # start fresh in read-only mode
-            self._staticmaps = xr.Dataset()
-        self.set_staticmaps(hydromt.open_mfraster(join(self.root, "*.tif")))
-
-    def write_staticmaps(self):
-        """Write staticmaps at <root/?/> in model ready format"""
-        # to write to gdal raster files use: self.staticmaps.raster.to_mapstack()
-        # to write to netcdf use: self.staticmaps.to_netcdf()
-        if not self._write:
-            raise IOError("Model opened in read-only mode")
-        self.staticmaps.raster.to_mapstack(join(self.root, "dflowfm"))
-
-    def read_staticgeoms(self):
-        """Read staticgeoms at <root/?/> and parse to dict of geopandas"""
-        if not self._write:
-            # start fresh in read-only mode
-            self._staticgeoms = dict()
+            self._geoms = dict()
         for fn in glob.glob(join(self.root, "*.xy")):
             name = basename(fn).replace(".xy", "")
             geom = hydromt.open_vector(fn, driver="xy", crs=self.crs)
-            self.set_staticgeoms(geom, name)
+            self.set_geoms(geom, name)
 
-    def write_staticgeoms(self):  # write_all()
-        """Write staticmaps at <root/?/> in model ready format"""
+    def write_geoms(self) -> None:  # write_all()
+        """Write geoms at <root/?/> in model ready format"""
         # TODO: write_data_catalogue with updates of the rename based on mapping table?
         if not self._write:
             raise IOError("Model opened in read-only mode")
-        for name, gdf in self.staticgeoms.items():
-            fn_out = join(self.root, "staticgeoms", f"{name}.geojson")
-            self.staticgeoms[name].reset_index(drop=True).to_file(
+        for name, gdf in self.geoms.items():
+            fn_out = join(self.root, "geoms", f"{name}.geojson")
+            self.geoms[name].reset_index(drop=True).to_file(
                 fn_out, driver="GeoJSON"
             )  # FIXME: does not work if does not reset index
 
-    def read_mesh(self):
-        """Read mesh at <root/?/> and parse to xarray Dataset """
-        #FIXME: it can at the moment only read 2D/1D or network. Not all at once.
-        if not self._write:
-            # start fresh in read-only mode
-            self._mesh = xu.Dataset()
-        if isfile(join(self.root, "mesh","FlowFM_2D_net.nc")): #Change of file not implemented yet
-            self._mesh = xu.open_dataset(join(self.root, "mesh","FlowFM_2D_net.nc"))
-
-    def write_mesh(self):
-        """Write grid at <root/?/> in xarray.Dataset """
-        if not self._write:
-            raise IOError("Model opened in read-only mode")
-        elif not self._mesh:
-            self.logger.warning("No mesh to write - Exiting")
-            return
-        # filename
-        #FIXME: change filename when xugrid can read combined networkfiles
-        fn_default = join(self.root, "mesh","FlowFM_2D_net.nc")
-        self.logger.info(f"Write mesh to {self.root}")
-        ds_out = self.mesh
-        #FIXME: remove pass if Huite has solution.
-        ds_new = xu.UgridDataset(grid=ds_out.ugrid.grid)
-        ds_new.ugrid.to_netcdf(fn_default)
-
-
-        #ds_out.ugrid.to_netcdf(fn_default)
-
-    def read_forcing(self):
+    def read_forcing(self) -> None:
         """Read forcing at <root/?/> and parse to dict of xr.DataArray"""
         return self._forcing
         # raise NotImplementedError()
 
-    def write_forcing(self):
+    def write_forcing(self) -> None:
         """write forcing at <root/?/> in model ready format"""
         pass
         # raise NotImplementedError()
@@ -757,13 +755,13 @@ class DFlowFMModel(Model):
         """Write dfmmodel at <root/?/> in model ready format"""
         if not self._write:
             raise IOError("Model opened in read-only mode")
-
+        self.logger.info(f"Writing dfmmodel in {self.root}")
         # write 1D mesh
         self._write_mesh1d()  # FIXME None handling
 
         # write 2d mesh
         self._write_mesh2d()
-        #TODO: create self._write_mesh2d() using hydrolib-core funcitonalities
+        # TODO: create self._write_mesh2d() using hydrolib-core funcitonalities
 
         # write friction
         self._write_friction()  # FIXME: ask Rinske, add global section correctly
@@ -777,7 +775,7 @@ class DFlowFMModel(Model):
     def _write_mesh1d(self):
 
         #
-        branches = self._staticgeoms["branches"]
+        branches = self._geoms["branches"]
 
         # FIXME: imporve the None handeling here, ref: crosssections
 
@@ -800,15 +798,13 @@ class DFlowFMModel(Model):
         mesh2d = self._mesh.ugrid.grid.mesh
 
         # add mesh2d
-        #FIXME: improve the way of adding a 2D mesh
+        # FIXME: improve the way of adding a 2D mesh
         self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
-
-
 
     def _write_friction(self):
 
         #
-        frictions = self._staticgeoms["branches"][
+        frictions = self._geoms["branches"][
             ["frictionId", "frictionValue", "frictionType"]
         ]
         frictions = frictions.drop_duplicates(subset="frictionId")
@@ -820,8 +816,8 @@ class DFlowFMModel(Model):
     def _write_crosssections(self):
         """write crosssections into hydrolib-core crsloc and crsdef objects"""
 
-        # preprocessing for crosssections from staticgeoms
-        gpd_crs = self._staticgeoms["crosssections"]
+        # preprocessing for crosssections from geoms
+        gpd_crs = self._geoms["crosssections"]
 
         # crsdef
         # get crsdef from crosssections gpd # FIXME: change this for update case
@@ -869,6 +865,19 @@ class DFlowFMModel(Model):
         return self.region.crs
 
     @property
+    def bounds(self) -> Tuple:
+        """Returns model mesh bounds."""
+        return self.region.total_bounds
+
+    @property
+    def region(self) -> gpd.GeoDataFrame:
+        """Returns geometry of region of the model area of interest."""
+        region = gpd.GeoDataFrame()
+        if "region" in self.geoms:
+            region = self.geoms["region"]
+        return region
+
+    @property
     def dfmmodel(self):
         if self._dfmmodel == None:
             self.init_dfmmodel()
@@ -906,7 +915,7 @@ class DFlowFMModel(Model):
         return self._branches
 
     def set_branches(self, branches: gpd.GeoDataFrame):
-        """Updates the branches object as well as the linked staticgeoms."""
+        """Updates the branches object as well as the linked geoms."""
         # Check if "branchType" col in new branches
         if "branchType" in branches.columns:
             self._branches = branches
@@ -914,13 +923,13 @@ class DFlowFMModel(Model):
             self.logger.error(
                 "'branchType' column absent from the new branches, could not update."
             )
-        # Update channels/pipes in staticgeoms
+        # Update channels/pipes in geoms
         _ = self.set_branches_component(name="channel")
         _ = self.set_branches_component(name="pipe")
 
-        # update staticgeom #FIXME: do we need branches as staticgeom?
-        self.logger.debug(f"Adding branches vector to staticgeoms.")
-        self.set_staticgeoms(gpd.GeoDataFrame(branches, crs=self.crs), "branches")
+        # update geom #FIXME: do we need branches as geom?
+        self.logger.debug(f"Adding branches vector to geoms.")
+        self.set_geoms(gpd.GeoDataFrame(branches, crs=self.crs), "branches")
 
     def add_branches(self, new_branches: gpd.GeoDataFrame, branchtype: str):
         """Add new branches of branchtype to the branches object"""
@@ -936,82 +945,38 @@ class DFlowFMModel(Model):
     def set_branches_component(self, name):
         gdf_comp = self.branches[self.branches["branchType"] == name]
         if gdf_comp.index.size > 0:
-            self.set_staticgeoms(gdf_comp, name=f"{name}s")
+            self.set_geoms(gdf_comp, name=f"{name}s")
         return gdf_comp
 
     @property
     def channels(self):
-        if "channels" in self.staticgeoms:
-            gdf = self.staticgeoms["channels"]
+        if "channels" in self.geoms:
+            gdf = self.geoms["channels"]
         else:
             gdf = self.set_branches_component("channel")
         return gdf
 
     @property
     def pipes(self):
-        if "pipes" in self.staticgeoms:
-            gdf = self.staticgeoms["pipes"]
+        if "pipes" in self.geoms:
+            gdf = self.geoms["pipes"]
         else:
             gdf = self.set_branches_component("pipe")
         return gdf
 
     @property
     def crosssections(self):
-        """Quick accessor to crosssections staticgeoms"""
-        if "crosssections" in self.staticgeoms:
-            gdf = self.staticgeoms["crosssections"]
+        """Quick accessor to crosssections geoms"""
+        if "crosssections" in self.geoms:
+            gdf = self.geoms["crosssections"]
         else:
             gdf = gpd.GeoDataFrame()
         return gdf
 
     def set_crosssections(self, crosssections: gpd.GeoDataFrame):
-        """Updates crosssections in staticgeoms with new ones"""
+        """Updates crosssections in geoms with new ones"""
         if len(self.crosssections) > 0:
             crosssections = gpd.GeoDataFrame(
                 pd.concat([self.crosssections, crosssections])
             )
-        self.set_staticgeoms(crosssections, name="crosssections")
-
-    @property
-    def mesh(self):
-        """xarray.Dataset representation of all mesh"""
-        if self._mesh is None:
-            if self._read:
-                self.read_mesh()
-        return self._mesh
-
-    def set_mesh(self, data, name=None):
-        """Add data to mesh object.
-        -Describe specifics of the mesh object (for example related to the network and ugrid representation)
-        Parameters
-        ----------
-        data: xugrid.UgridDataArray or xugrid.UgridDataset
-            new layer to add to mesh
-        name: str, optional
-            Name of new object layer, this is used to overwrite the name of a DataArray
-            or to select a variable from a Dataset.
-        """
-        if name is None:
-            if isinstance(data, xu.UgridDataArray) and data.name is not None:
-                name = data.name
-            elif not isinstance(data, xu.UgridDataset):
-                raise ValueError("Setting a mesh parameter requires a name")
-        elif name is not None and isinstance(data, xu.UgridDataset):
-            data_vars = list(data.data_vars)
-            if len(data_vars) == 1 and name not in data_vars:
-                data = data.rename_vars({data_vars[0]: name})
-            elif name not in data_vars:
-                raise ValueError("Name not found in DataSet")
-            else:
-                data = data[[name]]
-        if isinstance(data, xu.UgridDataArray):
-            data.name = name
-            data = data.to_dataset()
-        if self._mesh is None:  # new data
-            self._mesh = data
-        else:
-            for dvar in data.data_vars.keys():
-                if dvar in self._mesh:
-                    if self._read:
-                        self.logger.warning(f"Replacing mesh parameter: {dvar}")
-                self._mesh[dvar] = data[dvar]
+        self.set_geoms(crosssections, name="crosssections")
