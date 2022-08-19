@@ -171,9 +171,7 @@ class DFlowFMModel(Model):
                 gdf_br, spacing, attribute_name="spacing"
             )
         # Line smoothing for pipes
-        smooth_branches = False
-        if br_type == "pipe":
-            smooth_branches = True
+        smooth_branches = br_type == "pipe"
 
         self.logger.info(f"Processing branches")
         branches, branches_nodes = process_branches(
