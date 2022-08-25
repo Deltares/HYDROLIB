@@ -6,16 +6,18 @@
 #
 # =========================================================================================
 
-import pandas as pd
-import geopandas as gpd
-#from math import atan2, cos, sin, degrees
+# from math import atan2, cos, sin, degrees
 import sys
 
-def create_stationpoints(input_lines,output_points,spacing,midpoint):
+import geopandas as gpd
+import pandas as pd
+
+
+def create_stationpoints(input_lines, output_points, spacing, midpoint):
     """
     Generate interval points along line
     ___________________________________________________________________________________________________________
-    
+
     Ontwikkelaar: A. Buijert
     ___________________________________________________________________________________________________________
 
@@ -33,7 +35,7 @@ def create_stationpoints(input_lines,output_points,spacing,midpoint):
     midpoint: bool
         False = If the resulting lines should be equally spaced (midpoint = False)
         True = If the points define the centres of the equally spaced lines (relevant in case you want to define the locations (stationspoints) of the profiles on channel-lines)
-        
+
         If input is for example line 0----0 (0 are the start and end nodes, line is 4x '-'long)
         False = 0--x--0 (x is a stationpoint, segments are both 2x '--' long)
         True = 0-x--x-0 (x are the stationpoints of the equally spaced segments
@@ -49,17 +51,18 @@ def create_stationpoints(input_lines,output_points,spacing,midpoint):
     gdf_lines = gpd.read_file(input_lines)
     midpoint = bool(midpoint)
 
-    gdf_points = stationpoints(gdf_lines,spacing,midpoint)
+    gdf_points = stationpoints(gdf_lines, spacing, midpoint)
     gdf_points.to_file(output_points)
-    
-def stationpoints(gdf_lines,spacing=100,midpoint=False):
+
+
+def stationpoints(gdf_lines, spacing=100, midpoint=False):
     gdf_lines = gdf_lines.copy().reset_index(drop=False)
     if "level_0" in gdf_lines:
-       gdf_lines=gdf_lines.drop(columns=["level_0"])        
+        gdf_lines = gdf_lines.drop(columns=["level_0"])
     if "level_1" in gdf_lines:
-       gdf_lines=gdf_lines.drop(columns=["level_1"])      
-       
-    gdf_lines.index.names = ['LineID']
+        gdf_lines = gdf_lines.drop(columns=["level_1"])
+
+    gdf_lines.index.names = ["LineID"]
 
     # test if spacing is a column, percantage or fixed value
     try:
@@ -71,7 +74,7 @@ def stationpoints(gdf_lines,spacing=100,midpoint=False):
             spacing = float(spacing)
             dynamic_spacing = False
     except:
-        print('spacing not present as column and not a value')
+        print("spacing not present as column and not a value")
         sys.exit(1)
 
     points = []
@@ -97,30 +100,38 @@ def stationpoints(gdf_lines,spacing=100,midpoint=False):
         # prepare equally spaces points, or equally spaced line parts
         if midpoint == False:
             devisions = int(line_length / spacing)
-            part_length = line_length / max(devisions,1)
+            part_length = line_length / max(devisions, 1)
             distance = part_length
         else:
-            devisions = max(int(line_length / spacing + 0.5),1)
-            part_length = line_length / max(devisions-1,1)
+            devisions = max(int(line_length / spacing + 0.5), 1)
+            part_length = line_length / max(devisions - 1, 1)
             distance = part_length / 2
-        
+
         # loop over the length of the line
         i = 0
         while distance < line_length:
-            point = line.interpolate(distance).tolist()[0] # only keep the geometry of the point
-            points.append(line[:-1].values.tolist() + [index,i,distance,point] )
+            point = line.interpolate(distance).tolist()[
+                0
+            ]  # only keep the geometry of the point
+            points.append(line[:-1].values.tolist() + [index, i, distance, point])
             distance = distance + part_length
             i = i + 1
-    
+
     # create a geodataframe of the points
-    df_points = pd.DataFrame(points,columns =['LineID',"PointID",'Distance','geometry'])
-    gdf = gpd.GeoDataFrame(df_points, crs=gdf_lines.crs, geometry="geometry").set_index('LineID',drop=True)
+    df_points = pd.DataFrame(
+        points, columns=["LineID", "PointID", "Distance", "geometry"]
+    )
+    gdf = gpd.GeoDataFrame(df_points, crs=gdf_lines.crs, geometry="geometry").set_index(
+        "LineID", drop=True
+    )
 
     # combine the point geometry with the original line data
     gdf_lines.drop(columns=["geometry"], inplace=True)
-    gdf_lines = gdf_lines[gdf_lines.index.isin(gdf.index.unique())].copy() #in case lines are to short, they are not included in the stationpoints gdf, therefore also remove these from gdf_lines
-    gdf = gpd.GeoDataFrame(pd.concat( [gdf_lines,gdf], axis=1) ).reset_index(drop=False)
+    gdf_lines = gdf_lines[
+        gdf_lines.index.isin(gdf.index.unique())
+    ].copy()  # in case lines are to short, they are not included in the stationpoints gdf, therefore also remove these from gdf_lines
+    gdf = gpd.GeoDataFrame(pd.concat([gdf_lines, gdf], axis=1)).reset_index(drop=False)
 
     if "index" in gdf.columns:
         gdf.drop(columns=["index"], inplace=True)
-    return gdf  
+    return gdf
