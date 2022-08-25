@@ -25,7 +25,7 @@ from hydrolib.core.io import polyfile
 
 
 
-def change_depth_crosssection(mdu_path, netnc_path, shape_path, column_horizontal, column_vertical, vertical_distance_type, output_path):
+def change_depth_crosssection(mdu_path, shape_path, column_horizontal, column_vertical, vertical_distance_type, output_path):
     
     """
        Adjust the depth of yz cross sections. Do this over a certain width (deepest part of the profile)
@@ -92,8 +92,8 @@ def change_depth_crosssection(mdu_path, netnc_path, shape_path, column_horizonta
     crsdefs = gdfs_results["cross_sections_definition"]
     crslocs, crsdefs = split_duplicate_crsdef_references(crslocs, crsdefs, loc_ids)  
 
-    ## Adjust selected profile definitions
-    print('Starting to adjust ' + str(len(loc_ids)) + 'profile definitions'
+    ## Adjust selected profile definitions)
+    print('Starting to adjust ' + str(len(loc_ids)) + ' profile definitions')
     for loc_id in loc_ids: # Loop over the cross sections that are selected as relevant
         
         def_id = crslocs.loc[crslocs['id'] == loc_id,'definitionid'].iloc[0] # ID cross section definition
@@ -110,8 +110,10 @@ def change_depth_crosssection(mdu_path, netnc_path, shape_path, column_horizonta
             if (isinstance(vertical_distance,(int,float)) == False or isinstance(slot_width,(int,float)) == False):
                 raise Exception('The input shapefile does not contain int/float numbers for the vertical/horizontal adjustment')
             if ((vertical_distance_type != 'distance') and (vertical_distance_type != 'referencelevel') and (vertical_distance_type != 'uniform')):
-                raise Exception('The input shapefile does not contain the right strings to desribte the type of vertical adjustment')
-                print('It is either "distance", "referencelevel" or "unifor"')
+                raise Exception('The input does not contain the right key word to describe the type of vertical adjustment')
+                print('It is either "distance", "referencelevel" or "uniform"')
+            if slot_width < 0:
+                raise Exception('Section/slot width should be a positive number')
             
             y = crsdefs.loc[index_def,'ycoordinates'].copy()
             z = crsdefs.loc[index_def,'zcoordinates'].copy()
@@ -154,6 +156,7 @@ def change_depth_crosssection(mdu_path, netnc_path, shape_path, column_horizonta
                     index_right = bot_position[0]
                 
                 y_middle = (y[index_left] + y[index_right]) / 2
+                crsdefs.loc[index_def,'thalweg'] = y_middle
                 
                 ## ADD EXTRA INTERMEDIATE POINTS IN THE PROFILE
                 # This makes the profile line more detailed and makes it easier to select the lowest section which should be deepened
@@ -230,22 +233,32 @@ def change_depth_crosssection(mdu_path, netnc_path, shape_path, column_horizonta
                     slot_value = bot_value + vertical_distance
                     y_slot = [y[pos1], y_left, y_left + 0.001, y_right - 0.001, y_right]
                     z_slot = [z[pos1], z_left, slot_value, slot_value, z_right]
-                    y[pos1:pos2] = y_slot
-                    z[pos1:pos2] = z_slot
-                elif vertical_distance_type == 'reference':
+                elif vertical_distance_type == 'referencelevel':
                     slot_value = vertical_distance
                     y_slot = [y[pos1], y_left, y_left + 0.001, y_right - 0.001, y_right]
                     z_slot = [z[pos1], z_left, slot_value, slot_value, z_right]
-                    y[pos1:pos2] = y_slot
-                    z[pos1:pos2] = z_slot 
                 elif vertical_distance_type == 'uniform':
-                    z[pos1:pos2] = z[pos1:pos2] + vertical_distance            
-                          
+                    if pos2-pos1 > 1: #if there are points in between pos2 and pos1
+                        y_slot = y[pos1:pos2]
+                        y_slot = [y_slot[0]] + [y_left,y_left + 0.001] + y_slot[1:-1] + [y_right - 0.001, y_right]
+                        z_slot = z[pos1:pos2]
+                        temp = z_slot[1:-1]
+                        temp = [i - vertical_distance for i in temp]
+                        z_slot = [z_slot[0]] + [z_left,z_left - vertical_distance] + temp + [z_right - vertical_distance, z_right]                         
+                    else:
+                        y_slot = y[pos1:pos2]
+                        y_slot = [y_slot[0]] + [y_left,y_left + 0.001] + [y_right - 0.001, y_right]
+                        z_slot = z[pos1:pos2]
+                        z_slot = [z_slot[0]] + [z_left,z_left - vertical_distance] + [z_right - vertical_distance, z_right]                           
+                y_slot = [round(i, 4) for i in y_slot]
+                z_slot = [round(i, 4) for i in z_slot]
+                y[pos1:pos2] = y_slot
+                z[pos1:pos2] = z_slot
             else:
                 if vertical_distance_type == 'distance':
                     slot_value = bot_value + vertical_distance
                     z = [i * 0 + slot_value for i in z]
-                elif vertical_distance_type == 'reference':
+                elif vertical_distance_type == 'referencelevel':
                     slot_value = vertical_distance
                     z = [i * 0 + slot_value for i in z]
                 elif vertical_distance_type == 'uniform':                
@@ -259,7 +272,7 @@ def change_depth_crosssection(mdu_path, netnc_path, shape_path, column_horizonta
             temp[index_def] = z
             crsdefs['zcoordinates'] = pd.Series(temp)
             crsdefs.loc[index_def,'yzcount'] = len(z)
-            crsdefs.loc[index_def,'thalweg'] = y_middle
+            
 
     ## PUT THE CRS DEFINITION BACK INTO THE CROSSDEFMODEL AND WRITE OUTPUT
     tempfile = os.path.join(output_path,'crsdef_temp.ini')
@@ -305,7 +318,7 @@ def change_depth_crosssection(mdu_path, netnc_path, shape_path, column_horizonta
     crossloc_new = CrossLocModel(crosssection=crslocs.to_dict("records"))
     crossloc_new.save(Path(filename))   
     
-    print('Finished adjusting ' + str(len(loc_ids)) + 'profile definitions'   
+    print('Finished adjusting ' + str(len(loc_ids)) + ' profile definitions')   
 
 def split_duplicate_crsdef_references(crslocs,crsdefs,loc_ids=[]):
     """
@@ -374,12 +387,10 @@ def split_duplicate_crsdef_references(crslocs,crsdefs,loc_ids=[]):
 
 if __name__ == "__main__":
     # Read shape
-    mdu_path = Path(r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\flowFM.mdu")
-    netnc_path = r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\FlowFM_net.nc"
-    # mdu_path = Path(r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel\1D2D-DIMR\dflowfm\flowFM.mdu") 
+    mdu_path = Path(r"C:\Users\devop\Desktop\Zwolle-Minimodel_inputtestmodel\1D2D-DIMR\dflowfm\flowFM.mdu")
     shape_path = r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\shapes\change_fric.shp"
-    column_vertical = 'bodem_m'
-    vertical_vertical_distance_type = 'distance'
+    column_vertical = 'bdm_mNAP'
+    vertical_vertical_distance_type = 'referencelevel'
     column_horizontal = 'breedte'
     output_path = r'C:\Users\devop\Desktop'
-    change_depth_crosssection(mdu_path, netnc_path, shape_path, column_horizontal, column_vertical, vertical_vertical_distance_type, output_path)
+    change_depth_crosssection(mdu_path, shape_path, column_horizontal, column_vertical, vertical_vertical_distance_type, output_path)
