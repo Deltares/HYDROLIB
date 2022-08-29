@@ -1,5 +1,5 @@
 ### 1. Check-out spullen
-Ga naar: https://github.com/deltares/hydrolib
+Ga naar: https://github.com/deltares/hydrolib/tree/case_management_tools
 Open de groene Code tab. Clone of download de files als zip in de gewenste directory. 
 
 
@@ -64,7 +64,7 @@ conda activate hydrolib
 jupyter notebook
 ```
 ```
-Selecteer totale workflow.ipynb
+Selecteer totale_workflow.ipynb
 ```
 ```
 Click op run

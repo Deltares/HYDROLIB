@@ -20,7 +20,7 @@ from cmt.utils.writers import (
 )
 from pydantic import BaseModel
 
-from hydrolib.core.io.fnm.models import RainfallRunoffModel
+from hydrolib.core.io.rr.models import RainfallRunoffModel
 from hydrolib.core.io.mdu.models import FMModel
 
 logging.basicConfig()
@@ -100,7 +100,9 @@ class Result(BaseModel):
     def get_results(self, output_dir, case_id, model_name):
         def __get_result(self, nc_file, layer, variable):
             ids = self.__get_sample_ids(nc_file, layer, variable)
-            with nc.Dataset(output_dir.joinpath(f"{model_name}_{nc_file}.nc")) as ds:
+            with nc.Dataset(
+                    output_dir.joinpath(f"{model_name}_{nc_file}.nc")
+                    ) as ds:
                 series = get_timeseries(
                     ds,
                     long_name=variable,
