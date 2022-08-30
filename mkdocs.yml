@@ -14,20 +14,34 @@ theme:
         name: Switch to light mode
   features:
     - navigation.instant
+    - navigation.indexes
     - navigation.tracking
     - navigation.tabs
-    - navigation.sections
-    - navigation.expand
     - navigation.top
+    - toc.integrate
 plugins:
   - search
+  - mkdocs-jupyter
   - autorefs
+  - monorepo
+  - macros:
+      module_name: docs/include/mkdocs-macros/main
   - mkdocstrings:
       default_handler: python
       handlers:
         python:
           rendering:
+            show_root_toc_entry: false
+            show_root_heading: false
             show_source: true
+            show_if_no_docstring: false
+            show_signature_annotations: true
+            heading_level: 3
+            show_category_heading: false
+            group_by_category: false
+          selection:
+            inherited_members: false
+
       custom_templates: templates
       watch:
         - hydrolib
@@ -38,8 +52,8 @@ markdown_extensions:
   - toc:
       permalink: true
 repo_url: https://github.com/Deltares/HYDROLIB
-edit_uri: edit/main/docs/
 repo_name: deltares/HYDROLIB
+edit_uri: edit/main/docs/
 extra:
   social:
     - icon: fontawesome/brands/github
@@ -51,4 +65,20 @@ extra:
 copyright: Copyright &copy; 2022 Deltares
 extra_css:
   - stylesheets/extra.css
+
+nav:
+  - Home: "index.md"
+  - How-to: 
+      - Installation: "guides/setup.md"
+      - Contributing: "guides/contributing.md"
+      - Documentation: "guides/documentation.md"
+  - Tools:
+      - Introduction: "tools/tools_introduction.md"
+      - HydroMT-Delft3D FM plugin: "!include ./hydrolib/hydromt_delft3dfm/mkdocs.yml"
+      - D-HyDAMO plugin: "!include ./hydrolib/dhydamo/mkdocs.yml"
+  - Reference: 
+          - "reference/api.md"
+  - Changelog: 
+          - "changelog.md"
+  
 
