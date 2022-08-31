@@ -27,6 +27,7 @@ from hydrolib.core.io.bc.models import *
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.core.io.net.models import *
 from hydrolib.dhydamo.geometry import common, mesh, viz
+from hydrolib.core.io.gui.models import *
 
 from . import DATADIR
 from . import workflows
@@ -965,7 +966,7 @@ class DFlowFMModel(Model):
         )
         # add additional required columns
         manholes["id"] = manholes[
-            "manholeId"
+            "nodeId"
         ]  # id of the storage nodes id, identical to manholeId when single compartment manholes are used
         manholes["name"] = manholes["manholeId"]
         manholes["useTable"] = False
@@ -1235,6 +1236,10 @@ class DFlowFMModel(Model):
         if not self._write:
             raise IOError("Model opened in read-only mode")
 
+
+        # write branches
+        self._write_branches()
+
         # write friction
         self._write_friction()  # FIXME: ask Rinske, add global section correctly
 
@@ -1245,8 +1250,22 @@ class DFlowFMModel(Model):
         if "manholes" in self._staticgeoms:
             self._write_manholes()
 
+
         # save model
         self.dfmmodel.save(recurse=True)
+
+
+    def _write_branches(self):
+        """write branches.gui
+         #TODO combine with others"""
+        branches = self._staticgeoms["branches"][
+            ["branchId", "branchType", "manhole_up", "manhole_dn"]
+        ]
+        branches = branches.rename(columns = {'branchId':'name', 'manhole_up': 'sourceCompartmentName', 'manhole_dn': 'targetCompartmentName'})
+        branches['branchType'] = branches['branchType'].replace({'river': 0, 'channel':0, 'pipe': 2, 'tunnel':2, 'sewerconnection':1})
+        branchgui_model = BranchModel(branch = branches.to_dict("records"))
+        branchgui_model.filepath = self.dfmmodel.filepath.with_name(branchgui_model._filename() + branchgui_model._ext())
+        branchgui_model.save()
 
     def _write_friction(self):
 

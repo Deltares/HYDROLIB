@@ -146,8 +146,8 @@ def generate_manholes_on_branches(
 
 
 def _update_pipes_from_manholes(manholes: gpd.GeoDataFrame, pipes: gpd.GeoDataFrame):
-    """assign manholes to pipes based on geometry"""
-    manholes_dict = {(m.geometry.x, m.geometry.y): mi for mi, m in manholes.iterrows()}
+    """assign manholes 'manholeId' to pipes ['manhole_up', 'manhole_dn'] based on geometry"""
+    manholes_dict = {(m.geometry.x, m.geometry.y): manholes.loc[mi, 'manholeId'] for mi, m in manholes.iterrows()}
     if not {"manhole_up", "manhole_dn"}.issubset(pipes.columns):
         pipes["manhole_up"] = None
         pipes["manhole_dn"] = None
