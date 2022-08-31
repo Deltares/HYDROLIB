@@ -26,6 +26,8 @@ from hydrolib.core.io.ext.models import *
 from hydrolib.core.io.bc.models import *
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.core.io.net.models import *
+from hydrolib.core.io.dimr.models import DIMR, FMComponent
+
 from hydrolib.dhydamo.geometry import common, mesh, viz
 
 from . import DATADIR
@@ -55,6 +57,7 @@ class DFlowFMModel(Model):
         mode="w",
         config_fn=None,  # hydromt config contain glob section, anything needed can be added here as args
         data_libs=None,  # yml # TODO: how to choose global mapping files (.csv) and project specific mapping files (.csv)
+        dimr_fn=None,
         logger=logger,
         deltares_data=False,  # data from pdrive,
         network_snap_offset=25,
@@ -75,6 +78,8 @@ class DFlowFMModel(Model):
 
         # model specific
         self._branches = None
+        self._dimr = None
+        self._dimr_fn = "dimr_conf.xml" if dimr_fn is None else dimr_fn
         self._config_fn = (
             join("dflowfm", self._CONF) if config_fn is None else config_fn
         )
@@ -1107,6 +1112,7 @@ class DFlowFMModel(Model):
     def read(self):
         """Method to read the complete model schematization and configuration from file."""
         self.logger.info(f"Reading model data from {self.root}")
+        self.read_dimr()
         self.read_config()
         self.read_staticmaps()
         self.read_staticgeoms()
@@ -1120,6 +1126,8 @@ class DFlowFMModel(Model):
             self.logger.warning("Cannot write in read-only mode")
             return
 
+        if self.dimr:
+            self.write_dimr()
         if self.config:  # try to read default if not yet set
             self.write_config()
         if self._staticmaps:
@@ -1348,6 +1356,55 @@ class DFlowFMModel(Model):
         # self._dfmmodel.geometry.frictfile[0].filepath = outputdir.joinpath(
         #    "roughness.ini"
         # )
+    
+    @property
+    def dimr(self):
+        """DIMR file object"""
+        if not self._dimr:
+            self.read_dimr()
+        return self._dimr
+    
+    def read_dimr(self, dimr_fn: Optional[str] = None) -> None:
+        """Read DIMR from file and else create from hydrolib-core"""
+        if dimr_fn is None:
+            dimr_fn = join(self.root, self._dimr_fn)
+        # if file exist, read
+        if isfile(dimr_fn):
+            self.logger.info(f"Reading dimr file at {dimr_fn}")
+            dimr = DIMR(filepath=Path(dimr_fn))
+        # else initialise from template
+        else:
+            self.logger.info("Initialising empty dimr file")
+            dimr = DIMR()      
+        self._dimr = dimr
+    
+    def write_dimr(self, dimr_fn: Optional[str] = None):
+        """Writes the dmir file. In write mode, updates first the FMModel component"""
+        # force read
+        self.dimr
+        if dimr_fn is not None:
+            self._dimr.filepath = join(self.root, dimr_fn)
+        else:
+            self._dimr.filepath = join(self.root, self._dimr_fn)
+        
+        if not self._read:
+            # Updates the dimr file first before writting
+            self.logger.info("Adding dflofm component to dimr file")
+            components = self._dimr.component
+            if "dflowfm" in components:
+                components.remove("dflowfm")
+            fmcomponent = FMComponent(
+                name = "dflowfm",
+                workingdir = "dflowfm", 
+                inputfile = basename(self._config_fn), 
+                model = self.dfmmodel,
+            )
+            components.append(fmcomponent)
+            self._dimr.component = components
+        
+        # write
+        self.logger.info(f"Writing model dimr file to {self._dimr.filepath}")
+        self.dimr.save(recurse=False)
 
     @property
     def branches(self):
