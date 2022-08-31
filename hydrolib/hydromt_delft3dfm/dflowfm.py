@@ -278,6 +278,257 @@ class DFlowFMModel(Model):
                 branchtype="channel",
                 node_distance=self._openwater_computation_node_distance,
             )
+    
+    def setup_rivers_from_dem(
+        self,
+        hydrography_fn: str,
+        river_geom_fn: str = None,
+        rivers_defaults_fn: str = None,
+        rivdph_method="gvf",
+        rivwth_method="geom",
+        river_upa=25.0,
+        river_len=1000,
+        min_rivwth=50.0,
+        min_rivdph=1.0,
+        rivbank=True,
+        rivbankq=25,
+        segment_length=3e3,
+        smooth_length=10e3,
+        friction_type: str = "Manning",
+        friction_value: float = 0.023,
+        constrain_rivbed=True,
+        constrain_estuary=True,
+        **kwargs,  # for workflows.get_river_bathymetry method
+    ) -> None:
+        """
+        This component sets the all river parameters from hydrograph and dem maps.
+
+        River cells are based on the `river_mask_fn` raster file if `rivwth_method='mask'`,
+        or if `rivwth_method='geom'` the rasterized segments buffered with half a river width
+        ("rivwth" [m]) if that attribute is found in `river_geom_fn`.
+
+        If a river segment geometry file `river_geom_fn` with bedlevel column ("zb" [m+REF]) or
+        a river depth ("rivdph" [m]) in combination with `rivdph_method='geom'` is provided,
+        this attribute is used directly.
+
+        Otherwise, a river depth is estimated based on bankfull discharge ("qbankfull" [m3/s])
+        attribute taken from the nearest river segment in `river_geom_fn` or `qbankfull_fn`
+        upstream river boundary points if provided.
+
+        The river depth is relative to the bankfull elevation profile if `rivbank=True` (default),
+        which is estimated as the `rivbankq` elevation percentile [0-100] of cells neighboring river cells.
+        This option requires the flow direction ("flwdir") and upstream area ("uparea") maps to be set
+        using the hydromt.flw.flwdir_from_da method. If `rivbank=False` the depth is simply subtracted
+        from the elevation of river cells.
+
+        Missing river width and river depth values are filled by propagating valid values downstream and
+        using the constant minimum values `min_rivwth` and `min_rivdph` for the remaining missing values.
+
+        Updates model layer:
+
+        * **dep** map: combined elevation/bathymetry [m+ref]
+
+        Adds model layers
+
+        * **rivmsk** map: map of river cells (not used by SFINCS)
+        * **rivers** geom: geometry of rivers (not used by SFINCS)
+
+        Parameters
+        ----------
+        hydrography_fn : str
+            Hydrography data to derive river shape and characteristics from.
+            * Required variables: ['elevtn']
+            * Optional variables: ['flwdir', 'uparea']
+        river_geom_fn : str, optional
+            Line geometry with river attribute data.
+            * Required variable for direct bed level burning: ['zb']
+            * Required variable for direct river depth burning: ['rivdph'] (only in combination with rivdph_method='geom')
+            * Variables used for river depth estimates: ['qbankfull', 'rivwth']
+        rivers_defaults_fn : str Path
+            Path to a csv file containing all defaults values per 'branchType'.
+        rivdph_method : {'gvf', 'manning', 'powlaw'}
+            River depth estimate method, by default 'gvf'
+        rivwth_method : {'geom', 'mask'}
+            Derive the river with from either the `river_geom_fn` (geom) or
+            `river_mask_fn` (mask; default) data.
+        river_upa : float, optional
+            Minimum upstream area threshold for rivers [km2], by default 25.0
+        river_len: float, optional
+            Mimimum river length within the model domain threshhold [m], by default 1000 m.
+        min_rivwth, min_rivdph: float, optional
+            Minimum river width [m] (by default 50.0) and depth [m] (by default 1.0)
+        rivbank: bool, optional
+            If True (default), approximate the reference elevation for the river depth based
+            on the river bankfull elevation at cells neighboring river cells. Otherwise
+            use the elevation of the local river cell as reference level.
+        rivbankq : float, optional
+            quantile [1-100] for river bank estimation, by default 25
+        segment_length : float, optional
+            Approximate river segment length [m], by default 5e3
+        smooth_length : float, optional
+            Approximate smoothing length [m], by default 10e3
+        friction_type : str, optional
+            Type of friction tu use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
+            By default "Manning".
+        friction_value : float, optional.
+            Units corresponding to [friction_type] are ["Chézy C [m 1/2 /s]", "Manning n [s/m 1/3 ]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Strickler k_s [m 1/3 /s]", "De Bos-Bijkerk γ [1/s]"]
+            Friction value. By default 0.023.
+        constrain_estuary : bool, optional
+            If True (default) fix the river depth in estuaries based on the upstream river depth.
+        constrain_rivbed : bool, optional
+            If True (default) correct the river bed level to be hydrologically correct,
+            i.e. sloping downward in downstream direction.
+
+        See Also
+        ----------
+        workflows.get_river_bathymetry
+        """
+        self.logger.info(f"Preparing river shape from hydrography data.")
+        # read data
+        ds_hydro = self.data_catalog.get_rasterdataset(
+            hydrography_fn, geom=self.region, buffer=10
+        )
+        if isinstance(ds_hydro, xr.DataArray):
+            ds_hydro = ds_hydro.to_dataset()
+
+        # read river line geometry data
+        gdf_riv = None
+        if river_geom_fn is not None:
+            gdf_riv = self.data_catalog.get_geodataframe(
+                river_geom_fn, geom=self.region
+            ).to_crs(ds_hydro.raster.crs)
+        
+        # check if flwdir and uparea in ds_hydro
+        if "flwdir" not in ds_hydro.data_vars:
+            da_flw = hydromt.flw.d8_from_dem(ds_hydro["elevtn"])
+        else: 
+            da_flw = ds_hydro["flwdir"]
+        flwdir = hydromt.flw.flwdir_from_da(da_flw, ftype="d8")
+        if "uparea" not in ds_hydro.data_vars:
+            da_upa = xr.DataArray(
+                dims=ds_hydro["elevtn"].raster.dims,
+                coords=ds_hydro["elevtn"].raster.coords,
+                data=flwdir.upstream_area(unit="km2"),
+                name="uparea",
+            )
+            da_upa.raster.set_nodata(-9999)
+            ds_hydro["uparea"] = da_upa
+        
+        # get river shape and bathymetry
+        if friction_type == "Manning":
+            kwargs.update(manning=friction_value)
+        elif rivdph_method == "gvf":
+            raise ValueError("rivdph_method 'gvf' requires friction_type='Manning'. Use 'geom' or 'powlaw' instead.")
+        gdf_riv, _ = workflows.get_river_bathymetry(
+            ds_hydro,
+            flwdir=flwdir,
+            gdf_riv=gdf_riv,
+            gdf_qbf=None,
+            rivdph_method=rivdph_method,
+            rivwth_method=rivwth_method,
+            river_upa=river_upa,
+            river_len=river_len,
+            min_rivdph=min_rivdph,
+            min_rivwth=min_rivwth,
+            rivbank=rivbank,
+            rivbankq=rivbankq,
+            segment_length=segment_length,
+            smooth_length=smooth_length,
+            constrain_estuary=constrain_estuary,
+            constrain_rivbed=constrain_rivbed,
+            logger=self.logger,
+            **kwargs,
+        )
+        # Rename river properties column and reproject
+        rm_dict = {"rivwth":"width", "rivdph":"height", "zb":"bedlev"}
+        gdf_riv = gdf_riv.rename(columns=rm_dict).to_crs(self.crs)
+
+        # Add defaults
+        # Add branchType and branchId attributes if does not exist
+        if "branchType" not in gdf_riv.columns:
+            gdf_riv["branchType"] = pd.Series(
+                data=np.repeat("river", len(gdf_riv)), index=gdf_riv.index, dtype=str
+            )
+        if "branchId" not in gdf_riv.columns:
+            data = [f"river_{i}" for i in np.arange(1, len(gdf_riv) + 1)]
+            gdf_riv["branchId"] = pd.Series(data, index=gdf_riv.index, dtype=str)
+
+        # assign id
+        id_col = "branchId"
+        gdf_riv.index = gdf_riv[id_col]
+        gdf_riv.index.name = id_col
+
+        # assign default attributes
+        if rivers_defaults_fn is None or not rivers_defaults_fn.is_file():
+            self.logger.warning(
+                f"rivers_defaults_fn ({rivers_defaults_fn}) does not exist. Fall back choice to defaults. "
+            )
+            rivers_defaults_fn = Path(self._DATADIR).joinpath(
+                "rivers", "rivers_defaults.csv"
+            )
+        defaults = pd.read_csv(rivers_defaults_fn)
+        # Make sure default shape is rectangle
+        defaults["shape"] = np.array(["rectangle"])
+        self.logger.info(f"river default settings read from {rivers_defaults_fn}.")
+
+        # filter for allowed columns
+        _allowed_columns = [
+            "geometry",
+            "branchId",
+            "branchType",
+            "branchOrder",
+            "material",
+            "shape",
+            "diameter",
+            "width",
+            "t_width",
+            "height",
+            "bedlev",
+            "closed",
+            "friction_type",
+            "friction_value",
+        ]
+        allowed_columns = set(_allowed_columns).intersection(gdf_riv.columns)
+        gdf_riv = gpd.GeoDataFrame(gdf_riv[allowed_columns], crs=gdf_riv.crs)
+        
+        # Add friction to defaults
+        defaults["frictionType"] = friction_type
+        defaults["frictionValue"] = friction_value
+
+        # Build the rivers branches and nodes and fill with attributes and spacing
+        rivers, river_nodes = self._setup_branches(
+            gdf_br=gdf_riv,
+            defaults=defaults,
+            br_type="river",
+            spacing=None,  # does not allow spacing for rivers
+            snap_offset=0.0,
+            allow_intersection_snapping=True,
+        )
+
+        # Add friction_id column based on {friction_type}_{friction_value}
+        rivers["frictionId"] = [
+            f"{ftype}_{fvalue}"
+            for ftype, fvalue in zip(rivers["frictionType"], rivers["frictionValue"])
+        ]
+
+        # setup crosssections
+        crosssections = self._setup_crosssections(
+            branches=rivers,
+            crosssections_fn=None,
+            crosssections_type="branch",
+        )
+
+        # setup staticgeoms #TODO do we still need channels?
+        self.logger.debug(f"Adding rivers and river_nodes vector to staticgeoms.")
+        self.set_staticgeoms(rivers, "rivers")
+        self.set_staticgeoms(river_nodes, "rivers_nodes")
+
+        # add to branches
+        self.add_branches(
+            rivers,
+            branchtype="river",
+            node_distance=self._openwater_computation_node_distance,
+        )
 
     def setup_rivers(
         self,
