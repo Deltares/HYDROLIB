@@ -301,7 +301,7 @@ class DFlowFMModel(Model):
         **kwargs,  # for workflows.get_river_bathymetry method
     ) -> None:
         """
-        This component sets the all river parameter maps.
+        This component sets the all river parameters from hydrograph and dem maps.
 
         River cells are based on the `river_mask_fn` raster file if `rivwth_method='mask'`,
         or if `rivwth_method='geom'` the rasterized segments buffered with half a river width
@@ -318,7 +318,7 @@ class DFlowFMModel(Model):
         The river depth is relative to the bankfull elevation profile if `rivbank=True` (default),
         which is estimated as the `rivbankq` elevation percentile [0-100] of cells neighboring river cells.
         This option requires the flow direction ("flwdir") and upstream area ("uparea") maps to be set
-        using the "setup_river_hydrography" method. If `rivbank=False` the depth is simply subtracted
+        using the hydromt.flw.flwdir_from_da method. If `rivbank=False` the depth is simply subtracted
         from the elevation of river cells.
 
         Missing river width and river depth values are filled by propagating valid values downstream and
@@ -378,6 +378,10 @@ class DFlowFMModel(Model):
         constrain_rivbed : bool, optional
             If True (default) correct the river bed level to be hydrologically correct,
             i.e. sloping downward in downstream direction.
+
+        See Also
+        ----------
+        workflows.get_river_bathymetry
         """
         self.logger.info(f"Preparing river shape from hydrography data.")
         # read data
