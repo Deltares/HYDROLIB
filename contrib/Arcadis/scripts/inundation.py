@@ -5,6 +5,7 @@ from datetime import datetime
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import xarray as xr
 import rasterio
 from rasterio import features
 from read_dhydro import net_nc2gdf, read_nc_data
@@ -60,6 +61,13 @@ def inun_dhydro(
     """
 
     output_folder = os.path.dirname(result_path)
+    
+    # check prameter type
+    filter = bool(filter)
+    extrapol = float(extrapol)
+    debug = bool(debug)
+    if isinstance(sdate,str) and sdate != "": sdate = datetime.strptime(sdate, '%Y/%m/%d')
+    if isinstance(edate,str) and sdate != "": edate = datetime.strptime(edate, '%Y/%m/%d')
 
     ds = xr.open_dataset(nc_path)
     EPSG = "EPSG:" + str(ds["projected_coordinate_system"].epsg)
@@ -85,7 +93,7 @@ def inun_dhydro(
         )
         df1 = pd.DataFrame()
         df2 = read_nc_data(ds, par2)
-        df3 = pd.DataFrame()
+        df3 = df2.copy()
     else:
         raise ("Onbekend type: " + str(type))
 
@@ -104,20 +112,20 @@ def inun_dhydro(
         if sdate > edata:
             raise ("start date later then end date in model results")
         if len(df1) > 0:
-            df1 = df1[df1.index >= datetime.strptime(sdate, "%Y/%m/%d")]
+            df1 = df1[df1.index >= sdate]
         if len(df2) > 0:
-            df2 = df2[df2.index >= datetime.strptime(sdate, "%Y/%m/%d")]
+            df2 = df2[df2.index >= sdate]
         if len(df3) > 0:
-            df3 = df3[df3.index >= datetime.strptime(sdate, "%Y/%m/%d")]
+            df3 = df3[df3.index >= sdate]
     if edate != "":
         if edate < sdata:
             raise ("end date earlier then start date in model results")
         if len(df1) > 0:
-            df1 = df1[df1.index <= datetime.strptime(edate, "%Y/%m/%d")]
+            df1 = df1[df1.index <= edate]
         if len(df2) > 0:
-            df2 = df2[df2.index <= datetime.strptime(edate, "%Y/%m/%d")]
+            df2 = df2[df2.index <= edate]
         if len(df3) > 0:
-            df3 = df3[df3.index >= datetime.strptime(sdate, "%Y/%m/%d")]
+            df3 = df3[df3.index <= edate]
 
     # determine needed geometry
     results = []
@@ -406,12 +414,13 @@ def inun_dhydro(
 
 
 if __name__ == "__main__":
-    input_path = r"C:\Users\buijerta\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\05 Gedeelde map WRIJ\03_Resultaten\20220214_DR49\modellen\DR49_Bronkhorst_100\dflowfm\output\dr49_map.nc"
+    input_path = r"C:\Users\buijerta\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\06 Work in Progress\01_Afstudeerstage_Janberend\data\Resultaten\80bij80\80bij80_finished\dflowfm\output\DR49_map.nc"
     dtm_path = r"C:\Users\buijerta\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\06 Work in Progress\GIS\ahn\dr49\ahn3_2x2_combi_dr49.tif"
-    type = "level"  # depth
+    type = "depth"  # level
     output_folder = r"C:/temp/aht"
     result_path = r"C:/temp/aht/inundation.tif"
-    areas1D_path = r"C:/temp/aht/areas.shp"
+    #areas1D_path = r"C:/temp/aht/areas.shp"
+    areas1D_path = ""
     inun_dhydro(
         input_path,
         result_path,
@@ -419,8 +428,8 @@ if __name__ == "__main__":
         dtm_path=dtm_path,
         sdate="",
         edate="",
-        domain="1D",
-        filter=True,
+        domain="2D",
+        filter=False,
         extrapol=1.0,
         debug=True,
         areas1D=areas1D_path,
