@@ -26,7 +26,7 @@ from hydrolib.core.io.ext.models import *
 from hydrolib.core.io.bc.models import *
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.core.io.net.models import *
-from hydrolib.core.io.dimr.models import DIMR, FMComponent
+from hydrolib.core.io.dimr.models import DIMR, FMComponent, Start
 
 from hydrolib.dhydamo.geometry import common, mesh, viz
 
@@ -79,7 +79,7 @@ class DFlowFMModel(Model):
         # model specific
         self._branches = None
         self._dimr = None
-        self._dimr_fn = "dimr_conf.xml" if dimr_fn is None else dimr_fn
+        self._dimr_fn = "dimr_config.xml" if dimr_fn is None else dimr_fn
         self._config_fn = (
             join("dflowfm", self._CONF) if config_fn is None else config_fn
         )
@@ -1372,7 +1372,7 @@ class DFlowFMModel(Model):
         if isfile(dimr_fn):
             self.logger.info(f"Reading dimr file at {dimr_fn}")
             dimr = DIMR(filepath=Path(dimr_fn))
-        # else initialise from template
+        # else initialise
         else:
             self.logger.info("Initialising empty dimr file")
             dimr = DIMR()      
@@ -1388,19 +1388,28 @@ class DFlowFMModel(Model):
             self._dimr.filepath = join(self.root, self._dimr_fn)
         
         if not self._read:
-            # Updates the dimr file first before writting
+            # Updates the dimr file first before writing
             self.logger.info("Adding dflofm component to dimr file")
+
+            # update component
             components = self._dimr.component
-            if "dflowfm" in components:
-                components.remove("dflowfm")
+            if len(components) != 0:
+                components = [] # FIXME: for now only support control single component of dflowfm
             fmcomponent = FMComponent(
                 name = "dflowfm",
-                workingdir = "dflowfm", 
+                workingdir = "dflowfm",
                 inputfile = basename(self._config_fn), 
                 model = self.dfmmodel,
             )
             components.append(fmcomponent)
             self._dimr.component = components
+            # update control
+            controls = self._dimr.control
+            if len(controls) != 0:
+                controls = [] # FIXME: for now only support control single component of dflowfm
+            control = Start(name = "dflowfm")
+            controls.append(control)
+            self._dimr.control = control
         
         # write
         self.logger.info(f"Writing model dimr file to {self._dimr.filepath}")
