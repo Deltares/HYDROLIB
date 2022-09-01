@@ -5,8 +5,8 @@ from datetime import datetime
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import xarray as xr
 import rasterio
+import xarray as xr
 from rasterio import features
 from read_dhydro import net_nc2gdf, read_nc_data
 from shapely.geometry import box
@@ -61,13 +61,15 @@ def inun_dhydro(
     """
 
     output_folder = os.path.dirname(result_path)
-    
+
     # check prameter type
     filter = bool(filter)
     extrapol = float(extrapol)
     debug = bool(debug)
-    if isinstance(sdate,str) and sdate != "": sdate = datetime.strptime(sdate, '%Y/%m/%d')
-    if isinstance(edate,str) and sdate != "": edate = datetime.strptime(edate, '%Y/%m/%d')
+    if isinstance(sdate, str) and sdate != "":
+        sdate = datetime.strptime(sdate, "%Y/%m/%d")
+    if isinstance(edate, str) and sdate != "":
+        edate = datetime.strptime(edate, "%Y/%m/%d")
 
     ds = xr.open_dataset(nc_path)
     EPSG = "EPSG:" + str(ds["projected_coordinate_system"].epsg)
@@ -419,7 +421,7 @@ if __name__ == "__main__":
     type = "depth"  # level
     output_folder = r"C:/temp/aht"
     result_path = r"C:/temp/aht/inundation.tif"
-    #areas1D_path = r"C:/temp/aht/areas.shp"
+    # areas1D_path = r"C:/temp/aht/areas.shp"
     areas1D_path = ""
     inun_dhydro(
         input_path,
