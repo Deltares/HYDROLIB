@@ -45,8 +45,15 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
     _DATADIR = DATADIR
     _GEOMS = {}
     _AUXMAPS = {
-        "elevtn": {"name": "bedlevel", "type": "initial"},
-        "roughness_manning": {"name": "frictioncoefficient", "type": "parameter"},
+        "elevtn": {"name": "bedlevel", "initype": "initial", "interpolation": "triangulation", "locationtype": "2d"},
+        "waterlevel": {"name": "waterlevel", "initype": "initial", "interpolation": "triangulation", "locationtype": "1d"},
+        "waterdepth": {"name": "waterdepth", "initype": "initial", "interpolation": "triangulation", "locationtype": "1d"},
+        "pet": {"name": "PotentialEvaporation", "initype": "initial", "interpolation": "triangulation", "locationtype": "2d"},
+        "infiltcap": {"name": "InfiltrationCapacity", "initype": "initial", "interpolation": "triangulation", "locationtype": "2d"},
+        "roughness_chezy": {"name": "frictioncoefficient", "initype": "parameter", "interpolation": "triangulation", "locationtype": "2d", "frictype": 0},
+        "roughness_manning": {"name": "frictioncoefficient", "initype": "parameter", "interpolation": "triangulation", "locationtype": "2d", "frictype": 1},
+        "roughness_walllawnikuradse": {"name": "frictioncoefficient", "initype": "parameter", "interpolation": "triangulation", "locationtype": "2d", "frictype": 2},
+        "roughness_whitecolebrook": {"name": "frictioncoefficient", "initype": "parameter", "interpolation": "triangulation", "locationtype": "2d", "frictype": 3},
     }
     _FOLDERS = ["dflowfm", "geoms", "mesh", "auxmaps"]
     _CLI_ARGS = {"region": "setup_region", "res": "setup_mesh2d"}
@@ -1166,6 +1173,133 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # TODO: if we want to keep the clipped mesh 2d uncomment the following line
         # Else mesh2d is used as mesh instead of susbet
         self._mesh = subset  # reinitialise mesh2d grid (set_mesh is used in super)
+    
+    def setup_auxmaps_from_raster(
+        self,
+        raster_fn: str,
+        variables: Optional[list] = None,
+        fill_method: Optional[str] = None,
+        interpolation_method: Optional[str] = "triangulation",
+        locationtype: Optional[str] = "2d",
+        name: Optional[str] = None,
+        split_dataset: Optional[bool] = False,
+    ) -> None:
+        """
+        This component adds data variable(s) from ``raster_fn`` to auxmaps object.
+
+        If raster is a dataset, all variables will be added unless ``variables`` list is specified.
+
+        Adds model layers:
+
+        * **raster.name** auxmaps: data from raster_fn
+
+        Parameters
+        ----------
+        raster_fn: str
+            Source name of raster data in data_catalog.
+        variables: list, optional
+            List of variables to add to auxmaps from raster_fn. By default all.
+        fill_method : str, optional
+            If specified, fills no data values using fill_nodata method. Available methods
+            are ['linear', 'nearest', 'cubic', 'rio_idw'].
+        interpolation_method : str, optional
+            Interpolation method for DFlow-FM. By default triangulation.
+            Available methods: ['constant', 'triangulation', 'mean', 'nearestNb', 'max', 'min', 'invDist', 'minAbs', 'median']
+        locationtype : str, optional
+            LocationType in initial fields. Either 2d (default), 1d or all.
+        name: str, optional
+            Variable name, only in case data is of type DataArray or if a Dataset is added as is (split_dataset=False).
+        split_dataset: bool, optional
+            If data is a xarray.Dataset, either add it as is to auxmaps or split it into several xarray.DataArrays.
+        """     
+        # Call super method
+        ds = super().setup_auxmaps_from_raster(
+            raster_fn = raster_fn,
+            variables = variables,
+            fill_method = fill_method,
+            name = name,
+            split_dataset = split_dataset,
+        )
+
+        # Updates the interpolation method in self._AUXMAPS
+        if variables is None:
+            if isinstance(ds, xr.DataArray):
+                ds = ds.to_dataset()
+            variables = ds.data_vars
+        allowed_methods = ['constant', 'triangulation', 'mean', 'nearestNb', 'max', 'min', 'invDist', 'minAbs', 'median']
+        if not np.isin(interpolation_method, allowed_methods):
+            raise ValueError(f"Interpolation method {interpolation_method} not allowed. Select from {allowed_methods}")
+        if not np.isin(locationtype, ['2d', '1d', 'all']):
+            raise ValueError(f"Locationtype {locationtype} not allowed. Select from ['2d', '1d', 'all']")
+        for var in variables:
+            if var in self._AUXMAPS:
+                self._AUXMAPS[var]["interpolation"] = interpolation_method
+                self._AUXMAPS[var]["locationtype"] = locationtype
+    
+    def setup_auxmaps_from_rastermapping(
+        self,
+        raster_fn: str,
+        raster_mapping_fn: str,
+        mapping_variables: list,
+        fill_method: Optional[str] = None,
+        interpolation_method: Optional[str] = "triangulation",
+        locationtype: Optional[str] = "2d",
+        name: Optional[str] = None,
+        split_dataset: Optional[bool] = False,
+        **kwargs,
+    ) -> None:
+        """
+        This component adds data variable(s) to auxmaps object by combining values in ``raster_mapping_fn`` to spatial layer ``raster_fn``.
+        The ``mapping_variables`` rasters are first created by mapping variables values from ``raster_mapping_fn`` to value in the
+        ``raster_fn`` grid.
+        Adds model layers:
+        * **mapping_variables** auxmaps: data from raster_mapping_fn spatially ditributed with raster_fn
+        Parameters
+        ----------
+        raster_fn: str
+            Source name of raster data in data_catalog. Should be a DataArray. Else use **kwargs to select variables/time_tuple in
+            hydromt.data_catalog.get_rasterdataset method
+        raster_mapping_fn: str
+            Source name of mapping table of raster_fn in data_catalog.
+        mapping_variables: list
+            List of mapping_variables from raster_mapping_fn table to add to mesh. Index column should match values in raster_fn.
+        fill_method : str, optional
+            If specified, fills no data values using fill_nodata method. Available methods
+            are {'linear', 'nearest', 'cubic', 'rio_idw'}.
+        interpolation_method : str, optional
+            Interpolation method for DFlow-FM. By default triangulation.
+            Available methods: ['constant', 'triangulation', 'mean', 'nearestNb', 'max', 'min', 'invDist', 'minAbs', 'median']
+        locationtype : str, optional
+            LocationType in initial fields. Either 2d (default), 1d or all.
+        name: str, optional
+            Variable name, only in case data is of type DataArray or if a Dataset is added as is (split_dataset=False).
+        split_dataset: bool, optional
+            If data is a xarray.Dataset, either add it as is to auxmaps or split it into several xarray.DataArrays.
+        """     
+        # Call super method
+        ds = super().setup_auxmaps_from_rastermapping(
+            raster_fn = raster_fn,
+            raster_mapping_fn = raster_mapping_fn,
+            mapping_variables = mapping_variables,
+            fill_method = fill_method,
+            name = name,
+            split_dataset = split_dataset,
+        )
+
+        # Updates the interpolation method in self._AUXMAPS
+        if mapping_variables is None:
+            if isinstance(ds, xr.DataArray):
+                ds = ds.to_dataset()
+            mapping_variables = ds.data_vars
+        allowed_methods = ['constant', 'triangulation', 'mean', 'nearestNb', 'max', 'min', 'invDist', 'minAbs', 'median']
+        if not np.isin(interpolation_method, allowed_methods):
+            raise ValueError(f"Interpolation method {interpolation_method} not allowed. Select from {allowed_methods}")
+        if not np.isin(locationtype, ['2d', '1d', 'all']):
+            raise ValueError(f"Locationtype {locationtype} not allowed. Select from ['2d', '1d', 'all']")
+        for var in mapping_variables:
+            if var in self._AUXMAPS:
+                self._AUXMAPS[var]["interpolation"] = interpolation_method
+                self._AUXMAPS[var]["locationtype"] = locationtype
 
     # ## I/O
     def read(self):
@@ -1214,21 +1348,33 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         def _prepare_inifields(da_dict, da):
             # Write tif files
             name = da_dict["name"]
-            type = da_dict["type"]
+            type = da_dict["initype"]
+            interp_method = da_dict["interpolation"]
+            locationtype = da_dict["locationtype"]
             _fn = join(auxroot, f"{name}.tif")
             if np.isnan(da.raster.nodata):
                 da.raster.set_nodata(-999)
             da.raster.to_raster(_fn)
             # Prepare dict
-            inidict = {
-                "quantity": name,
-                "dataFile": f"../auxmaps/{name}.tif",
-                "dataFileType": "GeoTIFF",
-                "interpolationMethod": "triangulation",
-                # "averagingType": "nearestNb",
-                "operand": "O",
-                "locationType": "2d",
-            }
+            if interp_method == "constant" or interp_method == "triangulation":
+                inidict = {
+                    "quantity": name,
+                    "dataFile": f"../auxmaps/{name}.tif",
+                    "dataFileType": "GeoTIFF",
+                    "interpolationMethod": interp_method,
+                    "operand": "O",
+                    "locationType": locationtype,
+                }
+            else: #averaging
+                inidict = {
+                    "quantity": name,
+                    "dataFile": f"../auxmaps/{name}.tif",
+                    "dataFileType": "GeoTIFF",
+                    "interpolationMethod": "averaging",
+                    "averagingType": interp_method,
+                    "operand": "O",
+                    "locationType": locationtype,
+                }
             if type == "initial":
                 inilist.append(inidict)
             elif type == "parameter":
@@ -1239,10 +1385,18 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             if isinstance(ds, xr.DataArray):
                 if name in self._AUXMAPS:
                     _prepare_inifields(self._AUXMAPS[name], ds)
+                    # update config if frcition
+                    if "frictype" in self._AUXMAPS[name]:
+                        self.set_config("physics.UniFrictType", self._AUXMAPS[name]["frictype"])
             elif isinstance(ds, xr.Dataset):
                 for v in ds.data_vars:
                     if v in self._AUXMAPS:
                         _prepare_inifields(self._AUXMAPS[v], ds[v])
+                        # update config if frcition
+                        if "frictype" in self._AUXMAPS[name]:
+                            self.set_config("physics.UniFrictType", self._AUXMAPS[name]["frictype"])
+        # rewrite config
+        self.write_config()
 
         # Assign initial fields to model and write
         inifield_model = IniFieldModel(initial=inilist, parameter=paramlist)
