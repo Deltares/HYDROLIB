@@ -1522,6 +1522,41 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # Else mesh2d is used as mesh instead of susbet
         self._mesh = subset  # reinitialise mesh2d grid (set_mesh is used in super)
 
+        # Get meshkernel Mesh2d object
+        mesh2d = self._mesh.ugrid.grid.mesh
+        # FIXME: improve the way of adding a 2D mesh
+        self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
+
+
+    def setup_1d2dlinks(
+        self,
+        generation_method: [str] = None
+    ):
+        """Generates 1d2d links according to one of the following methods.
+
+        Adds/Updates model layers:
+
+        * **1D2D links** geom: By any changes in 2D grid
+
+        Parameters
+        ----------
+        mesh2D_fn : str Path, optional
+            Name of data source for an existing unstructured 2D mesh
+
+        Raises
+        ------
+        IndexError
+            If the grid of the spatial domain contains 0 x-coordinates or 0 y-coordinates.
+
+        See Also
+        ----------
+
+        """
+        a =1
+        print(generation_method)
+        links1d2d_add_links_2d_to_1d_embedded(network=self.dfmmodel.geometry.netfile)
+
+
     def setup_auxmaps_from_raster(
         self,
         raster_fn: str,
