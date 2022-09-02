@@ -14,7 +14,7 @@ from hydromt import config
 from scipy.spatial import distance
 from shapely.geometry import Point, LineString, MultiLineString
 from shapely.ops import snap, split
-from .helper import split_lines, cut
+from .helper import split_lines, cut_pieces
 
 logger = logging.getLogger(__name__)
 
@@ -948,9 +948,8 @@ def snap_newbranches_to_branches_at_snapnodes(
     new_branches_snapped = new_branches.copy()
     branches_snapped = branches.copy()
 
+    # modify new branches
     for snapnode in snapnodes.itertuples():
-
-        # modify new branches
         new_branch = new_branches.loc[snapnode.branchId]
         snapped_line = LineString(
             [
@@ -962,18 +961,24 @@ def snap_newbranches_to_branches_at_snapnodes(
         )
         new_branches_snapped.at[snapnode.branchId, "geometry"] = snapped_line
 
-        # modify old branches
+    # modify old branches
+    for branch_name in set(snapnodes.branch_name):
         branch = branches.loc[
-            snapnode.branch_name
-        ]  # FIXME would the branch order in self.branches differ from network branches? check this when reading back self.dfmmodel.geometry.netfile.network._mesh1d.branches
-        snapped_line = MultiLineString(cut(branch.geometry, snapnode.branch_chainage))
-        branches_snapped.at[snapnode.branch_name, "geometry"] = snapped_line
+            branch_name
+        ]
+        distances = snapnodes[snapnodes.branch_name == branch_name].branch_chainage.to_list()
+        snapped_line = MultiLineString(cut_pieces(branch.geometry, distances))
+        branches_snapped.at[branch_name, "geometry"] = snapped_line
+        branches_snapped.at[branch_name, "branchOrder"] = max(branches_snapped.branchOrder)+1  # allow interpolation on the snapped branch
 
     # explode multilinestring after snapping
     branches_snapped = branches_snapped.explode()
 
     # reset the idex
     branches_snapped = cleanup_branches(branches_snapped)
+
+    # precision correction
+    branches_snapped = reduce_gdf_precision(branches_snapped, rounding_precision=6)
 
     return new_branches_snapped, branches_snapped
 

@@ -2209,7 +2209,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
 
         # set geom and mesh1d
         self.set_branches(branches)
-        self.set_mesh1d(branches, node_distance)
+        self.set_mesh1d()
 
     def set_branches_component(self, name: str):
         gdf_comp = self.branches[self.branches["branchType"] == name]
@@ -2285,19 +2285,32 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         )
         return mesh1d_nodes
 
-    def set_mesh1d(self, branches: gpd.GeoDataFrame, node_distance):
+    def set_mesh1d(self):
         """update the mesh1d in hydrolib-core net object by overwrite and #TODO the xugrid mesh1d"""
 
         # init mesh1d
         self.dfmmodel.geometry.netfile.network._mesh1d = Mesh1d()
 
-        # add branches to mesh1d
+        # add open system mesh
+        opensystem = self.opensystem
+        node_distance = self._openwater_computation_node_distance
         mesh.mesh1d_add_branch(
             self.dfmmodel.geometry.netfile.network,
-            branches.geometry.to_list(),
+            opensystem.geometry.to_list(),
             node_distance=node_distance,
-            branch_names=branches.branchId.to_list(),
-            branch_orders=branches.branchOrder.to_list(),
+            branch_names=opensystem.branchId.to_list(),
+            branch_orders=opensystem.branchOrder.to_list(),
+        )
+
+        # add closed system mesh
+        closedsystem = self.closedsystem
+        node_distance = np.inf
+        mesh.mesh1d_add_branch(
+            self.dfmmodel.geometry.netfile.network,
+            closedsystem.geometry.to_list(),
+            node_distance=node_distance,
+            branch_names=closedsystem.branchId.to_list(),
+            branch_orders=closedsystem.branchOrder.to_list(),
         )
 
     @property
