@@ -57,14 +57,14 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         "waterlevel": {
             "name": "waterlevel",
             "initype": "initial",
-            "interpolation": "triangulation",
-            "locationtype": "1d",
+            "interpolation": "mean",
+            "locationtype": "2d",
         },
         "waterdepth": {
             "name": "waterdepth",
             "initype": "initial",
-            "interpolation": "triangulation",
-            "locationtype": "1d",
+            "interpolation": "mean",
+            "locationtype": "2d",
         },
         "pet": {
             "name": "PotentialEvaporation",
@@ -1409,26 +1409,28 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
 
     def setup_mesh2d(
         self,
-        mesh2d_fn: str = None,
-        geom_fn: str = None,
-        bbox: list = None,
+        mesh2d_fn: Optional[str] = None,
+        geom_fn: Optional[str] = None,
+        bbox: Optional[list] = None,
         res: float = 100.0,
     ):
         """Creates an 2D unstructured mesh or prepares an existing 2D mesh according UGRID conventions.
 
-        An 2D unstructured mesh will be created as 2D rectangular grid from a geometry (geom_fn) or bbox. If an existing
-        2D mesh is given, then no new mesh will be generated
+        An 2D unstructured mesh is created as 2D rectangular grid from a geometry (geom_fn) or bbox. If an existing
+        2D mesh is given, then no new mesh is generated
 
-        2D mesh contains ...
+        2D mesh contains mesh2d nfaces, x-coordinate of mesh2d nodes, y-coordinate of mesh2d nodes,
+        mesh2d face nodes, x-coordinates of face, y-coordinate of face and global atrributes (conventions and
+        coordinates).
 
         Note that:
-        (1) Refinement of the mesh is a seperate setup function, however a refined existing grid (mesh_fn) can already
-        be read.
+        (1) Refinement of the mesh is a seperate setup function, however an existing grid with refinement (mesh_fn)
+        can already be read.
         (2) If no geometry, bbox or existing grid is specified for this setup function, then the self.region is used as
          mesh extent to generate the unstructured mesh.
         (3) Validation checks have been added to check if the mesh extent is within model region.
         (4) Only existing meshed with only 2D grid can be read.
-        #FIXME: read existing 1D2D network file and extract 2D part.
+        (5) 1D2D network files are not supported as mesh2d_fn.
 
         Adds/Updates model layers:
 
@@ -1441,14 +1443,13 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         geom_fn : str Path, optional
             Path to a polygon used to generate unstructured 2D mesh
         bbox: list, optional
-            Describing the mesh extent of interest [xmin, ymin, xmax, ymax].
+            Describing the mesh extent of interest [xmin, ymin, xmax, ymax]. Please specify it in the model coordinate
+            system.
         res: float, optional
             Resolution used to generate 2D mesh. By default a value of 100 m is applied.
 
         Raises
         ------
-        ValueError
-            If `mesh2d_fn`, `geom_fn` and `bbox` are all None.
         IndexError
             If the grid of the spatial domain contains 0 x-coordinates or 0 y-coordinates.
 
@@ -1511,8 +1512,9 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             If specified, fills no data values using fill_nodata method. Available methods
             are ['linear', 'nearest', 'cubic', 'rio_idw'].
         interpolation_method : str, optional
-            Interpolation method for DFlow-FM. By default triangulation.
-            Available methods: ['constant', 'triangulation', 'mean', 'nearestNb', 'max', 'min', 'invDist', 'minAbs', 'median']
+            Interpolation method for DFlow-FM. By default triangulation. Except for waterlevel and
+            waterdepth then the default is mean.
+            Available methods: ['triangulation', 'mean', 'nearestNb', 'max', 'min', 'invDist', 'minAbs', 'median']
         locationtype : str, optional
             LocationType in initial fields. Either 2d (default), 1d or all.
         name: str, optional
@@ -1535,7 +1537,6 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
                 ds = ds.to_dataset()
             variables = ds.data_vars
         allowed_methods = [
-            "constant",
             "triangulation",
             "mean",
             "nearestNb",
@@ -1571,26 +1572,29 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         **kwargs,
     ) -> None:
         """
-        This component adds data variable(s) to auxmaps object by combining values in ``raster_mapping_fn`` to spatial layer ``raster_fn``.
-        The ``mapping_variables`` rasters are first created by mapping variables values from ``raster_mapping_fn`` to value in the
-        ``raster_fn`` grid.
+        This component adds data variable(s) to auxmaps object by combining values in ``raster_mapping_fn`` to
+        spatial layer ``raster_fn``. The ``mapping_variables`` rasters are first created by mapping variables values
+        from ``raster_mapping_fn`` to value in the ``raster_fn`` grid.
+
         Adds model layers:
         * **mapping_variables** auxmaps: data from raster_mapping_fn spatially ditributed with raster_fn
         Parameters
         ----------
         raster_fn: str
-            Source name of raster data in data_catalog. Should be a DataArray. Else use **kwargs to select variables/time_tuple in
-            hydromt.data_catalog.get_rasterdataset method
+            Source name of raster data in data_catalog. Should be a DataArray. Else use **kwargs to select
+            variables/time_tuple in hydromt.data_catalog.get_rasterdataset method
         raster_mapping_fn: str
             Source name of mapping table of raster_fn in data_catalog.
         mapping_variables: list
-            List of mapping_variables from raster_mapping_fn table to add to mesh. Index column should match values in raster_fn.
+            List of mapping_variables from raster_mapping_fn table to add to mesh. Index column should match values
+            in raster_fn.
         fill_method : str, optional
             If specified, fills no data values using fill_nodata method. Available methods
             are {'linear', 'nearest', 'cubic', 'rio_idw'}.
         interpolation_method : str, optional
-            Interpolation method for DFlow-FM. By default triangulation.
-            Available methods: ['constant', 'triangulation', 'mean', 'nearestNb', 'max', 'min', 'invDist', 'minAbs', 'median']
+            Interpolation method for DFlow-FM. By default triangulation. Except for waterlevel and waterdepth then
+            the default is mean.
+            Available methods: ['triangulation', 'mean', 'nearestNb', 'max', 'min', 'invDist', 'minAbs', 'median']
         locationtype : str, optional
             LocationType in initial fields. Either 2d (default), 1d or all.
         name: str, optional
@@ -1614,7 +1618,6 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
                 ds = ds.to_dataset()
             mapping_variables = ds.data_vars
         allowed_methods = [
-            "constant",
             "triangulation",
             "mean",
             "nearestNb",
@@ -1696,7 +1699,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
                 da.raster.set_nodata(-999)
             da.raster.to_raster(_fn)
             # Prepare dict
-            if interp_method == "constant" or interp_method == "triangulation":
+            if interp_method == "triangulation":
                 inidict = {
                     "quantity": name,
                     "dataFile": f"../auxmaps/{name}.tif",
@@ -1721,6 +1724,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
                 paramlist.append(inidict)
 
         # Only write auxmaps that are listed in self._AUXMAPS, rename tif on the fly
+        # TODO raise value error if both waterdepth and waterlevel are given as auxmaps.items
         for name, ds in self._auxmaps.items():
             if isinstance(ds, xr.DataArray):
                 if name in self._AUXMAPS:
