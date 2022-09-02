@@ -1202,7 +1202,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             Note only the points that are within the region polygon will be used.
 
             * Optional variables: ["area", "streetStorageArea", "storageType", "streetLevel"]
-        manholes_defaults_fn : str Path, optional
+        manhole_defaults_fn : str Path, optional
             Path to a csv file containing all defaults values per "branchType".
             Use multiple rows to apply defaults per ["shape", "diameter"/"width"] pairs.
             By default `hydrolib.hydromt_delft3dfm.data.manholes.manholes_defaults.csv` is used.
@@ -1477,7 +1477,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
 
         Parameters
         ----------
-        mesh2D_fn : str Path, optional
+        mesh2d_fn : str Path, optional
             Name of data source for an existing unstructured 2D mesh
         geom_fn : str Path, optional
             Path to a polygon used to generate unstructured 2D mesh
