@@ -332,7 +332,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
                 branchtype="channel",
                 node_distance=self._openwater_computation_node_distance,
             )
-    
+
     def setup_rivers_from_dem(
         self,
         hydrography_fn: str,
@@ -451,11 +451,11 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             gdf_riv = self.data_catalog.get_geodataframe(
                 river_geom_fn, geom=self.region
             ).to_crs(ds_hydro.raster.crs)
-        
+
         # check if flwdir and uparea in ds_hydro
         if "flwdir" not in ds_hydro.data_vars:
             da_flw = hydromt.flw.d8_from_dem(ds_hydro["elevtn"])
-        else: 
+        else:
             da_flw = ds_hydro["flwdir"]
         flwdir = hydromt.flw.flwdir_from_da(da_flw, ftype="d8")
         if "uparea" not in ds_hydro.data_vars:
@@ -467,12 +467,14 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             )
             da_upa.raster.set_nodata(-9999)
             ds_hydro["uparea"] = da_upa
-        
+
         # get river shape and bathymetry
         if friction_type == "Manning":
             kwargs.update(manning=friction_value)
         elif rivdph_method == "gvf":
-            raise ValueError("rivdph_method 'gvf' requires friction_type='Manning'. Use 'geom' or 'powlaw' instead.")
+            raise ValueError(
+                "rivdph_method 'gvf' requires friction_type='Manning'. Use 'geom' or 'powlaw' instead."
+            )
         gdf_riv, _ = workflows.get_river_bathymetry(
             ds_hydro,
             flwdir=flwdir,
@@ -494,7 +496,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             **kwargs,
         )
         # Rename river properties column and reproject
-        rm_dict = {"rivwth":"width", "rivdph":"height", "zb":"bedlev"}
+        rm_dict = {"rivwth": "width", "rivdph": "height", "zb": "bedlev"}
         gdf_riv = gdf_riv.rename(columns=rm_dict).to_crs(self.crs)
 
         # Add defaults
@@ -544,7 +546,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         ]
         allowed_columns = set(_allowed_columns).intersection(gdf_riv.columns)
         gdf_riv = gpd.GeoDataFrame(gdf_riv[allowed_columns], crs=gdf_riv.crs)
-        
+
         # Add friction to defaults
         defaults["frictionType"] = friction_type
         defaults["frictionValue"] = friction_value
@@ -572,10 +574,10 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             crosssections_type="branch",
         )
 
-        # setup staticgeoms #TODO do we still need channels?
-        self.logger.debug(f"Adding rivers and river_nodes vector to staticgeoms.")
-        self.set_staticgeoms(rivers, "rivers")
-        self.set_staticgeoms(river_nodes, "rivers_nodes")
+        # setup geoms #TODO do we still need channels?
+        self.logger.debug(f"Adding rivers and river_nodes vector to geoms.")
+        self.set_geoms(rivers, "rivers")
+        self.set_geoms(river_nodes, "rivers_nodes")
 
         # add to branches
         self.add_branches(
@@ -1009,10 +1011,10 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # Update crosssections object
         self._setup_crosssections(pipes, crosssections_type="branch", midpoint=False)
 
-        # setup staticgeoms
-        self.logger.debug(f"Adding pipes and pipe_nodes vector to staticgeoms.")
-        self.set_staticgeoms(pipes, "pipes")
-        self.set_staticgeoms(pipe_nodes, "pipe_nodes")  # TODO: for manholes
+        # setup geoms
+        self.logger.debug(f"Adding pipes and pipe_nodes vector to geoms.")
+        self.set_geoms(pipes, "pipes")
+        self.set_geoms(pipe_nodes, "pipe_nodes")  # TODO: for manholes
 
         # add to branches
         self.add_branches(
@@ -1178,7 +1180,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             By default 0.001. Use a higher value if large number of user manholes are missing.
         """
 
-        # staticgeom columns for manholes
+        # geom columns for manholes
         _allowed_columns = [
             "geometry",
             "id",  # storage node id, considered identical to manhole id when using single compartment manholes
@@ -1277,9 +1279,9 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
                 "manholes contain no data. use manholes_defaults_fn to apply no data filling."
             )
 
-        # setup staticgeoms
-        self.logger.debug(f"Adding manholes vector to staticgeoms.")
-        self.set_staticgeoms(manholes, "manholes")
+        # setup geoms
+        self.logger.debug(f"Adding manholes vector to geoms.")
+        self.set_geoms(manholes, "manholes")
 
     def setup_1dboundary(
         self,
@@ -1668,6 +1670,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             self.write_forcing()
         if self.dfmmodel:
             self.write_dfmmodel()
+        self.write_data_catalog()
 
     def read_auxmaps(self) -> None:
         """Read auxmaps at <root/?/> and parse to dict of xr.DataArray"""
@@ -1850,7 +1853,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # write crosssections
         self._write_crosssections()  # FIXME None handling, if there are no crosssections
         # write manholes
-        if "manholes" in self._staticgeoms:
+        if "manholes" in self._geoms:
             self._write_manholes()
 
         # save model
@@ -1869,17 +1872,26 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # FIXME: improve the way of adding a 2D mesh
         self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
 
-
     def _write_branches(self):
         """write branches.gui
-         #TODO combine with others"""
-        branches = self._staticgeoms["branches"][
+        #TODO combine with others"""
+        branches = self._geoms["branches"][
             ["branchId", "branchType", "manhole_up", "manhole_dn"]
         ]
-        branches = branches.rename(columns = {'branchId':'name', 'manhole_up': 'sourceCompartmentName', 'manhole_dn': 'targetCompartmentName'})
-        branches['branchType'] = branches['branchType'].replace({'river': 0, 'channel':0, 'pipe': 2, 'tunnel':2, 'sewerconnection':1})
-        branchgui_model = BranchModel(branch = branches.to_dict("records"))
-        branchgui_model.filepath = self.dfmmodel.filepath.with_name(branchgui_model._filename() + branchgui_model._ext())
+        branches = branches.rename(
+            columns={
+                "branchId": "name",
+                "manhole_up": "sourceCompartmentName",
+                "manhole_dn": "targetCompartmentName",
+            }
+        )
+        branches["branchType"] = branches["branchType"].replace(
+            {"river": 0, "channel": 0, "pipe": 2, "tunnel": 2, "sewerconnection": 1}
+        )
+        branchgui_model = BranchModel(branch=branches.to_dict("records"))
+        branchgui_model.filepath = self.dfmmodel.filepath.with_name(
+            branchgui_model._filename() + branchgui_model._ext()
+        )
         branchgui_model.save()
 
     def _write_friction(self):
@@ -1926,8 +1938,8 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
     def _write_manholes(self):
         """write manholes into hydrolib-core storage nodes objects"""
 
-        # preprocessing for manholes from staticgeoms
-        gpd_mh = self._staticgeoms["manholes"]
+        # preprocessing for manholes from geoms
+        gpd_mh = self._geoms["manholes"]
 
         storagenodes = StorageNodeModel(storagenode=gpd_mh.to_dict("records"))
         self.dfmmodel.geometry.storagenodefile = storagenodes
@@ -1995,14 +2007,14 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # self._dfmmodel.geometry.frictfile[0].filepath = outputdir.joinpath(
         #    "roughness.ini"
         # )
-    
+
     @property
     def dimr(self):
         """DIMR file object"""
         if not self._dimr:
             self.read_dimr()
         return self._dimr
-    
+
     def read_dimr(self, dimr_fn: Optional[str] = None) -> None:
         """Read DIMR from file and else create from hydrolib-core"""
         if dimr_fn is None:
@@ -2014,9 +2026,9 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # else initialise
         else:
             self.logger.info("Initialising empty dimr file")
-            dimr = DIMR()      
+            dimr = DIMR()
         self._dimr = dimr
-    
+
     def write_dimr(self, dimr_fn: Optional[str] = None):
         """Writes the dmir file. In write mode, updates first the FMModel component"""
         # force read
@@ -2025,7 +2037,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             self._dimr.filepath = join(self.root, dimr_fn)
         else:
             self._dimr.filepath = join(self.root, self._dimr_fn)
-        
+
         if not self._read:
             # Updates the dimr file first before writing
             self.logger.info("Adding dflofm component to dimr file")
@@ -2033,23 +2045,27 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             # update component
             components = self._dimr.component
             if len(components) != 0:
-                components = [] # FIXME: for now only support control single component of dflowfm
+                components = (
+                    []
+                )  # FIXME: for now only support control single component of dflowfm
             fmcomponent = FMComponent(
-                name = "dflowfm",
-                workingdir = "dflowfm",
-                inputfile = basename(self._config_fn), 
-                model = self.dfmmodel,
+                name="dflowfm",
+                workingdir="dflowfm",
+                inputfile=basename(self._config_fn),
+                model=self.dfmmodel,
             )
             components.append(fmcomponent)
             self._dimr.component = components
             # update control
             controls = self._dimr.control
             if len(controls) != 0:
-                controls = [] # FIXME: for now only support control single component of dflowfm
-            control = Start(name = "dflowfm")
+                controls = (
+                    []
+                )  # FIXME: for now only support control single component of dflowfm
+            control = Start(name="dflowfm")
             controls.append(control)
             self._dimr.control = control
-        
+
         # write
         self.logger.info(f"Writing model dimr file to {self._dimr.filepath}")
         self.dimr.save(recurse=False)
@@ -2148,7 +2164,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # Check if we need to do more check/process to make sure everything is well connected
         workflows.validate_branches(branches)
 
-        # set staticgeom and mesh1d
+        # set geom and mesh1d
         self.set_branches(branches)
         self.set_mesh1d(branches, node_distance)
 
@@ -2160,8 +2176,8 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
 
     @property
     def rivers(self):
-        if "rivers" in self.staticgeoms:
-            gdf = self.staticgeoms["rivers"]
+        if "rivers" in self.sgeoms:
+            gdf = self.geoms["rivers"]
         else:
             gdf = self.set_branches_component("rivers")
         return gdf
@@ -2260,9 +2276,9 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
 
     @property
     def boundaries(self):
-        """Quick accessor to boundaries staticgeoms"""
-        if "boundaries" in self.staticgeoms:
-            gdf = self.staticgeoms["boundaries"]
+        """Quick accessor to boundaries geoms"""
+        if "boundaries" in self.geoms:
+            gdf = self.geoms["boundaries"]
         else:
             gdf = self.get_boundaries()
         return gdf
@@ -2286,13 +2302,13 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         return boundaries
 
     def set_boundaries(self, boundaries: gpd.GeoDataFrame):
-        """Updates boundaries in staticgeoms with new ones"""
+        """Updates boundaries in geoms with new ones"""
         if len(self.boundaries) > 0:
             task_last = lambda s1, s2: s2
             boundaries = self.boundaries.combine(
                 boundaries, func=task_last, overwrite=True
             )
-        self.set_staticgeoms(boundaries, name="boundaries")
+        self.set_geoms(boundaries, name="boundaries")
 
     def get_model_time(self):
         """Return (refdate, tstart, tstop) tuple with parsed model reference datem start and end time"""
