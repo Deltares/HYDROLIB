@@ -2150,7 +2150,19 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         branchtype: str,
         node_distance: float = 40.0,
     ):
-        """Add new branches of branchtype to the branches and mesh1d object"""
+        """Add new branches of the specified branchtype to the branches and mesh1d object.
+
+        Parameters
+        ----------
+        new_branches : gpd.GeoDataFrame
+            The new branches.
+        branchtype : str
+            The branch type of the new branches.
+        node_distance : float, optional
+            This parameter is not used. Defaults to 40.0.
+        
+        
+        """
 
         snap_offset = self._network_snap_offset
 
@@ -2331,8 +2343,15 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         self.set_geoms(crosssections, name="crosssections")
 
     @property
-    def boundaries(self):
-        """Quick accessor to boundaries geoms"""
+    def boundaries(self) -> gpd.GeoDataFrame:
+        """Quick accessor to boundaries geoms
+        
+        Returns
+        -------
+        gdf : gpd.GeoDataFrame
+            The geo data frame containing the boundaries.
+        """
+    
         if "boundaries" in self.geoms:
             gdf = self.geoms["boundaries"]
         else:
