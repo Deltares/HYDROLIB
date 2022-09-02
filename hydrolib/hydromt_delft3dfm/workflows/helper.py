@@ -316,6 +316,15 @@ def check_geodataframe(gdf):
 
 
 ## geometry
+def cut_pieces(line, distances):
+    """cut a line into pieces based on distances"""
+    distances.insert(0,0)
+    pieces = [line]
+    for d in np.diff(np.sort(distances)):
+        line = pieces.pop(-1)
+        pieces.extend(cut(line, d))
+    return pieces
+
 def cut(line, distance):
     """Cuts a line in two at a distance from its starting point
     ref: https://shapely.readthedocs.io/en/stable/manual.html"""
