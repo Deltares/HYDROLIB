@@ -6,7 +6,7 @@ from os import times
 from os.path import basename, isfile, join
 from pathlib import Path
 from turtle import st
-from typing import Union, List, Tuple
+from typing import Optional, Union, List, Tuple
 
 
 import geopandas as gpd
@@ -23,17 +23,17 @@ from shapely.geometry import box, Point
 from datetime import datetime, timedelta
 
 from hydrolib.core.io.storagenode.models import StorageNodeModel
-from hydrolib.core.io.crosssection.models import *
-from hydrolib.core.io.friction.models import *
-from hydrolib.core.io.ext.models import *
-from hydrolib.core.io.bc.models import *
+from hydrolib.core.io.crosssection.models import CrossLocModel, CrossDefModel
+from hydrolib.core.io.friction.models import FrictionModel
+from hydrolib.core.io.ext.models import ExtModel, Boundary
+from hydrolib.core.io.bc.models import ForcingModel
 from hydrolib.core.io.mdu.models import FMModel
-from hydrolib.core.io.net.models import *
+from hydrolib.core.io.net.models import Mesh1d, NetworkModel
 from hydrolib.core.io.inifield.models import IniFieldModel
 from hydrolib.core.io.dimr.models import DIMR, FMComponent, Start
 
 from hydrolib.dhydamo.geometry import common, mesh, viz
-from hydrolib.core.io.gui.models import *
+from hydrolib.core.io.gui.models import BranchModel
 
 from . import DATADIR
 from . import workflows
