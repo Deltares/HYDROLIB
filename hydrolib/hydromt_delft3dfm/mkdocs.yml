@@ -17,6 +17,20 @@ nav:
       - Building a model: "user_guide/working_with_the_delft3dfm_model/building_a_model.md"
       - Updating a model: "user_guide/working_with_the_delft3dfm_model/updating_a_model.md"
       - Clipping a model: "user_guide/working_with_the_delft3dfm_model/clipping_a_model.md"
-  - API reference: "reference/api.md"
+  - API reference: 
+      - "reference/index.md"
+      - D-Flow FM: "reference/dflowfm.md"
+      - Utils: "reference/utils.md"
+      - Workflows:
+        - "reference/workflows/boundaries.md"
+        - "reference/workflows/branches.md"
+        - "reference/workflows/crosssections.md"
+        - "reference/workflows/dem.md"
+        - "reference/workflows/graphs.md"
+        - "reference/workflows/helper.md"
+        - "reference/workflows/manholes.md"
+        - "reference/workflows/preprocess.md"
+        - "reference/workflows/roughness.md"
+
   - Developments: developments/developments.md
 
