@@ -3,5 +3,12 @@ site_name: dhydamo
 nav:
   - Home: "dhydamo.md"
   - Getting started: "getting_started/getting_started.md"
-  - API reference: "reference/api.md"
   - User Guide: "user_guide/user_guide.md"
+  - API reference:
+    - "reference/index.md"
+    - Geometry:
+      - "reference/geometry/common.md"
+      - "reference/geometry/mesh.md"
+      - "reference/geometry/models.md"
+      - "reference/geometry/viz.md"
+  
