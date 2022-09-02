@@ -65,6 +65,7 @@ def invert_levels_from_dem(
 
     return gdf
 
+
 # TODO: copied from hydromt_sfincs, move to core?
 def get_rivbank_dz(
     gdf_riv: gpd.GeoDataFrame,
@@ -128,6 +129,7 @@ def get_rivbank_dz(
         default=-9999,
     )
     return rivbank_dz, da_riv_mask, da_bnk_mask
+
 
 # TODO: copied from hydromt_sfincs, move to core?
 def get_river_bathymetry(
@@ -347,4 +349,3 @@ def get_river_bathymetry(
         )
 
     return gdf_riv, da_msk
-

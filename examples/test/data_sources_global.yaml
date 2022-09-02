@@ -52,6 +52,25 @@ merit_v1.0.3:
     source_license: CC-BY-NC 4.0 or ODbL 1.0
     source_url: http://hydro.iis.u-tokyo.ac.jp/~yamadai/MERIT_DEM/
     source_version: 1.0.3
+vito:
+  alias: vito_2015_v2.0.2
+vito_2015_v2.0.2:
+  crs: 4326
+  data_type: RasterDataset
+  driver: raster
+  kwargs:
+    chunks:
+      x: 3600
+      y: 3600
+  rename:
+    ProbaV_LC100_epoch2015_global_v2: landuse
+  meta:
+    category: landuse
+    paper_doi: 10.5281/zenodo.3939038
+    paper_ref: Buchhorn et al (2020)
+    source_url: https://land.copernicus.eu/global/products/lc
+    source_version: v2.0.2
+  path: landuse/vito/ProbaV_LC100_epoch2015_global_v2.0.2_discrete-classification_EPSG-4326.tif
 merit_hydro:
   alias: merit_hydro_v1.0
 merit_hydro_v1.0:

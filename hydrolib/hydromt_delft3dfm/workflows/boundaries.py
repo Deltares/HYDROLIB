@@ -202,9 +202,7 @@ def compute_boundary_values(
         if len(
             pd.date_range(da_bnd.time[0].values, da_bnd.time[-1].values, freq=freq)
         ) != len(da_bnd.time):
-            logger.error(
-                "does not support non-equidistant time-series."
-            ) 
+            logger.error("does not support non-equidistant time-series.")
         freq_name = _TIMESTR[freq]
         freq_step = getattr(dt.components, freq_name)
         bd_times = np.array([(i * freq_step) for i in range(len(da_bnd.time))])
