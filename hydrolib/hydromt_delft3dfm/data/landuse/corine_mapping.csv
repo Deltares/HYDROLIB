@@ -1,0 +1,47 @@
+corine,description,landuse,roughness_manning,infiltcap
+111,Continuous urban fabric,111,0.011,64.5
+112,Discontinuous urban fabric,112,0.011,153.75
+113,Diffuse constructions,113,0.011,153.75
+121,Industrial or commercial units,121,0.011,5.0
+122,Road and rail networks,122,0.011,302.5
+123,Port areas,123,0.011,302.5
+124,Airports,124,0.011,302.5
+131,Mineral extrcation sites,131,0.011,600
+132,Dump sites,132,0.011,302.5
+133,Construction sites,133,0.011,302.5
+141,Green urban sites,141,0.150,302.5
+142,Sport and leisure facilities,142,0.150,540.5
+211,Arable land,211,0.200,600.0
+212,Arable land,212,0.200,600.0
+213,Rice fields,213,0.200,600.0
+221,Vineyards,221,0.500,600.0
+222,Fruit trees and berry plantations,222,0.500,600.0
+223,Olive groves,223,0.500,600.0
+231,Pastures,231,0.150,600.0
+241,Ann. crops assoc. with peren.,241,0.200,600.0
+242,Complex cultivation patterns,242,0.200,600.0
+243,Agriculture + natural vegetation,243,0.440,600.0
+244,Agro-forestry areas,244,0.500,600.0
+311,Broad-leaved forest,311,0.600,600.0
+312,Coniferous forest,312,0.400,600.0
+313,Mixed forest,313,0.500,600.0
+321,Natural grassland,321,0.150,600.0
+322,Moors and heathland,322,0.240,600.0
+323,Sclerophyllous vegetation,323,0.500,600.0
+324,Transitional woodland-scrub,324,0.500,600.0
+331,Beaches, dunes, sands,331,0.150,600.0
+332,Bare rocks,332,0.010,5.0
+333,Sparsely vegetated areas,333,0.020,600.0
+334,Burnt areas,334,0.020,600.0
+335,Glaciers and perpetual snow,335,0.010,600.0
+411,Inland marshes,411,0.150,600.0
+412,Peat bogs,412,0.150,600.0
+421,Salt marshes,421,0.150,600.0
+422,Salines,422,0.075,600.0
+423,Intertidal flats,423,0.075,600.0
+511,Water courses,511,0.010,600.0
+512,Water bodies,512,0.010,600.0
+521,Coastal lagoons,521,0.0150,600.0
+522,Estuaries522,0.150,600.0
+523,Sea and ocean,523,0.010,600.0
+999,No data,999,-999.0,-999.0
