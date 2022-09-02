@@ -32,6 +32,7 @@ __all__ = [
     "append_data_columns_based_on_ini_query",
     "check_geodataframe",
     "split_lines",
+    "check_gpd_attributes",
 ]
 
 
@@ -430,7 +431,25 @@ def check_geodataframe(gdf : gpd.GeoDataFrame):
 
 
 ## geometry
-def split_lines(line, num_new_lines : int):
+def cut(line, distance):
+    """Cuts a line in two at a distance from its starting point
+    ref: https://shapely.readthedocs.io/en/stable/manual.html"""
+    if distance <= 0.0 or distance >= line.length:
+        return [LineString(line)]
+    coords = list(line.coords)
+    for i, p in enumerate(coords):
+        pd = line.project(Point(p))
+        if pd == distance:
+            return [LineString(coords[: i + 1]), LineString(coords[i:])]
+        if pd > distance:
+            cp = line.interpolate(distance)
+            return [
+                LineString(coords[:i] + [(cp.x, cp.y)]),
+                LineString([(cp.x, cp.y)] + coords[i:]),
+            ]
+
+
+def split_lines(line, num_new_lines):
     """ Get a list of lines splitted from a line.
 
     Parameters
@@ -471,3 +490,30 @@ def split_lines(line, num_new_lines : int):
     ), "length after splitting does not match input"
 
     return new_lines
+
+
+def check_gpd_attributes(
+    gdf: gpd.GeoDataFrame, required_columns: list, raise_error: bool = False
+):
+    """check if the geodataframe contains all required columns
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame, required
+        GeoDataFrame to be checked
+    required_columns: list of strings, optional
+        Check if the geodataframe contains all required columns
+    raise_error: boolean, optional
+        Raise error if the check failed
+    """
+    if not (set(required_columns).issubset(gdf.columns)):
+        if raise_error:
+            raise ValueError(
+                f"GeoDataFrame do not contains all required attributes: {required_columns}."
+            )
+        else:
+            logger.warning(
+                f"GeoDataFrame do not contains all required attributes: {required_columns}."
+            )
+        return False
+    return True

@@ -28,11 +28,14 @@ __all__ = [
 
 def set_branch_crosssections(
     branches: gpd.GeoDataFrame,
+    midpoint: bool = True,
 ):
     """
-    Function to set regular cross-sections at the mid point of branch.
-    only support rectangle and trapezoid.
-
+    Function to set regular cross-sections for each branch.
+    only support rectangle, trapezoid and circle.
+    Crosssections are derived at branches mid points if ``midpoints`` is True,
+    else at both upstream and downstream extremities of branches if False.
+    
     Parameters
     ----------
     branches : gpd.GeoDataFrame
@@ -43,82 +46,112 @@ def set_branch_crosssections(
     gpd.GeoDataFrame
         The cross sections.
     """
+    # Get the crs at the midpoint of branches if midpoint
+    if midpoint:
+        crosssections = gpd.GeoDataFrame({}, index=branches.index, crs=branches.crs)
+        crosssections["geometry"] = [
+            l.interpolate(0.5, normalized=True) for l in branches.geometry
+        ]
+        crosssections["crsloc_id"] = [f"crs_{bid}" for bid in branches["branchId"]]
+        crosssections["crsloc_branchId"] = branches["branchId"]
+        crosssections["crsloc_chainage"] = [l / 2 for l in branches["geometry"].length]
+        crosssections["crsloc_shift"] = branches["bedlev"]
+    # Else prepares crosssections at both upstream and dowsntream extremities
+    else:
+        # Upstream
+        ids = [f"{i}_up" for i in branches.index]
+        crosssections_up = gpd.GeoDataFrame({}, index=ids, crs=branches.crs)
+        crosssections_up["geometry"] = [Point(l.coords[0]) for l in branches.geometry]
+        crosssections_up["crsloc_id"] = [
+            f"crs_up_{bid}" for bid in branches["branchId"]
+        ]
+        crosssections_up["crsloc_branchId"] = branches["branchId"].values
+        crosssections_up["crsloc_chainage"] = [0.0 for l in branches.geometry]
+        crosssections_up["crsloc_shift"] = branches["invlev_up"].values
+        # Downstream
+        ids = [f"{i}_dn" for i in branches.index]
+        crosssections_dn = gpd.GeoDataFrame({}, index=ids, crs=branches.crs)
+        crosssections_dn["geometry"] = [Point(l.coords[-1]) for l in branches.geometry]
+        crosssections_dn["crsloc_id"] = [
+            f"crs_dn_{bid}" for bid in branches["branchId"]
+        ]
+        crosssections_dn["crsloc_branchId"] = branches["branchId"].values
+        crosssections_dn["crsloc_chainage"] = [l for l in branches["geometry"].length]
+        crosssections_dn["crsloc_shift"] = branches["invlev_dn"].values
+        # Merge
+        crosssections = crosssections_up.append(crosssections_dn)
 
-    # 2. check if branches have the required columns and select only required columns
-    required_columns = [
-        "geometry",
-        "branchId",
-        "branchType",
-        "branchOrder",
-        "frictionId",
-        "shape",
-        "width",
-        "height",
-        "t_width",
-        "bedlev",
-        "closed",
-    ]
-    if not set(required_columns).issubset(branches.columns):
-        logger.error(
-            f"Cannto setup crosssections from branch. Require columns {required_columns}."
-        )
-
-    # 3. get the crs at the midpoint of branches
-    crosssections = gpd.GeoDataFrame({}, index=branches.index, crs=branches.crs)
-    crosssections["geometry"] = [
-        l.interpolate(0.5, normalized=True) for l in branches.geometry
-    ]
-    crosssections["crsloc_id"] = [f"crs_{bid}" for bid in branches["branchId"]]
-    crosssections["crsloc_branchId"] = branches["branchId"]
-    crosssections["crsloc_chainage"] = [l / 2 for l in branches["geometry"].length]
-    crosssections["crsloc_shift"] = branches["bedlev"]
-
-    # FIXME: set crosssection at mid point does not apply to circle profile (which are intended for pipes)
-    # circle_indexes = crslocs.loc[crslocs["shape"] == "circle", :].index
-    # for bi in circle_indexes:
-    #     crslocs.loc[bi, "diameter"] = branches.loc[bi, "diameter"]
-    #     crslocs.at[bi, "crsloc_definitionId"] = "circ_d{:,.3f}_{:s}".format(
-    #         crslocs.loc[bi, "diameter"], crs_type
-    #     )
+    # circle profile
+    circle_indexes = branches.loc[branches["shape"] == "circle", :].index
+    for bi in circle_indexes:
+        if midpoint:
+            bicrs = [bi]
+        else:
+            bicrs = [f"{bi}_up", f"{bi}_dn"]
+        for b in bicrs:
+            crosssections.at[b, "crsloc_definitionId"] = "circ_d{:,.3f}_{:s}".format(
+                branches.loc[bi, "diameter"], "branch"
+            )
+            crosssections.at[b, "crsdef_id"] = crosssections.loc[
+                b, "crsloc_definitionId"
+            ]
+            crosssections.at[b, "crsdef_type"] = branches.loc[bi, "shape"]
+            crosssections.at[b, "crsdef_frictionId"] = branches.loc[bi, "frictionId"]
+            crosssections.at[b, "crsdef_diameter"] = branches.loc[bi, "diameter"]
+            crosssections.at[b, "crsdef_closed"] = branches.loc[bi, "closed"]
 
     # rectangle profile
     rectangle_indexes = branches.loc[branches["shape"] == "rectangle", :].index
 
     for bi in rectangle_indexes:
-        crosssections.at[
-            bi, "crsloc_definitionId"
-        ] = "rect_h{:,.3f}_w{:,.3f}_c{:s}_{:s}".format(
-            branches.loc[bi, "height"],
-            branches.loc[bi, "width"],
-            branches.loc[bi, "closed"],
-            "branch",
-        )
-        crosssections.at[bi, "crsdef_id"] = crosssections.loc[bi, "crsloc_definitionId"]
-        crosssections.at[bi, "crsdef_type"] = branches.loc[bi, "shape"]
-        crosssections.at[bi, "crsdef_frictionId"] = branches.loc[bi, "frictionId"]
-        crosssections.at[bi, "crsdef_height"] = branches.loc[bi, "height"]
-        crosssections.at[bi, "crsdef_width"] = branches.loc[bi, "width"]
-        crosssections.at[bi, "crsdef_closed"] = branches.loc[bi, "closed"]
+        if midpoint:
+            bicrs = [bi]
+        else:
+            bicrs = [f"{bi}_up", f"{bi}_dn"]
+        for b in bicrs:
+            crosssections.at[
+                b, "crsloc_definitionId"
+            ] = "rect_h{:,.3f}_w{:,.3f}_c{:s}_{:s}".format(
+                branches.loc[bi, "height"],
+                branches.loc[bi, "width"],
+                branches.loc[bi, "closed"],
+                "branch",
+            )
+            crosssections.at[b, "crsdef_id"] = crosssections.loc[
+                b, "crsloc_definitionId"
+            ]
+            crosssections.at[b, "crsdef_type"] = branches.loc[bi, "shape"]
+            crosssections.at[b, "crsdef_frictionId"] = branches.loc[bi, "frictionId"]
+            crosssections.at[b, "crsdef_height"] = branches.loc[bi, "height"]
+            crosssections.at[b, "crsdef_width"] = branches.loc[bi, "width"]
+            crosssections.at[b, "crsdef_closed"] = branches.loc[bi, "closed"]
 
-    # trapzoid profile
+    # trapezoid profile
     trapezoid_indexes = branches.loc[branches["shape"] == "trapezoid", :].index
     for bi in trapezoid_indexes:
-        crosssections.at[
-            bi, "crsloc_definitionId"
-        ] = "trapz_h{:,.1f}_bw{:,.1f}_tw{:,.1f}_c{:s}_{:s}".format(
-            branches.loc[bi, "height"],
-            branches.loc[bi, "width"],
-            branches.loc[bi, "t_width"],
-            branches.loc[bi, "closed"],
-            "branch",
-        )
-        crosssections.at[bi, "crsdef_id"] = crosssections.loc[bi, "crsloc_definitionId"]
-        crosssections.at[bi, "crsdef_type"] = branches.loc[bi, "shape"]
-        crosssections.at[bi, "crsdef_frictionId"] = branches.loc[bi, "frictionId"]
-        crosssections.at[bi, "crsdef_height"] = branches.loc[bi, "height"]
-        crosssections.at[bi, "crsdef_width"] = branches.loc[bi, "width"]
-        crosssections.at[bi, "crsdef_t_width"] = branches.loc[bi, "t_width"]
-        crosssections.at[bi, "crsdef_closed"] = branches.loc[bi, "closed"]
+        if midpoint:
+            bicrs = [bi]
+        else:
+            bicrs = [f"{bi}_up", f"{bi}_dn"]
+        for b in bicrs:
+            crosssections.at[
+                b, "crsloc_definitionId"
+            ] = "trapz_h{:,.1f}_bw{:,.1f}_tw{:,.1f}_c{:s}_{:s}".format(
+                branches.loc[bi, "height"],
+                branches.loc[bi, "width"],
+                branches.loc[bi, "t_width"],
+                branches.loc[bi, "closed"],
+                "branch",
+            )
+            crosssections.at[b, "crsdef_id"] = crosssections.loc[
+                b, "crsloc_definitionId"
+            ]
+            crosssections.at[b, "crsdef_type"] = branches.loc[bi, "shape"]
+            crosssections.at[b, "crsdef_frictionId"] = branches.loc[bi, "frictionId"]
+            crosssections.at[b, "crsdef_height"] = branches.loc[bi, "height"]
+            crosssections.at[b, "crsdef_width"] = branches.loc[bi, "width"]
+            crosssections.at[b, "crsdef_t_width"] = branches.loc[bi, "t_width"]
+            crosssections.at[b, "crsdef_closed"] = branches.loc[bi, "closed"]
 
     # setup thaiweg for GUI
     crosssections["crsdef_thalweg"] = 0.0
