@@ -40,6 +40,19 @@ __all__ = [
 
 
 def isfloat(x):
+    """ Determines whether `x` is a float by trying to cast it to a float.
+
+    Parameters
+    ----------
+    x
+        The instance to check.
+
+    Returns
+    -------
+    bool
+        True if `x` is a float, otherwise False.
+    """
+
     try:
         float(x)
         return True
@@ -48,6 +61,18 @@ def isfloat(x):
 
 
 def isint(x):
+    """ Determines whether `x` is an integer by trying to cast it to an integer.
+
+    Parameters
+    ----------
+    x
+        The instance to check.
+
+    Returns
+    -------
+    bool
+        True if `x` is an integer, otherwise False.
+    """
     try:
         int(x)
         return True
@@ -93,7 +118,19 @@ def parse_arg(arg, dtype=None):
     return arg_
 
 
-def parse_ini(ini_fn):
+def parse_ini(ini_fn) -> dict:
+    """ Parses an ini file to a dictionary.
+
+    Parameters
+    ----------
+    ini_fn
+        The location of the ini file. 
+    
+    Returns
+    -------
+    dict
+        A dictionary containing the sections with as value a dictionary with the keys and values.
+    """
     logger.info(f"parsing settings from {ini_fn}")
     config = configparser.ConfigParser(inline_comment_prefixes=[";", "#"])
     config.optionxform = str  # case sensitive parsing
@@ -110,9 +147,26 @@ def parse_ini(ini_fn):
 
 
 def slice_geodataframe(
-    gdf, required_query: str = None, required_columns: list = None, logger=logger
+    gdf: gpd.GeoDataFrame, required_query: str = None, required_columns: list = None, logger=logger
 ):
-    """Function to read gpd.GeoDataFrame with preprocessing: rename, slice, convert type and set index"""
+    """Function to read gpd.GeoDataFrame with preprocessing: rename, slice, convert type and set index.
+    
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame.
+        The geo data frame to slice.
+    required_query : str, optional
+        The required query. Defaults to None.
+    required_columns : list, optional
+        The required columns. Default to None.
+    logger
+        The logger to log messages with.
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        The sliced geo data frame.
+    """
 
     # check data
     if gdf is None or len(gdf) == 0:
@@ -170,7 +224,8 @@ def slice_geodataframe(
     return data
 
 
-def retype_geodataframe(gdf, retype=None, logger=logger):
+def retype_geodataframe(gdf : gpd.GeoDataFrame, retype=None, logger=logger):
+    """Retype a GeoDataFrame."""
 
     if retype is None or len(retype) == 0:
         logger.debug(f"GeoDataFrame: no retyping is applied. retype is not specified.")
@@ -214,7 +269,22 @@ def retype_geodataframe(gdf, retype=None, logger=logger):
 
 
 def eval_funcs(gdf: gpd.GeoDataFrame, funcs: dict, logger=logger):
+    """Evaluate funcs on the geo data frame.
 
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        The geo data frame to update.
+    funcs : dict
+        A dictionary containing key-value pair describing a column name with a string describing the operation to evaluate.
+    logger
+        The logger to log messages with.
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        The geo data frame with the updated columns.
+    """
     if funcs is None or len(funcs) == 0:
         logger.debug(f"GeoDataFrame: no funcs is applied. funcs is not specified.")
         return gdf
@@ -238,6 +308,20 @@ def eval_funcs(gdf: gpd.GeoDataFrame, funcs: dict, logger=logger):
 
 
 def write_shp(data: gpd.GeoDataFrame, filename: str, columns: list = None):
+    """ Write a geo data frame to a shape file.
+
+    Parameters
+    ----------
+    data : gpd.GeoDataFrame
+        The geo data frame to write to file.
+    filename : str
+        The shape file name to write to.
+    columns : list, optional
+        The list of columns to write. The geometry column will be added if it it missing.
+        If not specified, all the columns in the dataset will be written. 
+        Default to None.     
+    """
+
     if data is not None:
         # convert to numerical
         data = data.apply(pd.to_numeric, errors="ignore")
@@ -262,7 +346,24 @@ def append_data_columns_based_on_ini_query(
     keys: list = [],
     logger=logger,
 ):
-    """append key,val pair as data columns for the input GeiDataFrame based on ini [default] or [query] sections"""
+    """append key,val pair as data columns for the input GeoDataFrame based on ini [default] or [query] sections
+    
+    Parameters
+    ----------
+    data : gpd.GeoDataFrame
+        The geo data frame to append to.
+    ini : configparser.ConfigParser
+        The ini config parser.
+    keys : list, optional
+        The keys to add to the geo data frame columns.
+    logger
+        The logger to log messages with.
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        The updated geo data frame.
+    """
     # TODO check this function
     _columns = list(data.columns)
     for section in ini.keys():
@@ -306,7 +407,21 @@ def append_data_columns_based_on_ini_query(
     return data.loc[:, columns]
 
 
-def check_geodataframe(gdf):
+def check_geodataframe(gdf : gpd.GeoDataFrame):
+    """ Check the geo data frame for None and length.
+    A warning will be logged, if the geo data frame is None or empty.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        The geo data frame to check.
+    
+    Returns
+    -------
+    bool
+        True if `gdf` is not None and has at least one entry; otherwise, False.
+    """
+
     if gdf is None or len(gdf) == 0:
         check = False
         logger.warning("GeoDataFrame: do not have valid features. ")
@@ -335,7 +450,20 @@ def cut(line, distance):
 
 
 def split_lines(line, num_new_lines):
-    """function to get a list of lines splitted from line"""
+    """ Get a list of lines splitted from a line.
+
+    Parameters
+    ----------
+    line
+        The line to split
+    num_new_lines : int 
+        The desired number of lines.
+    
+    Returns
+    -------
+    list
+        The new lines.
+    """
     _line = [line]
     points = [
         line.interpolate((i / num_new_lines), normalized=True)
