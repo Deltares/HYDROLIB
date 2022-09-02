@@ -42,6 +42,7 @@ plugins:
             group_by_category: false
           selection:
             inherited_members: false
+            docstring_style: google
 
       custom_templates: templates
       watch:
