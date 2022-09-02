@@ -192,7 +192,6 @@ def process_branches(
         Preprocessed branches' nodes.
     """
 
-
     logger.debug(f"Cleaning up branches")
     # TODO: maybe add arguments,use branch cross sections
     # global_controls = branches_ini.get("global", None)
@@ -526,9 +525,7 @@ def _split_branches_by_spacing_const(
         if smooth_branches:
             for i in range(len(new_edges)):
                 ed = new_edges[i]
-                new_edges[i] = LineString(
-                    [Point(ed.coords[0]), Point(ed.coords[-1])]
-                )
+                new_edges[i] = LineString([Point(ed.coords[0]), Point(ed.coords[-1])])
         offsets = np.linspace(0, line.length, num_new_lines + 1)
 
         # interpolate values
@@ -545,9 +542,7 @@ def _split_branches_by_spacing_const(
             )
         if interp_bedlev:
             edge_bedlevup.extend(
-                np.interp(
-                    offsets[:-1], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn]
-                )
+                np.interp(offsets[:-1], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn])
             )
             edge_bedlevdn.extend(
                 np.interp(offsets[1:], [0, offsets[-1]], [b.bedlev_up, b.bedlev_dn])
@@ -893,7 +888,9 @@ def snap_newbranches_to_branches_at_snapnodes(
     return new_branches_snapped, branches_snapped
 
 
-def _remove_branches_with_ring_geometries(branches: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+def _remove_branches_with_ring_geometries(
+    branches: gpd.GeoDataFrame,
+) -> gpd.GeoDataFrame:
     first_nodes = [l.coords[0] for l in branches.geometry]
     last_nodes = [l.coords[-1] for l in branches.geometry]
     duplicate_ids = np.isclose(first_nodes, last_nodes)

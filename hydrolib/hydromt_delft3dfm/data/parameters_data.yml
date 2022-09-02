@@ -1,0 +1,28 @@
+vito_mapping:
+  data_type: DataFrame
+  driver: csv
+  kwargs:
+    index_col: 0
+  nodata:
+    landuse: 0
+    roughness_manning: -999.0
+    infiltcap: -999.0
+  meta:
+    category: landuse
+    source_info: landuse parameters based on vito classification (https://land.copernicus.eu/global/products/lc)
+    source_version: 1.0
+  path: landuse/vito_mapping.csv
+corine_mapping:
+  data_type: DataFrame
+  driver: csv
+  kwargs:
+    index_col: 0
+  nodata:
+    landuse: 0
+    roughness_manning: -999.0
+    infiltcap: -999.0
+  meta:
+    category: landuse
+    source_info: landuse parameters based on corine classification (https://land.copernicus.eu/pan-european/corine-land-cover/clc2018)
+    source_version: 1.0
+  path: landuse/corine_mapping.csv

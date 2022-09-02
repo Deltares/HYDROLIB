@@ -17,7 +17,7 @@ __all__ = [
 
 def generate_manholes_on_branches(
     branches: gpd.GeoDataFrame,
-    use_branch_variables: list[str] = ['diameter', 'width'],
+    use_branch_variables: list[str] = ["diameter", "width"],
     bedlevel_shift: float = 0.0,
     id_prefix: str = "",
     id_suffix: str = "",
@@ -64,8 +64,12 @@ def generate_manholes_on_branches(
     # prepare branches
     if branches.index.name is None:  # add temp index
         branches.index.name = "_index"
-    pipes = branches.query('branchType == "pipe" | branchType == "tunnel"') # include both pipes and tunnels
-    channels = branches.query('branchType == "river" | branchType == "Channel"') # include both channels and rivers
+    pipes = branches.query(
+        'branchType == "pipe" | branchType == "tunnel"'
+    )  # include both pipes and tunnels
+    channels = branches.query(
+        'branchType == "river" | branchType == "Channel"'
+    )  # include both channels and rivers
 
     # generate nodes upstream and downstream for every pipe
     _nodes_pipes_up = pd.DataFrame(
@@ -122,17 +126,20 @@ def generate_manholes_on_branches(
         columns=["geometry", channels.index.name],
     )
     _nodes_channels["where"] = _nodes_channels["geometry"].apply(lambda geom: geom.wkb)
-    nodes_pipes = nodes_pipes.loc[~nodes_pipes["where"].isin(_nodes_channels["where"]), :]
+    nodes_pipes = nodes_pipes.loc[
+        ~nodes_pipes["where"].isin(_nodes_channels["where"]), :
+    ]
 
     # manhole generated
-    manholes_generated = gpd.GeoDataFrame(nodes_pipes.drop(columns="where"), crs = branches.crs)
+    manholes_generated = gpd.GeoDataFrame(
+        nodes_pipes.drop(columns="where"), crs=branches.crs
+    )
 
     # add manholeId
-    manholes_generated.loc[:, 'manholeId'] = [
-        f"{id_prefix}{x}{id_suffix}"
-        for x in range(len(manholes_generated))
+    manholes_generated.loc[:, "manholeId"] = [
+        f"{id_prefix}{x}{id_suffix}" for x in range(len(manholes_generated))
     ]
-    manholes_generated.set_index('manholeId')
+    manholes_generated.set_index("manholeId")
 
     # update manholes generated to pipes
     pipes_updated = _update_pipes_from_manholes(manholes_generated, pipes)
@@ -147,7 +154,10 @@ def generate_manholes_on_branches(
 
 def _update_pipes_from_manholes(manholes: gpd.GeoDataFrame, pipes: gpd.GeoDataFrame):
     """assign manholes 'manholeId' to pipes ['manhole_up', 'manhole_dn'] based on geometry"""
-    manholes_dict = {(m.geometry.x, m.geometry.y): manholes.loc[mi, 'manholeId'] for mi, m in manholes.iterrows()}
+    manholes_dict = {
+        (m.geometry.x, m.geometry.y): manholes.loc[mi, "manholeId"]
+        for mi, m in manholes.iterrows()
+    }
     if not {"manhole_up", "manhole_dn"}.issubset(pipes.columns):
         pipes["manhole_up"] = None
         pipes["manhole_dn"] = None
