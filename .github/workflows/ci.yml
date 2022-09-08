@@ -21,13 +21,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
           environment-file: environment.yaml
 
+      - name: Autoformat code if the check fails
+        run: |
+          pip install isort black pytest pytest-cov
+
       - name: Test with pytest
         run: pytest --cov . --cov-report xml:coverage-reports/coverage-hydrolib.xml --junitxml=xunit-reports/xunit-result-hydrolib.xml
 
       - name: Autoformat code if the check fails
         if: ${{ (matrix.os == 'ubuntu-18.04') && (matrix.python-version == 3.8) }}
         run: |
-          pip install isort black
           isort .
           black .
           git config --global user.name '${{ github.actor }}'
