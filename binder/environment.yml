@@ -1,0 +1,12 @@
+name: hydrologic
+ 
+channels:
+  - defaults
+
+dependencies:
+  - python>=3.7
+  - gdal
+  - rasterio
+  - pip
+  - pip:
+    - -r requirements.txt
