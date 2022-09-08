@@ -9,4 +9,4 @@ dependencies:
   - rasterio
   - pip
   - pip:
-    - -r pip_requirements.txt
+    - -r requirements.txt
