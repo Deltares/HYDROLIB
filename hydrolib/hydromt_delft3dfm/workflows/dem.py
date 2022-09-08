@@ -78,6 +78,7 @@ def get_rivbank_dz(
     (HAND) values adjecent to river cells. For each feature in `gdf_riv` the nearest
     river bank cells are identified and the bank heigth is estimated based on a quantile
     value `q`.
+    
     Parameters
     ----------
     gdf_riv : gpd.GeoDataFrame
@@ -90,6 +91,7 @@ def get_rivbank_dz(
         Minimum threshold for valid river bank cells, by default 20
     q : float, optional
         quantile [0-100] for river bank estimate, by default 25.0
+    
     Returns
     -------
     rivbank_dz: np.ndarray
@@ -160,6 +162,7 @@ def get_river_bathymetry(
     """Estimate river bedlevel zb using gradually varying flow (gvf), manning's equation
     (manning) or a power-law relation (powlaw) rivdph_method. The river is based on flow
     directions with and minimum upstream area threshold.
+
     Parameters
     ----------
     ds : xr.Dataset
@@ -199,6 +202,7 @@ def get_river_bathymetry(
         If True (default) fix the river depth in estuaries based on the upstream river depth.
     constrain_rivbed : bool, optional
         If True (default) correct the river bed level to be hydrologically correct
+    
     Returns
     -------
     gdf_riv: gpd.GeoDataFrame

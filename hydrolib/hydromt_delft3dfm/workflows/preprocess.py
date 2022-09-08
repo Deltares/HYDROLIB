@@ -60,15 +60,18 @@ def snap_branch_ends(
     branches : gpd.GeoDataFrame
     offset : float [m]
         Maximum distance between end points. If the distance is larger, they are not snapped.
-    subset : list
+    subsets : list
         A list of branch id subset to perform snapping (forced snapping)
-    max_points: int
+    max_points : int, optional
         maximum points allowed in a group.
-        if snapping branch ends only, use max_points = 2
-        if not specified, branch intersections will also be snapped
+        if snapping branch ends only, use max_points = 2.
+        if not specified, branch intersections will also be snapped.
+        Defaults to np.inf
+    
     Returns
+    -------
     branches : gpd.GeoDataFrame
-        Branches updated with snapped geometry
+        Branches updated with snapped geometry.
     """
     # Collect endpoints
     _endpoints = []

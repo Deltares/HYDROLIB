@@ -6,7 +6,7 @@ from os import times
 from os.path import basename, isfile, join
 from pathlib import Path
 from turtle import st
-from typing import Union, List, Tuple
+from typing import Optional, Union, List, Tuple
 
 
 import geopandas as gpd
@@ -21,17 +21,17 @@ from shapely.geometry import box, Point
 from datetime import datetime, timedelta
 
 from hydrolib.core.io.storagenode.models import StorageNodeModel
-from hydrolib.core.io.crosssection.models import *
-from hydrolib.core.io.friction.models import *
-from hydrolib.core.io.ext.models import *
-from hydrolib.core.io.bc.models import *
+from hydrolib.core.io.crosssection.models import CrossLocModel, CrossDefModel
+from hydrolib.core.io.friction.models import FrictionModel
+from hydrolib.core.io.ext.models import ExtModel, Boundary
+from hydrolib.core.io.bc.models import ForcingModel
 from hydrolib.core.io.mdu.models import FMModel
-from hydrolib.core.io.net.models import *
+from hydrolib.core.io.net.models import Mesh1d, NetworkModel
 from hydrolib.core.io.inifield.models import IniFieldModel
 from hydrolib.core.io.dimr.models import DIMR, FMComponent, Start
 
 from hydrolib.dhydamo.geometry import common, mesh, viz
-from hydrolib.core.io.gui.models import *
+from hydrolib.core.io.gui.models import BranchModel
 
 from . import DATADIR
 from . import workflows
@@ -1200,7 +1200,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             Note only the points that are within the region polygon will be used.
 
             * Optional variables: ["area", "streetStorageArea", "storageType", "streetLevel"]
-        manholes_defaults_fn : str Path, optional
+        manhole_defaults_fn : str Path, optional
             Path to a csv file containing all defaults values per "branchType".
             Use multiple rows to apply defaults per ["shape", "diameter"/"width"] pairs.
             By default `hydrolib.hydromt_delft3dfm.data.manholes.manholes_defaults.csv` is used.
@@ -1475,7 +1475,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
 
         Parameters
         ----------
-        mesh2D_fn : str Path, optional
+        mesh2d_fn : str Path, optional
             Name of data source for an existing unstructured 2D mesh
         geom_fn : str Path, optional
             Path to a polygon used to generate unstructured 2D mesh
@@ -2148,7 +2148,19 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         branchtype: str,
         node_distance: float = 40.0,
     ):
-        """Add new branches of branchtype to the branches and mesh1d object"""
+        """Add new branches of the specified branchtype to the branches and mesh1d object.
+
+        Parameters
+        ----------
+        new_branches : gpd.GeoDataFrame
+            The new branches.
+        branchtype : str
+            The branch type of the new branches.
+        node_distance : float, optional
+            This parameter is not used. Defaults to 40.0.
+        
+        
+        """
 
         snap_offset = self._network_snap_offset
 
@@ -2329,8 +2341,15 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         self.set_geoms(crosssections, name="crosssections")
 
     @property
-    def boundaries(self):
-        """Quick accessor to boundaries geoms"""
+    def boundaries(self) -> gpd.GeoDataFrame:
+        """Quick accessor to boundaries geoms
+        
+        Returns
+        -------
+        gdf : gpd.GeoDataFrame
+            The geo data frame containing the boundaries.
+        """
+    
         if "boundaries" in self.geoms:
             gdf = self.geoms["boundaries"]
         else:

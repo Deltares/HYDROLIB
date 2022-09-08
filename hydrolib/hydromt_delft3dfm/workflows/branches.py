@@ -43,11 +43,11 @@ def update_data_columns_attributes(
     ----------
     branches : gpd.GeoDataFrame
         Branches.
-    attribute : int or pd.DataFrame
+    attributes : int or pd.DataFrame
         Values of the attribute. Either int of float for fixed value for all or a pd.DataFrame with values per
         "branchType", "shape" and "width" (column names of the DataFrame).
-    attribute_name : str
-        Name of the new attribute column in branches.
+    brtype : str
+        The branch type. Defaults to None.
 
     Returns
     -------
