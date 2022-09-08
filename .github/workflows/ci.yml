@@ -22,13 +22,14 @@ jobs:
           environment-file: environment.yaml
 
       - name: Test with pytest
-        run: poetry run pytest --cov . --cov-report xml:coverage-reports/coverage-hydrolib.xml --junitxml=xunit-reports/xunit-result-hydrolib.xml
+        run: pytest --cov . --cov-report xml:coverage-reports/coverage-hydrolib.xml --junitxml=xunit-reports/xunit-result-hydrolib.xml
 
       - name: Autoformat code if the check fails
         if: ${{ (matrix.os == 'ubuntu-18.04') && (matrix.python-version == 3.8) }}
         run: |
-          poetry run isort .
-          poetry run black .
+          pip install isort black
+          isort .
+          black .
           git config --global user.name '${{ github.actor }}'
           git config --global user.email '${{ github.actor }}@users.noreply.github.com'
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
