@@ -14,6 +14,10 @@ hydrolib-core = "0.2.1"
 shapely = "^1.8"
 matplotlib = "^3.5.2"
 hydromt = "^0.4.5"
+numpy = "^1.23"
+openpyxl = "^3"
+pyflwdir = "^0.5.3"
+scipy = "^1.9"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
@@ -80,6 +84,13 @@ pandas = { channel = "conda-forge" }
 geopandas = { channel = "conda-forge" }
 xarray = { channel = "conda-forge" }
 hydrolib-core = { channel = "pip" }
+shapely = { channel = "conda-forge" }
+matplotlib = { channel = "conda-forge" }
+hydromt = { channel = "pip" }
+numpy = { channel = "conda-forge" }
+openpyxl = { channel = "conda-forge" }
+pyflwdir = { channel = "pip" }
+scipy = { channel = "conda-forge" }
 
 [tool.poetry.plugins."hydromt.models"]
 dflowfm = "hydrolib.hydromt_delft3dfm.dflowfm:DFlowFMModel"

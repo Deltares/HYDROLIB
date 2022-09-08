@@ -13,12 +13,10 @@ import geopandas as gpd
 import hydromt
 import numpy as np
 import pandas as pd
-import pyproj
 import xarray as xr
 import xugrid as xu
 from hydromt.models import MeshModel
 from hydromt.models.model_auxmaps import AuxmapsMixin
-from rasterio.warp import transform_bounds
 from shapely.geometry import box, Point
 from datetime import datetime, timedelta
 
