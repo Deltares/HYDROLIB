@@ -165,8 +165,8 @@ def mesh1d_add_branch(
         LineString, MultiLineString, List[Union[LineString, MultiLineString]]
     ],
     node_distance: Union[float, int],
-    branch_names: Union[str, list[str]] = None,
-    branch_orders: Union[float, int, list[Union[float, int]]] = None,
+    branch_names: Union[str, List[str]] = None,
+    branch_orders: Union[float, int, List[Union[float, int]]] = None,
 ) -> None:
     """Add branch to 1d mesh, from a (list of) (Multi)LineString geometry.
     The branch is discretized with the given node distance.
@@ -177,8 +177,8 @@ def mesh1d_add_branch(
         network (Network): Network to which the branch is added
         branches (Union[ LineString, MultiLineString, List[Union[LineString, MultiLineString]] ]): Geometry object(s) for which the branch is created
         node_distance (Union[float, int]): Preferred node distance between branch nodes
-        branch_names (Union[str, list[str]]): Branch names to be used in the mesh1d object
-        branch_orfers (Union[float, int, list[Union[float, int]]]): Branch orders to be used in the mesh1d object
+        branch_names (Union[str, List[str]]): Branch names to be used in the mesh1d object
+        branch_orfers (Union[float, int, List[Union[float, int]]]): Branch orders to be used in the mesh1d object
     """
 
     if node_distance == np.inf:
