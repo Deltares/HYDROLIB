@@ -126,9 +126,8 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
             gdf_union_branch["coords_start"] = [
                 xy.coords[0] for xy in gdf_union_branch["geometry"].tolist()
             ]
-            
-            
-            for i in range(len(gdf_union_branch)): # todo: i never used
+
+            for i in range(len(gdf_union_branch)):  # todo: i never used
                 # find correct first linepart, based on cooridinates
                 part = gdf_union_branch[
                     gdf_union_branch["coords_start"] == coords_start
