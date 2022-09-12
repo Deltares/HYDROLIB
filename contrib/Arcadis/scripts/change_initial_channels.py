@@ -91,6 +91,7 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
         list containing new initial water levels.
 
     """
+    nodata_value = -9999
 
     gdf1 = gdf_branches[["id", "geometry"]]
     gdf2 = gdf_areas[[level_field, "geometry"]]
@@ -115,7 +116,7 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
         gdf_union_branch = gdf_union[gdf_union["id"] == branch_id]
         chainage = 0
         if len(gdf_union_branch) == 1:  # speed up processing
-            if gdf_union_branch[level_field].iloc[0] > -9999:
+            if gdf_union_branch[level_field].iloc[0] > nodata_value:
                 initials[branch_id]["chainage"] += [chainage]
                 initials[branch_id]["values"] += [gdf_union_branch[level_field].iloc[0]]
         else:  # branches split into multiple parts
@@ -125,7 +126,9 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
             gdf_union_branch["coords_start"] = [
                 xy.coords[0] for xy in gdf_union_branch["geometry"].tolist()
             ]
-            for i in range(len(gdf_union_branch)):
+            
+            
+            for i in range(len(gdf_union_branch)): # todo: i never used
                 # find correct first linepart, based on cooridinates
                 part = gdf_union_branch[
                     gdf_union_branch["coords_start"] == coords_start
@@ -134,7 +137,7 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
                     break
                 part = part.iloc[0]
                 if (
-                    part[level_field] > -9999
+                    part[level_field] > nodata_value
                 ):  # only add when not nan since D-HYDRO does not support nan
                     initials[branch_id]["chainage"] += [chainage]
                     initials[branch_id]["values"] += [part[level_field]]
