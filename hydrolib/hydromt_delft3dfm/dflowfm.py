@@ -677,8 +677,8 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             Name of data source for crosssections, see data/data_sources.yml.
             If ``crosssections_type`` = "xyzpoints"
             * Required variables: [crsId, order, z]
-            If ``crosssections_type`` = "points"
-            * Required variables: [crsId, order, z]
+            If ``crosssections_type`` = "point"
+            * Required variables: [crsId, shape, shift]
             By default None, crosssections will be set from branches
         crosssections_type : str, optional
             Type of crosssections read from crosssections_fn. One of ["xyzpoints"].
@@ -778,7 +778,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # setup crosssections
         if crosssections_type is None:
             crosssections_type = "branch"  # TODO: maybe assign a specific one for river, like branch_river
-        assert {crosssections_type}.issubset({"xyzpoints", "branch"})
+        assert {crosssections_type}.issubset({"xyzpoints", "point", "branch"})
         crosssections = self._setup_crosssections(
             branches=rivers,
             crosssections_fn=crosssections_fn,
@@ -1066,14 +1066,11 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         midpoint=True,
     ):
         """Prepares 1D crosssections.
-        crosssections can be set from branchs, xyzpoints, # TODO to be extended also from dem data for rivers/channels?
+        crosssections can be set from branches, points and xyzpoints, # TODO to be extended also from dem data for rivers/channels?
         Crosssection must only be used after friction has been setup.
 
         Crosssections are read from ``crosssections_fn``.
         Crosssection types of this file is read from ``crosssections_type``
-        If ``crosssections_type`` = "xyzpoints":
-            * Required variables: crsId, order, z
-            * Optional variables:
 
         If ``crosssections_fn`` is not defined, default method is ``crosssections_type`` = 'branch',
         meaning that branch attributes will be used to derive regular crosssections.
@@ -1089,15 +1086,21 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             geodataframe of the branches to apply crosssections.
             * Required variables: [branchId, branchType, branchOrder]
             * Optional variables: [material, friction_type, friction_value]
-        crosssections_fn : str Path, optional
+        crosssections_fn : str Path, optional # TODO: allow multiple crosssection filenames
             Name of data source for crosssections, see data/data_sources.yml.
             If ``crosssections_type`` = "xyzpoints"
             Note that only points within the region + 1000m buffer will be read.
             * Required variables: crsId, order, z
             * Optional variables:
-            If ``crosssections_type`` = "points"
-            * Required variables: crsId, order, z
+            If ``crosssections_type`` = "point"
+            * Required variables: crsId, shape, shift  #TODO: do we need frictions from crosssection functions?
             * Optional variables:
+                if shape = 'rectangle': 'width', 'height', 'closed'
+                if shape = 'trapezoid': 'width', 't_width', 'height', 'closed'
+                if shape = 'yz': 'yzcount','ycoordinates','zcoordinates','closed'
+                if shape = 'zw': 'numlevels', 'levels', 'flowwidths','totalwidths', 'closed'.
+                if shape = 'zwRiver': Not Supported
+                Note that list input must be strings seperated by a whitespace ''.
             By default None, crosssections will be set from branches
         crosssections_type : {'branch', 'xyz', 'point'}
             Type of crosssections read from crosssections_fn. One of ["xyzpoints"].
@@ -1106,8 +1109,6 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
 
         # setup crosssections
         self.logger.info(f"Preparing 1D crosssections.")
-
-        # TODO: allow multiple crosssection filenamess
 
         if crosssections_fn is None and crosssections_type == "branch":
             # TODO: set a seperate type for rivers because other branch types might require upstream/downstream
@@ -1131,7 +1132,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
                     f"No {crosssections_fn} 1D xyz crosssections found within domain"
                 )
                 return None
-            valid_attributes = workflows.helper.heck_gpd_attributes(
+            valid_attributes = workflows.helper.check_gpd_attributes(
                 gdf_cs, required_columns=["crsId", "order", "z"]
             )
             if not valid_attributes:
@@ -1152,10 +1153,41 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             gdf_cs = workflows.set_xyz_crosssections(branches, gdf_cs)
 
         elif crosssections_type == "point":
-            # add setup point crosssections here
-            raise NotImplementedError(
-                f"Method {crosssections_type} is not implemented."
+
+            # Read the crosssection data
+            gdf_cs = self.data_catalog.get_geodataframe(
+                crosssections_fn,
+                geom=self.region,
+                buffer=100,
+                predicate="contains",
             )
+
+            # check if feature valid
+            if len(gdf_cs) == 0:
+                self.logger.warning(
+                    f"No {crosssections_fn} 1D point crosssections found within domain"
+                )
+                return None
+            valid_attributes = workflows.helper.check_gpd_attributes(
+                gdf_cs, required_columns=["crsId", "shape", "shift"]
+            )
+            if not valid_attributes:
+                self.logger.error(
+                    f"Required attributes [crsId, shape, shift] in point crosssections do not exist"
+                )
+                return None
+
+            # assign id
+            id_col = "crsId"
+            gdf_cs.index = gdf_cs[id_col]
+            gdf_cs.index.name = id_col
+
+            # reproject to model crs
+            gdf_cs.to_crs(self.crs)
+
+            # set crsloc and crsdef attributes to crosssections
+            gdf_cs = workflows.set_point_crosssections(branches, gdf_cs)
+
         else:
             raise NotImplementedError(
                 f"Method {crosssections_type} is not implemented."
@@ -1885,10 +1917,12 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # write 1D mesh
         # self._write_mesh1d()  # FIXME None handling
         # write 2d mesh
-        self._write_mesh2d()
+        if self._mesh:
+            self._write_mesh2d()
         # TODO: create self._write_mesh2d() using hydrolib-core funcitonalities
         # write branches
-        self._write_branches()
+        if self.pipes:
+            self._write_branches()
         # write friction
         self._write_friction()  # FIXME: ask Rinske, add global section correctly
         # write crosssections
