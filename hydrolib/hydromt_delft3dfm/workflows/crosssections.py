@@ -321,21 +321,21 @@ def set_point_crosssections(
         if shape == 'trapezoid':
             trapezoid_crs = crosssections.loc[crosssections["shape"] == shape, :]
             valid_attributes = check_gpd_attributes(
-                trapezoid_crs, required_columns=["width", "height", "t_width", "closed"]
+                trapezoid_crs, required_columns=["branch_id", "branch_offset", 'frictionId', "width", "height", "t_width", "closed"]
             )
             crosssections_ = pd.concat([crosssections_, _set_trapezoid_crs(trapezoid_crs)])
         elif shape == 'zw':
             zw_crs = crosssections.loc[crosssections["shape"] == shape, :]
             valid_attributes = check_gpd_attributes(
-                trapezoid_crs, required_columns=["numlevels", "levels", "flowwidths","totalwidths", "closed"]
+                trapezoid_crs, required_columns=["branch_id", "branch_offset", 'frictionId',"numlevels", "levels", "flowwidths","totalwidths", "closed"]
             )
             crosssections_ = pd.concat([crosssections_, _set_zw_crs(zw_crs)])
         elif shape == 'yz':
-            zw_crs = crosssections.loc[crosssections["shape"] == shape, :]
+            yz_crs = crosssections.loc[crosssections["shape"] == shape, :]
             valid_attributes = check_gpd_attributes(
-                trapezoid_crs, required_columns=["yzcount", "ycoordinates", "zcoordinates", "closed"]
+                trapezoid_crs, required_columns=["branch_id", "branch_offset", 'frictionId',"yzcount", "ycoordinates", "zcoordinates", "closed"]
             )
-            crosssections_ = pd.concat([crosssections_, _set_zw_crs(zw_crs)])
+            crosssections_ = pd.concat([crosssections_, _set_yz_crs(yz_crs)])
         else:
             logger.error("crossection shape not supported. For now only support trapezoid, zw and yz")
 
@@ -424,7 +424,7 @@ def _set_yz_crs(crosssections: gpd.GeoDataFrame):
     for c in crosssections.itertuples():
         crsdefs.append({
             "crsdef_id": c.Index,
-            "crsdef_type": "zw",
+            "crsdef_type": "yz",
             "crsdef_branchId": c.branch_id,  # FIXME test if leave this out
             "crsdef_yzcount": c.yzcount,
             "crsdef_ycoordinates": c.ycoordinates,
@@ -472,6 +472,7 @@ def parse_sobek_crs(filename, logger = logger):
     import shlex
     from pathlib import Path
     import pandas as pd
+    import numpy as np
 
     # check file
     if Path(filename).name.lower().endswith('.def'):
