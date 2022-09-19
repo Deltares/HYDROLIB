@@ -13,10 +13,12 @@ from hydrolib.dhydamo.geometry import common, mesh, viz
 from hydrolib.dhydamo.geometry.models import GeometryList
 
 from hydrolib.dhydamo.core.hydamo import HyDAMO
+import sys
+from tests.dhydamo.io import test_from_hydamo
 
-from tests.dhydamo.core import test_dhydamo
-
-hydamo_data_path = Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
+hydamo_data_path = (
+    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
+)
 
 
 @pytest.mark.plots
@@ -50,7 +52,9 @@ def test_create_2d_rectilinear():
     # viz.plot_network(network)
 
 
-def _get_circle_polygon(radius, n_points: int = 361, xoff: float = 0, yoff: float = 0) -> Polygon:
+def _get_circle_polygon(
+    radius, n_points: int = 361, xoff: float = 0, yoff: float = 0
+) -> Polygon:
     theta = np.linspace(0, 2 * np.pi, n_points)
     coords = np.c_[np.sin(theta), np.cos(theta)] * radius
     coords[:, 0] += xoff
@@ -351,7 +355,9 @@ def test_2d_clip_outside_polygon():
     dmo = DeleteMeshOption.ALL_FACE_CIRCUMCENTERS
     mesh.mesh2d_add_rectilinear(network, rectangle, dx=1, dy=1, deletemeshoption=dmo)
 
-    clipgeo = box(-8, -8, 8, 8).difference(MultiPolygon([box(-6, -1, -4, 2), box(4, 5, 7, 7)]))
+    clipgeo = box(-8, -8, 8, 8).difference(
+        MultiPolygon([box(-6, -1, -4, 2), box(4, 5, 7, 7)])
+    )
 
     mesh.mesh2d_clip(network, clipgeo, deletemeshoption=1, inside=False)
 
@@ -395,24 +401,17 @@ def test_2d_clip_inside_multipolygon():
 
 
 @pytest.mark.plots
-def test_1d_add_branch():
+def test_1d_add_branch_from_linestring():
 
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
 
     x = np.linspace(0, 20, 101)
-    branches = [
-        LineString(np.c_[x, np.sin(x / 3) + 5]),
-        MultiLineString(
-            [
-                np.array([[0, 0], [10, 10]]),
-                np.array([[-3, -3], [-1, -5]]),
-            ]
-        ),
-    ]
+    branch = LineString(np.c_[x, np.sin(x / 3) + 5])
 
-    mesh.mesh1d_add_branch(network, branches, node_distance=3)
+    # a multilinestring does not work...
+    mesh.mesh1d_add_branch_from_linestring(network, branch, node_distance=3)
 
     # Plot to verify
     fig, ax = plt.subplots()
@@ -420,7 +419,7 @@ def test_1d_add_branch():
     ax.set_aspect(1.0)
     viz.plot_network(network, ax=ax)
     ax.autoscale_view()
-    for ls in common.as_linestring_list(branches):
+    for ls in common.as_linestring_list(branch):
         ax.plot(*ls.coords.xy, color="k", ls="-", lw=3, alpha=0.2)
     plt.show()
 
@@ -431,8 +430,9 @@ def _prepare_1d2d_mesh():
     network = fmmodel.geometry.netfile.network
 
     # Generate 1d
-    branch = [LineString([[-9, -3], [0, 4]]), LineString([[0, 4], [10, -10]])]
-    branchids = mesh.mesh1d_add_branch(network, branches=branch, node_distance=1)
+    branch = LineString([[-9, -3], [0, 4]])
+
+    branchids = mesh.mesh1d_add_branch_from_linestring(network, branch, node_distance=1)
 
     # Generate 2d
     areas = MultiPolygon([box(-8, -10, 8, -2), box(-8, 2, 8, 10)])
@@ -440,7 +440,9 @@ def _prepare_1d2d_mesh():
     mesh.mesh2d_add_rectilinear(network, areas, dx=0.5, dy=0.5)
     mesh.mesh2d_clip(network, hole)
 
-    within = box(-10, -10, 12, 10).difference(LineString([[-2, -10], [2, 10]]).buffer(2))
+    within = box(-10, -10, 12, 10).difference(
+        LineString([[-2, -10], [2, 10]]).buffer(2)
+    )
 
     return network, within, branchids
 
@@ -452,22 +454,24 @@ def test_links1d2d_add_links_1d_to_2d():
 
     # Generate all links
     mesh.links1d2d_add_links_1d_to_2d(network)
-    assert len(network._link1d2d.link1d2d) == 33
+    assert len(network._link1d2d.link1d2d) == 14
     network._link1d2d.clear()
 
     # Generate links within polygon, with smaller distance factor, with max length, and for the first branch
-    mesh.links1d2d_add_links_1d_to_2d(network, within=within, branchids=[branchids[0]])
+    mesh.links1d2d_add_links_1d_to_2d(network, within=within, branchids=[branchids])
     assert len(network._link1d2d.link1d2d) == 13
     network._link1d2d.clear()
 
     # Generate links within polygon, with smaller distance factor, with max length, and for the first branch
-    mesh.links1d2d_add_links_1d_to_2d(network, within=within, max_length=2, branchids=[branchids[0]])
+    mesh.links1d2d_add_links_1d_to_2d(
+        network, within=within, max_length=2, branchids=[branchids]
+    )
     assert len(network._link1d2d.link1d2d) == 7
     network._link1d2d.clear()
 
     # Generate links within polygon
     mesh.links1d2d_add_links_1d_to_2d(network, within=within)
-    assert len(network._link1d2d.link1d2d) == 28
+    assert len(network._link1d2d.link1d2d) == 13
 
     # Plot to verify
     fig, ax = plt.subplots(figsize=(5, 5))
@@ -490,7 +494,7 @@ def test_links1d2d_add_links_2d_to_1d_embedded():
 
     # Generate all links
     mesh.links1d2d_add_links_2d_to_1d_embedded(network)
-    assert len(network._link1d2d.link1d2d) == 35
+    assert len(network._link1d2d.link1d2d) == 13
     network._link1d2d.clear()
 
     # TODO: The node mask does not seem to work. Fix in meshkernel
@@ -503,7 +507,7 @@ def test_links1d2d_add_links_2d_to_1d_embedded():
 
     # Generate links within polygon
     mesh.links1d2d_add_links_2d_to_1d_embedded(network, within=within)
-    assert len(network._link1d2d.link1d2d) == 22
+    assert len(network._link1d2d.link1d2d) == 5
 
     # Plot to verify
     fig, ax = plt.subplots(figsize=(5, 5))
@@ -526,29 +530,31 @@ def test_links1d2d_add_links_2d_to_1d_lateral():
 
     # Generate all links
     mesh.links1d2d_add_links_2d_to_1d_lateral(network)
-    assert len(network._link1d2d.link1d2d) == 55
+    assert len(network._link1d2d.link1d2d) == 30
     network._link1d2d.clear()
 
     # Generate links within polygon and with smaller distance factor
     mesh.links1d2d_add_links_2d_to_1d_lateral(network, within=within, dist_factor=1.5)
-    assert len(network._link1d2d.link1d2d) == 31
+    assert len(network._link1d2d.link1d2d) == 20
     network._link1d2d.clear()
 
     # Generate links within polygon, with smaller distance factor, and with max length
-    mesh.links1d2d_add_links_2d_to_1d_lateral(network, within=within, dist_factor=1.5, max_length=2)
-    assert len(network._link1d2d.link1d2d) == 20
+    mesh.links1d2d_add_links_2d_to_1d_lateral(
+        network, within=within, dist_factor=1.5, max_length=2
+    )
+    assert len(network._link1d2d.link1d2d) == 11
     network._link1d2d.clear()
 
     # Generate links within polygon, with smaller distance factor, with max length, and for the first branch
     mesh.links1d2d_add_links_2d_to_1d_lateral(
-        network, within=within, dist_factor=1.5, max_length=2, branchids=[branchids[0]]
+        network, within=within, dist_factor=1.5, max_length=2, branchids=[branchids]
     )
     assert len(network._link1d2d.link1d2d) == 11
     network._link1d2d.clear()
 
     # Generate links within polygon
     mesh.links1d2d_add_links_2d_to_1d_lateral(network, within=within)
-    assert len(network._link1d2d.link1d2d) == 47
+    assert len(network._link1d2d.link1d2d) == 24
 
     # Plot the final result verify
     fig, ax = plt.subplots(figsize=(5, 5))
@@ -588,7 +594,7 @@ def test_linkd1d2d_remove_links_within_polygon():
     plt.show()
 
 
-def _prepare_hydamo(culverts: bool=False):
+def _prepare_hydamo(culverts: bool = False):
 
     # initialize a hydamo object
     extent_file = hydamo_data_path / "OLO_stroomgebied_incl.maas.shp"
@@ -600,41 +606,51 @@ def _prepare_hydamo(culverts: bool=False):
     assert gpkg_file.exists()
 
     # read branchs
-    hydamo.branches.read_gpkg_layer(str(gpkg_file), layer_name="HydroObject", index_col="code")
+    hydamo.branches.read_gpkg_layer(
+        str(gpkg_file), layer_name="HydroObject", index_col="code"
+    )
 
     # Read management device
     hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
 
     # read culverts
     if culverts:
-        hydamo.culverts.read_gpkg_layer(gpkg_file, layer_name="DuikerSifonHevel", index_col="code")
+        hydamo.culverts.read_gpkg_layer(
+            gpkg_file, layer_name="DuikerSifonHevel", index_col="code"
+        )
         hydamo.culverts.snap_to_branch(hydamo.branches, snap_method="ends", maxdist=5)
         hydamo.culverts.dropna(axis=0, inplace=True, subset=["branch_offset"])
 
         # Connect to management_device
-        idx = hydamo.management_device.loc[hydamo.management_device["duikersifonhevelid"].notnull()].index
+        idx = hydamo.management_device.loc[
+            hydamo.management_device["duikersifonhevelid"].notnull()
+        ].index
         for i in idx:
             globid = hydamo.culverts.loc[
-                hydamo.culverts["code"].eq(hydamo.management_device.at[i, "duikersifonhevelid"]), "globalid"
+                hydamo.culverts["code"].eq(
+                    hydamo.management_device.at[i, "duikersifonhevelid"]
+                ),
+                "globalid",
             ].values[0]
             hydamo.management_device.at[i, "duikersifonhevelid"] = globid
 
         # Convert culverts
-        hydamo.structures.convert.culverts(hydamo.culverts, management_device=hydamo.management_device)
-
-
+        hydamo.structures.convert.culverts(
+            hydamo.culverts, management_device=hydamo.management_device
+        )
 
     return hydamo
+
 
 @pytest.mark.parametrize(
     "where,fill_option,fill_value,outcome",
     [
         ("face", "interpolate", 10.0, 8629.457),
         ("face", "fill_value", 10.0, 8629.457),
-        ("face", "nearest", None, 9050.678),
-        ("node", "interpolate", 10.0, 6541.3794),
-        ("node", "fill_value", 10.0, 6526.3926),
-        ("node", "nearest", None, 6978.6045),
+        ("face", "nearest", None, 9050.679),
+        ("node", "interpolate", 10.0, 6541.38),
+        ("node", "fill_value", 10.0, 6526.393),
+        ("node", "nearest", None, 6978.605),
     ],
 )
 def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
@@ -659,7 +675,9 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
 
     network = fm.geometry.netfile.network
     mesh.mesh2d_add_triangular(network=network, polygon=parts[0], edge_length=cellsize)
-    mesh.mesh2d_add_rectilinear(network=network, polygon=parts[1], dx=cellsize, dy=cellsize * 1.5)
+    mesh.mesh2d_add_rectilinear(
+        network=network, polygon=parts[1], dx=cellsize, dy=cellsize * 1.5
+    )
 
     # Derive z-values from ahn
     mesh.mesh2d_altitude_from_raster(
@@ -671,13 +689,16 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
         fill_value=fill_value,
     )
 
-    assert getattr(network._mesh2d, f"mesh2d_{where}_z").sum() == np.float32(outcome)
+    assert np.float32(
+        getattr(network._mesh2d, f"mesh2d_{where}_z").sum()
+    ) == np.float32(outcome)
+
 
 def test_mesh1d_add_branches_from_gdf():
 
     # Create full HyDAMO object (use from other test)
-    hydamo = test_dhydamo.test_create_hydamo_object()
-    
+    hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
+
     fm = FMModel()
 
     network = fm.geometry.netfile.network
@@ -699,4 +720,10 @@ def test_mesh1d_add_branches_from_gdf():
         max_dist_to_struc=None,
         structures=structures,
     )
-        
+    # Plot to verify
+    fig, ax = plt.subplots()
+
+    ax.set_aspect(1.0)
+    viz.plot_network(network, ax=ax)
+    ax.autoscale_view()
+    plt.show()

@@ -232,7 +232,7 @@ def mesh1d_add_branch_from_linestring(
 
 def mesh1d_add_branches_from_gdf(
     network: Network,
-    branches,
+    branches: gpd.GeoDataFrame,
     branch_name_col: str,
     node_distance: float,
     max_dist_to_struc: float = None,

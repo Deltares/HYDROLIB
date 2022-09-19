@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Union
+from typing import Union, Any
 
 import geopandas as gpd
 import numpy as np
@@ -13,9 +13,8 @@ from tqdm.auto import tqdm
 
 from hydrolib import dhydamo
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
-from hydrolib.dhydamo.io import fmconverter
+from hydrolib.dhydamo.converters.hydamo2df import *
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
-from hydrolib.dhydamo.io.fmconverter import RoughnessVariant
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +38,17 @@ class HyDAMO:
         self.external_forcings = ExternalForcings(self)
 
         self.storagenodes = StorageNodes(self)
+
+        self.roughness_mapping = {
+            "Chezy": "Chezy",
+            "Manning": "Manning",
+            "StricklerKn": "StricklerNikuradse",
+            "StricklerKs": "Strickler",
+            "White Colebrook": "WhiteColebrook",
+            "Bos en Bijkerk": "deBosBijkerk",
+            "Onbekend": "Strickler",
+            "Overig": "Strickler",
+        }
 
         # Dictionary for roughness definitions
         self.roughness_definitions = {}
@@ -73,14 +83,14 @@ class HyDAMO:
             required_columns=["code", "geometry", "globalid", "profiellijnid"],
         )
         self.profile_roughness = ExtendedDataFrame(
-            required_columns=["code", "globalid", "profielpuntid"]
+            required_columns=["code", "profielpuntid"]
         )
 
         self.profile_line = ExtendedGeoDataFrame(
             geotype=LineString, required_columns=["globalid", "profielgroepid"]
         )
 
-        self.profile_group = ExtendedDataFrame(required_columns=["globalid"])
+        self.profile_group = ExtendedDataFrame(required_columns=[])
 
         self.param_profile = ExtendedDataFrame(
             required_columns=["globalid", "normgeparamprofielid", "hydroobjectid"]
@@ -712,16 +722,15 @@ class CrossSections:
 
         self.get_roughnessname = self.get_roughness_description
 
-        self.convert = fmconverter.CrossSectionsIO(self)
+        self.convert = CrossSectionsIO(self)
 
     def get_roughness_description(self, roughnesstype, value):
 
         if np.isnan(float(value)):
             raise ValueError("Roughness value should not be NaN.")
 
-        # Convert integer to string
-        # if isinstance(roughnesstype, int):
-        #    roughnesstype = hydamo_to_dflowfm.roughness_gml[roughnesstype]
+        # map HyDAMO definition to D-Hydro definition
+        roughnesstype = self.hydamo.roughness_mapping[roughnesstype]
 
         # Get name
         name = f"{roughnesstype}_{float(value)}"
@@ -730,16 +739,10 @@ class CrossSections:
         if name.lower() in map(str.lower, self.hydamo.roughness_definitions.keys()):
             return name
 
-        # Convert roughness type string to integer for dflowfm
-        delft3dfmtype = roughnesstype
-
-        if roughnesstype.lower() == "stricklerks":
-            raise ValueError("Not a valid roughness type.")
-
         # Add to dict
         self.hydamo.roughness_definitions[name] = {
             "frictionid": name,
-            "frictiontype": delft3dfmtype,
+            "frictiontype": roughnesstype,
             "frictionvalue": value,
         }
 
@@ -1002,16 +1005,16 @@ class CrossSections:
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def crosssection_to_yzprofiles(
         self,
-        crosssections: ExtendedGeoDataFrame,
+        crosssections: Union[gpd.GeoDataFrame, ExtendedGeoDataFrame],
         roughness: ExtendedDataFrame,
-        branches: ExtendedGeoDataFrame,
+        branches: Union[ExtendedGeoDataFrame, None],
         roughness_variant: RoughnessVariant = None,
     ) -> dict:
 
         """
         Function to convert hydamo cross sections 'dwarsprofiel' to
         dflowfm input.
-        d
+
         Parameters
         ----------
         crosssections : gpd.GeoDataFrame
@@ -1256,7 +1259,7 @@ class ExternalForcings:
         self.lateral_nodes = {}
         self.pattern = "^[{]?[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}[}]?$"
 
-        self.convert = fmconverter.ExternalForcingsIO(self)
+        self.convert = ExternalForcingsIO(self)
 
     def set_initial_waterlevel(self, level, polygon=None, name=None, locationtype="1d"):
         """
@@ -1405,7 +1408,8 @@ class ExternalForcings:
         )
         get_nearest = KDTree(nodes1d[:, 0:2])
         distance, idx_nearest = get_nearest.query(pt)
-        nodeid = nodes1d[idx_nearest, 2]
+        nodeid = f"{float(nodes1d[idx_nearest,0]):12.6f}_{float(nodes1d[idx_nearest,1]):12.6f}"
+        # nodeid = nodes1d[idx_nearest, 2]
 
         # Convert time to minutes
         if isinstance(series, pd.Series):
@@ -1462,7 +1466,11 @@ class ExternalForcings:
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def add_lateral(
-        self, id: str, branchid: str, chainage: str, discharge: Union[pd.Series, str]
+        self,
+        id: str,
+        branchid: str,
+        chainage: str,
+        discharge: Union[pd.Series, float, str],
     ) -> None:
         """Add a lateral to an FM model
 
@@ -1471,7 +1479,7 @@ class ExternalForcings:
             name (str): name of the node
             branchid (str): branchid it is snapped to
             chainage (str): chainage on the branch
-            discharge (str, or pd.Series): discharge type: REALTIME when linked to RR, or float (constant value) or a pd.Series with time index
+            discharge (str, float, or pd.Series): discharge type: REALTIME when linked to RR, or float (constant value) or a pd.Series with time index
         """
         # Convert time to minutes
         if isinstance(discharge, pd.Series):
@@ -1482,10 +1490,8 @@ class ExternalForcings:
             startdate = pd.datetime.strftime(discharge.index[0], "%Y-%m-%d %H:%M:%S")
         else:
             times = None
-            values = discharge
+            values = None
             startdate = "0000-00-00 00:00:00"
-            if discharge != "realtime":
-                discharge = None
 
         self.lateral_nodes[id] = {
             "id": id,
@@ -1514,7 +1520,7 @@ class Structures:
         self.pumps_df = pd.DataFrame()
         self.compounds_df = pd.DataFrame()
 
-        self.convert = fmconverter.StructuresIO(self)
+        self.convert = StructuresIO(self)
 
     def check_branchid_chainage(self, branchid, chainage):
         # Check if the ID exists
@@ -1677,6 +1683,9 @@ class Structures:
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
 
+        # map HyDAMO definition to D-Hydro definition
+        frictiontype = self.hydamo.roughness_mapping[frictiontype]
+
         dct = pd.DataFrame(
             {
                 "id": id,
@@ -1715,34 +1724,32 @@ class Structures:
         valveopeningheight: float = 0,
         relopening: list = None,
         losscoeff: list = None,
-        frictiontype: str = None,
-        frictionvalue: float = None,
+        bedfrictiontype: str = None,
+        bedfriction: float = None,
     ) -> None:
-
-        # roughnessname = self.hydamo.crosssections.get_roughness_description(
-        #     frictiontype, frictionvalue
-        # )
 
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
 
         if crosssection["shape"] == "circle":
             definition = self.hydamo.crosssections.add_circle_definition(
-                crosssection["diameter"], frictiontype, frictionvalue, name=id
+                crosssection["diameter"], bedfrictiontype, bedfriction, name=id
             )
         elif crosssection["shape"] == "rectangle":
             definition = self.hydamo.crosssections.add_rectangle_definition(
                 crosssection["height"],
                 crosssection["width"],
                 crosssection["closed"],
-                frictiontype,
-                frictionvalue,
+                bedfrictiontype,
+                bedfriction,
                 name=id,
             )
         else:
             raise NotImplementedError(
                 f'Cross section with shape "{crosssection["shape"]}" not implemented.'
             )
+
+        bedfrictiontype = self.hydamo.roughness_mapping[bedfrictiontype]
 
         dct = pd.DataFrame(
             {
@@ -1756,6 +1763,8 @@ class Structures:
                 "inletlosscoeff": inletlosscoeff,
                 "outletlosscoeff": outletlosscoeff,
                 "csdefid": definition,
+                "bedfrictiontype": bedfrictiontype,
+                "bedfriction": bedfriction,
                 "allowedflowdir": allowedflowdir,
                 "valveonoff": valveonoff,
                 "numlosscoeff": numlosscoeff,
@@ -1928,7 +1937,10 @@ class ObservationPoints:
         obs1d.rename(
             columns={"branch_id": "branchid", "branch_offset": "chainage"}, inplace=True
         )
+
         obs = obs1d.append(obs2d, sort=True) if locationTypes is not None else obs1d
+
+        obs.dropna(how="all", axis=1, inplace=True)
 
         # Add to dataframe
         self.observation_points = obs

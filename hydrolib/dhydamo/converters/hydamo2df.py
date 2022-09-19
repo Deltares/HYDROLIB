@@ -1,12 +1,12 @@
 import logging
 from enum import Enum
-
+from typing import Union
 import numpy as np
 import pandas as pd
 from pydantic import validate_arguments
 from shapely.geometry import Point
 
-from hydrolib.core.io.structure.models import *
+#from hydrolib.core.io.structure.models import *
 from hydrolib.dhydamo.geometry.mesh import *
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
@@ -23,7 +23,9 @@ class CrossSectionsIO:
         self.crosssections = crosssections
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
-    def from_datamodel(self, crsdefs: pd.DataFrame = None, crslocs: pd.DataFrame = None) -> None:
+    def from_datamodel(
+        self, crsdefs: pd.DataFrame = None, crslocs: pd.DataFrame = None
+    ) -> None:
         """ "
         From parsed data models of crsdefs and crslocs
         """
@@ -43,7 +45,9 @@ class CrossSectionsIO:
             for _, crsdef in crsdefs.iterrows():
                 # Set roughness value on default if cross-section has non defined (e.g. culverts)
                 roughtype = (
-                    crsdef["frictionid"].split("_")[0] if isinstance(crsdef["frictionid"], str) else "Chezy"
+                    crsdef["frictionid"].split("_")[0]
+                    if isinstance(crsdef["frictionid"], str)
+                    else "Chezy"
                 )
                 roughval = (
                     float(crsdef["frictionid"].split("_")[-1])
@@ -70,7 +74,9 @@ class CrossSectionsIO:
 
                 elif crsdef["type"] == "trapezium":
                     self.crosssections.add_trapezium_definition(
-                        slope=(crsdef["t_width"] - crsdef["width"]) / 2 / crsdef["height"],
+                        slope=(crsdef["t_width"] - crsdef["width"])
+                        / 2
+                        / crsdef["height"],
                         maximumflowwidth=crsdef["t_width"],
                         bottomwidth=crsdef["width"],
                         closed=crsdef["closed"],
@@ -106,7 +112,7 @@ class CrossSectionsIO:
         profile_lines: ExtendedGeoDataFrame = None,
         param_profile: ExtendedDataFrame = None,
         param_profile_values: ExtendedDataFrame = None,
-        branches: ExtendedGeoDataFrame = None,
+        branches: Union[ExtendedGeoDataFrame, None] = None,
         roughness_variant: RoughnessVariant = None,
     ) -> None:
         """
@@ -129,14 +135,16 @@ class CrossSectionsIO:
             # index of the lines that are associated to these groups
             lineidx = [
                 profile_lines[
-                    profile_lines["profielgroepid"] == profile_groups.loc[grindex, "globalid"]
+                    profile_lines["profielgroepid"]
+                    == profile_groups.loc[grindex, "globalid"]
                 ].index.values[0]
                 for grindex in groupidx
             ]
             # index of the profiles associated to these lines
             profidx = [
                 crosssections[
-                    crosssections["profiellijnid"] == profile_lines.loc[lindex, "globalid"]
+                    crosssections["profiellijnid"]
+                    == profile_lines.loc[lindex, "globalid"]
                 ].index.values[0]
                 for lindex in lineidx
             ]
@@ -144,25 +152,24 @@ class CrossSectionsIO:
             dp_branches = crosssections.copy(deep=True)
             dp_branches.drop(profidx, axis=0, inplace=True)
 
-        # # first, make a selection as to use only the dwarsprofielen/parametrised that are related to branches, not structures
-        # if crosssections is not None and not crosssections.empty:
-        #     if 'stuwid' not in crosssections:
-        #         crosssections['stuwid'] = str(-999.)
-        #     if 'brugid' not in crosssections:
-        #         crosssections['brugid'] = str(-999.)
-        #     dp_branches = ExtendedGeoDataFrame(geotype=LineString, columns = crosssections.required_columns)
-        #     dp_branches.set_data(gpd.GeoDataFrame([i for i in crosssections.itertuples() if (len(i.brugid)<10)&(len(i.stuwid)<10)]))
-        # else:
-        #     dp_branches = ExtendedGeoDataFrame(geotype=LineString)
+            dp_structures = crosssections.copy(deep=True)
+            dp_structures = dp_structures.loc[profidx, :]
+        else:
+            dp_branches = crosssections.copy(deep=True)
 
         # Assign cross-sections to branches
         nnocross = len(self.crosssections.get_branches_without_crosssection())
-        logger.info(f"Before adding the number of branches without cross section is: {nnocross}.")
+        logger.info(
+            f"Before adding the number of branches without cross section is: {nnocross}."
+        )
 
         if not dp_branches is None:
             # 1. Collect cross sections from 'dwarsprofielen'
             yz_profiles = self.crosssections.crosssection_to_yzprofiles(
-                dp_branches, crosssection_roughness, branches, roughness_variant=roughness_variant
+                dp_branches,
+                crosssection_roughness,
+                branches,
+                roughness_variant=roughness_variant,
             )
 
             for name, css in yz_profiles.items():
@@ -181,7 +188,9 @@ class CrossSectionsIO:
 
         # Check the number of branches with cross sections
         no_crosssection_id = self.crosssections.get_branches_without_crosssection()
-        no_crosssection = [b for b in branches.itertuples() if b.code in no_crosssection_id]
+        no_crosssection = [
+            b for b in branches.itertuples() if b.code in no_crosssection_id
+        ]
 
         nnocross = len(no_crosssection)
         logger.info(
@@ -194,10 +203,15 @@ class CrossSectionsIO:
         else:
             # Derive norm cross sections for norm parametrised
             param_profiles_converted = self.crosssections.parametrised_to_profiles(
-                param_profile, param_profile_values, no_crosssection, roughness_variant=roughness_variant
+                param_profile,
+                param_profile_values,
+                no_crosssection,
+                roughness_variant=roughness_variant,
             )
             # Get branch information
-            branchdata = self.crosssections.hydamo.branches.loc[list(param_profiles_converted.keys())]
+            branchdata = self.crosssections.hydamo.branches.loc[
+                list(param_profiles_converted.keys())
+            ]
             branchdata["chainage"] = branchdata.length / 2.0
 
             # Add cross sections
@@ -225,13 +239,36 @@ class CrossSectionsIO:
 
                 # Add location
                 self.crosssections.add_crosssection_location(
-                    branchid=branchid, chainage=chainage, definition=name, shift=css["bottomlevel"]
+                    branchid=branchid,
+                    chainage=chainage,
+                    definition=name,
+                    shift=css["bottomlevel"],
                 )
 
-            nnocross = len(self.crosssections.get_branches_without_crosssection())
-            logger.info(
-                f"After adding 'normgeparametriseerd' the number of branches without cross section is: {nnocross}."
+        nnocross = len(self.crosssections.get_branches_without_crosssection())
+        logger.info(
+            f"After adding 'normgeparametriseerd' the number of branches without cross section is: {nnocross}."
+        )
+
+        if not dp_structures is None:
+
+            # 1. Collect cross sections from 'dwarsprofielen'
+            yz_profiles = self.crosssections.crosssection_to_yzprofiles(
+                dp_structures,
+                crosssection_roughness,
+                None,
+                roughness_variant=roughness_variant,
             )
+
+            for name, css in yz_profiles.items():
+                # Add definition
+                self.crosssections.add_yz_definition(
+                    yz=css["yz"],
+                    thalweg=css["thalweg"],
+                    name=name,
+                    roughnesstype=css["typeruwheid"],
+                    roughnessvalue=css["ruwheid"],
+                )
 
 
 class ExternalForcingsIO:
@@ -239,7 +276,9 @@ class ExternalForcingsIO:
         self.external_forcings = external_forcings
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
-    def boundaries(self, boundary_conditions: ExtendedGeoDataFrame, mesh1d: Network = None) -> None:
+    def boundaries(
+        self, boundary_conditions: ExtendedGeoDataFrame, mesh1d: Network = None
+    ) -> None:
         """
         Generate boundary conditions from hydamo 'randvoorwaarden' file. The file format does not allow for timeseries.
 
@@ -269,7 +308,9 @@ class ExternalForcingsIO:
             bcdct[bndcnd.code] = {
                 "code": bndcnd.code,
                 "quantity": quantity,
-                "value": bndcnd.waterstand if not np.isnan(bndcnd.waterstand) else bndcnd.debiet,
+                "value": bndcnd.waterstand
+                if not np.isnan(bndcnd.waterstand)
+                else bndcnd.debiet,
                 "time": None,
                 "geometry": bndcnd.geometry,
             }
@@ -282,7 +323,10 @@ class ExternalForcingsIO:
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def laterals(
-        self, locations: ExtendedGeoDataFrame, lateral_discharges=None, rr_boundaries: dict = None
+        self,
+        locations: ExtendedGeoDataFrame,
+        lateral_discharges=None,
+        rr_boundaries: dict = None,
     ) -> None:
         """
         Process laterals
@@ -307,7 +351,8 @@ class ExternalForcingsIO:
 
         # in case of 3d points, remove the 3rd dimension
         locations["geometry2"] = [
-            Point([point.geometry.x, point.geometry.y]) for _, point in locations.iterrows()
+            Point([point.geometry.x, point.geometry.y])
+            for _, point in locations.iterrows()
         ]
         locations.drop("geometry", inplace=True, axis=1)
         locations.rename(columns={"geometry2": "geometry"}, inplace=True)
@@ -330,7 +375,9 @@ class ExternalForcingsIO:
 
             else:
                 if lateral_discharges is None:
-                    logger.warning(f"No lateral_discharges provied. {lateral.code} expects them. Skipping.")
+                    logger.warning(
+                        f"No lateral_discharges provied. {lateral.code} expects them. Skipping."
+                    )
                     continue
                 else:
                     if type(lateral_discharges) == pd.Series:
@@ -345,7 +392,9 @@ class ExternalForcingsIO:
 
                     else:
                         if lateral.code not in lateral_discharges.columns:
-                            logger.warning(f"No data found for {lateral.code}. Skipping.")
+                            logger.warning(
+                                f"No data found for {lateral.code}. Skipping."
+                            )
                             continue
 
                         # Get timeseries
@@ -361,7 +410,10 @@ class ExternalForcingsIO:
         # Add all items
         for key, item in latdct.items():
             self.external_forcings.add_lateral(
-                id=key, branchid=item["branchid"], chainage=item["chainage"], discharge=item["discharge"]
+                id=key,
+                branchid=item["branchid"],
+                chainage=item["chainage"],
+                discharge=item["discharge"],
             )
 
 
@@ -380,7 +432,9 @@ class StructuresIO:
         for generalstructure_idx, generalstructure in generalstructures.iterrows():
             self.structures.add_generalstructure(
                 id=generalstructure.id,
-                name=generalstructure.name if "name" in generalstructure.index else np.nan,
+                name=generalstructure.name
+                if "name" in generalstructure.index
+                else np.nan,
                 branchid=generalstructure.branch_id,
                 chainage=generalstructure.branch_offset,
                 allowedflowdir="both",
@@ -396,8 +450,12 @@ class StructuresIO:
                 upstream2level=generalstructure.upstream2level
                 if "upstream2level" in generalstructure.index
                 else np.nan,
-                crestwidth=generalstructure.crestwidth if "crestwidth" in generalstructure.index else np.nan,
-                crestlevel=generalstructure.crestlevel if "crestlevel" in generalstructure.index else np.nan,
+                crestwidth=generalstructure.crestwidth
+                if "crestwidth" in generalstructure.index
+                else np.nan,
+                crestlevel=generalstructure.crestlevel
+                if "crestlevel" in generalstructure.index
+                else np.nan,
                 crestlength=generalstructure.crestlength
                 if "crestlength" in generalstructure.index
                 else np.nan,
@@ -449,7 +507,9 @@ class StructuresIO:
                 extraresistance=generalstructure.extraresistance
                 if "extraresistance" in generalstructure.index
                 else np.nan,
-                gateheight=generalstructure.gateheight if "gateheight" in generalstructure.index else np.nan,
+                gateheight=generalstructure.gateheight
+                if "gateheight" in generalstructure.index
+                else np.nan,
                 gateopeningwidth=generalstructure.gateopeningwidth
                 if "gateopeningwidth" in generalstructure.index
                 else np.nan,
@@ -490,7 +550,8 @@ class StructuresIO:
 
             weir_opening = opening[opening.stuwid == weir.globalid]
             weir_mandev = management_device[
-                management_device.kunstwerkopeningid == weir_opening.globalid.to_string(index=False)
+                management_device.kunstwerkopeningid
+                == weir_opening.globalid.to_string(index=False)
             ]
 
             # check if a separate name field is present
@@ -548,12 +609,17 @@ class StructuresIO:
             if profiles is not None:
                 if "stuwid" in profile_groups:
                     group = profile_groups[profile_groups["stuwid"] == uweir.globalid]
-                    line = profile_lines[profile_lines["profielgroepid"] == group["globalid"].values[0]]
+                    line = profile_lines[
+                        profile_lines["profielgroepid"] == group["globalid"].values[0]
+                    ]
                     prof = profiles[profiles["globalid"] == line["globalid"].values[0]]
                     if not prof.empty:
                         counts = len(prof.geometry.iloc[0].coords[:])
                         xyz = np.vstack(prof.geometry.iloc[0].coords[:])
-                        length = np.r_[0, np.cumsum(np.hypot(np.diff(xyz[:, 0]), np.diff(xyz[:, 1])))]
+                        length = np.r_[
+                            0,
+                            np.cumsum(np.hypot(np.diff(xyz[:, 0]), np.diff(xyz[:, 1]))),
+                        ]
                         yzvalues = np.c_[length, xyz[:, -1] - np.min(xyz[:, -1])]
 
             if len(prof) == 0:
@@ -640,7 +706,9 @@ class StructuresIO:
         for bridge in bridges.itertuples():
             # first search in yz-profiles
             group = profile_groups[profile_groups["brugid"] == bridge.globalid]
-            line = profile_lines[profile_lines["profielgroepid"] == group["globalid"].values[0]]
+            line = profile_lines[
+                profile_lines["profielgroepid"] == group["globalid"].values[0]
+            ]
             prof = profiles[profiles["globalid"] == line["globalid"].values[0]]
 
             if len(prof) > 0:
@@ -690,7 +758,11 @@ class StructuresIO:
             )
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
-    def culverts(self, culverts: ExtendedGeoDataFrame, management_device: ExtendedDataFrame = None) -> None:
+    def culverts(
+        self,
+        culverts: ExtendedGeoDataFrame,
+        management_device: ExtendedDataFrame = None,
+    ) -> None:
         """
         Method to convert HyDAMO culverts to DFlowFM culverts. Devices like a valve and a slide can be schematized from the management_device object.
         According to HyDAMO DAMO2.2 a closing_device ('afsluitmiddel') could also be used but this is not supported.
@@ -722,7 +794,9 @@ class StructuresIO:
                 )
 
             # check whether an afsluitmiddel is present and take action dependent on its settings
-            mandev = management_device[management_device.duikersifonhevelid == culvert.globalid]
+            mandev = management_device[
+                management_device.duikersifonhevelid == culvert.globalid
+            ]
             if mandev.empty:
                 allowedflowdir = "both"
                 valveonoff = 0
@@ -768,8 +842,8 @@ class StructuresIO:
                 valveopeningheight=valveopeningheight,
                 relopening=relopening,
                 losscoeff=losscoeff,
-                frictiontype=culvert.typeruwheid,
-                frictionvalue=culvert.ruwheid,
+                bedfrictiontype=culvert.typeruwheid,
+                bedfriction=culvert.ruwheid,
             )
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -788,7 +862,9 @@ class StructuresIO:
                 leftlevel=culvert.leftlevel,
                 rightlevel=culvert.rightlevel,
                 crosssection=culvert.crosssectiondefinitionid,
-                length=culvert.geometry.length if "geometry" in culvert.index else culvert.length,
+                length=culvert.geometry.length
+                if "geometry" in culvert.index
+                else culvert.length,
                 inletlosscoeff=culvert.inletlosscoeff,
                 outletlosscoeff=culvert.outletlosscoeff,
                 allowedflowdir="both",
@@ -834,7 +910,9 @@ class StructuresIO:
 
             # If there als multiple pumping stations connected to one pump, raise an error
             if sum(gemaalidx) != 1:
-                raise IndexError(f"Multiple or no pump stations (gemalen) found for pump {pump.code}.")
+                raise IndexError(
+                    f"Multiple or no pump stations (gemalen) found for pump {pump.code}."
+                )
 
             # Find the idx if the pumping station connected to the pump
             # gemaalidx = gemalen.iloc[np.where(gemaalidx)[0][0]]['code']
@@ -844,12 +922,19 @@ class StructuresIO:
             # assert sum(sturingidx) == 1
 
             branch_id = pumpstations.iloc[np.where(gemaalidx)[0][0]]["branch_id"]
-            branch_offset = pumpstations.iloc[np.where(gemaalidx)[0][0]]["branch_offset"]
+            branch_offset = pumpstations.iloc[np.where(gemaalidx)[0][0]][
+                "branch_offset"
+            ]
             # Get the control by index
             pump_control = management.iloc[np.where(sturingidx)[0][0]]
 
-            if pump_control.doelvariabele != 1 and pump_control.doelvariabele != "waterstand":
-                raise NotImplementedError("Sturing not implemented for anything else than water level (1).")
+            if (
+                pump_control.doelvariabele != 1
+                and pump_control.doelvariabele != "waterstand"
+            ):
+                raise NotImplementedError(
+                    "Sturing not implemented for anything else than water level (1)."
+                )
 
             # Add levels for suction side
             startlevelsuctionside = [pump_control["bovengrens"]]

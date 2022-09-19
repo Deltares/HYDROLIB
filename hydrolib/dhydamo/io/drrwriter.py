@@ -75,7 +75,7 @@ class DRRWriter:
             Succesfull or not.
 
         """
-        srcRR = os.path.join(os.path.dirname(__file__),'..', 'modeldata', 'RR')
+        srcRR = os.path.join(os.path.dirname(__file__),'..', 'resources', 'RR')
         targetRR = os.path.join(self.output_dir)
         shutil.copytree(srcRR, targetRR)
         return True
@@ -393,7 +393,7 @@ class DRRWriter:
                 key, oldvalue = items[0], items[1]
                 if not key.strip().lower() == parameter.lower():
                     continue
-                lines[i] = line.replace('='+oldvalue, f'={value}'.ljust(len(oldvalue)+1))
+                lines[i] = line.replace('='+oldvalue, f'={value}\n'.ljust(len(oldvalue)+1))
                 break
 
         with open(os.path.join(self.output_dir, 'DELFT_3B.INI'), 'w') as f:

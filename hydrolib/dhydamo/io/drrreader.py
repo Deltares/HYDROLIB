@@ -807,7 +807,7 @@ class ExternalForcingsIO:
             result.index = times
             [self.external_forcings.add_precip(*prec) for prec in result.iteritems()]
         else:
-            self.external_forcings.precip = precip_file
+            self.external_forcings.precip = str(precip_file)
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def evap_from_input(
@@ -850,7 +850,7 @@ class ExternalForcingsIO:
             result.index = times
             [self.external_forcings.add_evap(*evap) for evap in result.iteritems()]
         else:
-            self.external_forcings.evap = evap_file
+            self.external_forcings.evap = str(evap_file)
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def boundary_from_input(
