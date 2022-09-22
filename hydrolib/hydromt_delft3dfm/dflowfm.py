@@ -1546,11 +1546,12 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         xmin, ymin, xmax, ymax = self.bounds
         subset = mesh2d.ugrid.sel(y=slice(ymin, ymax), x=slice(xmin, xmax))
         err = f"RasterDataset: No data within spatial domain for mesh."
-        if subset.grid.node_x.size == 0 or subset.grid.node_y.size == 0:
+        if subset.ugrid.grid.node_x.size == 0 or subset.ugrid.grid.node_y.size == 0:
             raise IndexError(err)
         # TODO: if we want to keep the clipped mesh 2d uncomment the following line
         # Else mesh2d is used as mesh instead of susbet
         self._mesh = subset  # reinitialise mesh2d grid (set_mesh is used in super)
+
 
     def setup_auxmaps_from_raster(
         self,
@@ -1764,7 +1765,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             interp_method = da_dict["interpolation"]
             locationtype = da_dict["locationtype"]
             _fn = join(auxroot, f"{name}.tif")
-            if np.isnan(da.raster.nodata):
+            if np.any(da.raster.nodata):
                 da.raster.set_nodata(-999)
             da.raster.to_raster(_fn)
             # Prepare dict
@@ -1921,15 +1922,15 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             self._write_mesh2d()
         # TODO: create self._write_mesh2d() using hydrolib-core funcitonalities
         # write branches
-        if self.pipes:
+        if "branches" in self._geoms:
             self._write_branches()
-        # write friction
-        self._write_friction()  # FIXME: ask Rinske, add global section correctly
-        # write crosssections
-        self._write_crosssections()  # FIXME None handling, if there are no crosssections
-        # write manholes
-        if "manholes" in self._geoms:
-            self._write_manholes()
+            # write friction
+            self._write_friction()  # FIXME: ask Rinske, add global section correctly
+            # write crosssections
+            self._write_crosssections()  # FIXME None handling, if there are no crosssections
+            # write manholes
+            if "manholes" in self._geoms:
+                self._write_manholes()
 
         # save model
         self.dfmmodel.save(recurse=True)
@@ -1949,25 +1950,27 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
 
     def _write_branches(self):
         """write branches.gui
-        #TODO combine with others"""
-        branches = self._geoms["branches"][
-            ["branchId", "branchType", "manhole_up", "manhole_dn"]
-        ]
-        branches = branches.rename(
-            columns={
-                "branchId": "name",
-                "manhole_up": "sourceCompartmentName",
-                "manhole_dn": "targetCompartmentName",
-            }
-        )
-        branches["branchType"] = branches["branchType"].replace(
-            {"river": 0, "channel": 0, "pipe": 2, "tunnel": 2, "sewerconnection": 1}
-        )
-        branchgui_model = BranchModel(branch=branches.to_dict("records"))
-        branchgui_model.filepath = self.dfmmodel.filepath.with_name(
-            branchgui_model._filename() + branchgui_model._ext()
-        )
-        branchgui_model.save()
+            #TODO combine with others"""
+        branches = self._geoms["branches"]
+        if np.any(branches["branchType"].isin(['pipe', 'tunnel'])):
+            branches = branches[
+                ["branchId", "branchType", "manhole_up", "manhole_dn"]
+            ]
+            branches = branches.rename(
+                columns={
+                    "manhole_up": "sourceCompartmentName",
+                    "manhole_dn": "targetCompartmentName",
+                }
+            )
+            branches.rename(columns = {"branchId": "name",})
+            branches["branchType"] = branches["branchType"].replace(
+                {"river": 0, "channel": 0, "pipe": 2, "tunnel": 2, "sewerconnection": 1}
+            )
+            branchgui_model = BranchModel(branch=branches.to_dict("records"))
+            branchgui_model.filepath = self.dfmmodel.filepath.with_name(
+                branchgui_model._filename() + branchgui_model._ext()
+            )
+            branchgui_model.save()
 
     def _write_friction(self):
 
