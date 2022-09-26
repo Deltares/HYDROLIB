@@ -664,6 +664,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             * Optional variables: [branchId, branchType, branchOrder, material, friction_type, friction_value]
         rivers_defaults_fn : str Path
             Path to a csv file containing all defaults values per 'branchType'.
+            Note that branchType is case sensitive, by default is lower case, If otherwise, please make sure it is supported in 'rivers_default_fn'
             By default None.
         river_filter: str, optional
             Keyword in branchType column of rivers_fn used to filter river lines. If None all lines in rivers_fn are used (default).
@@ -701,8 +702,10 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
             rivers_fn, geom=self.region, buffer=0, predicate="intersects"
         )
         # Filter features based on river_filter
-        if river_filter is not None and "branchType" in gdf_riv.columns:
-            gdf_riv = gdf_riv[gdf_riv["branchType"] == river_filter]
+        if "branchType" in gdf_riv.columns:
+            gdf_riv["branchType"] = gdf_riv["branchType"].str.lower()
+            if river_filter is not None :
+                gdf_riv = gdf_riv[gdf_riv["branchType"] == river_filter.lower()]
         # Check if features in region
         if len(gdf_riv) == 0:
             self.logger.warning(
@@ -763,7 +766,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         rivers, river_nodes = self._setup_branches(
             gdf_br=gdf_riv,
             defaults=defaults,
-            br_type="river",
+            br_type=gdf_riv.branchType.unique()[0],
             spacing=None,  # does not allow spacing for rivers
             snap_offset=snap_offset,
             allow_intersection_snapping=allow_intersection_snapping,
@@ -779,7 +782,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         if crosssections_type is None:
             crosssections_type = "branch"  # TODO: maybe assign a specific one for river, like branch_river
         assert {crosssections_type}.issubset({"xyzpoints", "point", "branch"})
-        crosssections = self._setup_crosssections(
+        self._setup_crosssections(
             branches=rivers,
             crosssections_fn=crosssections_fn,
             crosssections_type=crosssections_type,
@@ -793,7 +796,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # add to branches
         self.add_branches(
             rivers,
-            branchtype="river",
+            branchtype=gdf_riv.branchType.unique()[0],
             node_distance=self._openwater_computation_node_distance,
         )
 
@@ -1085,6 +1088,10 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         branches : gpd.GeoDataFrame
             geodataframe of the branches to apply crosssections.
             * Required variables: [branchId, branchType, branchOrder]
+            If ``crosssections_type`` = "branch"
+                if shape = 'circle': 'diameter'
+                if shape = 'rectangle': 'width', 'height', 'closed'
+                if shape = 'trapezoid': 'width', 't_width', 'height', 'closed'
             * Optional variables: [material, friction_type, friction_value]
         crosssections_fn : str Path, optional # TODO: allow multiple crosssection filenames
             Name of data source for crosssections, see data/data_sources.yml.
@@ -1112,7 +1119,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
 
         if crosssections_fn is None and crosssections_type == "branch":
             # TODO: set a seperate type for rivers because other branch types might require upstream/downstream
-
+            # TODO: check for required columns
             # read crosssection from branches
             gdf_cs = workflows.set_branch_crosssections(branches, midpoint=midpoint)
 
@@ -1997,7 +2004,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # get crsdef from crosssections gpd # FIXME: change this for update case
         gpd_crsdef = gpd_crs[[c for c in gpd_crs.columns if c.startswith("crsdef")]]
         gpd_crsdef = gpd_crsdef.rename(
-            columns={c: c.split("_")[1] for c in gpd_crsdef.columns}
+            columns={c: c.removeprefix('crsdef_') for c in gpd_crsdef.columns}
         )
         gpd_crsdef = gpd_crsdef.drop_duplicates(subset="id")
         crsdef = CrossDefModel(definition=gpd_crsdef.to_dict("records"))
@@ -2007,7 +2014,7 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # get crsloc from crosssections gpd # FIXME: change this for update case
         gpd_crsloc = gpd_crs[[c for c in gpd_crs.columns if c.startswith("crsloc")]]
         gpd_crsloc = gpd_crsloc.rename(
-            columns={c: c.split("_")[1] for c in gpd_crsloc.columns}
+            columns={c: c.removeprefix('crsloc_') for c in gpd_crsloc.columns}
         )
 
         crsloc = CrossLocModel(crosssection=gpd_crsloc.to_dict("records"))
