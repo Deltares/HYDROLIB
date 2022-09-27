@@ -342,7 +342,9 @@ def set_point_crosssections(
     # setup thaiweg for GUI
     crosssections_["crsdef_thalweg"] = 0.0
 
-    return gpd.GeoDataFrame(crosssections_)
+    crosssections_ = gpd.GeoDataFrame(crosssections_, crs=branches.crs)
+
+    return crosssections_
 
 def _set_trapezoid_crs(crosssections: gpd.GeoDataFrame):
     """trapezoid need to be converted into zw type"""
