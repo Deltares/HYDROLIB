@@ -128,18 +128,17 @@ def statistics_dhydro(
     # create geometry
     # TODO als het een edge is werkt het nog niet.
 
-
     if "mesh2d" in ds[par].mesh.lower():
-        network_type = "2d_faces" 
+        network_type = "2d_faces"
     elif "mesh1d" in ds[par].mesh.lower():
         network_type = "1d_meshnodes" if "node" in ds[par].location else "1d_edges"
     else:
         raise Exception("Onbekende celsoort, check de code en waardes.")
-# =============================================================================
-#     network_type = (
-#         "2d_faces" if "mesh2d" in ds[par].mesh.lower() elif "1d_meshnodes"
-#     )  # todo line and structure info    gdfs = net_nc2gdf(input_path,results=[network_type])
-# =============================================================================
+    # =============================================================================
+    #     network_type = (
+    #         "2d_faces" if "mesh2d" in ds[par].mesh.lower() elif "1d_meshnodes"
+    #     )  # todo line and structure info    gdfs = net_nc2gdf(input_path,results=[network_type])
+    # =============================================================================
     gdfs = net_nc2gdf(input_path, results=[network_type])
     gdf = gdfs[
         network_type.lower() if network_type not in list(gdfs.keys()) else network_type

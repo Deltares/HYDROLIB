@@ -136,16 +136,16 @@ def net_nc2gdf(
     if "1d_edges" in results:
         gdf_1d_edges = gpd.GeoDataFrame(
             {
-                "id": np.arange(0,len(nc_model._mesh1d.mesh1d_edge_branch_id),1),
+                "id": np.arange(0, len(nc_model._mesh1d.mesh1d_edge_branch_id), 1),
                 "branch": nc_model._mesh1d.mesh1d_edge_branch_id,
                 "offset": nc_model._mesh1d.mesh1d_edge_branch_offset,
             },
             crs=EPSG,
             geometry=gpd.points_from_xy(
                 nc_model._mesh1d.mesh1d_edge_x, nc_model._mesh1d.mesh1d_edge_y
-            )
+            ),
         )
-    
+
     ## 2D
 
     # create nodes
