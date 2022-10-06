@@ -1,14 +1,16 @@
+from typing import List, Union
+
+import numpy as np
 from meshkernel import GeometryList as GeometryListMK
 from shapely.geometry import (
-    Point,
-    MultiPoint,
     LineString,
     MultiLineString,
-    Polygon,
+    MultiPoint,
     MultiPolygon,
+    Point,
+    Polygon,
 )
-import numpy as np
-from typing import Union, List
+
 from hydrolib.core.io.net.models import split_by
 
 
@@ -117,17 +119,17 @@ class GeometryList(GeometryListMK):
     def _to_linestring(
         self, geometries: List[GeometryListMK], is_multi: bool
     ) -> Union[LineString, MultiLineString]:
-                linestrings = [
-                    LineString(np.stack([p.x_coordinates, p.y_coordinates], axis=1))
-                    for p in geometries
-                ]
-                if is_multi:
-                    return MultiLineString(linestrings)
-                else:
-                    return linestrings[0]
+        linestrings = [
+            LineString(np.stack([p.x_coordinates, p.y_coordinates], axis=1))
+            for p in geometries
+        ]
+        if is_multi:
+            return MultiLineString(linestrings)
+        else:
+            return linestrings[0]
 
     def _to_points(
-        	self, geometries: List[GeometryListMK], is_multi: bool
+        self, geometries: List[GeometryListMK], is_multi: bool
     ) -> Union[Point, MultiPoint]:
         points = [
             Point(np.stack([p.x_coordinates, p.y_coordinates], axis=1))
@@ -138,7 +140,6 @@ class GeometryList(GeometryListMK):
         else:
             return points[0]
 
-
     def to_geometry(self):
         geometries = [
             geo
@@ -148,9 +149,11 @@ class GeometryList(GeometryListMK):
         is_multi = len(geometries) > 1
 
         for geometry_list in geometries:
+            # Check if polygon, by comparing first and last coordinates
             is_polygon = (
                 geometry_list.x_coordinates[0] == geometry_list.x_coordinates[-1]
             )
+            # Check if linestring, by checking the length of coordinate sequences
             is_linestring = (len(geometry_list.x_coordinates) > 1) and (not is_polygon)
 
             if is_polygon:
@@ -161,4 +164,10 @@ class GeometryList(GeometryListMK):
 
             else:
                 return self._to_point(geometries, is_multi)
-                
+
+    @property
+    def geoms(self):
+        """Returns GeometryList objects based on spliited by geometries"""
+        for geometrylist in split_by(self, self.geometry_separator):
+            # yield as shapely geometry
+            yield GeometryList(**geometrylist.__dict__).to_geometry()

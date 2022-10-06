@@ -5,17 +5,17 @@ import logging
 
 import geopandas as gpd
 import hydromt.io
+import networkx as nx
 import numpy as np
 import pandas as pd
 import shapely
 from hydromt import config
-import networkx as nx
 
 logger = logging.getLogger(__name__)
 
 
 def gpd_to_digraph(data: gpd.GeoDataFrame) -> nx.DiGraph():
-    """Convert a `gpd.GeoDataFrame` to a `nx.DiGraph` by taking the first and last coordinate in a row as source and target, respectively. 
+    """Convert a `gpd.GeoDataFrame` to a `nx.DiGraph` by taking the first and last coordinate in a row as source and target, respectively.
 
     Parameters
     ----------

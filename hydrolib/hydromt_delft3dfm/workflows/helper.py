@@ -40,7 +40,7 @@ __all__ = [
 
 
 def isfloat(x):
-    """ Determines whether `x` is a float by trying to cast it to a float.
+    """Determines whether `x` is a float by trying to cast it to a float.
 
     Parameters
     ----------
@@ -61,7 +61,7 @@ def isfloat(x):
 
 
 def isint(x):
-    """ Determines whether `x` is an integer by trying to cast it to an integer.
+    """Determines whether `x` is an integer by trying to cast it to an integer.
 
     Parameters
     ----------
@@ -119,13 +119,12 @@ def parse_arg(arg, dtype=None):
 
 
 def parse_ini(ini_fn) -> dict:
-    """ Parses an ini file to a dictionary.
+    """Parses an ini file to a dictionary.
 
     Parameters
     ----------
     ini_fn
-        The location of the ini file. 
-    
+        The location of the ini file.
     Returns
     -------
     dict
@@ -147,10 +146,12 @@ def parse_ini(ini_fn) -> dict:
 
 
 def slice_geodataframe(
-    gdf: gpd.GeoDataFrame, required_query: str = None, required_columns: list = None, logger=logger
+    gdf: gpd.GeoDataFrame,
+    required_query: str = None,
+    required_columns: list = None,
+    logger=logger,
 ):
     """Function to read gpd.GeoDataFrame with preprocessing: rename, slice, convert type and set index.
-    
     Parameters
     ----------
     gdf : gpd.GeoDataFrame.
@@ -224,7 +225,7 @@ def slice_geodataframe(
     return data
 
 
-def retype_geodataframe(gdf : gpd.GeoDataFrame, retype=None, logger=logger):
+def retype_geodataframe(gdf: gpd.GeoDataFrame, retype=None, logger=logger):
     """Retype a GeoDataFrame."""
 
     if retype is None or len(retype) == 0:
@@ -308,7 +309,7 @@ def eval_funcs(gdf: gpd.GeoDataFrame, funcs: dict, logger=logger):
 
 
 def write_shp(data: gpd.GeoDataFrame, filename: str, columns: list = None):
-    """ Write a geo data frame to a shape file.
+    """Write a geo data frame to a shape file.
 
     Parameters
     ----------
@@ -318,8 +319,8 @@ def write_shp(data: gpd.GeoDataFrame, filename: str, columns: list = None):
         The shape file name to write to.
     columns : list, optional
         The list of columns to write. The geometry column will be added if it it missing.
-        If not specified, all the columns in the dataset will be written. 
-        Default to None.     
+        If not specified, all the columns in the dataset will be written.
+        Default to None.
     """
 
     if data is not None:
@@ -347,7 +348,7 @@ def append_data_columns_based_on_ini_query(
     logger=logger,
 ):
     """append key,val pair as data columns for the input GeoDataFrame based on ini [default] or [query] sections
-    
+
     Parameters
     ----------
     data : gpd.GeoDataFrame
@@ -406,8 +407,6 @@ def append_data_columns_based_on_ini_query(
         columns = _columns_
     return data.loc[:, columns]
 
-
-def check_geodataframe(gdf : gpd.GeoDataFrame):
     """ Check the geo data frame for None and length.
     A warning will be logged, if the geo data frame is None or empty.
 
@@ -415,7 +414,7 @@ def check_geodataframe(gdf : gpd.GeoDataFrame):
     ----------
     gdf : gpd.GeoDataFrame
         The geo data frame to check.
-    
+
     Returns
     -------
     bool
@@ -434,7 +433,7 @@ def check_geodataframe(gdf : gpd.GeoDataFrame):
 def cut_pieces(line, distances):
     """cut a line into pieces based on distances"""
     if distances[0] != 0:
-        distances.insert(0,0)
+        distances.insert(0, 0)
     if distances[-1] == line.length:
         distances.pop(-1)
     pieces = [line]
@@ -442,6 +441,7 @@ def cut_pieces(line, distances):
         line = pieces.pop(-1)
         pieces.extend(cut(line, d))
     return pieces
+
 
 def cut(line, distance):
     """Cuts a line in two at a distance from its starting point
@@ -462,15 +462,15 @@ def cut(line, distance):
 
 
 def split_lines(line, num_new_lines):
-    """ Get a list of lines splitted from a line.
+    """Get a list of lines splitted from a line.
 
     Parameters
     ----------
     line
         The line to split
-    num_new_lines : int 
+    num_new_lines : int
         The desired number of lines.
-    
+
     Returns
     -------
     list

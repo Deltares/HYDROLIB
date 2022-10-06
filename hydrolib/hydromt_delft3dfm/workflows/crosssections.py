@@ -38,7 +38,7 @@ def set_branch_crosssections(
     only support rectangle, trapezoid and circle.
     Crosssections are derived at branches mid points if ``midpoints`` is True,
     else at both upstream and downstream extremities of branches if False.
-    
+
     Parameters
     ----------
     branches : gpd.GeoDataFrame
@@ -166,7 +166,7 @@ def set_xyz_crosssections(
     branches: gpd.GeoDataFrame,
     crosssections: gpd.GeoDataFrame,
 ):
-    """ Set up xyz crosssections.
+    """Set up xyz crosssections.
     xyz crosssections should be points gpd, column z and column order.
 
     Parameters
@@ -540,14 +540,14 @@ def parse_sobek_crs(filename, logger = logger):
     return df
 
 def xyzp2xyzl(xyz: pd.DataFrame, sort_by: list = ["x", "y"]):
-    """ Convert xyz points to xyz lines.
-    
+    """Convert xyz points to xyz lines.
+
     Parameters
     ----------
     xyz: pd.DataFrame
         The xyz points.
     sort_by: list, optional
-        List of attributes to sort by. Defaults to ["x", "y"]. 
+        List of attributes to sort by. Defaults to ["x", "y"].
 
     Returns
     -------
