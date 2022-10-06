@@ -127,9 +127,19 @@ def statistics_dhydro(
 
     # create geometry
     # TODO als het een edge is werkt het nog niet.
-    network_type = (
-        "2d_faces" if "mesh2d" in ds[par].mesh.lower() else "1d_meshnodes"
-    )  # todo line and structure info    gdfs = net_nc2gdf(input_path,results=[network_type])
+
+
+    if "mesh2d" in ds[par].mesh.lower():
+        network_type = "2d_faces" 
+    elif "mesh1d" in ds[par].mesh.lower():
+        network_type = "1d_meshnodes" if "node" in ds[par].location else "1d_edges"
+    else:
+        raise Exception("Onbekende celsoort, check de code en waardes.")
+# =============================================================================
+#     network_type = (
+#         "2d_faces" if "mesh2d" in ds[par].mesh.lower() elif "1d_meshnodes"
+#     )  # todo line and structure info    gdfs = net_nc2gdf(input_path,results=[network_type])
+# =============================================================================
     gdfs = net_nc2gdf(input_path, results=[network_type])
     gdf = gdfs[
         network_type.lower() if network_type not in list(gdfs.keys()) else network_type
@@ -195,7 +205,7 @@ if __name__ == "__main__":
     input_path = r"C:\scripts\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel\1D2D-DIMR\dflowfm\output\FlowFM_map.nc"
     output_path = r"C:\scripts\AHT_scriptjes"
     read_params(input_path)
-    par = "mesh1d_q1"
+    par = "Mesh2d_q1"
     test = statistics_dhydro(
         input_path, par, sdate="", edate="", output_path="", stat=""
     )

@@ -19,6 +19,7 @@ def net_nc2gdf(
         "1d_meshnodes",
         "1d_nodes",
         "1d_branches",
+        "1d_edges",
         "2d_nodes",
         "2d_edges",
         "2d_faces",
@@ -44,6 +45,7 @@ def net_nc2gdf(
             "1d_meshnodes",
             "1d_nodes",
             "1d_branches",
+            "1d_edges",
             "2d_nodes",
             "2d_edges",
             "2d_faces",
@@ -130,6 +132,20 @@ def net_nc2gdf(
             crs=EPSG,
         )
 
+    # 1D edges
+    if "1d_edges" in results:
+        gdf_1d_edges = gpd.GeoDataFrame(
+            {
+                "id": np.arange(0,len(nc_model._mesh1d.mesh1d_edge_branch_id),1),
+                "branch": nc_model._mesh1d.mesh1d_edge_branch_id,
+                "offset": nc_model._mesh1d.mesh1d_edge_branch_offset,
+            },
+            crs=EPSG,
+            geometry=gpd.points_from_xy(
+                nc_model._mesh1d.mesh1d_edge_x, nc_model._mesh1d.mesh1d_edge_y
+            )
+        )
+    
     ## 2D
 
     # create nodes
@@ -246,6 +262,8 @@ def net_nc2gdf(
         gdfs_results["1d_nodes"] = gdf_network1d_nodes
     if "1d_branches" in results:
         gdfs_results["1d_branches"] = gdf_branches
+    if "1d_edges" in results:
+        gdfs_results["1d_edges"] = gdf_1d_edges
     if "2d_nodes" in results:
         gdfs_results["2d_nodes"] = gdf_2d_nodes
     if "2d_edges" in results:
