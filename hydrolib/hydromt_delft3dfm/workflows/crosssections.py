@@ -7,17 +7,15 @@ import geopandas as gpd
 import hydromt.io
 import numpy as np
 import pandas as pd
-import geopandas as gpd
 import shapely
 from hydromt import config
 from scipy.spatial import distance
 from shapely.geometry import LineString, Point
 
 from .branches import find_nearest_branch
-from .helper import check_gpd_attributes
 
 # from delft3dfmpy.core import geometry
-from .helper import split_lines
+from .helper import check_gpd_attributes, split_lines
 
 logger = logging.getLogger(__name__)
 
@@ -519,8 +517,9 @@ def parse_sobek_crs(filename, logger=logger):
     """
     import shlex
     from pathlib import Path
-    import pandas as pd
+
     import numpy as np
+    import pandas as pd
 
     # check file
     if Path(filename).name.lower().endswith(".def"):
