@@ -61,7 +61,14 @@ def setup_model():
         branches=hydamo.branches,
         roughness_variant="High",
     )
+    from shapely.geometry import Point
 
+    hydamo.observationpoints.add_points(
+        [Point((200200, 395600)), (200200, 396200)],
+        ["ObsPt1", "ObsPt2"],
+        locationTypes=["1d", "1d"],
+        snap_distance=10.0,
+    )
     # Set a default cross section
     default = hydamo.crosssections.add_rectangle_definition(
         height=5.0,
