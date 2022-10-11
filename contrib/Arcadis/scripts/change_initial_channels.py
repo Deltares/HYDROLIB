@@ -49,14 +49,13 @@ def initial_dhydro(
     gdf_branches = net_nc2gdf(net_nc_path, results=["1d_branches"])["1d_branches"]
     # todo: check projection both files
 
-
     initials = determine_initial(gdf_branches, gdf_areas, value_field)
 
     # prepare result to be writen to file
     df_branch = pd.DataFrame.from_dict(initials).T
     df_branch["branchId"] = [str(f) for f in df_branch.index]
     df_branch["numlocations"] = [len(ch) for ch in df_branch.chainage]
-    df_branch = df_branch[df_branch.numlocations>0]
+    df_branch = df_branch[df_branch.numlocations > 0]
     df_global = pd.DataFrame(
         data=[[value_type, value_unit, global_value]],
         columns=["quantity", "unit", "value"],
