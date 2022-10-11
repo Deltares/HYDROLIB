@@ -123,7 +123,9 @@ class DRTCModel:
         return savedict
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
-    def from_hydamo(self, pid_settings: dict, timeseries: Union[pd.DataFrame, pd.Series]) -> None:
+    def from_hydamo(
+        self, pid_settings: dict, timeseries: Union[pd.DataFrame, pd.Series]
+    ) -> None:
         """Function to convert HyDAMO management data to controller-dictionaries. So far only time- and PID-controllers are implemented. PID settings can be specified globally or per structdure.
 
         Args:
@@ -151,11 +153,11 @@ class DRTCModel:
                     weir = self.hydamo.structures.rweirs_df[
                         self.hydamo.structures.rweirs_df.id == weir_code
                     ]
-                elif weir_code in list(self.hydamo.structures.rweirs_df.id):
+                elif weir_code in list(self.hydamo.structures.uweirs_df.id):
                     weir = self.hydamo.structures.uweirs_df[
                         self.hydamo.structures.uweirs.id == weir_code
                     ]
-                elif weir_code in list(self.hydamo.structures.rweirs_df.id):
+                elif weir_code in list(self.hydamo.structures.orifices_df.id):
                     weir = self.hydamo.structures.orifices_df[
                         self.hydamo.structures.orifices.id == weir_code
                     ]
@@ -287,9 +289,8 @@ class DRTCModel:
         with open(filename, "w+") as f:
             f.write(xml)
 
-    def write_xml_v1(self)-> None:
-        """Wrapper function to write individual XML files.
-        """
+    def write_xml_v1(self) -> None:
+        """Wrapper function to write individual XML files."""
         self.write_runtimeconfig()
         self.write_toolsconfig()
         self.write_dataconfig()
@@ -299,8 +300,7 @@ class DRTCModel:
     #     timing = RtcUserDefinedRuntimeComplexType(tartDate = '2016-01-01 00:00:00', rtc:endDate='2016-01-03 00:00:00', rtc:timeStep='3600')
 
     def write_runtimeconfig(self) -> None:
-        """Function to write RtcRunTimeConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package.      
-        """
+        """Function to write RtcRunTimeConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
 
         # namespaces for all other xml files
         generalname = "http://www.wldelft.nl/fews"
@@ -335,8 +335,7 @@ class DRTCModel:
         self.finish_file(myroot, configfile, self.output_path / "rtcRuntimeConfig.xml")
 
     def write_toolsconfig(self) -> None:
-        """Function to write RtcToolsConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package.
-        """
+        """Function to write RtcToolsConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
         generalname = "http://www.wldelft.nl/fews"
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
         gn_brackets = "{" + generalname + "}"
@@ -479,8 +478,7 @@ class DRTCModel:
         self.finish_file(myroot, configfile, self.output_path / "rtcToolsConfig.xml")
 
     def write_dataconfig(self) -> None:
-        """Function to write RtcDataConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package.
-        """
+        """Function to write RtcDataConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
         generalname = "http://www.wldelft.nl/fews"
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
         gn_brackets = "{" + generalname + "}"
@@ -626,10 +624,8 @@ class DRTCModel:
                 myroot[1].append(ET.fromstring(ctl))
         self.finish_file(myroot, configfile, self.output_path / "rtcDataConfig.xml")
 
-
-    def write_timeseries_import(self)->None:
-        """Function to write timeseries_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package.
-        """
+    def write_timeseries_import(self) -> None:
+        """Function to write timeseries_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
         generalname = "http://www.wldelft.nl/fews/PI"
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
         gn_brackets = "{" + generalname + "}"
