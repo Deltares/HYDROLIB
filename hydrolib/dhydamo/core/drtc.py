@@ -450,7 +450,7 @@ class DRTCModel:
 
                 d = ET.SubElement(c, gn_brackets + "x")
                 d.tail = "\n          "
-                d.text = "[Input]Control group " + str(key) + "/Time Rule"
+                d.text = "Control group " + str(key) + "/Time Rule"
 
                 e = ET.SubElement(b, gn_brackets + "output")
                 e.tail = "\n        "
@@ -511,6 +511,19 @@ class DRTCModel:
         a3.text = "false"
         a3.tail = "\n    "
 
+        # implementing standard settings import and exportdata
+        a4 = ET.SubElement(myroot[0], gn_brackets + "PITimeSeriesFile")
+        a4.tail = "\n     "
+        a4.text = "\n      "
+
+        a5 = ET.SubElement(a4, gn_brackets + "timeSeriesFile")
+        a5.text = "timeseries_import.xml"
+        a5.tail = "\n      "
+
+        a6 = ET.SubElement(a4, gn_brackets + "useBinFile")
+        a6.text = "false"
+        a6.tail = "\n    "
+
         # weir dependable data
         for ikey, key in enumerate(self.all_controllers.keys()):
 
@@ -555,7 +568,7 @@ class DRTCModel:
                     a.tail = "\n  "
                 a.text = "\n      "
                 myroot[0].text = "\n    "
-                a.set("id", "Control Group " + str(key) + "/Time Rule")
+                a.set("id", "Control group " + str(key) + "/Time Rule")
                 b = ET.SubElement(a, gn_brackets + "PITimeSeries")
                 b.tail = "\n    "
                 b.text = "\n        "
@@ -576,32 +589,30 @@ class DRTCModel:
                 e.text = "BLOCK"
                 e.tail = "\n      "
 
-                # te exporteren data:
-                f = ET.SubElement(myroot[1], gn_brackets + "timeSeries")
+            # te exporteren data:
+            f = ET.SubElement(myroot[1], gn_brackets + "timeSeries")
+            f.tail = "\n    "
+            if ikey == len(self.all_controllers) - 1:
                 f.tail = "\n    "
-                if ikey == len(self.all_controllers) - 1:
-                    f.tail = "\n    "
-                f.text = "\n      "
-                myroot[1][1].tail = "\n    "
-                f.set(
-                    "id", "[Output]" + str(key) + "/" + controller["steering_variable"]
-                )
+            f.text = "\n      "
+            myroot[1][1].tail = "\n    "
+            f.set("id", "[Output]" + str(key) + "/" + controller["steering_variable"])
 
-                g = ET.SubElement(f, gn_brackets + "OpenMIExchangeItem")
-                g.tail = "\n    "
-                g.text = "\n        "
+            g = ET.SubElement(f, gn_brackets + "OpenMIExchangeItem")
+            g.tail = "\n    "
+            g.text = "\n        "
 
-                h = ET.SubElement(g, gn_brackets + "elementId")
-                h.text = str(key)
-                h.tail = "\n        "
+            h = ET.SubElement(g, gn_brackets + "elementId")
+            h.text = str(key)
+            h.tail = "\n        "
 
-                j = ET.SubElement(g, gn_brackets + "quantityId")
-                j.text = controller["steering_variable"]
-                j.tail = "\n        "
+            j = ET.SubElement(g, gn_brackets + "quantityId")
+            j.text = controller["steering_variable"]
+            j.tail = "\n        "
 
-                k = ET.SubElement(g, gn_brackets + "unit")
-                k.text = "m"
-                k.tail = "\n      "
+            k = ET.SubElement(g, gn_brackets + "unit")
+            k.text = "m"
+            k.tail = "\n      "
 
         for ikey, key in enumerate(self.all_controllers.keys()):
             controller = self.all_controllers[key]
@@ -616,6 +627,7 @@ class DRTCModel:
                 j.tail = "\n    "
                 if ikey == len(self.all_controllers):
                     j.tail = "\n  "
+
         # the parsed complex controllers should be inserted at the right place
         if self.complex_controllers is not None:
             for ctl in self.complex_controllers["dataconfig_import"]:
