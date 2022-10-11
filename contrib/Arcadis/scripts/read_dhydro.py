@@ -544,15 +544,16 @@ def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id=
 
 def branch_gui2df(branch_file):
     # branch file
-    df = pd.DataFrame()
     with open(branch_file, mode="r") as f:
         text = [x.strip().splitlines() for x in f.read().split("[Branch]") if x != ""]
+        branches = []
         for branch in text:
             td = {}
             for item in branch:
                 item = item.split("#")[0].split("=")
                 td[item[0].strip()] = item[1].strip()
-            df = df.append(td, ignore_index=True)
+            branches.append(td)
+        df = pd.DataFrame(branches)
     return df
 
 

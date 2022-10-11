@@ -20,15 +20,15 @@ def initial_dhydro(
     output_path,
 ):
     """
-       Determine the initial situation for D-hydro based on waterlevel control areas.
+       Create the 1D initial waterlevel D-hydro based on a shape file.
 
        Parameters:
            net_nc_path : str
                Path to input nc-file containing the D-hydro network
            areas_path : str
-               Path to shapefile with areas containing initial values
+               Path to shape file with areas containing initial values
            value_field: str
-               Column name of the shape containing intial values
+               Column name containing intial values
            value_type: str
                Type of initial value (WaterLevel or WaterDepth)
            value_unit: str
@@ -39,33 +39,34 @@ def initial_dhydro(
                Path to results-file
     ___________________________________________________________________________________________________________
        Warning:
-           Waterways that lie in several waterlevel control areas are not (always) processed correctly.
+           Waterways that are in several waterlevel control areas are not (always) processed correctly.
 
     """
     global_value = float(global_value)
 
-    # ds = nc.Dataset(net_nc_path)
+    # read geometries to geopandas
     gdf_areas = gpd.read_file(areas_path)
-    # hier al reaches uitlezen
-
     gdf_branches = net_nc2gdf(net_nc_path, results=["1d_branches"])["1d_branches"]
-
-    initials = determine_initial(gdf_branches, gdf_areas, value_field)
     # todo: check projection both files
 
+
+    initials = determine_initial(gdf_branches, gdf_areas, value_field)
+
+    # prepare result to be writen to file
     df_branch = pd.DataFrame.from_dict(initials).T
     df_branch["branchId"] = [str(f) for f in df_branch.index]
     df_branch["numlocations"] = [len(ch) for ch in df_branch.chainage]
+    df_branch = df_branch[df_branch.numlocations>0]
     df_global = pd.DataFrame(
         data=[[value_type, value_unit, global_value]],
         columns=["quantity", "unit", "value"],
     )
+
+    # write result with hydrolib-core
     writefile = OneDFieldModel(
         branch=df_branch.to_dict("records"), global_=df_global.to_dict("records")[0]
     )
-
     writefile.save(Path(output_path))
-
     print("Wegschrijven van initiele situatie gelukt")
 
 
