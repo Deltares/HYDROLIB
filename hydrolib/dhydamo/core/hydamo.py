@@ -1,32 +1,39 @@
 import logging
 from datetime import datetime
 from typing import Union, Any
-
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import shapely
+from pathlib import Path
 from pydantic import validate_arguments
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, Point, Polygon
 from tqdm.auto import tqdm
-
+import shapely
 from hydrolib import dhydamo
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
-from hydrolib.dhydamo.converters.hydamo2df import *
+from hydrolib.dhydamo.converters.hydamo2df import (
+    RoughnessVariant,
+    StructuresIO,
+    CrossSectionsIO,
+    ExternalForcingsIO,
+)
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
 
-
 class HyDAMO:
-    """Main data structure for dflowfm model. Contains subclasses
-    for network, structures, cross sections, observation points
-    and external forcings.
+    """Main data structure for both the HyDAMO input data and the intermediate dataframes. Contains subclasses
+    for network, structures, cross sections, observation points, storage nodes and external forcings.
     """
 
-    def __init__(self, extent_file=None):
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def __init__(self, extent_file: Union[Path, str]=None) -> None:
+        """Initiate subclasses and IO-methods
 
+        Args:
+            extent_file (Union[Path, str], optional): model extent, use to clip datsaets. Defaults to None.
+        """
         self.network = Network(self)
 
         self.structures = Structures(self)
@@ -63,9 +70,8 @@ class HyDAMO:
         self.version = {
             "number": dhydamo.__version__,
             "date": datetime.strftime(datetime.utcnow(), "%Y-%m-%dT%H:%M:%S.%fZ"),
-            "dfm_version": "Deltares, D-Flow FM Version 5.00.024.74498M",
             "dimr_version": "Deltares, DIMR_EXE Version 2.00.00.140737 (Win64) (Win64)",
-            "suite_version": "D-HYDRO Suite 2022.03 1D2D,",
+            "suite_version": "D-HYDRO Suite 2022.04 1D2D,",
         }
 
         # Create standard dataframe for network, crosssections, orifices, weirs
@@ -260,8 +266,12 @@ class HyDAMO:
 
 
 class Network:
-    def __init__(self, hydamo):
+    def __init__(self, hydamo: HyDAMO) -> None:
+        """Set class variables
 
+        Args:
+            hydamo (HyDAMO): HyDAMO object containign all input data
+        """
         self.hydamo = hydamo
 
         # Mesh 1d offsets
@@ -294,7 +304,7 @@ class Network:
         # Save
         self.mesh1d.set_values("nbranchorder", branchorder)
 
-    def set_branch_interpolation_modelwide(self):
+    def set_branch_interpolation_modelwide(self)-> None:
         """
         Set cross-section interpolation over nodes on all branches model-wide. I
 
@@ -309,7 +319,9 @@ class Network:
             if len(group) > 1:
                 self.set_branch_order(group)
 
-    def make_nodes_to_branch_map(self):
+    def make_nodes_to_branch_map(self)->None:
+        """Map nodes connected to each branch
+        """
         # Note: first node is upstream, second node is downstream
         self.nodes_to_branch_map = {
             b: [self.mesh1d.description1d["network_node_ids"][_idx - 1] for _idx in idx]
@@ -319,15 +331,18 @@ class Network:
             )
         }
 
-    def make_branches_to_node_map(self):
+    def make_branches_to_node_map(self) -> None:
+        """Map branches connected to each node
+        """
         self.make_nodes_to_branch_map()
         self.branches_to_node_map = {
             n: [k for k, v in self.nodes_to_branch_map.items() if n in v]
             for n in self.mesh1d.description1d["network_node_ids"]
         }
 
+    @validate_arguments
     def generate_nodes_with_bedlevels(
-        self, resolve_at_bifurcation_method="min", return_reversed_branches=False
+        self, resolve_at_bifurcation_method:str="min", return_reversed_branches:bool=False
     ):
         """
         Generate nodes with upstream and downstream bedlevels derived from set cross-sections on branch. It takes into
@@ -591,7 +606,7 @@ class Network:
         if return_reversed_branches:
             return list(np.unique(reserved_branches))
 
-    def get_grouped_branches(self):
+    def get_grouped_branches(self) -> None:
         """
         Get grouped branch ids to use in set_branch_order function
         """
@@ -710,7 +725,12 @@ class Network:
 
 
 class CrossSections:
-    def __init__(self, hydamo):
+    def __init__(self, hydamo: HyDAMO) -> None:
+        """Initiate class variables
+
+        Args:
+            hydamo (HyDAMO): input data structure
+        """
         self.hydamo = hydamo
         self.crosssections = []
         self.default_definition = None
@@ -725,6 +745,7 @@ class CrossSections:
         self.convert = CrossSectionsIO(self)
 
     def get_roughness_description(self, roughnesstype, value):
+        
 
         if np.isnan(float(value)):
             raise ValueError("Roughness value should not be NaN.")
@@ -1877,7 +1898,6 @@ class Structures:
 class ObservationPoints:
     def __init__(self, hydamo):
         self.hydamo = hydamo
-        self.observation_points = pd.DataFrame()
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def add_points(
@@ -1897,6 +1917,8 @@ class ObservationPoints:
         snap_distance : float (default is 5 m)
             1d observation poinst within this distance to a branch will be snapped to it. Otherwise they are discarded.
         """
+        if not hasattr(self, "observation_points"):
+            self.observation_points = gpd.GeoDataFrame()
 
         if isinstance(names, str):
             names = [names]
@@ -1943,7 +1965,12 @@ class ObservationPoints:
         obs.dropna(how="all", axis=1, inplace=True)
 
         # Add to dataframe
-        self.observation_points = obs
+        if self.observation_points.empty:
+            self.observation_points = obs
+        else:
+            self.observation_points = self.observation_points.append(
+                obs, ignore_index=True
+            )
 
 
 class StorageNodes:
@@ -2006,6 +2033,14 @@ class StorageNodes:
 
 
 def remove_nan_values(base):
+    """Remove nan values from object
+
+    Args:
+        base (_type_): input data, containig nans
+
+    Returns:
+       base_copy : output data with nans-filtered
+    """
     base_copy = base.copy()
     for k, v in base.items():
         if isinstance(v, float):

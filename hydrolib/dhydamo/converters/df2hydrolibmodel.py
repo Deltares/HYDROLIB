@@ -1,8 +1,8 @@
 import logging
-from multiprocessing.sharedctypes import Value
+
+# from multiprocessing.sharedctypes import Value
 from typing import Iterable
 import pandas as pd
-
 from hydrolib.core.io.structure.models import (
     Weir,
     UniversalWeir,
@@ -56,6 +56,7 @@ class Df2HydrolibModel:
         self.write_all()
 
     def write_all(self):
+        """Wrapper function to convert all seperate objects"""
         self.regular_weirs_to_dhydro()
         self.orifices_to_dhydro()
         self.universal_weirs_to_dhydro()
@@ -73,30 +74,16 @@ class Df2HydrolibModel:
 
     @staticmethod
     def _clear_comments(lst):
+        """Convenience function to remove comment statements in INI files"""        
         if isinstance(lst, list):
             for item in lst:
                 [setattr(item.comments, field[0], "") for field in item.comments]
         else:
             [setattr(lst.comments, field[0], "") for field in lst.comments]
 
-    # def regular_weirs_to_dhydro_loop(self):
-    #     for rweir in self.hydamo.structures.rweirs_df.to_dict("records"):
-    #         struc = Weir(
-    #             id=rweir.id,
-    #             name=rweir.name,
-    #             branchid=rweir.branchid,
-    #             chainage=rweir.chainage,
-    #             crestlevel=rweir.crestlevel,
-    #             crestwidth=rweir.crestwidth,
-    #             corrcoeff=rweir.corrcoeff,
-    #             allowedflowdir=rweir.allowedflowdir,
-    #             usevelocityheight=rweir.usevelocityheight,
-    #         )
-    #         #[setattr(struc.comments, field[0], "") for field in struc.comments]
-    #         self._clear_comments(struc.comments)
-    #         self.structures.append(struc)
-
     def regular_weirs_to_dhydro(self):
+        """Convert regular weirs to Weir-model
+        """
         structs = [
             Weir(**struc)
             for struc in self.hydamo.structures.rweirs_df.to_dict("records")
@@ -104,28 +91,8 @@ class Df2HydrolibModel:
         self._clear_comments(structs)
         self.structures += structs
 
-    # def orifices_to_dhydro_loop(self):
-    #     for orifice in self.dfmmodel.structures.orifices.itertuples():
-    #         struc = Orifice(
-    #             id=orifice.id,
-    #             name=orifice.name,
-    #             branchid=orifice.branchid,
-    #             chainage=orifice.chainage,
-    #             crestlevel=orifice.crestlevel,
-    #             crestwidth=orifice.crestwidth,
-    #             corrcoeff=orifice.corrcoeff,
-    #             allowedflowdir=orifice.allowedflowdir,
-    #             usevelocityheight=orifice.usevelocityheight,
-    #             gateloweredgelevel=orifice.gateloweredgelevel,
-    #             uselimitflowpos=orifice.uselimitflowpos,
-    #             limitflowpos=orifice.limitflowpos,
-    #             uselimitflowneg=orifice.uselimitflowneg,
-    #             limitflowneg=orifice.limitflowneg,
-    #         )
-    #         [setattr(struc.comments, field[0], "") for field in struc.comments]
-    #         self.structures.append(struc)
-
     def orifices_to_dhydro(self):
+        """Convert orifices to Orfice-models"""
         structs = [
             Orifice(**struc)
             for struc in self.hydamo.structures.orifices_df.to_dict("records")
@@ -133,26 +100,8 @@ class Df2HydrolibModel:
         self._clear_comments(structs)
         self.structures += structs
 
-    # def universal_weirs_to_dhydro_loop(self):
-    #     for uweir in self.dfmmodel.structures.uweirs.itertuples():
-    #         struc = UniversalWeir(
-    #             id=uweir.id,
-    #             name=uweir.name,
-    #             branchid=uweir.branchid,
-    #             chainage=uweir.chainage,
-    #             crestlevel=uweir.crestlevel,
-    #             crestwidth=uweir.crestwidth,
-    #             dischargecoeff=uweir.dischargecoeff,
-    #             allowedflowdir=uweir.allowedflowdir,
-    #             usevelocityheight=uweir.usevelocityheight,
-    #             numlevels=uweir.numlevels,
-    #             yvalues=uweir.yvalues,
-    #             zvalues=uweir.zvalues,
-    #         )
-    #         [setattr(struc.comments, field[0], "") for field in struc.comments]
-    #         self.structures.append(struc)
-
     def universal_weirs_to_dhydro(self):
+        """Convert universal weirs to UniversalWeir-models"""
         structs = [
             UniversalWeir(**struc)
             for struc in self.hydamo.structures.uweirs_df.to_dict("records")
@@ -160,28 +109,9 @@ class Df2HydrolibModel:
         self._clear_comments(structs)
         self.structures += structs
 
-    # def bridges_to_dhydro_loop(self):
-
-    #     for bridge in self.dfmmodel.structures.bridges.itertuples():
-    #         struc = Bridge(
-    #             id=bridge.id,
-    #             name=bridge.name,
-    #             branchid=bridge.branchid,
-    #             chainage=bridge.chainage,
-    #             csdefid=bridge.csdefid,
-    #             allowedflowdir=bridge.allowedflowdir,
-    #             shift=bridge.shift,
-    #             inletlosscoeff=bridge.inletlosscoeff,
-    #             outletlosscoeff=bridge.outletlosscoeff,
-    #             length=bridge.length,
-    #             frictiontype=bridge.frictiontype,
-    #             friction=bridge.friction,
-    #         )
-
-    #         [setattr(struc.comments, field[0], "") for field in struc.comments]
-    #         self.structures.append(struc)
-
     def bridges_to_dhydro(self):
+        """Convert bridges to Bridge-models
+        """
         structs = [
             Bridge(**struc)
             for struc in self.hydamo.structures.bridges_df.to_dict("records")
@@ -189,31 +119,8 @@ class Df2HydrolibModel:
         self._clear_comments(structs)
         self.structures += structs
 
-    # def culverts_to_dhydro_loop(self):
-
-    #     for culvert in self.dfmmodel.structures.culverts.itertuples():
-    #         struc = Culvert(
-    #             id=culvert.id,
-    #             name=culvert.name,
-    #             branchid=culvert.branchid,
-    #             chainage=culvert.chainage,
-    #             leftlevel=culvert.leftlevel,
-    #             rightlevel=culvert.rightlevel,
-    #             length=culvert.length,
-    #             inletlosscoeff=culvert.inletlosscoeff,
-    #             outletlosscoeff=culvert.outletlosscoeff,
-    #             csdefid=culvert.csdefid,
-    #             allowedflowdir=culvert.allowedflowdir,
-    #             valveonoff=culvert.valveonoff,
-    #             numlosscoeff=culvert.numlosscoeff,
-    #             valveopeningheight=culvert.valveopeningheight,
-    #             relopening=culvert.relopening,
-    #             losscoeff=culvert.losscoeff,
-    #         )
-    #         [setattr(struc.comments, field[0], "") for field in struc.comments]
-    #         self.structures.append(struc)
-
     def culverts_to_dhydro(self):
+        """Convert culverts to Culvert-models"""
         structs = [
             Culvert(**struc)
             for struc in self.hydamo.structures.culverts_df.to_dict("records")
@@ -221,27 +128,9 @@ class Df2HydrolibModel:
         self._clear_comments(structs)
         self.structures += structs
 
-    # def pumps_to_dhydro_loop(self):
-
-    #     for pump in self.dfmmodel.structures.pumps.itertuples():
-    #         struc = Pump(
-    #             id=pump.id,
-    #             name=pump.name,
-    #             branchid=pump.branchid,
-    #             chainage=pump.chainage,
-    #             orientation=pump.orientation,
-    #             numstages=pump.numstages,
-    #             controlside=pump.controlside,
-    #             capacity=pump.capacity,
-    #             startlevelsuctionside=pump.startlevelsuctionside,
-    #             stoplevelsuctionside=pump.stoplevelsuctionside,
-    #             startleveldeliveryside=pump.startleveldeliveryside,
-    #             stopleveldeliveryside=pump.stopleveldeliveryside,
-    #         )
-    #         [setattr(struc.comments, field[0], "") for field in struc.comments]
-    #         self.structures.append(struc)
-
     def pumps_to_dhydro(self):
+        """Convert pumps to Pump-models
+        """
         structs = [
             Pump(**struc)
             for struc in self.hydamo.structures.pumps_df.to_dict("records")
@@ -250,6 +139,7 @@ class Df2HydrolibModel:
         self.structures += structs
 
     def crosssection_locations_to_dhydro(self):
+        """Convert crosssection locations to CrossLoc models"""
         # Check which of the branches do not have a cross section. Add the default one to those
         branchids = set(
             [
@@ -288,8 +178,10 @@ class Df2HydrolibModel:
         self._clear_comments(css)
         self.crosslocs += css
 
-    def crosssection_definitions_to_dhydro(self):
-        def _get_cstype_part_of_dict(cstype: str):
+    def crosssection_definitions_to_dhydro(self) -> None:
+        """Convert crosssection definitions to Crossdef models"""
+        def _get_cstype_part_of_dict(cstype: str) -> dict:
+            """Reorganize the csdef dict"""
             return {
                 key: dct
                 for key, dct in self.hydamo.crosssections.crosssection_def.items()
@@ -314,7 +206,8 @@ class Df2HydrolibModel:
         self._clear_comments(cs)
         self.crossdefs += cs
 
-    def boundaries_to_dhydro(self):
+    def boundaries_to_dhydro(self) -> None:
+        """Convert dataframe of boundaries to ext and bc models"""
         for bound in self.hydamo.external_forcings.boundary_nodes.values():
             if bound["time"] is None:
                 bnd_bc = Constant(
@@ -346,7 +239,8 @@ class Df2HydrolibModel:
             bnd_ext.forcingfile.filepath = Path("boundaryconditions.bc")
             self.boundaries_ext.append(bnd_ext)
 
-    def laterals_to_dhydro(self):
+    def laterals_to_dhydro(self) -> None:
+        """Convert dataframe of laterals to ext and bc models"""
         for key, lateral in self.hydamo.external_forcings.lateral_nodes.items():
 
             if isinstance(lateral["discharge"], str):
@@ -413,7 +307,7 @@ class Df2HydrolibModel:
         self.storagenodes += stornodes
 
     def observation_points_to_dhydro(self):
-        """Convert dataframe of observationpoints to ObserationPoint-objetcts"""
+        """Convert dataframe of observationpoints to ObserationPoint-objects"""
         obspoints = [
             ObservationPoint(**obs)
             for obs in self.hydamo.observationpoints.observation_points.to_dict(

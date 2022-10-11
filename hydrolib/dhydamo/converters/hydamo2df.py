@@ -6,17 +6,14 @@ import pandas as pd
 from pydantic import validate_arguments
 from shapely.geometry import Point
 
-#from hydrolib.core.io.structure.models import *
 from hydrolib.dhydamo.geometry.mesh import *
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
 
-
 class RoughnessVariant(Enum):
     HIGH = "High"
     LOW = "Low"
-
 
 class CrossSectionsIO:
     def __init__(self, crosssections):
