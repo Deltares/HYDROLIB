@@ -99,16 +99,14 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
 
     # combine branches with areas
     try:
-        gdf_union = gpd.overlay(
-            gdf1, gdf2, how="union", keep_geom_type=True
-        )
+        gdf_union = gpd.overlay(gdf1, gdf2, how="union", keep_geom_type=True)
     except:
         gdf_union = gpd.overlay(gdf1, gdf2)
         print("Warning: Union failed. Fall back to overlay.")
 
     # prepare length and remove elements without length (slithers)
     gdf_union["length"] = gdf_union.geometry.length
-    gdf_union = gdf_union[gdf_union["length"]>0]
+    gdf_union = gdf_union[gdf_union["length"] > 0]
 
     # prepare list with branches
     initials = {}
@@ -132,18 +130,16 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
             coords_start = gdf_branches_org.geometry.coords[0]
             gdf_union_branch["coords_start"] = [
                 xy.coords[0] for xy in gdf_union_branch["geometry"].tolist()
-            ] # todo: Gives a false positive warining. see https://stackoverflow.com/questions/26666919/add-column-in-dataframe-from-list
+            ]  # todo: Gives a false positive warining. see https://stackoverflow.com/questions/26666919/add-column-in-dataframe-from-list
             # loop over branch parts, based on start and end coordinates
-            for _ in range(len(gdf_union_branch)): 
+            for _ in range(len(gdf_union_branch)):
                 # find correct first linepart, based on cooridinates
                 part = gdf_union_branch[
                     gdf_union_branch["coords_start"] == coords_start
                 ]
                 part = part.iloc[0]
                 # add to list when not nan since D-HYDRO does not support nan
-                if (
-                    part[level_field] > nodata_value
-                ): 
+                if part[level_field] > nodata_value:
                     initials[branch_id]["chainage"] += [chainage]
                     initials[branch_id]["values"] += [part[level_field]]
                 # prepare next linepart based on chainage
