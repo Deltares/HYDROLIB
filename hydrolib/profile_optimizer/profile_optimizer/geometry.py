@@ -28,25 +28,28 @@ def create_branches(network_nc, output_folder=False):
     ds = xr.open_dataset(network_nc)
 
     # network_key resembles the prefix of the geom_x, geom_y, etc elements in the net_nc. Logic of the exact prexif is currently unknown to script's developers.
-    if 'network1d_geom_x' in ds.keys():
+    if 'network1d_geom_x' in ds:
         network_key = 'network1d'
-    elif 'Network_geom_x' in ds.keys():
+    elif 'Network_geom_x' in ds:
         network_key = 'Network'
     else:
         network_key = 'network'
 
-    if 'projected_coordinate_system' in ds.keys():
+    if 'projected_coordinate_system' in ds:
         crs = ds.projected_coordinate_system.EPSG_code
     else:
         warnings.warn("Caution: no CRS found in network file, assuming default CRS (EPSG:28992 RD New)")
         crs = 'EPSG:28992'
 
+    # common variables
+    geom_x = f'{network_key}_geom_x'
+    geom_y = f'{network_key}_geom_y'
 
     # Create points for all vertexes
-    df = pd.concat([pd.Series(ds[f'{network_key}_geom_x'].values), pd.Series(ds[f'{network_key}_geom_y'].values)],
+    df_network = pd.concat([pd.Series(ds[geom_x].values), pd.Series(ds[geom_y].values)],
                    axis=1)
-    df.columns = [f'{network_key}_geom_x', f'{network_key}_geom_y']
-    gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[f'{network_key}_geom_x'], df[f'{network_key}_geom_y']))
+    df_network.columns = [geom_x, geom_y]
+    gdf_network = gpd.GeoDataFrame(df_network, geometry=gpd.points_from_xy(df_network[geom_x], df_network[geom_y]))
 
     df_branches = pd.DataFrame({'node_count': ds[f'{network_key}_geom_node_count'].values,
                                 'branchid': ds[f'{network_key}_branch_id'].values.astype(str),
@@ -62,7 +65,7 @@ def create_branches(network_nc, output_folder=False):
             df_branches.loc[j, 'start_node'] = start_node
             df_branches.loc[j, 'end_node'] = end_node
             linestring = LineString \
-                (gdf.iloc[df_branches['start_node'][j] : df_branches['end_node'][j]]['geometry'].values)
+                (gdf_network.iloc[df_branches['start_node'][j] : df_branches['end_node'][j]]['geometry'].values)
             with warnings.catch_warnings():  # This deprication warning is not relevant to this situation
                 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
                 df_branches.loc[j, 'line_geometry'] = linestring
@@ -72,7 +75,7 @@ def create_branches(network_nc, output_folder=False):
             df_branches.loc[j, 'start_node'] = start_node
             df_branches.loc[j, 'end_node'] = end_node
             linestring = LineString \
-                (gdf.iloc[df_branches['start_node'][j] : df_branches['end_node'][j]]['geometry'].values)
+                (gdf_network.iloc[df_branches['start_node'][j] : df_branches['end_node'][j]]['geometry'].values)
             with warnings.catch_warnings():  # This deprication warning is not relevant to this situation
                 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
                 df_branches.loc[j, 'line_geometry'] = linestring
@@ -86,7 +89,7 @@ def create_branches(network_nc, output_folder=False):
         branches.to_file(output_folder /'branches.shp')
     return branches
 
-def create_crosssections(branches, crossloc_ini, output_folder=False):
+def create_crosssections(branches: gpd.GeoDataFrame, crossloc_ini: Path, output_folder=False):
     """
     Create geometry dataset of the crosssection locations, by projecting the points on the branch-network.
 
@@ -141,13 +144,11 @@ def select_crosssection_locations(crosssection_locations, shapefile_path):
 
 
 if __name__ == '__main__':
-    # net_nc = r'c:\local\DHydro\Merkske_v14_Q40.dsproj_data\DFM\input\Merske_Q100_net.nc'
-    net_nc = r'c:\Users\908367\Box\BH6657 TKI4 DHYDRO\BH6657 TKI4 DHYDRO WIP\08_Oppervlaktewater\1_modellen\Project1.dsproj_data\FlowFM\input\FlowFM_net.nc'
+    test_folder = Path(r'D:/local/profile_optimizer/dflowfm')
+    net_nc = test_folder/'FlowFM_net.nc'
     br = create_branches(net_nc)
-    ini = r'c:\Users\908367\Box\BH6657 TKI4 DHYDRO\BH6657 TKI4 DHYDRO WIP\08_Oppervlaktewater\1_modellen\Project1.dsproj_data\FlowFM\input\crsloc.ini'
-    # ini = r'c:\local\DHydro\Merkske_v14_Q40.dsproj_data\DFM\input\crsloc.ini'
-    cr = create_crosssections(br, ini, r'C:/local')
-    # fn_shp = r'c:\local\test_area.gpkg'
-    fn_shp = r'c:\local\grift.gpkg'
+    ini = test_folder/r'crsloc.ini'
+    cr = create_crosssections(br, ini, test_folder)
+    fn_shp = test_folder/'selection.gpkg'
     select = select_crosssection_locations(cr, fn_shp)
-    print(select.head())
+    # print(select.head())
