@@ -93,54 +93,60 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
     """
     nodata_value = -9999
 
+    # prepare data by selecting columns
     gdf1 = gdf_branches[["id", "geometry"]]
     gdf2 = gdf_areas[[level_field, "geometry"]]
 
-    # TODO: Union nog oplossen dat het niet error geeft, de nan values (oude values) missen nu.
+    # combine branches with areas
     try:
         gdf_union = gpd.overlay(
             gdf1, gdf2, how="union", keep_geom_type=True
-        )  # gdf_union = gpd.sjoin(gdf1, gdf2)
+        )
     except:
         gdf_union = gpd.overlay(gdf1, gdf2)
-        print("LET OP: Union niet gelukt. Oude waardes worden niet weggeschreven.")
+        print("Warning: Union failed. Fall back to overlay.")
 
+    # prepare length and remove elements without length (slithers)
     gdf_union["length"] = gdf_union.geometry.length
+    gdf_union = gdf_union[gdf_union["length"]>0]
 
-    # loop over all branches
+    # prepare list with branches
     initials = {}
     sortlist = gdf_union.id.unique()
     sortlist.sort()
+
+    # loop over all branches
     for branch_id in sortlist:
         initials[branch_id] = {"chainage": [], "values": []}
         gdf_union_branch = gdf_union[gdf_union["id"] == branch_id]
         chainage = 0
-        if len(gdf_union_branch) == 1:  # speed up processing
+        # simpel branch with only 1 part
+        if len(gdf_union_branch) == 1:
             if gdf_union_branch[level_field].iloc[0] > nodata_value:
                 initials[branch_id]["chainage"] += [chainage]
                 initials[branch_id]["values"] += [gdf_union_branch[level_field].iloc[0]]
-        else:  # branches split into multiple parts
-            # gdf_branches_org = gdf_branches.loc[branch_id]
+        # branches split into multiple parts
+        else:
+            # find original starting point of branch
             gdf_branches_org = gdf_branches.loc[gdf_branches["id"] == branch_id].iloc[0]
             coords_start = gdf_branches_org.geometry.coords[0]
             gdf_union_branch["coords_start"] = [
                 xy.coords[0] for xy in gdf_union_branch["geometry"].tolist()
-            ]
-
-            for i in range(len(gdf_union_branch)):  # todo: i never used
+            ] # todo: Gives a false positive warining. see https://stackoverflow.com/questions/26666919/add-column-in-dataframe-from-list
+            # loop over branch parts, based on start and end coordinates
+            for _ in range(len(gdf_union_branch)): 
                 # find correct first linepart, based on cooridinates
                 part = gdf_union_branch[
                     gdf_union_branch["coords_start"] == coords_start
                 ]
-                if len(part) == 0:  # needed since sometimes there are weird slithers
-                    break
                 part = part.iloc[0]
+                # add to list when not nan since D-HYDRO does not support nan
                 if (
                     part[level_field] > nodata_value
-                ):  # only add when not nan since D-HYDRO does not support nan
+                ): 
                     initials[branch_id]["chainage"] += [chainage]
                     initials[branch_id]["values"] += [part[level_field]]
-                # prepare next linepart
+                # prepare next linepart based on chainage
                 chainage = chainage + part.length
                 coords_start = part.geometry.coords[-1]
 
