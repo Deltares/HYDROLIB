@@ -35,7 +35,6 @@ cookiecutter==2.1.1
 cryptography==38.0.1
 cycler==0.11.0
 Cython==0.29.32
-cytoolz @ file:///C:/scripts/wheels/cytoolz-0.11.2-cp39-cp39-win_amd64.whl
 dask==2022.9.0
 debugpy==1.6.3
 decorator==5.1.1
@@ -49,11 +48,9 @@ entrypoints==0.4
 et-xmlfile==1.1.0
 fastjsonschema==2.16.1
 filelock==3.8.0
-Fiona @ file:///C:/scripts/wheels/Fiona-1.8.21-cp39-cp39-win_amd64.whl
 flake8==4.0.1
 fonttools==4.37.1
 fsspec==2022.8.2
-GDAL @ file:///C:/scripts/wheels/GDAL-3.4.3-cp39-cp39-win_amd64.whl
 geographiclib==1.52
 geopandas==0.11.1
 geopy==2.2.0
@@ -173,7 +170,6 @@ qstylizer==0.2.2
 QtAwesome==1.1.1
 qtconsole==5.3.2
 QtPy==2.2.0
-rasterio @ file:///C:/scripts/wheels/rasterio-1.2.10-cp39-cp39-win_amd64.whl
 requests==2.28.1
 requests-file==1.5.1
 requests-toolbelt==0.9.1
@@ -198,8 +194,6 @@ sphinxcontrib-htmlhelp==2.0.0
 sphinxcontrib-jsmath==1.0.1
 sphinxcontrib-qthelp==1.0.3
 sphinxcontrib-serializinghtml==1.1.5
-spyder==5.3.3
-spyder-kernels==2.3.3
 terminado==0.16.0
 text-unidecode==1.3
 textdistance==4.4.0
