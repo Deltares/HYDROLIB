@@ -9,13 +9,14 @@ Created on Fri May 13th 2022
 # Import
 # =============================================================================
 import datetime as dt
+import pathlib
+from typing import List, Optional, Type, TypeVar
+
 import netCDF4 as nc
 import numpy as np
 import pandas as pd
-import pathlib
 from plotting import default_plot
 from pydantic import BaseModel
-from typing import Optional, List, Type, TypeVar
 
 PandasDataFrame = TypeVar("pandas.core.frame.DataFrame")
 STRUCTURE_TYPES = ["station", "weirgen"]

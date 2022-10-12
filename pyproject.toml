@@ -1,18 +1,21 @@
 [tool.poetry]
 name = "hydrolib"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python wrappers around D-HYDRO Suite."
 authors = ["Deltares"]
 license = "LGPL"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = ">=3.8,<3.11"
 pandas = "^1.2"
-geopandas = "^0.9"
+geopandas = "^0.10"
 xarray = "^0.17"
-hydrolib-core = "0.2.1"
+hydrolib-core = "0.3.0"
 shapely = "^1.8"
 matplotlib = "^3.5.2"
+numpy = "^1.23"
+openpyxl = "^3"
+scipy = "^1.9"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
@@ -79,3 +82,11 @@ pandas = { channel = "conda-forge" }
 geopandas = { channel = "conda-forge" }
 xarray = { channel = "conda-forge" }
 hydrolib-core = { channel = "pip" }
+shapely = { channel = "conda-forge" }
+matplotlib = { channel = "conda-forge" }
+numpy = { channel = "conda-forge" }
+openpyxl = { channel = "conda-forge" }
+scipy = { channel = "conda-forge" }
+
+[tool.pytest.ini_options]
+markers = "plot"
