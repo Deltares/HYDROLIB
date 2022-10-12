@@ -1,23 +1,19 @@
-# Hydrolib-D-Hydamo: D-Hydro model generation based on HyDAMO databases
-**The Hydrolib-D-Hydamo plugin is under development!**
+# DHyDAMO
+**DHyDAMO is still under development!**
 
-## What is the HydroMT-Delft3D FM plugin?
-This plugin provides an implementation of the HydroMT model API for the [Delft3D FM Suite 1D2D](https://www.deltares.nl/nl/software/d-hydro-suite-1d2d/) model.
+## What is DHyDAMO?
+DHyDAMO provides tools for automatic generation of  [Delft3D FM Suite 1D2D](https://www.deltares.nl/nl/software/d-hydro-suite-1d2d/) models based on [HyDAMO DAMO2.2](https://hkvconfluence.atlassian.net/wiki/spaces/DHYD/pages/222396421/Achtergrond) data.
 
-[Hydrolib-dhydamo](https://deltares.github.io/hydromt/latest/) is an open-source Python package that facilitates the process of
-building and analyzing spatial geoscientific models with a focus on water system models.
-It does so by automating the workflow to go from raw data to a complete model instance which
-is ready to run and to analyze model results once the simulation has finished. 
+[DHyDAMO](https://github.com/Deltares/HYDROLIB/tree/main/hydrolib/dhydamo) is an open-source Python package within the Hydrolib environment that enables automatic generation of [D-Hydro](https://www.deltares.nl/nl/software/d-hydro-suite-1d2d/) models  based on a [HyDAMO DAMO2.2](https://hkvconfluence.atlassian.net/wiki/spaces/DHYD/pages/222396421/Achtergrond) dataset.
 
-## Why HydroMT-Delft3D FM?
-*Work-in-progress*
+## Why DHyDAMO?
+DHyDAMO offers more functionality and flexibility than its predecessor [delft3dfmpy](https://github.com/openearth/delft3dfmpy). Moreover, coupling to the Hydrolib-core functionality ensures that the interface to D-Hydro remains up to date.
 
-## How to use HydroMT-Delft3D FM?
-The HydroMT-Delft3D FM plugin can be used as a **command line** application, which provides commands to *build*,
-*update* and *clip* a Delft3D FM model with a single line, or **from python** to exploit its rich interface.
+## How to use DHyDAMO?
+The DHyDAMO functionality is usable through a JuPyteR notebook. An example is provided in the [tutorial](getting_started/installation_guide.md).
 
-## How to cite?
-*Work-in-progress*
-
-## How to contribute?
-*Work-in-progress*
+## More information
+* First users: [Installation](getting_started/installation_guide.md) and [tutorial](getting_started/tutorial.md)
+* Developers: [Reference](reference/api.md)
+* Current developments: [Developments](developments/developments.md)
+* Releases, known issues: to be filled.

@@ -22,6 +22,4 @@ dependencies:
   - descartes=1.1.0
   - contextily=1.0.1
   - fire=0.4.0
-  - rstr=2.2.6
-  - pip:
-    - hydrolib-core=0.3.0
+  - rstr=2.2.6  
