@@ -122,18 +122,14 @@ def check_QVA(Q_target, d, talud, b, slope, kmanning, allowed_variation=0.05):
         stepsize = 0.05  # %
         if deviation_from_target < - allowed_variation:
             b *= (1+stepsize)
-            V = determine_v_with_manning(d, talud, b, slope, kmanning)
-            A = ((talud * d) * d) + (b * d)
-            Q = V * A
-            deviation_from_target = (Q - Q_target) / Q_target
-            print(f"Adjustment {counter}: new width: {b:.2f}, V: {V:.4f}, Q: {Q:.4f}")
         elif deviation_from_target > allowed_variation:
             b *= (1-stepsize)
-            V = determine_v_with_manning(d, talud, b, slope, kmanning)
-            A = ((talud * d) * d) + (b * d)
-            Q = V * A
-            deviation_from_target = (Q - Q_target) / Q_target
-            print(f"Adjustment {counter}: new width: {b:.2f}, V: {V:.4f}, Q: {Q:.4f}")
+
+        V = determine_v_with_manning(d, talud, b, slope, kmanning)
+        A = ((talud * d) * d) + (b * d)
+        Q = V * A
+        deviation_from_target = (Q - Q_target) / Q_target
+        print(f"Adjustment {counter}: new width: {b:.2f}, V: {V:.4f}, Q: {Q:.4f}")
         if counter == 30:
             print("Failed to find suitable initial bottom width in 30 tries, please check if your inputs are correct "
                   "and use the returned bottom width with caution.")
