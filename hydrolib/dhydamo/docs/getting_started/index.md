@@ -2,8 +2,5 @@
 
 [Installation guide](installation_guide.md)
 
-[Examples](examples.md)
+[Tutorial](tutorial.md)
 
-[User's stories](users_stories.md)
-
-[Frequently asked questions](frequently_asked_questions.md)

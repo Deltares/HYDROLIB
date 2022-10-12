@@ -1,4 +1,4 @@
-## HydroMT Delft3D FM plugin
-The API references of HydroMT Delft3D FM plugin can be found below:
+## DHyDAMO
+The API references of DHyDAMO can be found below:
 
-*Work-in-progress*
+::: converters.hydamo2df selection: docstring_style: numpy 
