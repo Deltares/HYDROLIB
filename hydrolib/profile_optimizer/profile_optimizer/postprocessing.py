@@ -11,8 +11,29 @@ from pathlib import Path
 from hydrolib.core.io.mdu.models import FMModel
 
 class Results:
-    def __init__(self, model_folder):
-        self.model_folder = model_folder
+    def __init__(self, model_result_folder):
+        """General class to read NetCDF results for a DHydro model
+
+        The class automatically parses the model_result_folder for the map.nc result file, and returns results
+        on edges (discharge and velocity) and nodes (water leven and depth) on the LAST TIMESTEP of the results.
+
+        Args:
+            model_result_folder: folder with DHydro model results
+
+        Variables:
+            gdf_lines: A GeoDataFrame with results on edges of the final timestep (discharge and velocity)
+            gdf_points: A GeoDataFrame with results on nodes of the final timestep (Water level and depth)
+
+        Functions:
+            result_gdf_lines: creates a geodataframe with result of the final timestep on edges (q & v)
+            resut_gdf_points: creates a geodataframe with result of the final timestep on nodes (wl & wd)
+            result_at_xy: looks up the results closest to this coordinate using a KDTree method.
+            export_result_gpkg: exports the results (lines & points) as a geopackage
+            export_result_shp: exports the results (lines & points) as a shapefile
+
+        """
+
+        self.model_folder = model_result_folder
         self.gdf_lines = self.result_gdf_lines(self.model_folder)
         self.gdf_points = self.result_gdf_points(self.model_folder)
 

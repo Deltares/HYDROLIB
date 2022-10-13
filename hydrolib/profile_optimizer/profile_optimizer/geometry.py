@@ -62,23 +62,17 @@ def create_branches(network_nc, output_folder=False):
         if j == 0:
             start_node = 0
             end_node = 0 + df_branches['node_count'][j]
-            df_branches.loc[j, 'start_node'] = start_node
-            df_branches.loc[j, 'end_node'] = end_node
-            linestring = LineString \
-                (gdf_network.iloc[df_branches['start_node'][j] : df_branches['end_node'][j]]['geometry'].values)
-            with warnings.catch_warnings():  # This deprication warning is not relevant to this situation
-                warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
-                df_branches.loc[j, 'line_geometry'] = linestring
         else:
             start_node = df_branches['node_count'][:j].sum()
             end_node = start_node + df_branches['node_count'].iloc[j]
-            df_branches.loc[j, 'start_node'] = start_node
-            df_branches.loc[j, 'end_node'] = end_node
-            linestring = LineString \
-                (gdf_network.iloc[df_branches['start_node'][j] : df_branches['end_node'][j]]['geometry'].values)
-            with warnings.catch_warnings():  # This deprication warning is not relevant to this situation
-                warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
-                df_branches.loc[j, 'line_geometry'] = linestring
+
+        df_branches.loc[j, 'start_node'] = start_node
+        df_branches.loc[j, 'end_node'] = end_node
+        linestring = LineString \
+            (gdf_network.iloc[df_branches['start_node'][j] : df_branches['end_node'][j]]['geometry'].values)
+        with warnings.catch_warnings():  # This deprication warning is not relevant to this situation
+            warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
+            df_branches.loc[j, 'line_geometry'] = linestring
 
     branches = gpd.GeoDataFrame(df_branches, geometry=df_branches.line_geometry,
                                 crs = crs)

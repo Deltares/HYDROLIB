@@ -4,20 +4,43 @@ from hydrolib.core.io.crosssection.models import CrossDefModel
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.core.io.dimr.models import DIMR, FMComponent
 import subprocess
-import netCDF4 as nc
-from scipy import spatial
-import pandas as pd
-import numpy as np
 import shutil
 import os
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 
 class ProfileOptimizer():
     def __init__(self, base_model_fn: Path, bat_file, work_dir: Path, output_dir: Path,
-                 iteration_name='Iteration', iteration_start_count=0):
+                 iteration_name='Iteration', iteration_start_count=1):
+        """Framework for iterative cross-section changes and calculations with DHydro
+
+        The profile optimizer is a class that supplies a framework for running iterative DHydro calculations to optimize
+        a crosssection profile. During the initialization, the base model is copied to the temporary folder (including
+        all files in the parent folder of the base MDU). The base model is read with hydrolib-core and settings are
+        saved to the class to create iterations afterwards.
+
+        Args:
+            base_model_fn: Path to the MDU path of the base model (Pathlib-Path)
+            bat_file: Path to a batch file that runs DIMR (Path or string)
+            work_dir: Path to folder that does not yet exist, where the iterations can be saved temporarily (Pathlib-Path)
+            output_dir: Path to folder that does not yet exist where the final model is saved (Pathlib-Path)
+            iteration_name: Name for the iteration models. Will be used like: "{iteration_name}_12" for example (string)
+            iteration_start_count: What should be the first number of the iterations? Default is 1. Can be changed when
+                iterations are run in multiple phases and should be continued.
+
+        Functions:
+            create_iteration: main function, every use of this function creates a new iteration model.
+            run_model: function with which a model can be run using DIMR
+            run_latest: applies run_model, on the most recently created iteration.
+            export_model: using this function will export an iteration (default: last) to the output_dir.
+        """
         self.model_name = base_model_fn.name
         self.source_folder = base_model_fn.parent
-        self.iteration_nr = iteration_start_count
+        self.iteration_nr = iteration_start_count-1
         self.name = iteration_name
         self.bat_file = bat_file
         self._latest_bat = None
@@ -30,19 +53,23 @@ class ProfileOptimizer():
 
 
     def create_iteration(self, prof_ids: list, trapezium_pars: dict):
-        """
-        Creates a new model, changing the profiles on the given prof_ids and changing it with the given trapezium_pars.
-        Created:
+        """Creates a new model, changing the profiles and saving it in the temporary folder.
+
+        Creates:
         - Iteration folder (number is incremental and counted via class)
         - New crossdef file in iteration folder
         - New MDU in the upper model folder
         - DIMR config file in the iteration folder
         - Batch file in the iteration folder
-        :param prof_ids: list of profiles that should be changed
-        # Let op! Als een profiel-def op meerdere locaties wordt gebruikt, wordt deze overal aangepast.
-        :param trapezium_pars: dict of the new trapezium profile parameters (bottom_width, slope_l, slope_r, depth)
-        # Let op! Hier is assymetrisch profiel mogelijk.
-        :return: filename to the batch file of this iteration
+
+        Args:
+            prof_ids: list of profiles that should be changed
+            Let op! Als een profiel-def op meerdere locaties wordt gebruikt, wordt deze overal aangepast.
+            trapezium_pars: dict of the new trapezium profile parameters (bottom_width, slope_l, slope_r, depth)
+            # Let op! Hier is assymetrisch profiel mogelijk.
+
+        Returns:
+            filename to the batch file of this iteration
         """
         cross_def = pd.DataFrame([cs.__dict__ for cs in self.base_model.geometry.crossdeffile.definition])
 
@@ -97,7 +124,7 @@ class ProfileOptimizer():
 
     @staticmethod
     def _trapezium_coordinates(bottom_level, bottom_width, slope_l, slope_r, depth):
-        # General function to create y an z coords for a trapezium profile
+        """General function to create y an z coords for a trapezium profile"""
         slope_width_l = depth * slope_l
         slope_width_r = depth * slope_r
         ycoords = [0, slope_width_r, slope_width_r + bottom_width, slope_width_r + bottom_width + slope_width_l]
@@ -105,38 +132,19 @@ class ProfileOptimizer():
         return ycoords, zcoords
 
     @staticmethod
-    def _do_kdtree(combined_x_y_arrays, points):
-        #TODO: Check if this really works as it should.
-        mytree = spatial.cKDTree(combined_x_y_arrays)
-        dist, indexes = mytree.query(points)
-        return indexes
-
-    @staticmethod
-    def read_result(self, output_folder, point: tuple, variable):
-        # Will create a spatial mesh based on nodes x&y, looks up which datapoint is closest to the input point
-        # Returns the last timestep of that datapoint for the given variable (velocity, waterdepth or discharge)
-        raise NotImplementedError("read_result gave wrong results.")
-        # vars = {'velocity': 'mesh1d_u1',
-        #         'waterdepth': 'mesh1d_waterdepth',
-        #         'discharge': 'mesh1d_q1'}
-        # layer = vars[variable]
-        # mapfn = glob.glob(str(output_folder / '*' / '*_map.nc'))[0]
-        # ds = nc.Dataset(mapfn)
-        # mesh = [(x, y) for x, y in zip(ds.variables['mesh1d_node_x'][:], ds.variables['mesh1d_node_y'][:])]
-        # #TODO: Check if this really works as it should.
-        # mytree = spatial.cKDTree(mesh)
-        # dist, closest = mytree.query(point)
-        # # closest = self._do_kdtree(mesh, point)
-        # array = ds.variables[layer][closest, :].data
-        # return array[-1]
-
-    @staticmethod
     def run_model(bat_path, model_folder):
+        """Runs DIMR for a model of choice
+
+        Args:
+            bat_path: Path to the desired bat file that runs DIMR
+            model_folder: directory where the model is ran
+        """
         print("Begin running model")
         subprocess.call([str(Path(bat_path).absolute())], cwd=str(Path(model_folder).absolute()))
         print("Done running model")
 
     def run_latest(self):
+        """Runs DIMR for the most recently made iteration"""
         if self._latest_bat is not None:
             self.run_model(self._latest_bat, self._latest_bat.parent)
         else:
@@ -144,6 +152,12 @@ class ProfileOptimizer():
                              f'Use create_iteration() first, or run another model using run_model().')
 
     def export_model(self, specific_iteration='latest', cleanup=True):
+        """Export a model iteration to the output directory.
+
+        Args:
+            specific_iteration: Default: 'latest' will export the last made iteration. Can also be a number-number.
+            cleanup: bool, when True, the temp folder will be deleted afterwards.
+        """
         if specific_iteration == 'latest':
            iteration = self.iteration_nr
         else:
@@ -163,12 +177,11 @@ class ProfileOptimizer():
         other_files = os.listdir(self.work_dir)
         for filename in other_files:
             file = self.work_dir/filename
-            if not filename.endswith('.mdu'):
-                if os.path.isfile(file):
-                    destination = self.output_dir/Path(file).name
-                    if not destination.exists():
-                        shutil.copy(file, destination)
-                        print(f"Copied {destination.name} to destination")
+            if not filename.endswith('.mdu') and not os.path.isfile(file):
+                destination = self.output_dir/Path(file).name
+                if not destination.exists():
+                    shutil.copy(file, destination)
+                    print(f"Copied {destination.name} to destination")
 
         print(f"Exported iteration {iteration} to output folder as: {new_mdu}")
 
@@ -176,34 +189,30 @@ class ProfileOptimizer():
             shutil.rmtree(self.work_dir)
             print(f"Deleted working directory: {self.work_dir}")
             
-            
-            
-            
-# Een optimalisatie window algoritme
-#Import packages
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 
-def find_optimum(window_b, u_bij_berekende_window_b, V_target, waterlevel):
+def find_optimum(window_b, calculated_v_values, target_v, waterlevel):
     """ A function for the optimization of the bottom width of a trapezoidal cross section profile
         for the desired/required flow velocity
-    Arguments:
+    Args:
         window_b: An array of the bottom widths within the optimalisation grid. 
         For each bottom width in this grid the model has been runned to extract the calculated flow velocity.
         
-        V_target: desired flow velocity to achieve in the cross section profile (int).
-        u_bij_berekende_window_b: An array of the calculated flow velocities for the bottom widths in the optimalisation grid.
+        target_v: desired flow velocity to achieve in the cross section profile (int).
+        calculated_v_values: An array of the calculated flow velocities for the bottom widths in the optimalisation grid.
     Returns:
         geoptimaliseerde bodembreedte: The optimalised bottom width for the desired flow velocity.
     """
+    if target_v < min(calculated_v_values) or target_v > max(calculated_v_values):
+        raise ValueError("Velocity target is not in the range of the calculated velocities. "
+                         "Please choose new bottom widths for iterations. /n"
+                         f"Target velocity: {target_v}/n"
+                         f"Range of calculated velocities: {min(calculated_v_values):.3f} - {max(calculated_v_values):.3f}"
+                         f"Range of input bottom widths: {min(window_b):.3f} - {max(window_b):.3f}")
+
     # collect all the relevant data into a dataframe
-    gewenste_u_array = np.ones(len(window_b)) * V_target
-    data = {"bodembreedte": window_b, "berekende stroomsnelheid": u_bij_berekende_window_b, "gewenste stroomsnelheid": gewenste_u_array, "berekende waterstand": waterlevel}
+    gewenste_u_array = np.ones(len(window_b)) * target_v
+    data = {"bodembreedte": window_b, "berekende stroomsnelheid": calculated_v_values, "gewenste stroomsnelheid": gewenste_u_array, "berekende waterstand": waterlevel}
     df = pd.DataFrame(data=data)
     df['difference'] = df['berekende stroomsnelheid'] - df['gewenste stroomsnelheid']
     #print (df)
@@ -217,14 +226,8 @@ def find_optimum(window_b, u_bij_berekende_window_b, V_target, waterlevel):
         'bodembreedte']
     interpolation_point_width_min = df[(df.difference < 0)].sort_values(ascending=False, by='difference').iloc[0][
         'bodembreedte']
-        
-    #print (interpolation_point_u_max)
-    #print (interpolation_point_u_min)
-    
-    #print (interpolation_point_width_max)
-    #print (interpolation_point_width_min)
-    
-    
+
+
     gewenste_stroomsnelheid = gewenste_u_array[0]
     x = [interpolation_point_width_min, interpolation_point_width_max]
     y = [interpolation_point_u_min, interpolation_point_u_max]
@@ -250,8 +253,6 @@ def find_optimum(window_b, u_bij_berekende_window_b, V_target, waterlevel):
     # plotly figure relatie stroomsnelheid en bodembreedte en waterlevel
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(go.Scatter(x=df['bodembreedte'], y=df['berekende stroomsnelheid'], name='bodembreedte'), secondary_y=False)
-    #fig.update_traces(mode='markers', marker_line_width=2, marker_size=10)
-    
     
     fig.update_layout(title="Relatie tussen bodembreedte, stroomsnelheid en waterlevel bij het te optimaliseren profiel")
     fig.add_hline(y=gewenste_stroomsnelheid, line_width=1, line_dash='dash', line_color='black')
@@ -271,7 +272,6 @@ def find_optimum(window_b, u_bij_berekende_window_b, V_target, waterlevel):
     fig.update_yaxes(title_text="<b>berekende waterstand (m)</b>", secondary_y=True)
     fig.show()
 
-    #Hier returnen we de bodembreedte bij de gewenste stroomsnelheid, 
     return df, geoptimaliseerde_bodembreedte
 
 if __name__ == "__main__":
