@@ -19,10 +19,9 @@ def initial_dhydro(
     global_value,
     output_path,
 ):
-    """
-       Create the 1D initial waterlevel D-hydro based on a shape file.
+    """Create the 1D initial waterlevel D-hydro based on a shape file.
 
-       Parameters:
+       Args:
            net_nc_path : str
                Path to input nc-file containing the D-hydro network
            areas_path : str
@@ -37,9 +36,12 @@ def initial_dhydro(
                Standard value for waterways that fall outside of the area
            output_path : str
                Path to results-file
-    ___________________________________________________________________________________________________________
-       Warning:
-           Waterways that are in several waterlevel control areas are not (always) processed correctly.
+               
+       Returns:
+           initialwaterlevel.ini file
+    _______________________________________________________________________________________________________
+        Warning:
+            Waterways that are in several waterlevel control areas are not (always) processed correctly.
 
     """
     global_value = float(global_value)
@@ -73,22 +75,19 @@ def initial_dhydro(
 
 
 def determine_initial(gdf_branches, gdf_areas, level_field):
-    """
-    Function that determines and changes the initial fields of the D-Hydro project.
+    """Function that determines and changes the initial fields of the D-Hydro project.
 
-    Parameters
-    ----------
-    gdf_branches : GeoDataFrame
-        GDF containing the model 1d branches.
-    gdf_areas : GeoDataFrame
-        GDF containing the areas with the initial water levels.
-    level_field : string
-        Name of the field that contains the initial water levels.
+    Args:
+        gdf_branches : GeoDataFrame
+            GDF containing the model 1d branches.
+        gdf_areas : GeoDataFrame
+            GDF containing the areas with the initial water levels.
+        level_field : string
+            Name of the field that contains the initial water levels.
 
-    Returns
-    -------
-    initial : list
-        list containing new initial water levels.
+    Returns:
+        list with new initial water levels.
+        
 
     """
     nodata_value = -9999

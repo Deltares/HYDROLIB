@@ -16,35 +16,37 @@ from read_dhydro import branch_gui2df, net_nc2gdf
 
 from hydrolib.core.io.mdu.models import FMModel, FrictionModel
 
-# TODO geef optie om alle oude frictions te wipen of te houden
-# (3 opties: alles wipen en nieuwe toevoegen, oude houden en nieuwe overschrijven,
-# toevoegen waar alleen global is (is al gedefinieerd of niet?))
-# new, replace & append
-# TODO Er zijn verschillende files, die allemaal overschrijven?
-# Overschrijven per branch en niet per cross section warning.
-# TODO Halverwege watergangen verwerken?
-# TODO soort friction
-# Soort friction als input meegeven.
-
+# =============================================================================
+# # TODO geef optie om alle oude frictions te wipen of te houden
+# # (3 opties: alles wipen en nieuwe toevoegen, oude houden en nieuwe overschrijven,
+# # toevoegen waar alleen global is (is al gedefinieerd of niet?))
+# # new, replace & append
+# # TODO Er zijn verschillende files, die allemaal overschrijven?
+# # Overschrijven per branch en niet per cross section warning.
+# # TODO Halverwege watergangen verwerken?
+# # TODO soort friction
+# # Soort friction als input meegeven.
+# 
+# =============================================================================
 
 def change_friction_shape(
     mdu_path, shape_path, output_path, wipe=False, replace=False, append=False
 ):
-    """
+    """Function uses input shape of frictions and model to change frictions within chosen branches.
+
+    Args:
+        mdu_path : Path()
+            Path to mdu file of the model.
+        shape_path : str
+            Path to shape containing friction file.
+        output_path : str
+            Path to desired output folder.
+
+    Returns:
+        Friction files containing new frictions.
+    
+    
     Buffer used = 10
-
-    Parameters
-    ----------
-    mdu_path : Path()
-        DESCRIPTION.
-    shape_path : TYPE
-        DESCRIPTION.
-    output_path : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    None.
 
     """
 

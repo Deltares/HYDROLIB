@@ -27,10 +27,9 @@ def inun_dhydro(
     areas1D="",
 ):
 
-    """
-       Calculate inundation depths based on 1D and 2D waterlevels and DEM.
+    """Calculate inundation depths based on 1D and 2D waterlevels and DEM.
 
-       Parameters:
+       Args:
             nc_path : str
                Path to input nc-file containing the D-hydro model results
             result_path : str
@@ -53,6 +52,9 @@ def inun_dhydro(
                 Write aditional information about the calculation
             areas1D: str
                 Path to areas that limit 1D voronoi generation (catchments or watersheds)
+    
+        Returns:
+            Raster containing inundation results.
     ___________________________________________________________________________________________________________
        Warning:
            only 2D results will be used if type="depth"
