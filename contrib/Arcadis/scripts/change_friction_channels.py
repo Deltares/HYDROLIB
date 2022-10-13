@@ -26,8 +26,9 @@ from hydrolib.core.io.mdu.models import FMModel, FrictionModel
 # # TODO Halverwege watergangen verwerken?
 # # TODO soort friction
 # # Soort friction als input meegeven.
-# 
+#
 # =============================================================================
+
 
 def change_friction_shape(
     mdu_path, shape_path, output_path, wipe=False, replace=False, append=False
@@ -44,8 +45,8 @@ def change_friction_shape(
 
     Returns:
         Friction files containing new frictions.
-    
-    
+
+
     Buffer used = 10
 
     """

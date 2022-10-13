@@ -36,7 +36,7 @@ def initial_dhydro(
                Standard value for waterways that fall outside of the area
            output_path : str
                Path to results-file
-               
+
        Returns:
            initialwaterlevel.ini file
     _______________________________________________________________________________________________________
@@ -87,7 +87,7 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
 
     Returns:
         list with new initial water levels.
-        
+
 
     """
     nodata_value = -9999

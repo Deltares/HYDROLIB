@@ -52,7 +52,7 @@ def inun_dhydro(
                 Write aditional information about the calculation
             areas1D: str
                 Path to areas that limit 1D voronoi generation (catchments or watersheds)
-    
+
         Returns:
             Raster containing inundation results.
     ___________________________________________________________________________________________________________

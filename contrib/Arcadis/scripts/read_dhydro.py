@@ -547,7 +547,7 @@ def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id=
 
 def branch_gui2df(branch_file):
     """Reads the branch_gui into a gdf
-    
+
 
     Args:
         branch_file : str
@@ -573,7 +573,7 @@ def branch_gui2df(branch_file):
 
 
 def read_nc_data(ds, par):
-    """Reads .nc data 
+    """Reads .nc data
 
 
     Args:
