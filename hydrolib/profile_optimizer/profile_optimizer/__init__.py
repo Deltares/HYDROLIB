@@ -1,6 +1,6 @@
 __title__ = 'profile_optimizer'
 __description__ = 'The Profile Optimizer is a package that automatically optimizes a profile in a D-HYDRO model'
-__version__ = '0.1.1'
+__version__ = '0.1.3'
 __author__ = 'Royal HaskoningDHV'
 __author_email__ = 'lisa.weijers@rhdhv.com'
 __license__ = 'Open Source (HYDROLIB)'
