@@ -2,8 +2,6 @@
 import os
 import re
 import shutil
-import datetime
-import warnings
 import numpy as np
 from shapely.geometry import box, LineString, Point
 import pandas as pd

@@ -203,7 +203,7 @@ class DRTCModel:
                         "No time series were provided for time controllers"
                     )
                 else:
-                    data = timeseries.loc[:, management.id]
+                    data = timeseries.loc[:, struc_id]
                     self.add_time_controller(
                         structure_id=struc_id,
                         steering_variable=steering_variable,

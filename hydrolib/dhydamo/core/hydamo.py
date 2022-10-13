@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Union, Any
+from typing import Union
 import geopandas as gpd
 import numpy as np
 import pandas as pd

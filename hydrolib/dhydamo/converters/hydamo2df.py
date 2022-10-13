@@ -6,14 +6,16 @@ import pandas as pd
 from pydantic import validate_arguments
 from shapely.geometry import Point
 
-from hydrolib.dhydamo.geometry.mesh import *
+from hydrolib.dhydamo.geometry.mesh import Network
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
 
+
 class RoughnessVariant(Enum):
     HIGH = "High"
     LOW = "Low"
+
 
 class CrossSectionsIO:
     def __init__(self, crosssections):
@@ -94,7 +96,6 @@ class CrossSectionsIO:
                     )
 
                 elif crsdef["type"] == "yz":
-                    # TODO BMA: add yz
                     raise NotImplementedError
 
                 else:
@@ -160,7 +161,7 @@ class CrossSectionsIO:
             f"Before adding the number of branches without cross section is: {nnocross}."
         )
 
-        if not dp_branches is None:
+        if dp_branches is not None:
             # 1. Collect cross sections from 'dwarsprofielen'
             yz_profiles = self.crosssections.crosssection_to_yzprofiles(
                 dp_branches,
@@ -247,7 +248,7 @@ class CrossSectionsIO:
             f"After adding 'normgeparametriseerd' the number of branches without cross section is: {nnocross}."
         )
 
-        if not dp_structures is None:
+        if dp_structures is not None:
 
             # 1. Collect cross sections from 'dwarsprofielen'
             yz_profiles = self.crosssections.crosssection_to_yzprofiles(
@@ -340,11 +341,6 @@ class ExternalForcingsIO:
 
         if rr_boundaries is None:
             rr_boundaries = []
-
-        # Check if network has been loaded
-        # network1d = self.external_forcings.dflowfmmodel.network.mesh1d
-        # if not network1d.meshgeomdim.numnode:
-        #     raise ValueError('1d network has not been generated or loaded. Do this before adding laterals.')
 
         # in case of 3d points, remove the 3rd dimension
         locations["geometry2"] = [
@@ -709,7 +705,6 @@ class StructuresIO:
             prof = profiles[profiles["globalid"] == line["globalid"].values[0]]
 
             if len(prof) > 0:
-                # bedlevel = np.min([c[2] for c in prof.geometry[0].coords[:]])
                 profile_id = prof.code.values[0]
             else:
                 # return an error it is still not found
@@ -719,6 +714,7 @@ class StructuresIO:
                 name = bridge.naam
             else:
                 name = bridge.code
+
             profile_id = prof.code.values[0]
             self.structures.add_bridge(
                 id=bridge.code,

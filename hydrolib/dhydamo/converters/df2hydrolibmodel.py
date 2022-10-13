@@ -1,8 +1,7 @@
 import logging
-
-# from multiprocessing.sharedctypes import Value
-from typing import Iterable
 import pandas as pd
+import numpy as np
+from pathlib import Path
 from hydrolib.core.io.structure.models import (
     Weir,
     UniversalWeir,
@@ -17,14 +16,13 @@ from hydrolib.core.io.crosssection.models import (
     YZCrsDef,
     CrossSection,
 )
-from hydrolib.core.io.ext.models import ExtModel, Boundary, Lateral
-from hydrolib.core.io.net.models import *
+from hydrolib.core.io.ext.models import Boundary, Lateral
 from hydrolib.core.io.bc.models import ForcingModel, TimeSeries, Constant
 from hydrolib.core.io.friction.models import FrictGlobal
 from hydrolib.core.io.obs.models import ObservationPoint
 from hydrolib.core.io.storagenode.models import StorageNode
 from hydrolib.core.io.inifield.models import InitialField
-from hydrolib.core.io.onedfield.models import OneDFieldModel, OneDFieldGlobal
+from hydrolib.core.io.onedfield.models import OneDFieldGlobal
 
 
 logger = logging.getLogger(__name__)
@@ -74,7 +72,7 @@ class Df2HydrolibModel:
 
     @staticmethod
     def _clear_comments(lst):
-        """Convenience function to remove comment statements in INI files"""        
+        """Convenience function to remove comment statements in INI files"""
         if isinstance(lst, list):
             for item in lst:
                 [setattr(item.comments, field[0], "") for field in item.comments]
@@ -82,8 +80,7 @@ class Df2HydrolibModel:
             [setattr(lst.comments, field[0], "") for field in lst.comments]
 
     def regular_weirs_to_dhydro(self):
-        """Convert regular weirs to Weir-model
-        """
+        """Convert regular weirs to Weir-model"""
         structs = [
             Weir(**struc)
             for struc in self.hydamo.structures.rweirs_df.to_dict("records")
@@ -110,8 +107,7 @@ class Df2HydrolibModel:
         self.structures += structs
 
     def bridges_to_dhydro(self):
-        """Convert bridges to Bridge-models
-        """
+        """Convert bridges to Bridge-models"""
         structs = [
             Bridge(**struc)
             for struc in self.hydamo.structures.bridges_df.to_dict("records")
@@ -129,8 +125,7 @@ class Df2HydrolibModel:
         self.structures += structs
 
     def pumps_to_dhydro(self):
-        """Convert pumps to Pump-models
-        """
+        """Convert pumps to Pump-models"""
         structs = [
             Pump(**struc)
             for struc in self.hydamo.structures.pumps_df.to_dict("records")
@@ -180,6 +175,7 @@ class Df2HydrolibModel:
 
     def crosssection_definitions_to_dhydro(self) -> None:
         """Convert crosssection definitions to Crossdef models"""
+
         def _get_cstype_part_of_dict(cstype: str) -> dict:
             """Reorganize the csdef dict"""
             return {
@@ -226,8 +222,7 @@ class Df2HydrolibModel:
                         ("time", bound["time_unit"]),
                         (bound["quantity"], bound["value_unit"]),
                     ],
-                    datablock=list(map(list, zip(bound["time"], bound["value"])))
-                    # datablock=[bound["time"], bound["value"]]
+                    datablock=list(map(list, zip(bound["time"], bound["value"]))),
                 )
             self.forcingmodel.forcing.append(bnd_bc)
         for bound in self.hydamo.external_forcings.boundary_nodes.values():
