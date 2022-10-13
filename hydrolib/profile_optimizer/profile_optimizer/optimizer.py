@@ -195,13 +195,14 @@ def find_optimum(window_b, calculated_v_values, target_v, waterlevel):
     """ A function for the optimization of the bottom width of a trapezoidal cross section profile
         for the desired/required flow velocity
     Args:
-        window_b: An array of the bottom widths within the optimalisation grid. 
-        For each bottom width in this grid the model has been runned to extract the calculated flow velocity.
-        
+        window_b: An array of the bottom widths that have been calculated so far in the search window.
+        calculated_v_values: An array of the calculated flow velocities for the bottom widths in the search window.
         target_v: desired flow velocity to achieve in the cross section profile (int).
-        calculated_v_values: An array of the calculated flow velocities for the bottom widths in the optimalisation grid.
+        waterlevel: An array of the calculated water levels.
     Returns:
-        geoptimaliseerde bodembreedte: The optimalised bottom width for the desired flow velocity.
+        df: dataframe with the bottom widths, calculated velocity and the difference between the calculated Velocity
+            and the target velocity.
+        optimized_bottom_width: The optimalized bottom width for the desired flow velocity.
     """
     lowest_v = min(calculated_v_values)
     highest_v = max(calculated_v_values)
@@ -234,7 +235,7 @@ def find_optimum(window_b, calculated_v_values, target_v, waterlevel):
     gewenste_stroomsnelheid = gewenste_u_array[0]
     x = [interpolation_point_width_min, interpolation_point_width_max]
     y = [interpolation_point_u_min, interpolation_point_u_max]
-    geoptimaliseerde_bodembreedte = np.interp(gewenste_stroomsnelheid, y, x)
+    optimized_bottom_width = np.interp(gewenste_stroomsnelheid, y, x)
 
     # plotly figure relatie stroomsnelheid en bodembreedte
     fig = px.scatter(df, x='bodembreedte', y='berekende stroomsnelheid', text="bodembreedte")
@@ -244,9 +245,9 @@ def find_optimum(window_b, calculated_v_values, target_v, waterlevel):
     fig.add_hline(y=gewenste_stroomsnelheid, line_width=1, line_dash='dash', line_color='black')
     fig.add_hrect(y0=interpolation_point_u_min, y1=interpolation_point_u_max,
                     fillcolor='grey', opacity=0.2, annotation_text='interpolatie gebied')
-    fig.add_vline(x=geoptimaliseerde_bodembreedte, line_width=1, line_dash='dash', line_color='black')
+    fig.add_vline(x=optimized_bottom_width, line_width=1, line_dash='dash', line_color='black')
     
-    fig.add_trace(go.Scatter(x=[geoptimaliseerde_bodembreedte], y=[gewenste_stroomsnelheid], mode='markers', name='geoptimaliseerde bodembreedte', marker_color='green', marker_line_width=2, marker_size=10))
+    fig.add_trace(go.Scatter(x=[optimized_bottom_width], y=[gewenste_stroomsnelheid], mode='markers', name='geoptimaliseerde bodembreedte', marker_color='green', marker_line_width=2, marker_size=10))
     fig.update_yaxes(title_text="<b>berekende stroomsnelheid (m/s)</b>")
     # Naming x-axis
     fig.update_xaxes(title_text="<b>bodembreedte (m)</b>")
@@ -261,9 +262,9 @@ def find_optimum(window_b, calculated_v_values, target_v, waterlevel):
     fig.add_hline(y=gewenste_stroomsnelheid, line_width=1, line_dash='dash', line_color='black')
     fig.add_hrect(y0=interpolation_point_u_min, y1=interpolation_point_u_max,
                     fillcolor='grey', opacity=0.2, annotation_text='interpolatie gebied')
-    fig.add_vline(x=geoptimaliseerde_bodembreedte, line_width=1, line_dash='dash', line_color='black')
+    fig.add_vline(x=optimized_bottom_width, line_width=1, line_dash='dash', line_color='black')
     
-    fig.add_trace(go.Scatter(x=[geoptimaliseerde_bodembreedte], y=[gewenste_stroomsnelheid], mode='markers', name='geoptimaliseerde bodembreedte', marker_color='green', marker_line_width=2, marker_size=10),secondary_y=False)
+    fig.add_trace(go.Scatter(x=[optimized_bottom_width], y=[gewenste_stroomsnelheid], mode='markers', name='geoptimaliseerde bodembreedte', marker_color='green', marker_line_width=2, marker_size=10),secondary_y=False)
     
     #secondary y-axis
     fig.add_trace(go.Scatter(x=df['bodembreedte'], y=df['berekende waterstand'], name='waterstand'), secondary_y=True)
@@ -275,7 +276,7 @@ def find_optimum(window_b, calculated_v_values, target_v, waterlevel):
     fig.update_yaxes(title_text="<b>berekende waterstand (m)</b>", secondary_y=True)
     fig.show()
 
-    return df, geoptimaliseerde_bodembreedte
+    return df, optimized_bottom_width
 
 if __name__ == "__main__":
     find_optimum([0.1, 0.2, 0.3], [0.22, 0.21, 0.19], 0.23, 0.5)
