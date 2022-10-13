@@ -203,12 +203,15 @@ def find_optimum(window_b, calculated_v_values, target_v, waterlevel):
     Returns:
         geoptimaliseerde bodembreedte: The optimalised bottom width for the desired flow velocity.
     """
-    if target_v < min(calculated_v_values) or target_v > max(calculated_v_values):
-        raise ValueError("Velocity target is not in the range of the calculated velocities. "
-                         "Please choose new bottom widths for iterations. /n"
-                         f"Target velocity: {target_v}/n"
-                         f"Range of calculated velocities: {min(calculated_v_values):.3f} - {max(calculated_v_values):.3f}"
-                         f"Range of input bottom widths: {min(window_b):.3f} - {max(window_b):.3f}")
+    lowest_v = min(calculated_v_values)
+    highest_v = max(calculated_v_values)
+    if target_v < lowest_v or target_v > highest_v:
+        print("Velocity target is not in the range of the calculated velocities.\n"
+              "Please choose new bottom widths for iterations.\n"
+              f"Target velocity: {target_v}.\n"
+              f"Range of calculated velocities: {lowest_v:.3f} - {highest_v:.3f}.\n"
+              f"Range of input bottom widths: {min(window_b):.3f} - {max(window_b):.3f}")
+        raise ValueError("Velocity target is not in the range of the calculated velocities.")
 
     # collect all the relevant data into a dataframe
     gewenste_u_array = np.ones(len(window_b)) * target_v
@@ -275,30 +278,4 @@ def find_optimum(window_b, calculated_v_values, target_v, waterlevel):
     return df, geoptimaliseerde_bodembreedte
 
 if __name__ == "__main__":
-    model_folder = Path("playground/model")
-    file_source = 'cross_section_definitions.ini'
-    prof_ids = ['prof_04082014-DP11']
-
-
-    prof = {'depth': 2, 'bottom_width': 3, 'slope_l': 2, 'slope_r': 2}
-
-    optimizer = IterateProfile(Path(r'c:\Dev\Hydrolib_optimizer\src\moergestels_broek\moergestels_broek.mdu'),
-                               work_dir=r"C:\local\new_work",
-                               output_dir=r"C:\local\new_out",
-                               bat_file = r'c:\Dev\Hydrolib_optimizer\src\moergestels_broek\run.bat',
-                               iteration_name='TEST_py')
-
-    iteration_folder = optimizer.create_iteration(prof_ids, prof)
-    print(iteration_folder)
-
-    optimizer.run_latest()
-
-    optimizer.export_model()
-
-
-    point = (141103, 393599.9)
-    u = optimizer.read_result(model_folder, point, 'velocity')
-
-    #TODO: Verzamel outputs zodat we ze kunnen beoordelen
-
-    print(u)
+    find_optimum([0.1, 0.2, 0.3], [0.22, 0.21, 0.19], 0.23, 0.5)
