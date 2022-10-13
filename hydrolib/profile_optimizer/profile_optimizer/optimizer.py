@@ -64,9 +64,9 @@ class ProfileOptimizer():
 
         Args:
             prof_ids: list of profiles that should be changed
-            Let op! Als een profiel-def op meerdere locaties wordt gebruikt, wordt deze overal aangepast.
+            # Caution! if a profile definition is used at multiple locations, this will change the definition for all
+            of those locations!
             trapezium_pars: dict of the new trapezium profile parameters (bottom_width, slope_l, slope_r, depth)
-            # Let op! Hier is assymetrisch profiel mogelijk.
 
         Returns:
             filename to the batch file of this iteration
