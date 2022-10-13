@@ -136,3 +136,6 @@ contrib/d2hydro/scripts/*
 hydrolib/dhydamo/debug.py
 .vscode/settings.json
 .idea/
+.DS_Store
+coverage-reports
+xunit-reports

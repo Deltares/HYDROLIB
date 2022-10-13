@@ -1,4 +1,3 @@
-#Inladen packages
 import pandas as pd
 import geopandas as gpd
 import xarray as xr
@@ -83,6 +82,7 @@ def check_QVA(Q_target: float, d: float, talud: float, b: float, slope: float, k
             Q = V * A
             deviation_from_target = (Q - Q_target) / Q_target
             print(f"Adjustment {counter}: new width: {b:.2f}, V: {V:.4f}, Q: {Q:.4f}")
+
         if counter == 30:
             print("Failed to find suitable initial bottom width in 30 tries, please check if your inputs are correct "
                   "and use the returned bottom width with caution.")

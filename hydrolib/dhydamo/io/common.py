@@ -1,5 +1,7 @@
+import logging
 import os
 import re
+from copy import deepcopy
 
 import geopandas as gpd
 import numpy as np
@@ -7,9 +9,6 @@ import pandas as pd
 from osgeo import ogr
 from shapely import wkb
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
-import logging
-
-from copy import deepcopy
 
 from hydrolib.dhydamo.geometry import geometry
 
