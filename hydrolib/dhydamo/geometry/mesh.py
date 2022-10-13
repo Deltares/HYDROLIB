@@ -4,10 +4,10 @@ import numpy as np
 from shapely.geometry import (
     LineString,
     MultiLineString,
-    MultiPolygon,
-    Polygon,
-    Point,
     MultiPoint,
+    MultiPolygon,
+    Point,
+    Polygon,
     box,
 )
 from shapely.prepared import prep

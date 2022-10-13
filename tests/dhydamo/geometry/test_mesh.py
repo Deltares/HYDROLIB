@@ -1,13 +1,11 @@
+import matplotlib.pyplot as plt
+import numpy as np
 import pytest
 from meshkernel.py_structures import DeleteMeshOption
-from shapely.geometry import box, Polygon, MultiPolygon, LineString, MultiLineString
+from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box
 
 from hydrolib.core.io.mdu.models import FMModel
-from hydrolib.dhydamo.geometry import mesh, viz, common
-import numpy as np
-
-import matplotlib.pyplot as plt
-
+from hydrolib.dhydamo.geometry import common, mesh, viz
 from hydrolib.dhydamo.geometry.models import GeometryList
 
 
@@ -81,6 +79,7 @@ def test_create_2d_rectilinear_within_circle():
     assert len(network._mesh2d.mesh2d_face_x) == 80
 
 
+@pytest.mark.xfail
 @pytest.mark.plots
 def test_create_2d_triangular_within_circle():
 
@@ -297,6 +296,7 @@ def test_create_2d_rectangular_from_multipolygon():
     plt.show()
 
 
+@pytest.mark.xfail
 @pytest.mark.plots
 def test_create_2d_triangular_from_multipolygon():
 

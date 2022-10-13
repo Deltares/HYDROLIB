@@ -1,36 +1,38 @@
 # Basis
-from pathlib import Path
 import os
-import sys
 import shutil
-import numpy as np
-import geopandas as gpd
-import pandas as pd
+import sys
 from pathlib import Path
-from shapely.geometry import Point
+
+import geopandas as gpd
+import numpy as np
+import pandas as pd
 import shutup
+from shapely.geometry import Point
+
 # shutup.please()
 
 sys.path.insert(1, r"D:\3640.20\HYDROLIB-dhydamo")
-# Importing relevant classes from delft3dfmpy
-from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.io.dfmwriter import DFLowFMModelWriter
-# from hydrolib.dhydamo.io.fmconverter import RoughnessVariant#
-from hydrolib.dhydamo.geometry import mesh
-
-from hydrolib.dhydamo.core.drr import DRRModel
-from hydrolib.dhydamo.io.drrwriter import DRRWriter
-from hydrolib.dhydamo.geometry.viz import plot_network
+from hydrolib.core.io.bc.models import ForcingModel
+from hydrolib.core.io.crosssection.models import *
 from hydrolib.core.io.dimr.models import DIMR, FMComponent, RRComponent
+from hydrolib.core.io.ext.models import ExtModel
+from hydrolib.core.io.friction.models import FrictionModel
 from hydrolib.core.io.inifield.models import IniFieldModel
+from hydrolib.core.io.mdu.models import FMModel  # , RainfallRunoffModel
+from hydrolib.core.io.obs.models import ObservationPointModel
 from hydrolib.core.io.onedfield.models import OneDFieldModel
 from hydrolib.core.io.structure.models import *
-from hydrolib.core.io.crosssection.models import *
-from hydrolib.core.io.ext.models import ExtModel
-from hydrolib.core.io.mdu.models import FMModel#, RainfallRunoffModel
-from hydrolib.core.io.bc.models import ForcingModel
-from hydrolib.core.io.friction.models import FrictionModel
-from hydrolib.core.io.obs.models import ObservationPointModel
+from hydrolib.dhydamo.core.drr import DRRModel
+
+# Importing relevant classes from delft3dfmpy
+from hydrolib.dhydamo.core.hydamo import HyDAMO
+
+# from hydrolib.dhydamo.io.fmconverter import RoughnessVariant#
+from hydrolib.dhydamo.geometry import mesh
+from hydrolib.dhydamo.geometry.viz import plot_network
+from hydrolib.dhydamo.io.dfmwriter import DFLowFMModelWriter
+from hydrolib.dhydamo.io.drrwriter import DRRWriter
 
 # path to the package containing the dummy-data
 data_path = os.path.abspath("hydrolib/tests/data")
@@ -228,16 +230,20 @@ hydamo.crosssections.convert.profiles(
     param_profile=hydamo.param_profile,
     param_profile_values=hydamo.param_profile_values,
     branches=hydamo.branches,
-    roughness_variant='High',
+    roughness_variant="High",
 )
 
 hydamo.external_forcings.convert.boundaries(
     hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network
 )
-series = pd.Series(np.sin(np.linspace(0,100,100))+1.)
-series.index = [pd.Timestamp('2016-01-01 00:00:00')+pd.Timedelta(hours=i) for i in range(100)] 
-hydamo.external_forcings.add_boundary_condition('RVW_01', (197464.,392130.),  'dischargebnd', series, fm.geometry.netfile.network)
-hydamo.external_forcings.add_lateral('LAT_01','W_242209_0', '5.0', series)
+series = pd.Series(np.sin(np.linspace(0, 100, 100)) + 1.0)
+series.index = [
+    pd.Timestamp("2016-01-01 00:00:00") + pd.Timedelta(hours=i) for i in range(100)
+]
+hydamo.external_forcings.add_boundary_condition(
+    "RVW_01", (197464.0, 392130.0), "dischargebnd", series, fm.geometry.netfile.network
+)
+hydamo.external_forcings.add_lateral("LAT_01", "W_242209_0", "5.0", series)
 
 hydamo.crosssections.crosssection_loc = hydamo.dict_to_dataframe(
     hydamo.crosssections.crosssection_loc
@@ -306,31 +312,65 @@ drrmodel.unpaved.io.unpaved_from_input(
     initial_gwd,
     meteo_areas,
 )
-drrmodel.unpaved.io.ernst_from_input(hydamo.catchments, depths=layer_depths, resistance=layer_resistances,infiltration_resistance=infil_resistance, runoff_resistance=runoff_resistance)
-drrmodel.paved.io.paved_from_input(catchments=hydamo.catchments,landuse=lu_file,surface_level=ahn_file, street_storage=street_storage, sewer_storage=sewer_storage, pump_capacity=pumpcapacity, meteo_areas=meteo_areas, zonalstats_alltouched=True)
-drrmodel.greenhouse.io.greenhouse_from_input(hydamo.catchments, lu_file, ahn_file, roof_storage, meteo_areas, zonalstats_alltouched=True)
-drrmodel.openwater.io.openwater_from_input(hydamo.catchments, lu_file, meteo_areas, zonalstats_alltouched=True)
-drrmodel.external_forcings.io.boundary_from_input(hydamo.laterals, hydamo.catchments, drrmodel)
+drrmodel.unpaved.io.ernst_from_input(
+    hydamo.catchments,
+    depths=layer_depths,
+    resistance=layer_resistances,
+    infiltration_resistance=infil_resistance,
+    runoff_resistance=runoff_resistance,
+)
+drrmodel.paved.io.paved_from_input(
+    catchments=hydamo.catchments,
+    landuse=lu_file,
+    surface_level=ahn_file,
+    street_storage=street_storage,
+    sewer_storage=sewer_storage,
+    pump_capacity=pumpcapacity,
+    meteo_areas=meteo_areas,
+    zonalstats_alltouched=True,
+)
+drrmodel.greenhouse.io.greenhouse_from_input(
+    hydamo.catchments,
+    lu_file,
+    ahn_file,
+    roof_storage,
+    meteo_areas,
+    zonalstats_alltouched=True,
+)
+drrmodel.openwater.io.openwater_from_input(
+    hydamo.catchments, lu_file, meteo_areas, zonalstats_alltouched=True
+)
+drrmodel.external_forcings.io.boundary_from_input(
+    hydamo.laterals, hydamo.catchments, drrmodel
+)
 
-hydamo.external_forcings.convert.laterals(hydamo.laterals, lateral_discharges=None, rr_boundaries=drrmodel.external_forcings.boundary_nodes)
-hydamo.external_forcings.lateral_nodes= hydamo.dict_to_dataframe(
+hydamo.external_forcings.convert.laterals(
+    hydamo.laterals,
+    lateral_discharges=None,
+    rr_boundaries=drrmodel.external_forcings.boundary_nodes,
+)
+hydamo.external_forcings.lateral_nodes = hydamo.dict_to_dataframe(
     hydamo.external_forcings.lateral_nodes
 )
 hydamo.external_forcings.boundary_nodes = hydamo.dict_to_dataframe(
     hydamo.external_forcings.boundary_nodes
 )
 
-fm.filepath = Path(output_path) / 'fm' / 'test.mdu'
+fm.filepath = Path(output_path) / "fm" / "test.mdu"
 
 forcingmodel = ForcingModel()
-forcingmodel.filepath = Path(output_path) / 'fm' / 'boundaryconditions.bc'
+forcingmodel.filepath = Path(output_path) / "fm" / "boundaryconditions.bc"
 
-seepage_folder = os.path.join( data_path, 'rasters', 'seepage')
-precip_folder =  os.path.join(data_path, 'rasters',  'precipitation')
-evap_folder = os.path.join( data_path, 'rasters',  'evaporation')
+seepage_folder = os.path.join(data_path, "rasters", "seepage")
+precip_folder = os.path.join(data_path, "rasters", "precipitation")
+evap_folder = os.path.join(data_path, "rasters", "evaporation")
 drrmodel.external_forcings.io.seepage_from_input(hydamo.catchments, seepage_folder)
-drrmodel.external_forcings.io.precip_from_input(meteo_areas, precip_folder=None, precip_file=str(Path(data_path) / 'DEFAULT.BUI'))
-drrmodel.external_forcings.io.evap_from_input(meteo_areas, evap_folder=None, evap_file=str(Path(data_path) / 'DEFAULT.EVP'))
+drrmodel.external_forcings.io.precip_from_input(
+    meteo_areas, precip_folder=None, precip_file=str(Path(data_path) / "DEFAULT.BUI")
+)
+drrmodel.external_forcings.io.evap_from_input(
+    meteo_areas, evap_folder=None, evap_file=str(Path(data_path) / "DEFAULT.EVP")
+)
 
 writer = DFLowFMModelWriter(hydamo, forcingmodel)
 fm.geometry.structurefile = [StructureModel(structure=writer.structures)]
@@ -339,25 +379,27 @@ fm.geometry.crossdeffile = CrossDefModel(definition=writer.crossdefs)
 fm.geometry.frictfile = [FrictionModel(global_=writer.friction_defs)]
 fm.output.obsfile = [ObservationPointModel(observationpoint=writer.obspoints)]
 extmodel = ExtModel()
-extmodel.boundary = writer.boundaries_ext 
+extmodel.boundary = writer.boundaries_ext
 extmodel.lateral = writer.laterals_ext
 forcingmodel.forcing = writer.laterals_bc + writer.boundaries_bc
 fm.external_forcing.extforcefilenew = extmodel
 fm.external_forcing.forcingfile = forcingmodel
 fm.geometry.inifieldfile = IniFieldModel(initial=writer.inifields)
-onedfieldmodel  = OneDFieldModel(global_=writer.onedfields[0])
-onedfieldmodel.filepath = Path('initialwaterdepth.ini')
+onedfieldmodel = OneDFieldModel(global_=writer.onedfields[0])
+onedfieldmodel.filepath = Path("initialwaterdepth.ini")
 fm.geometry.onedfieldfile = [onedfieldmodel]
 
-drrmodel.d3b_parameters['Timestepsize'] = 300
-drrmodel.d3b_parameters['StartTime'] = "'2016/06/01;00:00:00'" # should be equal to refdate for D-HYDRO
-drrmodel.d3b_parameters['EndTime'] = "'2016/06/03;00:00:00'"
-drrmodel.d3b_parameters['RestartIn'] = 0
-drrmodel.d3b_parameters['RestartOut'] = 0
-drrmodel.d3b_parameters['RestartFileNamePrefix'] ='Test'
-drrmodel.d3b_parameters['UnsaturatedZone'] = 1
-drrmodel.d3b_parameters['UnpavedPercolationLikeSobek213']=-1
-drrmodel.d3b_parameters['VolumeCheckFactorToCF']=100000
+drrmodel.d3b_parameters["Timestepsize"] = 300
+drrmodel.d3b_parameters[
+    "StartTime"
+] = "'2016/06/01;00:00:00'"  # should be equal to refdate for D-HYDRO
+drrmodel.d3b_parameters["EndTime"] = "'2016/06/03;00:00:00'"
+drrmodel.d3b_parameters["RestartIn"] = 0
+drrmodel.d3b_parameters["RestartOut"] = 0
+drrmodel.d3b_parameters["RestartFileNamePrefix"] = "Test"
+drrmodel.d3b_parameters["UnsaturatedZone"] = 1
+drrmodel.d3b_parameters["UnpavedPercolationLikeSobek213"] = -1
+drrmodel.d3b_parameters["VolumeCheckFactorToCF"] = 100000
 
 # rr_writer = DRRWriter(drrmodel, output_dir= output_path, name='test',wwtp=(199000.,396000.))
 # rr_writer.write_all()
@@ -366,14 +408,17 @@ drrmodel.d3b_parameters['VolumeCheckFactorToCF']=100000
 # wegschrijven
 dimr = DIMR()
 dimr.component.append(
-    FMComponent(name="test", workingDir=Path(output_path)/'fm', model=fm, inputfile=fm.filepath)
+    FMComponent(
+        name="test",
+        workingDir=Path(output_path) / "fm",
+        model=fm,
+        inputfile=fm.filepath,
+    )
     # RRComponent(name="test", workingDir=r"D:\3640.20\HYDROLIB-dhydamo\hydrolib\model", inputfile=fm.filepath, model=rr)
 )
 dimr.save(recurse=True)
 
 
-
 print("done.")
 # drrmodel.dimr_path = dimr_path
 # print('Writing model')
-
