@@ -7,8 +7,9 @@ dependencies:
   - python>=3.7
   - geopandas
   - geopy
-  - gdal
+  - GDAL<3.5.2
   - rasterio
+  - pygeos >= 0.10.0
   - pip
   - pip:
     - -r requirements.txt
