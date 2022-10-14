@@ -279,9 +279,12 @@ def net_nc2gdf(
     branches_path = os.path.join(os.path.dirname(net_ncs), "branches.gui")
     if "1d_branches" in gdfs_results.keys() and os.path.isfile(branches_path):
         branches_df = branch_gui2df(branches_path)
-        gdfs_results["1d_branches"] = gdfs_results["1d_branches"].join(
-            branches_df.set_index("name"), on="id"
-        )
+        if not branches_df.empty:
+            gdfs_results["1d_branches"] = gdfs_results["1d_branches"].join(
+                branches_df.set_index("name"), on="id"
+            )
+        else:
+            print("Aangenomen dat alle lijnen watergangen zijn, branches.gui is leeg.")
 
     return gdfs_results
 
@@ -355,7 +358,17 @@ def map_nc2gdf(input_path, param):
     return gdf
 
 
-def hisnc_2gdf(input_path):
+def hisnc_2gdf(input_path,
+               strucs = [
+                   "general_structure",
+                   "pump",
+                   "weirgen",
+                   "orifice",
+                   "bridge",
+                   "culvert",
+                   "uniweir",
+               ]
+    ):
     """This script reads an D-HYDRO *his.nc file and converts it to a dictionary containing several geodataframes for all the output.
 
     Example:
@@ -417,15 +430,6 @@ def hisnc_2gdf(input_path):
             continue
 
     # Read structure data
-    strucs = [
-        "general_structure",
-        "pump",
-        "weirgen",
-        "orifice",
-        "bridge",
-        "culvert",
-        "uniweir",
-    ]
 
     for struc in strucs:
         strucgdfs = {}
@@ -735,13 +739,21 @@ def read_locations(
 
 
 if __name__ == "__main__":
-    inputf = Path(
-        r"C:\Users\delanger3781\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\05 Gedeelde map WRIJ\03_Resultaten\20220214_DR49\modellen\DR49_Bronkhorst_1000\dflowfm\output\dr49_map.nc"
+    # inputf = Path(
+    #     r"C:\Users\delanger3781\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\05 Gedeelde map WRIJ\03_Resultaten\20220214_DR49\modellen\DR49_Bronkhorst_1000\dflowfm\output\dr49_map.nc"
+    # )
+    # ds = xr.open_dataset(inputf)
+    # print(list(ds.variables))
+    # hisnc_2gdf(
+    #     Path(
+    #         r"C:\Users\delanger3781\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\05 Gedeelde map WRIJ\03_Resultaten\20220214_DR49\modellen\DR49_Bronkhorst_1000\dflowfm\output\dr49_his.nc"
+    #     )
+    # )
+    dir = os.path.dirname(__file__)
+    his_nc_path = os.path.join(
+        dir, r"exampledata\Dellen\Model\dflowfm\output\Flow1D_his.nc"
     )
-    ds = xr.open_dataset(inputf)
-    print(list(ds.variables))
-    hisnc_2gdf(
-        Path(
-            r"C:\Users\delanger3781\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\05 Gedeelde map WRIJ\03_Resultaten\20220214_DR49\modellen\DR49_Bronkhorst_1000\dflowfm\output\dr49_his.nc"
-        )
-    )
+    # mdu_path = Path(os.path.join(dir, r"exampledata\Dellen","Model_cleaned\dflowfm\Flow1D.mdu"))
+    # fm = FMModel(mdu_path)
+    hisnc_2gdf(his_nc_path)
+

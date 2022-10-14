@@ -127,6 +127,7 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
             # find original starting point of branch
             gdf_branches_org = gdf_branches.loc[gdf_branches["id"] == branch_id].iloc[0]
             coords_start = gdf_branches_org.geometry.coords[0]
+            gdf_union_branch = gdf_union_branch.explode(index_parts=True, inplace=True)
             gdf_union_branch["coords_start"] = [
                 xy.coords[0] for xy in gdf_union_branch["geometry"].tolist()
             ]  # todo: Gives a false positive warining. see https://stackoverflow.com/questions/26666919/add-column-in-dataframe-from-list
@@ -152,10 +153,10 @@ if __name__ == "__main__":
 
     dir = os.path.dirname(__file__)
     net_nc_path = os.path.join(
-        dir, r"exampledata\Zwolle-Minimodel\1D2D-DIMR\dflowfm\FlowFM_net.nc"
+        dir, r"exampledata\Dellen\Model\dflowfm\dellen_net.nc"
     )
-    areas_path = os.path.join(dir, r"exampledata\shapes\gebieden.shp")
-    value_field = "Level"
+    areas_path = os.path.join(dir, r"exampledata\Dellen\GIS\Peilgebied_Dellen.shp")
+    value_field = "GPGWNTPL"
     value_type = "WaterLevel"
     value_unit = "m"
     global_value = 1.0
