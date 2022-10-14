@@ -16,7 +16,7 @@ setup(
     author_email="daniel@d2hydro.nl",
     license="MIT",
     packages=["stowabui"],
-    package_data={"":["data/patronen.xlsx"]},
+    package_data={"": ["data/patronen.xlsx"]},
     include_package_data=True,
     package_dir={"": "src"},
     python_requires=">=3.6",
