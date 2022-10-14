@@ -122,11 +122,11 @@ def voronoi_extra(gdf_points, gdf_areas, group_id=""):
             if pkg_resources.get_distribution("geovoronoi").version >= "0.4.0":
                 # voronoi = gpd.GeoDataFrame(pd.concat([gdf_points_extra_clip.iloc[value] for key, value in vr_points.items()]))
                 # voronoi.geometry = [value for key, value in vr_area.items()]
-                voronoi = gpd.GeoDataFrame(
+                voronoi = gpd.GeoDataFrame(pd.concat(
                     [
                         gdf_points_extra_clip.iloc[value]
                         for key, value in vr_points.items()
-                    ],
+                    ]),
                     geometry=[value for key, value in vr_area.items()],
                     crs=gdf_points.crs,
                 )
