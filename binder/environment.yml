@@ -4,13 +4,11 @@ channels:
   - defaults
 
 dependencies:
-  - GDAL<3.5.2
-  - geopandas       
+  - python>=3.7
+  - geopandas
   - geopy
-  - matplotlib   
-  - pandas<1.5
+  - gdal
+  - rasterio
   - pip
-  - python >= 3.8
-  - rasterio<1.3
   - pip:
     - -r requirements.txt
