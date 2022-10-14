@@ -3,19 +3,13 @@ import os
 from pathlib import Path
 from typing import Union
 
-import geopandas as gpd
 import imod
-import numpy as np
 import pandas as pd
 import rasterio
-import tqdm
 from pydantic import validate_arguments
 from rasterio.transform import from_origin
-from scipy.spatial import KDTree
-from shapely.geometry import LineString, Point, Polygon
 
 from hydrolib.dhydamo.io import drrreader
-from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
 
