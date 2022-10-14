@@ -1,26 +1,29 @@
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Union
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from pathlib import Path
+import shapely
 from pydantic import validate_arguments
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, Point, Polygon
 from tqdm.auto import tqdm
-import shapely
+
 from hydrolib import dhydamo
-from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.converters.hydamo2df import (
-    RoughnessVariant,
-    StructuresIO,
     CrossSectionsIO,
     ExternalForcingsIO,
+    RoughnessVariant,
+    StructuresIO,
 )
+from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
+
 
 class HyDAMO:
     """Main data structure for both the HyDAMO input data and the intermediate dataframes. Contains subclasses
@@ -28,7 +31,7 @@ class HyDAMO:
     """
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
-    def __init__(self, extent_file: Union[Path, str]=None) -> None:
+    def __init__(self, extent_file: Union[Path, str] = None) -> None:
         """Initiate subclasses and IO-methods
 
         Args:
@@ -304,7 +307,7 @@ class Network:
         # Save
         self.mesh1d.set_values("nbranchorder", branchorder)
 
-    def set_branch_interpolation_modelwide(self)-> None:
+    def set_branch_interpolation_modelwide(self) -> None:
         """
         Set cross-section interpolation over nodes on all branches model-wide. I
 
@@ -319,9 +322,8 @@ class Network:
             if len(group) > 1:
                 self.set_branch_order(group)
 
-    def make_nodes_to_branch_map(self)->None:
-        """Map nodes connected to each branch
-        """
+    def make_nodes_to_branch_map(self) -> None:
+        """Map nodes connected to each branch"""
         # Note: first node is upstream, second node is downstream
         self.nodes_to_branch_map = {
             b: [self.mesh1d.description1d["network_node_ids"][_idx - 1] for _idx in idx]
@@ -332,8 +334,7 @@ class Network:
         }
 
     def make_branches_to_node_map(self) -> None:
-        """Map branches connected to each node
-        """
+        """Map branches connected to each node"""
         self.make_nodes_to_branch_map()
         self.branches_to_node_map = {
             n: [k for k, v in self.nodes_to_branch_map.items() if n in v]
@@ -342,7 +343,9 @@ class Network:
 
     @validate_arguments
     def generate_nodes_with_bedlevels(
-        self, resolve_at_bifurcation_method:str="min", return_reversed_branches:bool=False
+        self,
+        resolve_at_bifurcation_method: str = "min",
+        return_reversed_branches: bool = False,
     ):
         """
         Generate nodes with upstream and downstream bedlevels derived from set cross-sections on branch. It takes into
@@ -745,7 +748,6 @@ class CrossSections:
         self.convert = CrossSectionsIO(self)
 
     def get_roughness_description(self, roughnesstype, value):
-        
 
         if np.isnan(float(value)):
             raise ValueError("Roughness value should not be NaN.")
