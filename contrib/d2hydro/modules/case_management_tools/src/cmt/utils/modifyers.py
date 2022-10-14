@@ -3,7 +3,9 @@ from pathlib import Path, PurePath
 
 def path_modifyer(path, prefix, exclude_suffices=[], exclude_names=[]):
     if path is not None:
-        if (path.suffix.lower() not in exclude_suffices) & (path.name not in exclude_names):
+        if (path.suffix.lower() not in exclude_suffices) & (
+            path.name not in exclude_names
+        ):
             path = Path(prefix).joinpath(path)
     return path
 
