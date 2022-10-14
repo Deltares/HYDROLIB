@@ -12,7 +12,7 @@ from hydrolib.core.io.mdu.models import FMModel
 
 class DIMRWriter:
     """Temporary files for DIMR-configuration - to be superseded by Hydrolib-core functionality."""
-    
+
     @validate_arguments
     def __init__(
         self, dimr_path: str = None, output_path: Union[str, Path] = None
@@ -33,7 +33,7 @@ class DIMRWriter:
 
         self.template_dir = Path(os.path.abspath("."))
 
-    @validate_arguments    
+    @validate_arguments
     def write_runbat(self) -> None:
         """Generates a run.bat to run the model in DIMR. The path to the executable is provided by the user in the class initialization, or set to the default D-Hydro installation folder."""
 
@@ -72,6 +72,8 @@ class DIMRWriter:
         # Parsing xml file
         configfile = ET.parse(self.template_dir / "dimr_config.xml")
         myroot = configfile.getroot()
+        myroot[1][1].text = "fm"
+        myroot[1][2].text = fm.filepath.name
 
         # control blocks
         control = ET.Element(gn_brackets + "control")

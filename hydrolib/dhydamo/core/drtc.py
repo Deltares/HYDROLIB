@@ -100,6 +100,7 @@ class DRTCModel:
         savedict["dataconfig_export"] = []
         savedict["toolsconfig"] = []
         savedict["timeseries"] = []
+        savedict["state"] = []
         savedict["dimr_config"] = []
         for file in files:
             tree = ET.parse(xml_folder / file)
@@ -118,6 +119,9 @@ class DRTCModel:
                     savedict["toolsconfig"].append(ET.tostring(root[i][0]).decode())
             elif file == "timeseries_import.xml":
                 savedict["timeseries"].append(ET.tostring(root[0]).decode())
+            elif file == "state_import.xml":
+                for i in range(0, len(root[0])):
+                    savedict["state"].append(ET.tostring(root[0][i]).decode())
             elif file == "dimr_config.xml":
                 savedict["dimr_config"].append(root)
         return savedict
@@ -294,6 +298,7 @@ class DRTCModel:
         self.write_runtimeconfig()
         self.write_toolsconfig()
         self.write_dataconfig()
+        self.write_state_import()
         self.write_timeseries_import()
 
     # def write_runtimeconfig_2(self):
@@ -706,3 +711,44 @@ class DRTCModel:
                     k.tail = "\n"
 
         self.finish_file(myroot, configfile, self.output_path / "timeseries_import.xml")
+
+    def write_state_import(self) -> None:
+        """Function to write state_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
+        generalname = "http://www.openda.org"
+        xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
+        gn_brackets = "{" + generalname + "}"
+
+        # registering namespaces
+        ET.register_namespace("", generalname)
+        ET.register_namespace("xsi", xsi_name)
+
+        # Parsing xml file
+        configfile = ET.parse(self.template_dir / "state_import_empty.xml")
+        myroot = configfile.getroot()
+
+        a0 = ET.SubElement(myroot, gn_brackets + "treeVector")
+        a0.text = ""
+        a0.tail = "\n   "
+
+        for key in self.all_controllers.keys():
+
+            controller = self.all_controllers[key]
+
+            # te importeren data
+            a = ET.SubElement(a0, gn_brackets + "treeVectorLeaf")
+            a.attrib = {"id": "Output/" + key + "/" + controller["steering_variable"]}
+            a.text = ""
+            a.tail = "\n   "
+            b = ET.SubElement(a, gn_brackets + "vector")
+            if "settings" in controller:
+                b.text = str(controller["setpoint"])
+            else:
+                b.text = str(controller["data"].values[0])
+            b.tail = "\n "
+
+        # the parsed complex controllers should be inserted at the right place
+        if self.complex_controllers is not None:
+            for ctl in self.complex_controllers["state"]:
+                myroot[0].append(ET.fromstring(ctl))
+
+        self.finish_file(myroot, configfile, self.output_path / "state_import.xml")
