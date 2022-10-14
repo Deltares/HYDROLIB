@@ -74,7 +74,11 @@ def inun_dhydro(
         edate = datetime.strptime(edate, "%Y/%m/%d")
 
     ds = xr.open_dataset(nc_path)
-    EPSG = "EPSG:" + str(ds["projected_coordinate_system"].epsg)
+    if "projected_coordinate_system" in list(ds.variables) and ds["projected_coordinate_system"].epsg != 0:
+        EPSG = "EPSG:" + str(ds["projected_coordinate_system"].epsg)
+    else:
+        EPSG = "EPSG:28992"
+    
     variables = list(ds.variables)
 
     # create dataframe with data
@@ -418,23 +422,37 @@ def inun_dhydro(
 
 
 if __name__ == "__main__":
-    input_path = r"C:\Users\buijerta\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\06 Work in Progress\01_Afstudeerstage_Janberend\data\Resultaten\80bij80\80bij80_finished\dflowfm\output\DR49_map.nc"
-    dtm_path = r"C:\Users\buijerta\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\06 Work in Progress\GIS\ahn\dr49\ahn3_2x2_combi_dr49.tif"
-    type = "depth"  # level
-    output_folder = r"C:/temp/aht"
-    result_path = r"C:/temp/aht/inundation.tif"
-    # areas1D_path = r"C:/temp/aht/areas.shp"
-    areas1D_path = ""
+    nc_path = r"C:\scripts\HYDROLIB\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\Model\dflowfm\output\Flow1D_map.nc"
+    result_path = r"C:\TEMP\D-Hydro\results_filter_filled.tif"
+    type ="level"
+    dtm_path= r"C:\scripts\HYDROLIB\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\GIS\AHN3_clip_fill.tif"
+    sdate=""
+    edate=""
+    domain=""
+    filter=False
+    extrapol=0.5
+    debug=False
+    areas1D=""
+    
+    
+    
+    # input_path = r"C:\Users\buijerta\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\06 Work in Progress\01_Afstudeerstage_Janberend\data\Resultaten\80bij80\80bij80_finished\dflowfm\output\DR49_map.nc"
+    # dtm_path = r"C:\Users\buijerta\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\06 Work in Progress\GIS\ahn\dr49\ahn3_2x2_combi_dr49.tif"
+    # type = "depth"  # level
+    # output_folder = r"C:/temp/aht"
+    # result_path = r"C:/temp/aht/inundation.tif"
+    # # areas1D_path = r"C:/temp/aht/areas.shp"
+    # areas1D_path = ""
     inun_dhydro(
-        input_path,
+        nc_path,
         result_path,
         type=type,
         dtm_path=dtm_path,
         sdate="",
         edate="",
-        domain="2D",
-        filter=False,
+        domain="1D",
+        filter=True,
         extrapol=1.0,
         debug=True,
-        areas1D=areas1D_path,
+        areas1D=areas1D,
     )
