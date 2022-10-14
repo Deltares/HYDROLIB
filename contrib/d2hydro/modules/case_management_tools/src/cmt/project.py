@@ -393,16 +393,24 @@ class Project(BaseModel):
                 ]
                 exclude_names = ["sobek3b_progress.txt", "RSRR_OUT", "RR-ready"]
                 for i in fnm.__fields__.keys():
-                    setattr(
-                        fnm,
-                        i,
-                        prefix_to_paths(
-                            getattr(fnm, i),
-                            prefix=fnm_prefix,
-                            exclude_suffices=exclude_suffices,
-                            exclude_names=exclude_names,
-                        ),
-                    )
+                    # chech for mutability (if property is allowed to be set)
+                    item = getattr(fnm, i)
+                    set_attr = True
+                    if hasattr(item, "__config__"):
+                        set_attr = item.__config__.allow_mutation
+
+                    # set property
+                    if set_attr:
+                        setattr(
+                            fnm,
+                            i,
+                            prefix_to_paths(
+                                item,
+                                prefix=fnm_prefix,
+                                exclude_suffices=exclude_suffices,
+                                exclude_names=exclude_names,
+                            ),
+                        )
                 for i in cases_subset:
 
                     # read start_datetime
