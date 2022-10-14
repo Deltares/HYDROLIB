@@ -1,5 +1,5 @@
 ## Profile Optimizer
-The API references the profile optimizer can be found below:
+The API references for the Profile Optimizer can be found below:
 
 (under construction)
 
