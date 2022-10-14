@@ -24,8 +24,8 @@ td, th {
 | D-HyDAMO               |   | modelgenerator from HyDAMO format |
 | Profile Optimizer     |   | optimizer of 1D profiles                             |
 | Inundation toolbox    |   | toolbox for inundation characteristics                             |
-| Case Management tool  |   | tool to manage cases                             |
-| ARCADIS tool          |   | pre- and postprocessing tools                             |
+| Case Management tools  |   | tools to manage and run cases                             |
+| ARCADIS tools          |   | pre- and postprocessing tools                             |
 | HydroMT-Delft3D FM    |   | data-adaptor and modelbuilder from global and local data                             |
 
 ## More information
