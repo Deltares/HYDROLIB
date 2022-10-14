@@ -152,9 +152,7 @@ def determine_initial(gdf_branches, gdf_areas, level_field):
 if __name__ == "__main__":
 
     dir = os.path.dirname(__file__)
-    net_nc_path = os.path.join(
-        dir, r"exampledata\Dellen\Model\dflowfm\dellen_net.nc"
-    )
+    net_nc_path = os.path.join(dir, r"exampledata\Dellen\Model\dflowfm\dellen_net.nc")
     areas_path = os.path.join(dir, r"exampledata\Dellen\GIS\Peilgebied_Dellen.shp")
     value_field = "GPGWNTPL"
     value_type = "WaterLevel"

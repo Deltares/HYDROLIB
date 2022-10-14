@@ -358,17 +358,18 @@ def map_nc2gdf(input_path, param):
     return gdf
 
 
-def hisnc_2gdf(input_path,
-               strucs = [
-                   "general_structure",
-                   "pump",
-                   "weirgen",
-                   "orifice",
-                   "bridge",
-                   "culvert",
-                   "uniweir",
-               ]
-    ):
+def hisnc_2gdf(
+    input_path,
+    strucs=[
+        "general_structure",
+        "pump",
+        "weirgen",
+        "orifice",
+        "bridge",
+        "culvert",
+        "uniweir",
+    ],
+):
     """This script reads an D-HYDRO *his.nc file and converts it to a dictionary containing several geodataframes for all the output.
 
     Example:
@@ -756,4 +757,3 @@ if __name__ == "__main__":
     # mdu_path = Path(os.path.join(dir, r"exampledata\Dellen","Model_cleaned\dflowfm\Flow1D.mdu"))
     # fm = FMModel(mdu_path)
     hisnc_2gdf(his_nc_path)
-

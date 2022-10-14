@@ -30,6 +30,7 @@ from hydrolib.core.io.mdu.models import FMModel, FrictionModel
 #
 # =============================================================================
 
+
 def change_friction_shape(
     mdu_path, shape_path, output_path, wipe=False, replace=False, append=False
 ):
@@ -71,34 +72,36 @@ def change_friction_shape(
     intersect = gpd.sjoin_nearest(branches, gdf_frict, max_distance=buffer)
     # TODO: Probleem Arjon (?)
 
-    
-# =============================================================================
-#     crs_inf = read_locations(mdu_path, [
-#         "cross_sections_locations",
-#         "cross_sections_definition"]
-#         )
-#     crs_loc = crs_inf["cross_sections_locations"]
-#     crs_def = crs_inf["cross_sections_definition"]
-# =============================================================================
-    
+    # =============================================================================
+    #     crs_inf = read_locations(mdu_path, [
+    #         "cross_sections_locations",
+    #         "cross_sections_definition"]
+    #         )
+    #     crs_loc = crs_inf["cross_sections_locations"]
+    #     crs_def = crs_inf["cross_sections_definition"]
+    # =============================================================================
+
     # Todo: nog in de cross section def duiken de 'on lanes' te verbeteren.
     if replace == True:
         new_fricts = pd.DataFrame()
-        new_fricts['branchid'] = intersect['id_left']
-        new_fricts['frictionvalues'] = [[i] for i in intersect['frict'].values]
-        new_fricts['frictionType'] = ['strickler' for i in intersect['frict'].values]
-        new_fricts['numlocations'] = 1
-        new_fricts['chainage'] = [[0] for i in intersect['frict'].values]
-        
+        new_fricts["branchid"] = intersect["id_left"]
+        new_fricts["frictionvalues"] = [[i] for i in intersect["frict"].values]
+        new_fricts["frictionType"] = ["strickler" for i in intersect["frict"].values]
+        new_fricts["numlocations"] = 1
+        new_fricts["chainage"] = [[0] for i in intersect["frict"].values]
+
         # Todo: Assumed global friction is first friction
         writefile = FrictionModel(
             global_=dict_global[list(dict_frictions.keys())[0]].to_dict("records"),
             branch=new_fricts.to_dict("records"),
         )
 
-        writefile.save(Path(output_path) / (str("roughness-" + list(dict_frictions.keys())[0] + ".ini")))
-    
-    # if crs_def['frictionids'] not 
+        writefile.save(
+            Path(output_path)
+            / (str("roughness-" + list(dict_frictions.keys())[0] + ".ini"))
+        )
+
+    # if crs_def['frictionids'] not
 
     # TODO: Hoe halve watergangen verwerken
 
@@ -131,21 +134,21 @@ def change_friction_shape(
                 in_model = intersect.assign(
                     result=intersect["id"].isin(dict_frictions[key].branchid)
                 )
-    
+
                 # TODO: Check if the id is always id with gpd.sjoin?
                 in_model.rename(columns={"id": "branchid"}, inplace=True)
-    
+
                 # store new values inside new frictionfile
                 merge = dict_frictions[key].merge(in_model, how="left", on="branchid")
-    
+
                 merge.loc[merge.result == True, "frictionvalues"] = merge.loc[
                     merge.result == True, "fricval"
                 ]
-    
+
                 # Change amount of locations to 0, because the friction is defined on the branch
                 merge.loc[merge.result == True, "numlocations"] = 1
                 merge.loc[merge.result == True, "chainage"] = 0
-    
+
                 # change all values to list to make importable into hydrolib
                 merge["frictionvalues"] = merge["frictionvalues"].apply(
                     lambda x: [x] if isinstance(x, float) else x
@@ -155,38 +158,46 @@ def change_friction_shape(
                 )
                 if wipe == True:
                     new_branches = merge.loc[merge.result == True].copy()
-    
+
                     new_branches.drop(
-                        columns=in_model.columns.difference(dict_frictions[key].columns),
+                        columns=in_model.columns.difference(
+                            dict_frictions[key].columns
+                        ),
                         inplace=True,
                     )
-    
+
                     # write the file into FrictionModel and save to hydrolib
                     writefile = FrictionModel(
                         global_=dict_global[key].to_dict("records"),
                         branch=new_branches.to_dict("records"),
                     )
-    
-                    writefile.save(Path(output_path) / (str("roughness-" + key + ".ini")))
-    
+
+                    writefile.save(
+                        Path(output_path) / (str("roughness-" + key + ".ini"))
+                    )
+
                 else:
                     merge.drop(
-                        columns=in_model.columns.difference(dict_frictions[key].columns),
+                        columns=in_model.columns.difference(
+                            dict_frictions[key].columns
+                        ),
                         inplace=True,
                     )
-    
+
                     # write the file into FrictionModel and save to hydrolib
                     writefile = FrictionModel(
                         global_=dict_global[key].to_dict("records"),
                         branch=merge.to_dict("records"),
                     )
-    
-                    writefile.save(Path(output_path) / (str("roughness-" + key + ".ini")))
-    
+
+                    writefile.save(
+                        Path(output_path) / (str("roughness-" + key + ".ini"))
+                    )
+
             else:
                 writefile = FrictionModel(global_=dict_global[key].to_dict("records"))
                 writefile.save(Path(output_path) / (str("roughness-" + key + ".ini")))
-    
+
 
 def friction2dict(fm):
     dfsglob = {}
@@ -204,18 +215,18 @@ def friction2dict(fm):
 
 
 if __name__ == "__main__":
-    
-# =============================================================================
-#     # Read shape
-#     shape_path = r"C:\scripts\HYDROLIB\HYDROLIB\contrib\Arcadis\scripts\exampledata\shapes\frictfiles.shp"
-#     # netnc_path = r"C:\Users\delanger3781\OneDrive - ARCADIS\Documents\DHydro\Zwolle-Minimodel\Zwolle-Minimodel\1D2D-DIMR\dflowfm\FlowFM_net.nc"
-#     output_path = r"C:\TEMP\hydrolib"
-#     input_mdu = Path(
-#         r"C:\scripts\HYDROLIB\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\FlowFM.mdu"
-#     )
-#     change_friction_shape(input_mdu, shape_path, output_path)
-# =============================================================================
-    
+
+    # =============================================================================
+    #     # Read shape
+    #     shape_path = r"C:\scripts\HYDROLIB\HYDROLIB\contrib\Arcadis\scripts\exampledata\shapes\frictfiles.shp"
+    #     # netnc_path = r"C:\Users\delanger3781\OneDrive - ARCADIS\Documents\DHydro\Zwolle-Minimodel\Zwolle-Minimodel\1D2D-DIMR\dflowfm\FlowFM_net.nc"
+    #     output_path = r"C:\TEMP\hydrolib"
+    #     input_mdu = Path(
+    #         r"C:\scripts\HYDROLIB\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\FlowFM.mdu"
+    #     )
+    #     change_friction_shape(input_mdu, shape_path, output_path)
+    # =============================================================================
+
     # Read shape
     shape_path = r"C:\scripts\HYDROLIB\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\GIS\Friction_Dellen_full.shp"
     # netnc_path = r"C:\Users\delanger3781\OneDrive - ARCADIS\Documents\DHydro\Zwolle-Minimodel\Zwolle-Minimodel\1D2D-DIMR\dflowfm\FlowFM_net.nc"
@@ -223,4 +234,4 @@ if __name__ == "__main__":
     input_mdu = Path(
         r"C:\scripts\HYDROLIB\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\Model_cleaned\dflowfm\Flow1D.mdu"
     )
-    change_friction_shape(input_mdu, shape_path, output_path,replace=True)
+    change_friction_shape(input_mdu, shape_path, output_path, replace=True)
