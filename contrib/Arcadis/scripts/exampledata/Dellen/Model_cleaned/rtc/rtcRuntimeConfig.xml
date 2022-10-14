@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rtcRuntimeConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rtc="http://www.wldelft.nl/fews" xmlns="http://www.wldelft.nl/fews" xsi:schemaLocation="http://www.wldelft.nl/fews C:\SYNC\SOFTWARE\STOCHASTENTOOL\TUTORIAL\DellenStochast\rtc\rtcRuntimeConfig.xsd">
+  <period>
+    <userDefined>
+      <startDate date="2000-06-01" time="00:00:00" />
+      <endDate date="2000-06-07" time="00:00:00" />
+      <timeStep unit="minute" multiplier="10" divider="1" />
+    </userDefined>
+  </period>
+  <mode>
+    <simulation>
+      <limitedMemory>true</limitedMemory>
+    </simulation>
+  </mode>
+</rtcRuntimeConfig>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,15 @@
+[General]
+    fileVersion           = 1.01                
+    fileType              = boundConds          
+
+[forcing]
+    name                  = 258080.953900_584320.392095
+    function              = timeseries          
+    timeInterpolation     = linear              
+    quantity              = time                
+    unit                  = minutes since 1951-01-01 00:00:00
+    quantity              = waterlevelbnd       
+    unit                  = m                   
+    0 -3 
+    52596000 -3 
+

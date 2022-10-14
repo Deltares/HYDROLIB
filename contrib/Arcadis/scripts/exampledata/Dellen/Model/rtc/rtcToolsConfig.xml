@@ -1,0 +1,254 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rtcToolsConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rtc="http://www.wldelft.nl/fews" xmlns="http://www.wldelft.nl/fews" xsi:schemaLocation="http://www.wldelft.nl/fews C:\SYNC\SOFTWARE\STOCHASTENTOOL\TUTORIAL\DellenStochast\rtc\rtcToolsConfig.xsd">
+  <general>
+    <description>RTC Model DeltaShell</description>
+    <poolRoutingScheme>Theta</poolRoutingScheme>
+    <theta>0.5</theta>
+  </general>
+  <rules>
+    <rule>
+      <unitDelay id="Interval Rule_unitDelay">
+        <input>
+          <x>[Output]KST-O-17750/Crest level (s)</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17750/Crest level (s)</y>
+        </output>
+      </unitDelay>
+    </rule>
+    <rule>
+      <interval id="[IntervalRule]Control Group PMP_KGM-O-11860/Interval Rule">
+        <settingBelow>0</settingBelow>
+        <settingAbove>0.22</settingAbove>
+        <settingMaxSpeed>1</settingMaxSpeed>
+        <deadbandSetpointAbsolute>0.1</deadbandSetpointAbsolute>
+        <input>
+          <x ref="EXPLICIT">[Input]ObservationPoint_PMP_KGM-O-11860/Water level (op)</x>
+          <setpoint>[SP]Control Group PMP_KGM-O-11860/Interval Rule</setpoint>
+        </input>
+        <output>
+          <y>[Output]PMP_KGM-O-11860/Capacity (p)</y>
+          <status>[Status]Control Group PMP_KGM-O-11860/Interval Rule</status>
+        </output>
+      </interval>
+    </rule>
+    <rule>
+      <interval id="[IntervalRule]Control Group PMP_KGM-O-11730/Interval Rule">
+        <settingBelow>0</settingBelow>
+        <settingAbove>5.33</settingAbove>
+        <settingMaxSpeed>1</settingMaxSpeed>
+        <deadbandSetpointAbsolute>0.1</deadbandSetpointAbsolute>
+        <input>
+          <x ref="EXPLICIT">[Input]ObservationPoint_PMP_KGM-O-11730/Water level (op)</x>
+          <setpoint>[SP]Control Group PMP_KGM-O-11730/Interval Rule</setpoint>
+        </input>
+        <output>
+          <y>[Output]PMP_KGM-O-11730/Capacity (p)</y>
+          <status>[Status]Control Group PMP_KGM-O-11730/Interval Rule</status>
+        </output>
+      </interval>
+    </rule>
+    <rule>
+      <interval id="[IntervalRule]Control Group KST-O-17680/Interval Rule">
+        <settingBelow>-1.24</settingBelow>
+        <settingAbove>-2.24</settingAbove>
+        <settingMaxSpeed>0.001</settingMaxSpeed>
+        <deadbandSetpointAbsolute>0.1</deadbandSetpointAbsolute>
+        <input>
+          <x ref="EXPLICIT">[Input]ObservationPoint_KST-O-17680/Water level (op)</x>
+          <setpoint>[SP]Control Group KST-O-17680/Interval Rule</setpoint>
+        </input>
+        <output>
+          <y>[Output]KST-O-17680/Crest level (s)</y>
+          <status>[Status]Control Group KST-O-17680/Interval Rule</status>
+        </output>
+      </interval>
+    </rule>
+    <rule>
+      <interval id="[IntervalRule]Control Group KST-O-17750/Interval Rule">
+        <settingBelow>-3.49</settingBelow>
+        <settingAbove>-4.49</settingAbove>
+        <settingMaxSpeed>0.001</settingMaxSpeed>
+        <deadbandSetpointAbsolute>0.1</deadbandSetpointAbsolute>
+        <input>
+          <x ref="EXPLICIT">[Input]ObservationPoint_KST-O-17750/Water level (op)</x>
+          <setpoint>[SP]Control Group KST-O-17750/Interval Rule</setpoint>
+        </input>
+        <output>
+          <y>[Output]KST-O-17750/Crest level (s)</y>
+          <status>[Status]Control Group KST-O-17750/Interval Rule</status>
+        </output>
+      </interval>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17750/rlCalamiteit">
+        <input>
+          <x>Control Group KST-O-17750/rlCalamiteit</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17750/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <interval id="[IntervalRule]Control Group KST-O-17660/Interval Rule">
+        <settingBelow>-1.03</settingBelow>
+        <settingAbove>-2.03</settingAbove>
+        <settingMaxSpeed>0.001</settingMaxSpeed>
+        <deadbandSetpointAbsolute>0.1</deadbandSetpointAbsolute>
+        <input>
+          <x ref="EXPLICIT">[Input]ObservationPoint_KST-O-17660/Water level (op)</x>
+          <setpoint>[SP]Control Group KST-O-17660/Interval Rule</setpoint>
+        </input>
+        <output>
+          <y>[Output]KST-O-17660/Crest level (s)</y>
+          <status>[Status]Control Group KST-O-17660/Interval Rule</status>
+        </output>
+      </interval>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17700/Time Rule">
+        <input>
+          <x>Control Group KST-O-17700/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17700/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17800/Time Rule">
+        <input>
+          <x>Control Group KST-O-17800/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17800/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17690/Time Rule">
+        <input>
+          <x>Control Group KST-O-17690/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17690/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17760/Time Rule">
+        <input>
+          <x>Control Group KST-O-17760/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17760/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17710/Time Rule">
+        <input>
+          <x>Control Group KST-O-17710/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17710/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17740/Time Rule">
+        <input>
+          <x>Control Group KST-O-17740/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17740/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17670/Time Rule">
+        <input>
+          <x>Control Group KST-O-17670/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17670/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17770/Time Rule">
+        <input>
+          <x>Control Group KST-O-17770/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17770/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17780/Time Rule">
+        <input>
+          <x>Control Group KST-O-17780/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17780/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17820/Time Rule">
+        <input>
+          <x>Control Group KST-O-17820/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17820/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17790/Time Rule">
+        <input>
+          <x>Control Group KST-O-17790/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17790/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group KST-O-17810/Time Rule">
+        <input>
+          <x>Control Group KST-O-17810/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]KST-O-17810/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+  </rules>
+  <triggers>
+    <trigger>
+      <standard id="[StandardCondition]Control Group KST-O-17750/h&gt;-2.5?">
+        <condition>
+          <x1Series ref="EXPLICIT">[Input]ObservationPoint_KST-O-17780/Water level (op)</x1Series>
+          <relationalOperator>Greater</relationalOperator>
+          <x2Value>-2.5</x2Value>
+        </condition>
+        <true>
+          <trigger>
+            <ruleReference>[TimeRule]Control Group KST-O-17750/rlCalamiteit</ruleReference>
+          </trigger>
+        </true>
+        <false>
+          <trigger>
+            <ruleReference>[IntervalRule]Control Group KST-O-17750/Interval Rule</ruleReference>
+          </trigger>
+        </false>
+        <output>
+          <status>[Status]Control Group KST-O-17750/h&gt;-2.5?</status>
+        </output>
+      </standard>
+    </trigger>
+  </triggers>
+</rtcToolsConfig>

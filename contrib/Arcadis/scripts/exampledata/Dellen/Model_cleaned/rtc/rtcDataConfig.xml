@@ -1,0 +1,327 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rtcDataConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rtc="http://www.wldelft.nl/fews" xmlns="http://www.wldelft.nl/fews" xsi:schemaLocation="http://www.wldelft.nl/fews C:\SYNC\SOFTWARE\STOCHASTENTOOL\TUTORIAL\DellenStochast\rtc\rtcDataConfig.xsd">
+  <importSeries>
+    <PITimeSeriesFile>
+      <timeSeriesFile>timeseries_import.xml</timeSeriesFile>
+      <useBinFile>false</useBinFile>
+    </PITimeSeriesFile>
+    <timeSeries id="[Input]ObservationPoint_PMP_KGM-O-11860/Water level (op)">
+      <OpenMIExchangeItem>
+        <elementId>ObservationPoint_PMP_KGM-O-11860</elementId>
+        <quantityId>Water level (op)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[SP]Control Group PMP_KGM-O-11860/Interval Rule">
+      <PITimeSeries>
+        <locationId>[IntervalRule]Control Group PMP_KGM-O-11860/Interval Rule</locationId>
+        <parameterId>SP</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="[Input]ObservationPoint_PMP_KGM-O-11730/Water level (op)">
+      <OpenMIExchangeItem>
+        <elementId>ObservationPoint_PMP_KGM-O-11730</elementId>
+        <quantityId>Water level (op)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[SP]Control Group PMP_KGM-O-11730/Interval Rule">
+      <PITimeSeries>
+        <locationId>[IntervalRule]Control Group PMP_KGM-O-11730/Interval Rule</locationId>
+        <parameterId>SP</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="[Input]ObservationPoint_KST-O-17680/Water level (op)">
+      <OpenMIExchangeItem>
+        <elementId>ObservationPoint_KST-O-17680</elementId>
+        <quantityId>Water level (op)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[SP]Control Group KST-O-17680/Interval Rule">
+      <PITimeSeries>
+        <locationId>[IntervalRule]Control Group KST-O-17680/Interval Rule</locationId>
+        <parameterId>SP</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="[Input]ObservationPoint_KST-O-17750/Water level (op)">
+      <OpenMIExchangeItem>
+        <elementId>ObservationPoint_KST-O-17750</elementId>
+        <quantityId>Water level (op)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Input]ObservationPoint_KST-O-17780/Water level (op)">
+      <OpenMIExchangeItem>
+        <elementId>ObservationPoint_KST-O-17780</elementId>
+        <quantityId>Water level (op)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[SP]Control Group KST-O-17750/Interval Rule">
+      <PITimeSeries>
+        <locationId>[IntervalRule]Control Group KST-O-17750/Interval Rule</locationId>
+        <parameterId>SP</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17750/rlCalamiteit">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17750/rlCalamiteit</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>LINEAR</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="[Input]ObservationPoint_KST-O-17660/Water level (op)">
+      <OpenMIExchangeItem>
+        <elementId>ObservationPoint_KST-O-17660</elementId>
+        <quantityId>Water level (op)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[SP]Control Group KST-O-17660/Interval Rule">
+      <PITimeSeries>
+        <locationId>[IntervalRule]Control Group KST-O-17660/Interval Rule</locationId>
+        <parameterId>SP</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17700/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17700/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>LINEAR</interpolationOption>
+        <extrapolationOption>PERIODIC</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17800/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17800/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17690/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17690/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17760/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17760/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17710/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17710/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17740/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17740/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17670/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17670/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17770/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17770/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17780/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17780/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17820/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17820/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17790/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17790/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group KST-O-17810/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group KST-O-17810/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+  </importSeries>
+  <exportSeries>
+    <CSVTimeSeriesFile decimalSeparator="." delimiter="," adjointOutput="false"></CSVTimeSeriesFile>
+    <PITimeSeriesFile>
+      <timeSeriesFile>timeseries_export.xml</timeSeriesFile>
+      <useBinFile>false</useBinFile>
+    </PITimeSeriesFile>
+    <timeSeries id="[Output]PMP_KGM-O-11860/Capacity (p)">
+      <OpenMIExchangeItem>
+        <elementId>PMP_KGM-O-11860</elementId>
+        <quantityId>Capacity (p)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Status]Control Group PMP_KGM-O-11860/Interval Rule" />
+    <timeSeries id="[Output]PMP_KGM-O-11730/Capacity (p)">
+      <OpenMIExchangeItem>
+        <elementId>PMP_KGM-O-11730</elementId>
+        <quantityId>Capacity (p)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Status]Control Group PMP_KGM-O-11730/Interval Rule" />
+    <timeSeries id="[Output]KST-O-17680/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17680</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Status]Control Group KST-O-17680/Interval Rule" />
+    <timeSeries id="[Output]KST-O-17750/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17750</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Status]Control Group KST-O-17750/h&gt;-2.5?" />
+    <timeSeries id="[Status]Control Group KST-O-17750/Interval Rule" />
+    <timeSeries id="[Output]KST-O-17660/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17660</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Status]Control Group KST-O-17660/Interval Rule" />
+    <timeSeries id="[Output]KST-O-17700/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17700</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Output]KST-O-17800/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17800</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Output]KST-O-17690/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17690</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Output]KST-O-17760/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17760</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Output]KST-O-17710/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17710</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Output]KST-O-17740/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17740</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Output]KST-O-17670/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17670</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Output]KST-O-17770/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17770</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Output]KST-O-17780/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17780</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Output]KST-O-17820/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17820</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Output]KST-O-17790/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17790</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Output]KST-O-17810/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>KST-O-17810</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+  </exportSeries>
+</rtcDataConfig>

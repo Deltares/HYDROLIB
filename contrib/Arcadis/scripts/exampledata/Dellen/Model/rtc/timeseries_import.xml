@@ -1,0 +1,273 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<TimeSeries xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.wldelft.nl/fews/PI" xsi:schemaLocation="http://www.wldelft.nl/fews/PI C:\SYNC\SOFTWARE\STOCHASTENTOOL\TUTORIAL\DellenStochast\rtc\pi_timeseries.xsd" version="1.2">
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[IntervalRule]Control Group PMP_KGM-O-11860/Interval Rule</locationId>
+      <parameterId>SP</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="0" />
+    <event date="1951-01-08" time="00:00:00" value="0" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[IntervalRule]Control Group PMP_KGM-O-11730/Interval Rule</locationId>
+      <parameterId>SP</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="0" />
+    <event date="1951-01-08" time="00:00:00" value="0" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[IntervalRule]Control Group KST-O-17680/Interval Rule</locationId>
+      <parameterId>SP</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="0" />
+    <event date="1951-01-08" time="00:00:00" value="0" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[IntervalRule]Control Group KST-O-17750/Interval Rule</locationId>
+      <parameterId>SP</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="0" />
+    <event date="1951-01-08" time="00:00:00" value="0" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17750/rlCalamiteit</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-2" />
+    <event date="1951-01-08" time="00:00:00" value="-2" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[IntervalRule]Control Group KST-O-17660/Interval Rule</locationId>
+      <parameterId>SP</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="0" />
+    <event date="1951-01-08" time="00:00:00" value="0" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17700/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-2.5" />
+    <event date="1951-01-08" time="00:00:00" value="-2.5" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17800/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-2.85" />
+    <event date="1951-01-08" time="00:00:00" value="-2.85" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17690/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-2.15" />
+    <event date="1951-01-08" time="00:00:00" value="-2.15" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17760/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-2.05" />
+    <event date="1951-01-08" time="00:00:00" value="-2.05" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17710/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-2.7" />
+    <event date="1951-01-08" time="00:00:00" value="-2.7" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17740/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-2.1" />
+    <event date="1951-01-08" time="00:00:00" value="-2.1" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17670/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-0.45" />
+    <event date="1951-01-08" time="00:00:00" value="-0.45" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17770/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-2.65" />
+    <event date="1951-01-08" time="00:00:00" value="-2.65" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17780/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-3" />
+    <event date="1951-01-08" time="00:00:00" value="-3" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17820/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-3.6" />
+    <event date="1951-01-08" time="00:00:00" value="-3.6" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17790/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-2.9" />
+    <event date="1951-01-08" time="00:00:00" value="-2.9" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]Control Group KST-O-17810/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="10" divider="1" />
+      <startDate date="1951-01-01" time="00:00:00" />
+      <endDate date="1951-01-08" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="1951-01-01" time="00:00:00" value="-2.8" />
+    <event date="1951-01-08" time="00:00:00" value="-2.8" />
+  </series>
+</TimeSeries>
