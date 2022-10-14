@@ -1,5 +1,5 @@
 # Introduction 
-The Profile Optimizer is a python tool that automatees model optimization for D-Hydro models. 
+The Profile Optimizer is a python tool that automates model optimization for D-Hydro models. 
 Based on an existing D-HYDRO 1D2D (D-Flow FM) model, a part of the system will be changed to find an optimal situation. 
 In this version (v0.1.3) it is possible to optimize the bottom width of a single hydroobject (non-branching stream)
 based on the current bottom level and a chosen slope. 
