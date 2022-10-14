@@ -74,11 +74,14 @@ def inun_dhydro(
         edate = datetime.strptime(edate, "%Y/%m/%d")
 
     ds = xr.open_dataset(nc_path)
-    if "projected_coordinate_system" in list(ds.variables) and ds["projected_coordinate_system"].epsg != 0:
+    if (
+        "projected_coordinate_system" in list(ds.variables)
+        and ds["projected_coordinate_system"].epsg != 0
+    ):
         EPSG = "EPSG:" + str(ds["projected_coordinate_system"].epsg)
     else:
         EPSG = "EPSG:28992"
-    
+
     variables = list(ds.variables)
 
     # create dataframe with data
@@ -424,18 +427,16 @@ def inun_dhydro(
 if __name__ == "__main__":
     nc_path = r"C:\scripts\HYDROLIB\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\Model\dflowfm\output\Flow1D_map.nc"
     result_path = r"C:\TEMP\D-Hydro\results_filter_filled.tif"
-    type ="level"
-    dtm_path= r"C:\scripts\HYDROLIB\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\GIS\AHN3_clip_fill.tif"
-    sdate=""
-    edate=""
-    domain=""
-    filter=False
-    extrapol=0.5
-    debug=False
-    areas1D=""
-    
-    
-    
+    type = "level"
+    dtm_path = r"C:\scripts\HYDROLIB\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\GIS\AHN3_clip_fill.tif"
+    sdate = ""
+    edate = ""
+    domain = ""
+    filter = False
+    extrapol = 0.5
+    debug = False
+    areas1D = ""
+
     # input_path = r"C:\Users\buijerta\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\06 Work in Progress\01_Afstudeerstage_Janberend\data\Resultaten\80bij80\80bij80_finished\dflowfm\output\DR49_map.nc"
     # dtm_path = r"C:\Users\buijerta\ARCADIS\WRIJ - D-HYDRO modellen & scenarioberekeningen - Documents\WRIJ - Gedeelde projectmap\06 Work in Progress\GIS\ahn\dr49\ahn3_2x2_combi_dr49.tif"
     # type = "depth"  # level
