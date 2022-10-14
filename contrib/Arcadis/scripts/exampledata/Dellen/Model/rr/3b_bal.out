@@ -1,0 +1,29 @@
+ Results 3B calculation
+
+ Rainfall file                      : default.bui                                                                                                                     
+ Evaporation file                   : default.evp                                                                                                                     
+ Greenhouse Initialisation file     : kasinit                                                                                                                         
+ Greenhouse Water Use file          : kasgebr                                                                                                                         
+ Greenhouse classification file     : kasklass                                                                                                                        
+ Crop factor file                   : cropfact                                                                                                                        
+ Storage coefficient file           : bergcoef                                                                                                                        
+ Timestep size (s)                  :      600
+ Simulated period (hours)           :      168.00 for number of Events=     1
+
+
+ Summary results Sobek-RR Rural model   
+
+ Total area (ha)                    :        3773.89
+ Total rainfall (m3)                :     2800222.75
+ Total evaporation paved area (m3)  :           0.00
+ Total evaporation unpaved area (m3):           0.00
+ Total water use greenhouses (m3)   :           0.00
+ Total DWA paved area (m3)          :           0.00
+ Net seepage unpaved area (m3)      :           0.00
+ Storage change paved area (m3)     :       33827.74
+ Storage change unpaved area (m3)   :     1813787.66
+ Storage change greenhouses (m3)    :          22.50
+ Total outflow at boundaries (m3)   :      987216.21
+ Total inflow at boundaries (m3)    :       34631.40
+ Balance error (m3)                 :           0.11 ( 0.0000% of inflow; 0.0000% of outflow)
+ Maximum balance error in simulation:           0.30

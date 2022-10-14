@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<treeVectorFile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.openda.org" xsi:schemaLocation="http://www.openda.org C:\SYNC\SOFTWARE\STOCHASTENTOOL\TUTORIAL\DellenStochast\rtc\treeVector.xsd">
+  <treeVector>
+    <treeVectorLeaf id="[Output]PMP_KGM-O-11860/Capacity (p)">
+      <vector>0.2167</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]PMP_KGM-O-11730/Capacity (p)">
+      <vector>5.3333</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17680/Crest level (s)">
+      <vector>-2.24</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17750/Crest level (s)">
+      <vector>-4.49</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17660/Crest level (s)">
+      <vector>-2.03</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17700/Crest level (s)">
+      <vector>-2.94</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17800/Crest level (s)">
+      <vector>-3.22</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17690/Crest level (s)">
+      <vector>-2.47</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17760/Crest level (s)">
+      <vector>-2.74</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17710/Crest level (s)">
+      <vector>-3.11</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17740/Crest level (s)">
+      <vector>-2.13</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17670/Crest level (s)">
+      <vector>-0.45</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17770/Crest level (s)">
+      <vector>-2.76</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17780/Crest level (s)">
+      <vector>-3.94</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17820/Crest level (s)">
+      <vector>-3.6</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17790/Crest level (s)">
+      <vector>-3.47</vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]KST-O-17810/Crest level (s)">
+      <vector>-2.81</vector>
+    </treeVectorLeaf>
+  </treeVector>
+</treeVectorFile>

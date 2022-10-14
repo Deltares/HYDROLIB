@@ -1,0 +1,341 @@
+ Run datum (DD-MM-YY) and time:  5-10-2022   8:54
+
+ Summary of common data    
+ ===============================
+
+ Case name                                     
+ Number of nodes              286   3773.88 ha
+ Number of links              143
+ Number of paved areas         19    158.99 ha
+ Number of unpaved areas      119   3612.64 ha
+ Number of greenhouse-areas     5      2.25 ha
+           with basins                 0.00 ha
+ Number of open water nodes     0      0.00 ha
+ Number of structures           0
+ Number of boundaries         143
+ Number of NWRW nodes           0      0.00 ha
+ Number of Sacramento nodes     0      0.00 ha
+ Number of RR Runoff nodes      0      0.00 ha
+ Number of Cells                0      0.00 ha
+
+ Number of events               1
+ Timestepsize    (s)          600
+
+
+
+
+ Summary input data paved area          
+
+ Node identification     Node    Surface    Surf. max storage    max.storage  Capacity  
+                         name                         street      sewer       sewerpump  
+                                   (ha)      (m NAP)    (mm)       (mm)         (m3/s)   
+===========================================================================================
+pvGPG-O-17760        pvGPG-O-1776     1.202      0.10      0.00      0.00     0.000
+pvGPG-O-17680        pvGPG-O-1768     4.430      0.13      0.00      0.00     0.000
+pvGPG-O-17780        pvGPG-O-1778    13.975     -1.43      0.00      0.00     0.000
+pvGPG-O-17820        pvGPG-O-1782     2.868     -2.33      0.00      0.00     0.000
+pvGPG-O-17670        pvGPG-O-1767     0.320      1.58      0.00      0.00     0.000
+pvGPG-O-17755        pvGPG-O-1775     5.483      0.53      0.00      0.00     0.000
+pvGPG-O-17810        pvGPG-O-1781     4.097     -1.17      0.00      0.00     0.000
+pvGPG-O-17660        pvGPG-O-1766    26.708      0.19      0.00      0.00     0.000
+pvGPG-O-17790        pvGPG-O-1779     2.970     -1.20      0.00      0.00     0.000
+pvGPG-O-17740        pvGPG-O-1774     1.148     -0.24      0.00      0.00     0.000
+pvGPG-O-17685        pvGPG-O-1768     4.133      0.94      0.00      0.00     0.000
+pvGPG-O-11860        pvGPG-O-1186    16.245     -2.26      0.00      0.00     0.000
+pvGPG-O-17770        pvGPG-O-1777     5.668     -0.36      0.00      0.00     0.000
+pvGPG-O-11730        pvGPG-O-1173    29.792     -1.98      0.00      0.00     0.000
+pvGPG-O-17700        pvGPG-O-1770     0.650     -0.85      0.00      0.00     0.000
+pvGPG-O-17730        pvGPG-O-1773     6.412     -0.07      0.00      0.00     0.000
+pvGPG-O-17750        pvGPG-O-1775    11.795     -1.39      0.00      0.00     0.000
+pvGPG-O-17710        pvGPG-O-1771     2.790     -1.08      0.00      0.00     0.000
+pvGPG-O-17690        pvGPG-O-1769    18.310      0.01      0.00      0.00     0.000
+
+
+ Summary input data unpaved area          
+
+ Node identification    Node   Surface   Surf.Level max.storage Drainage     Infiltration Alfa-factors    Storagecoefficient
+                        name                       on land      depth        velocity     land  soil   (based on ref.level summer)
+                                  (ha)     (m NAP)    (mm)      (m NAP)      (mm/hour)      (1/day)       (mm)
+======================================================================================================================================
+upGRASLANDKLEIGPG-O- upGRASLANDKL     9.190      0.10      0.00     -0.40     99.00      0.00      0.00    0.0532
+upGRASLANDVEENGPG-O- upGRASLANDVE     0.018      0.10      0.00     -0.40     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    13.527      0.10      0.00     -0.40     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE     0.258      0.10      0.00     -0.40     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE     3.795     -1.35      0.00     -1.85     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    38.890     -1.35      0.00     -1.85     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL     3.217     -1.35      0.00     -1.85     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDZANDG upONGEDRAINE    53.700      0.13      0.00     -0.37     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_   192.648      0.13      0.00     -0.37     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    57.062      0.13      0.00     -0.37     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA    71.265      0.13      0.00     -0.37     99.00      0.00      0.00    0.0532
+upGRASLANDVEENGPG-O- upGRASLANDVE     5.838      0.13      0.00     -0.37     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDVEENG upONGEDRAINE     2.395      0.13      0.00     -0.37     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_   290.462     -1.43      0.00     -1.93     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL   217.477     -1.43      0.00     -1.93     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE     6.973     -1.43      0.00     -1.93     99.00      0.00      0.00    0.0532
+upGRASLANDVEENGPG-O- upGRASLANDVE     0.215     -1.43      0.00     -1.93     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    19.808     -1.43      0.00     -1.93     99.00      0.00      0.00    0.0532
+upBOOM_EN_FRUITKWEKE upBOOM_EN_FR     0.203     -1.43      0.00     -1.93     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA     1.040     -1.43      0.00     -1.93     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDZANDG upONGEDRAINE     0.468     -1.43      0.00     -1.93     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_     0.448     -1.43      0.00     -1.93     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    40.557     -2.33      0.00     -2.83     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE     5.330     -2.33      0.00     -2.83     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL     4.963     -2.33      0.00     -2.83     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA     1.238     -2.33      0.00     -2.83     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA     3.470      1.58      0.00      1.08     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDZANDG upONGEDRAINE     1.430      1.58      0.00      1.08     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_     3.178      1.58      0.00      1.08     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_     5.428      0.53      0.00      0.03     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL     3.415      0.53      0.00      0.03     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE     0.355      0.53      0.00      0.03     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA     3.835      0.53      0.00      0.03     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDZANDG upONGEDRAINE     0.325      0.53      0.00      0.03     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_     0.090      0.53      0.00      0.03     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    70.070     -1.17      0.00     -1.67     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL    13.832     -1.17      0.00     -1.67     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE     0.477     -1.17      0.00     -1.67     99.00      0.00      0.00    0.0532
+upBOOM_EN_FRUITKWEKE upBOOM_EN_FR    14.285     -1.17      0.00     -1.67     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA    48.883      0.19      0.00     -0.31     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    83.000      0.19      0.00     -0.31     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    77.353      0.19      0.00     -0.31     99.00      0.00      0.00    0.0532
+upGRASLANDVEENGPG-O- upGRASLANDVE    51.285      0.19      0.00     -0.31     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDZANDG upONGEDRAINE    13.600      0.19      0.00     -0.31     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDVEENG upONGEDRAINE    23.277      0.19      0.00     -0.31     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE    13.820     -1.20      0.00     -1.70     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    27.020     -1.20      0.00     -1.70     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL    78.763     -1.20      0.00     -1.70     99.00      0.00      0.00    0.0532
+upBOOM_EN_FRUITKWEKE upBOOM_EN_FR     9.637     -1.20      0.00     -1.70     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL    48.270     -0.24      0.00     -0.74     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    13.710     -0.24      0.00     -0.74     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE     2.203     -0.24      0.00     -0.74     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_     1.077      0.94      0.00      0.44     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE     1.397      0.94      0.00      0.44     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_     0.537      0.94      0.00      0.44     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA     6.468      0.94      0.00      0.44     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL     0.263      0.94      0.00      0.44     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDZANDG upONGEDRAINE     1.720      0.94      0.00      0.44     99.00      0.00      0.00    0.0532
+upBOOM_EN_FRUITKWEKE upBOOM_EN_FR     0.635      0.94      0.00      0.44     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE    19.530     -2.26      0.00     -2.76     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL    11.262     -2.26      0.00     -2.76     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    27.427     -2.26      0.00     -2.76     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDZANDG upONGEDRAINE    19.345     -2.26      0.00     -2.76     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_     0.040     -2.26      0.00     -2.76     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA    17.580     -2.26      0.00     -2.76     99.00      0.00      0.00    0.0532
+upGRASLANDVEENGPG-O- upGRASLANDVE    13.535     -2.26      0.00     -2.76     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDVEENG upONGEDRAINE    31.073     -2.26      0.00     -2.76     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    24.725     -2.26      0.00     -2.76     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    19.927     -0.36      0.00     -0.86     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL    48.663     -0.36      0.00     -0.86     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE     0.652     -0.36      0.00     -0.86     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE   114.965     -1.98      0.00     -2.48     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL   143.120     -1.98      0.00     -2.48     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_   434.070     -1.98      0.00     -2.48     99.00      0.00      0.00    0.0532
+upGRASLANDVEENGPG-O- upGRASLANDVE    55.855     -1.98      0.00     -2.48     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDVEENG upONGEDRAINE    54.322     -1.98      0.00     -2.48     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA     4.067     -1.98      0.00     -2.48     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDZANDG upONGEDRAINE     0.623     -1.98      0.00     -2.48     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_     3.230     -1.98      0.00     -2.48     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    99.043     -1.98      0.00     -2.48     99.00      0.00      0.00    0.0532
+upBOOM_EN_FRUITKWEKE upBOOM_EN_FR     8.713     -1.98      0.00     -2.48     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    22.413     -0.85      0.00     -1.35     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    14.305     -0.85      0.00     -1.35     99.00      0.00      0.00    0.0532
+upGRASLANDVEENGPG-O- upGRASLANDVE     0.427     -0.85      0.00     -1.35     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDZANDG upONGEDRAINE     0.083     -0.85      0.00     -1.35     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDVEENG upONGEDRAINE     0.018     -0.85      0.00     -1.35     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL    19.975     -0.07      0.00     -0.57     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    11.010     -0.07      0.00     -0.57     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_     6.010     -0.07      0.00     -0.57     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE     0.970     -0.07      0.00     -0.57     99.00      0.00      0.00    0.0532
+upGRASLANDVEENGPG-O- upGRASLANDVE    10.360     -0.07      0.00     -0.57     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDVEENG upONGEDRAINE     1.140     -0.07      0.00     -0.57     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_     0.087     -0.07      0.00     -0.57     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA     0.150     -0.07      0.00     -0.57     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE    13.732     -1.39      0.00     -1.89     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL   106.448     -1.39      0.00     -1.89     99.00      0.00      0.00    0.0532
+upGRASLANDVEENGPG-O- upGRASLANDVE   152.160     -1.39      0.00     -1.89     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_   108.080     -1.39      0.00     -1.89     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_   105.198     -1.39      0.00     -1.89     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDVEENG upONGEDRAINE    27.315     -1.39      0.00     -1.89     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDZANDG upONGEDRAINE     9.723     -1.39      0.00     -1.89     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA     6.000     -1.39      0.00     -1.89     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    35.155     -1.39      0.00     -1.89     99.00      0.00      0.00    0.0532
+upGRASLANDVEENGPG-O- upGRASLANDVE     3.877     -1.08      0.00     -1.58     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA     3.700     -1.08      0.00     -1.58     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    26.887     -1.08      0.00     -1.58     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    19.177     -1.08      0.00     -1.58     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDZANDG upONGEDRAINE     1.022     -1.08      0.00     -1.58     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDVEENG upONGEDRAINE     1.458     -1.08      0.00     -1.58     99.00      0.00      0.00    0.0532
+upGRASLANDZANDGPG-O- upGRASLANDZA    11.835      0.01      0.00     -0.49     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDKLEIG upONGEDRAINE     0.102      0.01      0.00     -0.49     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDZANDG upONGEDRAINE    10.110      0.01      0.00     -0.49     99.00      0.00      0.00    0.0532
+upGRASLANDVEENGPG-O- upGRASLANDVE     0.897      0.01      0.00     -0.49     99.00      0.00      0.00    0.0532
+upGRASLANDKLEIGPG-O- upGRASLANDKL     0.120      0.01      0.00     -0.49     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    16.383      0.01      0.00     -0.49     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    33.097      0.01      0.00     -0.49     99.00      0.00      0.00    0.0532
+upAKKERBOUW_TUINBOUW upAKKERBOUW_    13.623      0.01      0.00     -0.49     99.00      0.00      0.00    0.0532
+upONGEDRAINEERDVEENG upONGEDRAINE     2.933      0.01      0.00     -0.49     99.00      0.00      0.00    0.0532
+upBOOM_EN_FRUITKWEKE upBOOM_EN_FR     0.802      0.01      0.00     -0.49     99.00      0.00      0.00    0.0532
+
+
+ Summary inputdata greenhouse-areas  
+
+ Node identification   Node      Max.storage   surface    Surfaces per greenhouse class
+                                      on roofs                 
+                       name       (mm)            (m)         (in hectare)
+============================================================================================================================================================
+grGPG-O-17680        grGPG-O-1768     1.000     0.128     0.080     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
+grGPG-O-17660        grGPG-O-1766     1.000     0.185     0.250     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
+grGPG-O-11730        grGPG-O-1173     1.000    -1.984     0.562     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
+grGPG-O-17750        grGPG-O-1775     1.000    -1.391     0.055     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
+grGPG-O-17690        grGPG-O-1769     1.000     0.012     1.303     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
+
+
+ Summary input data boundaries      
+
+ Node identification   Node    Init.level variable  serie
+                       name      (m NAP)   (1=yes)   number
+================================================================
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucGRASLANDVEENGPG-O- ucGRASLANDVE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucONGEDRAINEERDZANDG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEENGPG-O- ucGRASLANDVE    0.000        0        0
+ucONGEDRAINEERDVEENG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucGRASLANDVEENGPG-O- ucGRASLANDVE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucBOOM_EN_FRUITKWEKE ucBOOM_EN_FR    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucONGEDRAINEERDZANDG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucONGEDRAINEERDZANDG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucONGEDRAINEERDZANDG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucBOOM_EN_FRUITKWEKE ucBOOM_EN_FR    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDVEENGPG-O- ucGRASLANDVE    0.000        0        0
+ucONGEDRAINEERDZANDG ucONGEDRAINE    0.000        0        0
+ucONGEDRAINEERDVEENG ucONGEDRAINE    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucBOOM_EN_FRUITKWEKE ucBOOM_EN_FR    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucONGEDRAINEERDZANDG ucONGEDRAINE    0.000        0        0
+ucBOOM_EN_FRUITKWEKE ucBOOM_EN_FR    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucONGEDRAINEERDZANDG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEENGPG-O- ucGRASLANDVE    0.000        0        0
+ucONGEDRAINEERDVEENG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDVEENGPG-O- ucGRASLANDVE    0.000        0        0
+ucONGEDRAINEERDVEENG ucONGEDRAINE    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucONGEDRAINEERDZANDG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucBOOM_EN_FRUITKWEKE ucBOOM_EN_FR    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDVEENGPG-O- ucGRASLANDVE    0.000        0        0
+ucONGEDRAINEERDZANDG ucONGEDRAINE    0.000        0        0
+ucONGEDRAINEERDVEENG ucONGEDRAINE    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucGRASLANDVEENGPG-O- ucGRASLANDVE    0.000        0        0
+ucONGEDRAINEERDVEENG ucONGEDRAINE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucGRASLANDVEENGPG-O- ucGRASLANDVE    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucONGEDRAINEERDVEENG ucONGEDRAINE    0.000        0        0
+ucONGEDRAINEERDZANDG ucONGEDRAINE    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucGRASLANDVEENGPG-O- ucGRASLANDVE    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucONGEDRAINEERDZANDG ucONGEDRAINE    0.000        0        0
+ucONGEDRAINEERDVEENG ucONGEDRAINE    0.000        0        0
+ucGRASLANDZANDGPG-O- ucGRASLANDZA    0.000        0        0
+ucONGEDRAINEERDKLEIG ucONGEDRAINE    0.000        0        0
+ucONGEDRAINEERDZANDG ucONGEDRAINE    0.000        0        0
+ucGRASLANDVEENGPG-O- ucGRASLANDVE    0.000        0        0
+ucGRASLANDKLEIGPG-O- ucGRASLANDKL    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucAKKERBOUW_TUINBOUW ucAKKERBOUW_    0.000        0        0
+ucONGEDRAINEERDVEENG ucONGEDRAINE    0.000        0        0
+ucBOOM_EN_FRUITKWEKE ucBOOM_EN_FR    0.000        0        0
+pcGPG-O-17760        pcGPG-O-1776    0.000        0        0
+pcGPG-O-17680        pcGPG-O-1768    0.000        0        0
+pcGPG-O-17780        pcGPG-O-1778    0.000        0        0
+pcGPG-O-17820        pcGPG-O-1782    0.000        0        0
+pcGPG-O-17670        pcGPG-O-1767    0.000        0        0
+pcGPG-O-17755        pcGPG-O-1775    0.000        0        0
+pcGPG-O-17810        pcGPG-O-1781    0.000        0        0
+pcGPG-O-17660        pcGPG-O-1766    0.000        0        0
+pcGPG-O-17790        pcGPG-O-1779    0.000        0        0
+pcGPG-O-17740        pcGPG-O-1774    0.000        0        0
+pcGPG-O-17685        pcGPG-O-1768    0.000        0        0
+pcGPG-O-11860        pcGPG-O-1186    0.000        0        0
+pcGPG-O-17770        pcGPG-O-1777    0.000        0        0
+pcGPG-O-11730        pcGPG-O-1173    0.000        0        0
+pcGPG-O-17700        pcGPG-O-1770    0.000        0        0
+pcGPG-O-17730        pcGPG-O-1773    0.000        0        0
+pcGPG-O-17750        pcGPG-O-1775    0.000        0        0
+pcGPG-O-17710        pcGPG-O-1771    0.000        0        0
+pcGPG-O-17690        pcGPG-O-1769    0.000        0        0
+gcGPG-O-17680        gcGPG-O-1768    0.000        0        0
+gcGPG-O-17660        gcGPG-O-1766    0.000        0        0
+gcGPG-O-11730        gcGPG-O-1173    0.000        0        0
+gcGPG-O-17750        gcGPG-O-1775    0.000        0        0
+gcGPG-O-17690        gcGPG-O-1769    0.000        0        0
