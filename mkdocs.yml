@@ -47,6 +47,7 @@ plugins:
         - hydrolib
 markdown_extensions:
   - pymdownx.highlight
+  - tables
   - pymdownx.superfences
   - admonition
   - toc:
@@ -68,6 +69,9 @@ extra_css:
 
 nav:
   - Home: "index.md"
+  - About:
+      - HYDROLIB: "about/about_HYDROLIB.md"
+      - Partners: "about/about_partners.md"
   - How-to: 
       - Installation: "guides/setup.md"
       - Contributing: "guides/contributing.md"
