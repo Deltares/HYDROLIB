@@ -5,4 +5,4 @@ The API references for the Profile Optimizer can be found below:
 
 ::: hydrolib.profile_optimizer.profile_optimizer.optimizer
     selection:
-        docstring_style: numpy
+        docstring_style: google
