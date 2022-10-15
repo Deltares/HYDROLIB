@@ -49,6 +49,9 @@ markdown_extensions:
   - pymdownx.highlight
   - tables
   - pymdownx.superfences
+  - def_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
   - admonition
   - toc:
       permalink: true
@@ -77,10 +80,12 @@ nav:
       - Contributing: "guides/contributing.md"
       - Documentation: "guides/documentation.md"
   - Tools:
-      - Introduction: "tools/tools_introduction.md"
-      - HydroMT-Delft3D FM plugin: "!include ./hydrolib/hydromt_delft3dfm/mkdocs.yml"
       - D-HyDAMO plugin: "!include ./hydrolib/dhydamo/mkdocs.yml"
       - Profile Optimizer: "!include ./hydrolib/profile_optimizer/mkdocs.yml"
+      - Inundation Toolbox: "!include ./hydrolib/inundation_toolbox/mkdocs.yml"
+      - Case Management Tools: "!include ./hydrolib/case_management_tools/mkdocs.yml"
+      - ARCADIS Tools: "!include ./hydrolib/arcadis/mkdocs.yml"
+      - HydroMT-Delft3D FM plugin: "!include ./hydrolib/hydromt_delft3dfm/mkdocs.yml"
   - Reference: 
           - "reference/api.md"
   - Changelog: 
