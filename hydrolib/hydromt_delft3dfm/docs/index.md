@@ -10,7 +10,8 @@ It does so by automating the workflow to go from raw data to a complete model in
 is ready to run and to analyze model results once the simulation has finished. 
 
 ## Why HydroMT-Delft3D FM?
-Setting up hydraulic models typically requires many (manual) steps to process input data and might therefore be time consuming and hard to reproduce. Especially improving models based on global-local geospatial datasets, which are rapidly becoming available at increasingly high resolutions, might be challenging. HydroMT-Delft3D aims to make the Delft3D FM model building for large, complex areas: fast, flexible, reproducible and scalable based on GIS data and independent of its locations or users, resulting in more time for the modeller to analyse the results.
+Setting up hydraulic models typically requires many (manual) steps to process input data and might therefore be time consuming and hard to reproduce. Especially improving models based on global-local geospatial datasets, which are rapidly becoming available at increasingly high resolutions, might be challenging. HydroMT-Delft3D FM aims to make the Delft3D FM model building for large, complex areas fast, flexible, reproducible and scalable, based on GIS data and independent of its locations or users, resulting in more time for the modeller to analyze the results.
+
 ## How to use HydroMT-Delft3D FM?
 The HydroMT-Delft3D FM plugin can be used as a **command line** application, which provides commands to *build*,
 *update* and *clip* a Delft3D FM model with a single line, or **from python** to exploit its rich interface.
