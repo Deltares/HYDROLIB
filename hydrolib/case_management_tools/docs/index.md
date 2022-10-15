@@ -1,10 +1,10 @@
 # Case Management Tools
-The Case Management Tools developed by D2HYDRO includes:
+The Case Management Tools developed by D2Hydro include:
 
-- Create cases voor D-HYDRO Suite
+- Create cases for D-HYDRO Suite
 - Link the StochasticTool of HydroConsult to D-HYDRO Suite 1D2D using HYDROLIB-core 
 - Write meteo files of STOWA precipitation stochastics
-- Run D-HYDRO parallel
+- Run D-HYDRO scenarios in parallel
 - Post-process the result on its desired location.
 
 **Case Management Tools are still under development!**
