@@ -53,7 +53,7 @@ def net_nc2gdf(
             "2d_edges",
             "2d_faces",
             "1d2d_links",
-            "1d_total_nodes_per_branch",                            
+            "1d_total_nodes_per_branch",
         ]
     ):
         print("wrong input in results")
@@ -93,7 +93,6 @@ def net_nc2gdf(
         ),
     )
 
-
     # 1D branches and/or total set of nodes and mesh nodes per branch
     if "1d_branches" in results or "1d_meshnodes_per_branch" in results:
         # combine mesh_nodes with edge_nodes from network1d
@@ -112,13 +111,12 @@ def net_nc2gdf(
             crs=EPSG,
         ).reset_index(drop=True)
         gdf_mesh_nodes_start.index.rename("branch", inplace=True)
-        gdf_mesh_nodes_start['offset'] = 0
+        gdf_mesh_nodes_start["offset"] = 0
         gdf_mesh_nodes_end.index.rename("branch", inplace=True)
-        gdf_mesh_nodes_end['offset'] = 9999
+        gdf_mesh_nodes_end["offset"] = 9999
         gdf_mesh_nodes_start.reset_index(inplace=True)
         gdf_mesh_nodes_end.reset_index(inplace=True)
-        
-        
+
         gdf_mesh_nodes_total = gpd.GeoDataFrame(
             pd.concat([gdf_mesh_nodes_start, gdf_mesh1d_nodes, gdf_mesh_nodes_end]),
             crs=EPSG,
@@ -126,9 +124,11 @@ def net_nc2gdf(
         gdf_mesh_nodes_total.drop_duplicates(
             subset=["branch", "geometry"], keep="first", inplace=True, ignore_index=True
         )
-        
-        gdf_total_nodes_per_branch = gdf_mesh_nodes_total.copy() # these include mesh nodes and (connection) nodes
-        
+
+        gdf_total_nodes_per_branch = (
+            gdf_mesh_nodes_total.copy()
+        )  # these include mesh nodes and (connection) nodes
+
         geometry = gdf_mesh_nodes_total.groupby(["branch"])["geometry"].apply(
             lambda x: LineString(x.tolist())
         )
@@ -142,11 +142,13 @@ def net_nc2gdf(
             geometry=geometry,
             crs=EPSG,
         )
-        
-        #set offset of end points equal to length of the branch
+
+        # set offset of end points equal to length of the branch
         for i, row in gdf_total_nodes_per_branch.iterrows():
-            if gdf_total_nodes_per_branch.loc[i,'offset'] == 9999:
-                gdf_total_nodes_per_branch.loc[i,'offset'] = gdf_branches.loc[gdf_total_nodes_per_branch.loc[i,'branch'],'length']
+            if gdf_total_nodes_per_branch.loc[i, "offset"] == 9999:
+                gdf_total_nodes_per_branch.loc[i, "offset"] = gdf_branches.loc[
+                    gdf_total_nodes_per_branch.loc[i, "branch"], "length"
+                ]
 
     # 1D edges
     if "1d_edges" in results:
@@ -289,7 +291,7 @@ def net_nc2gdf(
     if "1d2d_links" in results:
         gdfs_results["1d2d_links"] = gdf_links
     if "1d_total_nodes_per_branch" in results:
-        gdfs_results["1d_total_nodes_per_branch"] = gdf_total_nodes_per_branch                                              
+        gdfs_results["1d_total_nodes_per_branch"] = gdf_total_nodes_per_branch
 
     # join branch information when present
     branches_path = os.path.join(os.path.dirname(net_ncs), "branches.gui")
