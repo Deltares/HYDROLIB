@@ -1,4 +1,5 @@
 # HYDROLIB
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Deltares/HYDROLIB.git/binder/arcadis?labpath=contrib%2FArcadis%2Fscripts%2Fnotebooks%2FRead_dhydro.ipynb)
 
 [![Join the chat at https://gitter.im/Deltares/HYDROLIB](https://badges.gitter.im/Deltares/HYDROLIB.svg)](https://gitter.im/Deltares/HYDROLIB?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
