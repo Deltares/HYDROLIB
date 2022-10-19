@@ -1,4 +1,4 @@
-# Case Management Tools (CMT)
+# Case Management Tools (hydrolib-cmt)
 
 Open Source Case Management Tools for [D3DFM/D-HYDRO](https://www.deltares.nl/en/software/delft3d-flexible-mesh-suite/)
 
