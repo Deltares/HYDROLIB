@@ -95,7 +95,7 @@ class MeteoEvent(object):
                 setattr(self, k, v)
         return self
 
-    def write_meteo(self, meteo_dir: str | Path, file_stem: str = None):
+    def write_meteo(self, meteo_dir: Path, file_stem: str = None):
         """
         Method to write meteofiles (DEFAULT.BUI and DEFAULT.EVP) based on values per catchment.
 

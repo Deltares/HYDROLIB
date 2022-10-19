@@ -10,6 +10,7 @@ dependencies:
   - openpyxl
   - pandas
   - netCDF4
+  - gdown
   - simplejson
   - pip
   - pip:

@@ -12,6 +12,7 @@ dependencies:
   - setuptools
   - netCDF4
   - simplejson
+  - gdown
   - pip
   - pytest
   - pytest-cov
