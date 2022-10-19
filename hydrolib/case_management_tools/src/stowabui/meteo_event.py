@@ -26,7 +26,7 @@ bui_header = """*Name of this file: {file_path}
 
 evp_header = """*Evaporationfile
 *Meteo data: evaporation intensity in mm/day
-*First record: start date, data in mm/day    
+*First record: start date, data in mm/day
 *Datum (year month day), evaporation (mm/dag)
 """
 
@@ -61,7 +61,6 @@ class MeteoEvent(object):
 
         """
         hours = self.duration / pd.Timedelta(hours=1)
-        start = self.season
 
         if (hours).is_integer():
             sheet_name = f"{int(hours)}uur"
@@ -96,13 +95,19 @@ class MeteoEvent(object):
                 setattr(self, k, v)
         return self
 
-    def write_meteo(self, meteo_dir, file_stem=None):
+    def write_meteo(self, meteo_dir: str | Path, file_stem: str = None):
         """
         Method to write meteofiles (DEFAULT.BUI and DEFAULT.EVP) based on values per catchment.
 
-        Returns
-        -------
-        None.
+        Args:
+            meteo_dir (str | Path): Directiory where meteo_file is to be written to
+            file_stem (str, optional): Pattern to use for meteo (.bui, .evp, etc) file
+                names. When None the pattern defaults to:
+
+                {hours}H_{volume}MM_{pattern}_{season}
+
+        Returns:
+            file_stem (TYPE): DESCRIPTION.
 
         """
         # make dir if not exists

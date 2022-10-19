@@ -29,6 +29,8 @@ logger.setLevel(logging.DEBUG)
 
 
 class BoundaryCondition(BaseModel):
+    """Boundary condition class."""
+
     id: str
     name: str
     start_datetime: datetime
@@ -36,11 +38,15 @@ class BoundaryCondition(BaseModel):
 
 
 class InitialCondition(BaseModel):
+    """Initial condition class."""
+
     id: str
     name: str
 
 
 class Run(BaseModel):
+    """Model run specification class."""
+
     completed: bool = False
     success: Optional[bool]
     start_datetime: Optional[datetime]
@@ -50,6 +56,8 @@ class Run(BaseModel):
 
 
 class Case(BaseModel):
+    """Case class."""
+
     id: str
     name: str
     meteo_bc_id: str
@@ -62,6 +70,8 @@ class Case(BaseModel):
 
 
 class Model(BaseModel):
+    """D-HYDRO model class."""
+
     id: str
     name: str
     mdu: str
@@ -69,6 +79,8 @@ class Model(BaseModel):
 
 
 class Source(BaseModel):
+    """Result sample source class."""
+
     nc_file: str = "his"
     id: str
     layer: str
@@ -77,12 +89,16 @@ class Source(BaseModel):
 
 
 class Sample(BaseModel):
+    """Result Sample class."""
+
     id: str
     name: str
     source: Source
 
 
 class Result(BaseModel):
+    """D-HYDRO result class."""
+
     id: str
     statistic: str = "max"
     samples: List[Sample]
@@ -97,7 +113,19 @@ class Result(BaseModel):
             & (i.source.variable == variable)
         ]
 
-    def get_results(self, output_dir, case_id, model_name):
+    def get_results(self, output_dir: Path, case_id: str, model_name: str):
+        """
+        Get results from a D-HYDRO model run
+
+        Args:
+            output_dir (Path): D-HYDRO FM output (results) directory
+            case_id (str): Case id
+            model_name (str): Model name
+
+        Returns:
+            pd.DataFrame: Pandas DataFrame with results
+        """
+
         def __get_result(self, nc_file, layer, variable):
             ids = self.__get_sample_ids(nc_file, layer, variable)
             with nc.Dataset(output_dir.joinpath(f"{model_name}_{nc_file}.nc")) as ds:
@@ -120,7 +148,17 @@ class Result(BaseModel):
         self.results[case_id] = result.to_dict()
         return result
 
-    def write_results(self, project_dir):
+    def write_results(self, project_dir: Path):
+        """
+        Write results to JSON
+
+        Args:
+            project_dir (Path): Project directory.
+
+        Returns:
+            None.
+
+        """
         results_dir = project_dir.joinpath("results")
         results_dir.mkdir(parents=True, exist_ok=True)
         results_path = results_dir.joinpath(f"{self.id}.json")
@@ -128,16 +166,22 @@ class Result(BaseModel):
 
 
 class BoundaryConditions(BaseModel):
+    """Boundary Conditions Class."""
+
     meteo: List[BoundaryCondition] = []
     flow: List[BoundaryCondition] = []
 
 
 class InitialConditions(BaseModel):
+    """Initial Conditions Class."""
+
     rr: List[InitialCondition] = []
     flow: List[BoundaryCondition] = []
 
 
 class Project(BaseModel):
+    """CMT Project class."""
+
     filepath: Optional[Path] = None
     boundary_conditions: BoundaryConditions = BoundaryConditions()
     initial_conditions: InitialConditions = InitialConditions()
@@ -157,27 +201,61 @@ class Project(BaseModel):
             dir_path.mkdir(parents=True, exist_ok=True)
         return dir_path
 
-    def get_case(self, case_id):
+    def get_case(self, case_id: str):
+        """
+        Get a Case object by case_id
+
+        Args:
+            case_id (str): Case Id
+
+        Returns:
+            Case: Case-object
+
+        """
         return next((i for i in self.cases if i.id == case_id), None)
 
-    def get_results(self, results_id):
+    def get_results(self, results_id: str):
+        """
+        Get a Result by results_id
+
+        Args:
+            results_id (str): id of result
+
+        Returns:
+            Result: Result-object
+
+        """
         return next((i for i in self.results if i.id == results_id), None)
 
-    def get_fm_output_dir(self, case_id):
+    def get_fm_output_dir(self, case_id: str):
+        """
+        Get the D-HYDRO FM output directory for a case_id.
+
+        Args:
+            case_id (str): Case id
+
+        Returns:
+            Path: FM output Directory
+
+        """
+
         case = self.get_case(case_id)
         model = self.get_model(case.model_id)
         fm_dir = Path(model.mdu).parent
 
         return self.filepath.joinpath("cases", case_id, fm_dir, case.fm_output_dir)
 
-    def sample_output(self, case_id):
-        case = self.get_case(case_id)
-        model = self.get_model(case.model_id)
-        model_name = fm_dir = Path(model.mdu).parent
-        output_dir = self.get_fm_output_dir(case_id)
-        his_nc_path = output_dir.joinpath(f"{model_name}_his.nc")
+    def delete_output(self, case_id: str):
+        """
+        Delete output for a case_id
 
-    def delete_output(self, case_id):
+        Args:
+            case_id (str): Case id
+
+        Returns:
+            None.
+
+        """
         case = self.get_case(case_id)
         output_dir = self.get_fm_output_dir(case_id)
         if output_dir.exists():
@@ -188,12 +266,43 @@ class Project(BaseModel):
                 logger.warning(f"Failed to remove: {output_dir}")
 
     def get_cases(self):
+        """
+        Get all cases (by id) for the CMT project
+
+        Returns:
+            list: List with case_ids
+
+        """
+
         return [i.id for i in self.cases]
 
-    def get_model(self, model_id):
+    def get_model(self, model_id: str):
+        """
+        Get a model by model_id
+
+        Args:
+            model_id (str): Model id
+
+        Returns:
+            Model: Model
+
+        """
+
         return next((i for i in self.models if i.id == model_id))
 
-    def run_post(self, case_id, delete_output=False):
+    def run_post(self, case_id: str, delete_output: bool = False):
+        """
+        Postprocess the results of a D-HYDRO model run
+
+        Args:
+            case_id (str): Case id to postprocess
+            delete_output (bool, optional): Delete all model-output after
+                post-processing Defaults to False.
+
+        Returns:
+            None.
+
+        """
         case = self.get_case(case_id)
         if case.run.results_id is not None:
             results = self.get_results(case.run.results_id)
@@ -206,7 +315,23 @@ class Project(BaseModel):
             if delete_output:
                 self.delete_output(case_id)
 
-    def run_cases(self, case_ids, workers=None, delete_output=False):
+    def run_cases(
+        self, case_ids: List[str], workers: int = None, delete_output: bool = False
+    ):
+        """
+        Run one or more D-HYDRO model cases
+
+        Args:
+            case_ids (List[str],): list of case_ids to run
+            workers (int, optional): Amount of models to run in parallel. Defaults to None.
+            delete_output (bool, optional): DESCRIPTION. Delete all model-output after
+                post-processing Defaults to False.
+
+        Returns:
+            None.
+
+        """
+
         logger.info(f"Start running batch: #cases: {len(case_ids)}, #workers {workers}")
         tp = ThreadPool(workers)
         for idx, case_id in enumerate(case_ids):
@@ -221,15 +346,35 @@ class Project(BaseModel):
 
     def run_case(
         self,
-        case_id,
-        progress="",
-        stream_output=False,
-        returncode=True,
+        case_id: str,
+        progress: str = None,
+        stream_output: bool = False,
+        returncode: bool = True,
         delete_output=False,
     ):
+        """
+        Run a D-HYDRO model case
+
+        Args:
+            case_id (str): Case id to run
+            progress (str, optional): Process to be displayed Defaults to None.
+            stream_output (bool, optional): Stream logging to console Defaults to False.
+            returncode (bool, optional): Pass a return code so succes/failure can be
+                can be captured. Defaults to True.
+            delete_output (bool, optional): DESCRIPTION. Delete all model-output after
+                post-processing Defaults to False.
+
+        Returns:
+            None.
+
+        """
         start_datetime = datetime.now()
         case = self.get_case(case_id)
-        logger.info(f"Start running case{progress}: '{case_id}'")
+        if progress is None:
+            logger.info(f"Start running case: '{case_id}'")
+        else:
+            logger.info(f"Start running case{progress}: '{case_id}'")
+
         if case is not None:
             case.run.start_datetime = start_datetime
             cwd = self.filepath.joinpath(f"cases/{case_id}").absolute().resolve()
@@ -271,11 +416,33 @@ class Project(BaseModel):
 
     @classmethod
     def from_manifest(cls, manifest_json: Union[str, Path]):
+        """
+        Read the CMT project from a manifest file
+
+        Args:
+            manifest_json (Union[str, Path]): Path to Manifest file
+
+        Returns:
+            Project: CMT project
+
+        """
+
         cls = cls.parse_raw(read_text(manifest_json))
         cls.filepath = Path(manifest_json).parent.absolute().resolve()
         return cls
 
     def from_stochastics(self, stochastics_json: Path):
+        """
+        Build a CMT project from stochastics input
+
+        Args:
+            stochastics_json (Path): Path to stochastics input-file
+
+        Returns:
+            CMT: CMT Project
+
+        """
+
         def __convert_to_samples(results):
             def __strip_file_name(filename):
                 if filename.endswith("his.nc"):

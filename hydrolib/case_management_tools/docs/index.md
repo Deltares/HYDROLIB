@@ -2,7 +2,8 @@
 
 Open Source Case Management Tools for [D3DFM/D-HYDRO](https://www.deltares.nl/en/software/delft3d-flexible-mesh-suite/)
 
-CMT includes
+CMT includes:
+
 * Generation of one or multiple cases for D-HYDRO using an uniform directory structure
 * Generation of cases as part of a StochasticTool (HydroConsult) workflow
 * Generation of rainfal events from STOWA parameters
