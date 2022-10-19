@@ -1,0 +1,16 @@
+name: hydrolib
+
+channels:
+  - default
+  - conda-forge
+
+dependencies:
+  - python=3.8
+  - jupyter
+  - openpyxl
+  - pandas
+  - netCDF4
+  - simplejson
+  - pip
+  - pip:
+    - hydrolib-core==0.3.0
