@@ -11,7 +11,8 @@ from shapely.geometry import (
     box,
 )
 from shapely.prepared import prep
-from shapely.wkt import loads, dumps
+from shapely.wkt import dumps, loads
+
 from hydrolib.core.io.net.models import Branch, Network
 from hydrolib.dhydamo.geometry import common
 from hydrolib.dhydamo.geometry.models import GeometryList
@@ -202,7 +203,9 @@ def mesh1d_add_branch(
     for line, branch_name, branch_order in zip(
         common.as_linestring_list(branches), branch_names, branch_orders
     ):
-        branch = Branch(geometry= np.array(round_geometry(line).coords[:])) # avoid error caused by rounding precision
+        branch = Branch(
+            geometry=np.array(round_geometry(line).coords[:])
+        )  # avoid error caused by rounding precision
         branch.generate_nodes(node_distance)
         network.mesh1d_add_branch(
             branch,
@@ -210,6 +213,7 @@ def mesh1d_add_branch(
             branch_order=int(branch_order),
             force_midpoint=force_midpoint,
         )
+
 
 def round_geometry(geometry, rounding_precision: int = 6):
     """
@@ -226,6 +230,7 @@ def round_geometry(geometry, rounding_precision: int = 6):
     A shapely geometry object.
     """
     return loads(dumps(geometry, rounding_precision=rounding_precision))
+
 
 def links1d2d_add_links_1d_to_2d(
     network: Network,

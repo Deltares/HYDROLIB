@@ -393,11 +393,12 @@ def set_point_crosssections(
     crosssections_["crsdef_thalweg"] = 0.0
 
     # support both string and boolean for closed column
-    crosssections_["crsdef_closed"].replace({"yes":1, 'no':0}, inplace=True)
+    crosssections_["crsdef_closed"].replace({"yes": 1, "no": 0}, inplace=True)
 
     crosssections_ = gpd.GeoDataFrame(crosssections_, crs=branches.crs)
 
     return crosssections_
+
 
 def _set_rectangle_crs(crosssections: gpd.GeoDataFrame):
     """rectangle crossection"""
@@ -435,7 +436,6 @@ def _set_rectangle_crs(crosssections: gpd.GeoDataFrame):
         right_on=["crsdef_id"],
     )
     return crosssections_
-
 
 
 def _set_trapezoid_crs(crosssections: gpd.GeoDataFrame):

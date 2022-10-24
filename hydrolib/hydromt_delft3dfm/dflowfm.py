@@ -778,7 +778,9 @@ class DFlowFMModel(MeshModel):
         # setup crosssections
         if crosssections_type is None:
             crosssections_type = ["branch"]
-            crosssections_fn = [None] # TODO: maybe assign a specific one for river, like branch_river
+            crosssections_fn = [
+                None
+            ]  # TODO: maybe assign a specific one for river, like branch_river
         elif isinstance(crosssections_type, list):
             assert len(crosssections_type) == len(crosssections_fn)
 
