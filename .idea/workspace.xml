@@ -4,16 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e17ae184-fc0e-4c24-8eeb-2fb065132b9d" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/test/data_sources_test.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/examples/test/data_sources_test.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/test/dflowfm_build_test.ini" beforeDir="false" afterPath="$PROJECT_DIR$/examples/test/dflowfm_build_test.ini" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hydrolib/dhydamo/geometry/mesh.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/dhydamo/geometry/mesh.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/data/rivers/rivers_defaults.csv" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/data/rivers/rivers_defaults.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/crosssections.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/crosssections.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/helper.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/helper.py" afterDir="false" />
-    </list>
+    <list default="true" id="e17ae184-fc0e-4c24-8eeb-2fb065132b9d" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
