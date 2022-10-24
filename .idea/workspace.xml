@@ -6,7 +6,13 @@
   <component name="ChangeListManager">
     <list default="true" id="e17ae184-fc0e-4c24-8eeb-2fb065132b9d" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/manholes.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/manholes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/test/data_sources_test.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/examples/test/data_sources_test.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/test/dflowfm_build_test.ini" beforeDir="false" afterPath="$PROJECT_DIR$/examples/test/dflowfm_build_test.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hydrolib/dhydamo/geometry/mesh.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/dhydamo/geometry/mesh.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/data/rivers/rivers_defaults.csv" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/data/rivers/rivers_defaults.csv" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/crosssections.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/crosssections.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/helper.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/helper.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -32,19 +38,19 @@
 }</component>
   <component name="RunManager">
     <configuration name="hydromt-delft3dfm" type="PythonConfigurationType" factoryName="Python">
-      <module name="hydrolib" />
+      <module name="HYDROLIB-HYDROMT" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
         <env name="PYTHONUNBUFFERED" value="1" />
       </envs>
-      <option name="SDK_HOME" value="C:\Miniconda3\envs\hydrolib-hydromt\python.exe" />
+      <option name="SDK_HOME" value="" />
       <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/examples/test" />
-      <option name="IS_MODULE_SDK" value="false" />
+      <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="hydromt.cli.main" />
-      <option name="PARAMETERS" value="build dflowfm test &quot;{'geom': 'n:/Projects/11208000/11208014/F. Other information/028_HYDROLIB-HydroMT/003_testmaterial/example_data_layers/geojsons/1D_extent.geojson'}&quot; -i dflowfm_build_test.ini -d data_sources_test.yaml -vvv" />
+      <option name="PARAMETERS" value="build dflowfm test &quot;{'geom': 'n:/Projects/11208000/11208014/F. Other information/028_HYDROLIB-HydroMT/003_testmaterial/example_data_layers/geojsons/1D_extent.geojson'}&quot; -i dflowfm_build_test.ini -d data_sources_test.yaml -d data_sources_global.yaml -vvv" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="true" />
@@ -68,36 +74,28 @@
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
-          <line>639</line>
-          <option name="timeStamp" value="2" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
-          <line>667</line>
-          <option name="timeStamp" value="4" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
-          <line>665</line>
-          <option name="timeStamp" value="5" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://C:/Miniconda3/envs/hydrolib-hydromt/Lib/site-packages/xarray/core/merge.py</url>
           <line>62</line>
           <option name="timeStamp" value="9" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
-          <line>800</line>
-          <option name="timeStamp" value="13" />
+          <line>1686</line>
+          <option name="timeStamp" value="31" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
-          <line>797</line>
-          <option name="timeStamp" value="22" />
+          <line>1761</line>
+          <option name="timeStamp" value="32" />
         </line-breakpoint>
       </breakpoints>
+      <default-breakpoints>
+        <breakpoint type="python-exception">
+          <properties notifyOnTerminate="true" exception="BaseException">
+            <option name="notifyOnTerminate" value="true" />
+          </properties>
+        </breakpoint>
+      </default-breakpoints>
     </breakpoint-manager>
     <watches-manager>
       <configuration name="PythonConfigurationType">

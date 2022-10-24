@@ -30,7 +30,6 @@ __all__ = [
     "write_shp",
     "parse_ini",
     "append_data_columns_based_on_ini_query",
-    "check_geodataframe",
     "split_lines",
     "check_gpd_attributes",
 ]
@@ -338,7 +337,7 @@ def write_shp(data: gpd.GeoDataFrame, filename: str, columns: list = None):
             gpd.GeoDataFrame(data).to_file(filename, index=False)
 
 
-# data handeling
+# data handling
 
 
 def append_data_columns_based_on_ini_query(
