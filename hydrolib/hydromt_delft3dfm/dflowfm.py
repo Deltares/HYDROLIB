@@ -663,6 +663,7 @@ class DFlowFMModel(MeshModel):
             * Optional variables: [branchId, branchType, branchOrder, material, friction_type, friction_value]
         rivers_defaults_fn : str Path
             Path to a csv file containing all defaults values per 'branchType'.
+            Note that branchType is case sensitive, by default is lower case, If otherwise, please make sure it is supported in 'rivers_default_fn'
             By default None.
         river_filter: str, optional
             Keyword in branchType column of rivers_fn used to filter river lines. If None all lines in rivers_fn are used (default).
@@ -701,8 +702,10 @@ class DFlowFMModel(MeshModel):
             rivers_fn, geom=self.region, buffer=0, predicate="intersects"
         )
         # Filter features based on river_filter
-        if river_filter is not None and "branchType" in gdf_riv.columns:
-            gdf_riv = gdf_riv[gdf_riv["branchType"] == river_filter]
+        if "branchType" in gdf_riv.columns:
+            gdf_riv["branchType"] = gdf_riv["branchType"].str.lower()
+            if river_filter is not None :
+                gdf_riv = gdf_riv[gdf_riv["branchType"] == river_filter.lower()]
         # Check if features in region
         if len(gdf_riv) == 0:
             self.logger.warning(
@@ -763,7 +766,7 @@ class DFlowFMModel(MeshModel):
         rivers, river_nodes = self._setup_branches(
             gdf_br=gdf_riv,
             defaults=defaults,
-            br_type="river",
+            br_type=gdf_riv.branchType.unique()[0],
             spacing=None,  # does not allow spacing for rivers
             snap_offset=snap_offset,
             allow_intersection_snapping=allow_intersection_snapping,
@@ -800,7 +803,7 @@ class DFlowFMModel(MeshModel):
         # add to branches
         self.add_branches(
             rivers,
-            branchtype="river",
+            branchtype=gdf_riv.branchType.unique()[0],
             node_distance=self._openwater_computation_node_distance,
         )
 
@@ -1092,6 +1095,10 @@ class DFlowFMModel(MeshModel):
         branches : gpd.GeoDataFrame
             geodataframe of the branches to apply crosssections.
             * Required variables: [branchId, branchType, branchOrder]
+            If ``crosssections_type`` = "branch"
+                if shape = 'circle': 'diameter'
+                if shape = 'rectangle': 'width', 'height', 'closed'
+                if shape = 'trapezoid': 'width', 't_width', 'height', 'closed'
             * Optional variables: [material, friction_type, friction_value]
         crosssections_fn : str Path, optional # TODO: allow multiple crosssection filenames
             Name of data source for crosssections, see data/data_sources.yml.
@@ -1123,7 +1130,7 @@ class DFlowFMModel(MeshModel):
 
         if crosssections_fn is None and crosssections_type == "branch":
             # TODO: set a seperate type for rivers because other branch types might require upstream/downstream
-
+            # TODO: check for required columns
             # read crosssection from branches
             gdf_cs = workflows.set_branch_crosssections(branches, midpoint=midpoint)
 
