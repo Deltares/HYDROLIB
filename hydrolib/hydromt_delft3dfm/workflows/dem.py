@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
 
 import logging
-import geopandas as gpd
-import numpy as np
-import xarray as xr
-from shapely.geometry import Point
-import pyflwdir
-from scipy import ndimage
 from typing import Tuple
 
+import geopandas as gpd
+import numpy as np
+import pyflwdir
+import xarray as xr
 from hydromt.flw import d8_from_dem, flwdir_from_da
-from hydromt.gis_utils import nearest_merge, nearest, spread2d
+from hydromt.gis_utils import nearest, nearest_merge, spread2d
 from hydromt.workflows import rivers
-
+from scipy import ndimage
+from shapely.geometry import Point
 
 logger = logging.getLogger(__name__)
 
