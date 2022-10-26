@@ -704,7 +704,7 @@ class DFlowFMModel(MeshModel):
         # Filter features based on river_filter
         if "branchType" in gdf_riv.columns:
             gdf_riv["branchType"] = gdf_riv["branchType"].str.lower()
-            if river_filter is not None :
+            if river_filter is not None:
                 gdf_riv = gdf_riv[gdf_riv["branchType"] == river_filter.lower()]
         # Check if features in region
         if len(gdf_riv) == 0:
