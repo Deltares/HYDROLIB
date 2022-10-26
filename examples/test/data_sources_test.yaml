@@ -26,6 +26,8 @@
     WIDTH: width
     HEIGHT: height
     BEDLEVEL: shift
+1D_pipes:
+    alias: 1D_rivers
 1d_manholes:
   data_type: GeoDataFrame
   driver: vector

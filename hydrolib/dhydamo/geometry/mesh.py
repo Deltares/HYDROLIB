@@ -203,6 +203,7 @@ def mesh1d_add_branch(
     for line, branch_name, branch_order in zip(
         common.as_linestring_list(branches), branch_names, branch_orders
     ):
+        # in the script, custumised length for pipes are supported. GUI by default does not support this behaviour and require an explicit isLengthCustom parameter in branches.gui file
         branch = Branch(
             geometry=np.array(round_geometry(line).coords[:])
         )  # avoid error caused by rounding precision

@@ -206,6 +206,9 @@ def set_xyz_crosssections(
     # setup failed - drop based on branch_offset that are not snapped to branch (inplace of yz_crosssections) and issue warning
     _old_ids = crosssections.index.to_list()
     crosssections.dropna(axis=0, inplace=True, subset=["branch_offset"])
+    crosssections = crosssections.merge(
+        branches["frictionId"], left_on="branch_id", right_index=True
+    )
     _new_ids = crosssections.index.to_list()
     if len(_old_ids) != len(_new_ids):
         logger.warning(
@@ -233,9 +236,13 @@ def set_xyz_crosssections(
             ],
             # 'crsdef_xylength': ' '.join(['{:.1f}'.format(i) for i in crosssections.l.to_list()[0]]),
             # lower case key means temp keys (not written to file)
-            "crsdef_frictionId": branches.loc[
+            "crsdef_frictionIds": branches.loc[
                 crosssections.branch_id.to_list(), "frictionId"
             ],
+            "crsdef_frictionPositions": [
+                "0 {:.4f}".format(l)
+                for l in crosssections.geometry.length.to_list()
+            ]
             # lower case key means temp keys (not written to file)
         }
     )

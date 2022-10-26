@@ -1930,7 +1930,7 @@ class DFlowFMModel(MeshModel):
             self._write_mesh2d()
         # TODO: create self._write_mesh2d() using hydrolib-core funcitonalities
         # write branches
-        if self.pipes is not None:
+        if "branches" in self.staticgeoms:
             self._write_branches()
             # write friction
             self._write_friction()  # FIXME: ask Rinske, add global section correctly
@@ -1968,7 +1968,7 @@ class DFlowFMModel(MeshModel):
                     "manhole_dn": "targetCompartmentName",
                 }
             )
-            branches.rename(
+            branches = branches.rename(
                 columns={
                     "branchId": "name",
                 }
