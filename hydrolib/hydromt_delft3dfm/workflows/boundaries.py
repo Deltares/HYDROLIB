@@ -2,6 +2,7 @@
 
 import configparser
 import logging
+from pathlib import Path
 
 import geopandas as gpd
 import hydromt.io
@@ -12,7 +13,6 @@ import xarray as xr
 from hydromt import config
 from scipy.spatial import distance
 from shapely.geometry import LineString, Point
-from pathlib import Path
 
 from .graphs import gpd_to_digraph
 
