@@ -1932,13 +1932,13 @@ class DFlowFMModel(MeshModel):
         # write branches
         if self.pipes is not None:
             self._write_branches()
-        # write friction
-        self._write_friction()  # FIXME: ask Rinske, add global section correctly
-        # write crosssections
-        self._write_crosssections()  # FIXME None handling, if there are no crosssections
-        # write manholes
-        if "manholes" in self._geoms:
-            self._write_manholes()
+            # write friction
+            self._write_friction()  # FIXME: ask Rinske, add global section correctly
+            # write crosssections
+            self._write_crosssections()  # FIXME None handling, if there are no crosssections
+            # write manholes
+            if "manholes" in self._geoms:
+                self._write_manholes()
 
         # save model
         self.dfmmodel.save(recurse=True)
@@ -1959,24 +1959,28 @@ class DFlowFMModel(MeshModel):
     def _write_branches(self):
         """write branches.gui
         #TODO combine with others"""
-        branches = self._geoms["branches"][
-            ["branchId", "branchType", "manhole_up", "manhole_dn"]
-        ]
-        branches = branches.rename(
-            columns={
-                "branchId": "name",
-                "manhole_up": "sourceCompartmentName",
-                "manhole_dn": "targetCompartmentName",
-            }
-        )
-        branches["branchType"] = branches["branchType"].replace(
-            {"river": 0, "channel": 0, "pipe": 2, "tunnel": 2, "sewerconnection": 1}
-        )
-        branchgui_model = BranchModel(branch=branches.to_dict("records"))
-        branchgui_model.filepath = self.dfmmodel.filepath.with_name(
-            branchgui_model._filename() + branchgui_model._ext()
-        )
-        branchgui_model.save()
+        branches = self._geoms["branches"]
+        if np.any(branches["branchType"].isin(["pipe", "tunnel"])):
+            branches = branches[["branchId", "branchType", "manhole_up", "manhole_dn"]]
+            branches = branches.rename(
+                columns={
+                    "manhole_up": "sourceCompartmentName",
+                    "manhole_dn": "targetCompartmentName",
+                }
+            )
+            branches.rename(
+                columns={
+                    "branchId": "name",
+                }
+            )
+            branches["branchType"] = branches["branchType"].replace(
+                {"river": 0, "channel": 0, "pipe": 2, "tunnel": 2, "sewerconnection": 1}
+            )
+            branchgui_model = BranchModel(branch=branches.to_dict("records"))
+            branchgui_model.filepath = self.dfmmodel.filepath.with_name(
+                branchgui_model._filename() + branchgui_model._ext()
+            )
+            branchgui_model.save()
 
     def _write_friction(self):
 
