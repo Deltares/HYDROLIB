@@ -9,7 +9,7 @@ def default_plot(dfs: List, variable: str, labels: List = None) -> None:
         dfs (List): list of dataframes (can be 1) that are to be plotted. Should all contain a column with variable
         variable (str): name of variable and column to be selected from dataframes
         labels (List): labels of plotted data frames, e.g. ["Measured", "Simulated"]
-        
+
     Returns:
         None
     """

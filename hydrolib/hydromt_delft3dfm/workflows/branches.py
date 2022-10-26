@@ -386,7 +386,7 @@ def space_branches(
 
 def generate_branchnodes(
     branches: gpd.GeoDataFrame,
-    id_col:str=None,
+    id_col: str = None,
     logger=logger,
 ):
     """Generate branch nodes at the branch ends.
@@ -657,7 +657,7 @@ def _split_branches_by_spacing_const(
     return split_branches
 
 
-def reduce_gdf_precision(gdf: gpd.GeoDataFrame, rounding_precision: int=8):
+def reduce_gdf_precision(gdf: gpd.GeoDataFrame, rounding_precision: int = 8):
     """Reduce the geometry coordinate precision with the provided number of digits.
 
     Parameters
@@ -799,7 +799,6 @@ def possibly_intersecting(
     dataframebounds : numpy.array
     geometry : shapely.geometry.Polygon
     """
-    
 
     geobounds = geometry.bounds
     idx = (
@@ -963,13 +962,15 @@ def snap_newbranches_to_branches_at_snapnodes(
 
     # modify old branches
     for branch_name in set(snapnodes.branch_name):
-        branch = branches.loc[
-            branch_name
-        ]
-        distances = snapnodes[snapnodes.branch_name == branch_name].branch_chainage.to_list()
+        branch = branches.loc[branch_name]
+        distances = snapnodes[
+            snapnodes.branch_name == branch_name
+        ].branch_chainage.to_list()
         snapped_line = MultiLineString(cut_pieces(branch.geometry, distances))
         branches_snapped.at[branch_name, "geometry"] = snapped_line
-        branches_snapped.at[branch_name, "branchOrder"] = max(branches_snapped.branchOrder)+1  # allow interpolation on the snapped branch
+        branches_snapped.at[branch_name, "branchOrder"] = (
+            max(branches_snapped.branchOrder) + 1
+        )  # allow interpolation on the snapped branch
 
     # explode multilinestring after snapping
     branches_snapped = branches_snapped.explode()

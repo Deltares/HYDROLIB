@@ -27,7 +27,9 @@ __all__ = [
 ]
 
 
-def generate_boundaries_from_branches(branches: gpd.GeoDataFrame, where: str = "both") -> gpd.GeoDataFrame:
+def generate_boundaries_from_branches(
+    branches: gpd.GeoDataFrame, where: str = "both"
+) -> gpd.GeoDataFrame:
     """Get the possible boundary locations from the branches with id.
 
     Parameters
@@ -98,7 +100,7 @@ def select_boundary_type(
     logger=logger,
 ) -> pd.DataFrame:
     """Select boundary location per branch type and boundary type.
-    
+
     Parameters
     ----------
 
@@ -110,10 +112,10 @@ def select_boundary_type(
         For rivers 'waterlevel' and 'discharge' are supported.
         For pipes 'waterlevel' is supported.
     boundary_locs : {'both', 'upstream', 'downstream'}
-        The boundary location to use. 
+        The boundary location to use.
     logger
         The logger to log messages with.
-    
+
     Returns
     -------
     pd.DataFrame
@@ -154,14 +156,14 @@ def select_boundary_type(
 def validate_boundaries(boundaries: gpd.GeoDataFrame, branch_type: str = "river"):
     """Validate boundaries per branch type.
     Will log a warning if the validation fails.
-    
+
     Parameters
     ----------
     boundaries : gpd.GeoDataFrame
         The boundaries.
     branch_type : {'river', 'pipe'}
-        The branch type.   
-    
+        The branch type.
+
     """
 
     if branch_type == "river":  # TODO add other open system branch_type
@@ -323,31 +325,37 @@ def gpd_to_pli(gdf: gpd.GeoDataFrame, output_dir: Path):
     the file name and the station name will be the index of that row.
     """
 
-    for _,g in gdf.iterrows():
+    for _, g in gdf.iterrows():
         pli_name = g.index
         pli_coords = g.geometry.coords[:]
-        with open(output_dir.joinpath(f'{pli_name}.pli'), 'w') as f:
+        with open(output_dir.joinpath(f"{pli_name}.pli"), "w") as f:
             f.write(f"{pli_name}\n")
             f.write(f"\t{len(pli_coords)} {2}\n")
             for p in pli_coords:
                 f.write(f"\t{' '.join(str(pi) for pi in p)}\n")
 
 
-
-def df_to_bc(df, output_dir, output_filename = 'boundary', quantity = 'discharge', unit = 'm3/s', freq = 'H'):
+def df_to_bc(
+    df,
+    output_dir,
+    output_filename="boundary",
+    quantity="discharge",
+    unit="m3/s",
+    freq="H",
+):
     """function to convert pandas timeseires 'df' into bc file at 'output_dir'/'output_filename'.bc
     the time series must has time as index, columns names as stations.
     the time series will be first converted into a equidistance timeseries with frequency specified in 'freq'. support [D, H,M,S]
     each columns-wise array will be converted into one bc timeseries.
     The time series has the quantity and unit as specified in 'quantity' nad 'unit'.
     """
-    time_unit = {'D': 'days', 'H': 'hours', 'M': 'minutes', 'S': 'seconds'}
+    time_unit = {"D": "days", "H": "hours", "M": "minutes", "S": "seconds"}
 
     df = df.resample(freq).ffill()
     time = df.index
     stations = df.columns
 
-    with open(output_dir.joinpath(f'{output_filename}.bc'), 'w') as f:
+    with open(output_dir.joinpath(f"{output_filename}.bc"), "w") as f:
         f.write(f"[General]\n")
         f.write(f"\tfileVersion = 1.01\n")
         f.write(f"\tfileType = boundConds\n")
@@ -363,5 +371,5 @@ def df_to_bc(df, output_dir, output_filename = 'boundary', quantity = 'discharge
             f.write(f"\tquantity = time\n")
             f.write(f"\tunit = {time_unit[freq]} since {time[0].date()}\n")
             f.write(f"\t0 0\n")
-            for i,di in enumerate(d.values):
+            for i, di in enumerate(d.values):
                 f.write(f"\t{i} {di}\n")

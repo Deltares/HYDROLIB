@@ -113,17 +113,19 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
 
     def __init__(
         self,
-        root: Union[str,Path] = None,
+        root: Union[str, Path] = None,
         mode: str = "w",
         config_fn: str = None,  # hydromt config contain glob section, anything needed can be added here as args
-        data_libs: List[str] = [],  # yml # TODO: how to choose global mapping files (.csv) and project specific mapping files (.csv)
+        data_libs: List[
+            str
+        ] = [],  # yml # TODO: how to choose global mapping files (.csv) and project specific mapping files (.csv)
         dimr_fn: str = None,
         network_snap_offset=25,
         openwater_computation_node_distance=40,
         logger=logger,
     ):
-        """ Initialize the DFlowFMModel.
-    
+        """Initialize the DFlowFMModel.
+
         Parameters
         ----------
         root : str or Path
@@ -1552,7 +1554,6 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
         # Else mesh2d is used as mesh instead of susbet
         self._mesh = subset  # reinitialise mesh2d grid (set_mesh is used in super)
 
-
     def setup_auxmaps_from_raster(
         self,
         raster_fn: str,
@@ -1950,19 +1951,21 @@ class DFlowFMModel(AuxmapsMixin, MeshModel):
 
     def _write_branches(self):
         """write branches.gui
-            #TODO combine with others"""
+        #TODO combine with others"""
         branches = self._geoms["branches"]
-        if np.any(branches["branchType"].isin(['pipe', 'tunnel'])):
-            branches = branches[
-                ["branchId", "branchType", "manhole_up", "manhole_dn"]
-            ]
+        if np.any(branches["branchType"].isin(["pipe", "tunnel"])):
+            branches = branches[["branchId", "branchType", "manhole_up", "manhole_dn"]]
             branches = branches.rename(
                 columns={
                     "manhole_up": "sourceCompartmentName",
                     "manhole_dn": "targetCompartmentName",
                 }
             )
-            branches.rename(columns = {"branchId": "name",})
+            branches.rename(
+                columns={
+                    "branchId": "name",
+                }
+            )
             branches["branchType"] = branches["branchType"].replace(
                 {"river": 0, "channel": 0, "pipe": 2, "tunnel": 2, "sewerconnection": 1}
             )

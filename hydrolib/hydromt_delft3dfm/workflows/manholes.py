@@ -118,7 +118,7 @@ def generate_manholes_on_branches(
     # internal admin
     # drop duplicated nodes
     nodes_pipes = nodes_pipes.loc[nodes_pipes["where"].drop_duplicates().index, :]
-    nodes_pipes = gpd.GeoDataFrame(nodes_pipes, crs = branches.crs)
+    nodes_pipes = gpd.GeoDataFrame(nodes_pipes, crs=branches.crs)
 
     # drop pipe nodes that are outlets (located at channels)
     _nodes_channels = gpd.GeoDataFrame(
@@ -129,8 +129,8 @@ def generate_manholes_on_branches(
 
     nodes_channels = gpd.GeoDataFrame(_nodes_channels, crs=branches.crs)
     nodes_to_remove = gis_utils.nearest_merge(
-                nodes_pipes, nodes_channels, max_dist=0.001, overwrite=True
-            )
+        nodes_pipes, nodes_channels, max_dist=0.001, overwrite=True
+    )
     nodes_pipes = nodes_pipes.loc[nodes_to_remove.index_right == -1]
 
     # manhole generated

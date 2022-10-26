@@ -45,7 +45,7 @@ def get_process_geodataframe(
     variables : list, optional
         Names of GeoDataFrame columns to return. By default all columns are returned. Defaults to None.
     required_query : str, optional
-        The required query. Defaults to None. 
+        The required query. Defaults to None.
 
     Returns
     -------
