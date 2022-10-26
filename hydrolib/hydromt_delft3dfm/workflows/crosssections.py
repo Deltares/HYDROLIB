@@ -240,8 +240,7 @@ def set_xyz_crosssections(
                 crosssections.branch_id.to_list(), "frictionId"
             ],
             "crsdef_frictionPositions": [
-                "0 {:.4f}".format(l)
-                for l in crosssections.geometry.length.to_list()
+                "0 {:.4f}".format(l) for l in crosssections.geometry.length.to_list()
             ]
             # lower case key means temp keys (not written to file)
         }
