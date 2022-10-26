@@ -4,28 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e17ae184-fc0e-4c24-8eeb-2fb065132b9d" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/test/dflowfm_build_global_data.ini" beforeDir="false" afterPath="$PROJECT_DIR$/examples/test/dflowfm_build_global_data.ini" afterDir="false" />
-    </list>
+    <list default="true" id="e17ae184-fc0e-4c24-8eeb-2fb065132b9d" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="FileTemplateManagerImpl">
-    <option name="RECENT_TEMPLATES">
-      <list>
-        <option value="Python Script" />
-      </list>
-    </option>
-  </component>
   <component name="Git.Settings">
-    <option name="RECENT_BRANCH_BY_REPOSITORY">
-      <map>
-        <entry key="$PROJECT_DIR$" value="hydromt" />
-      </map>
-    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="MarkdownSettingsMigration">
@@ -38,53 +23,11 @@
   </component>
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
-    &quot;Git.Branch.Popup.ShowAllRemotes&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;P:/11208317-004-dili/D-HYDRO/002-modelbuilder&quot;
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;
   }
 }</component>
-  <component name="RunManager" selected="Python.dili_fabdem">
-    <configuration name="dili_fabdem" type="PythonConfigurationType" factoryName="Python">
-      <module name="HYDROLIB-HYDROMT" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="P:/11208317-004-dili/D-HYDRO/002-modelbuilder" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="hydromt.cli.main" />
-      <option name="PARAMETERS" value="build dflowfm dili_fabdem &quot;{'bbox': [125.34083, -8.74917, 126.04083, -8.474172] }&quot; -i dflowfm_build_dili_fabdem.ini -d data_sources_global.yaml -vvv" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="true" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="dili_merit" type="PythonConfigurationType" factoryName="Python">
-      <module name="HYDROLIB-HYDROMT" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="p:/11208317-004-dili/D-HYDRO/002-modelbuilder/" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="hydromt.cli.main" />
-      <option name="PARAMETERS" value="build dflowfm dili_merit &quot;{'bbox': [125.4942, -8.6276, 125.8614, -8.4854] }&quot; -i dflowfm_build_dili_merit.ini -d data_sources_global.yaml -vvv" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="true" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
+  <component name="RunManager">
     <configuration name="hydromt-delft3dfm" type="PythonConfigurationType" factoryName="Python">
       <module name="HYDROLIB-HYDROMT" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -98,7 +41,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="hydromt.cli.main" />
-      <option name="PARAMETERS" value="build dflowfm test &quot;{'geom': 'n:/Projects/11208000/11208014/F. Other information/028_HYDROLIB-HydroMT/003_testmaterial/example_data_layers/geojsons/1D_extent.geojson'}&quot; -i dflowfm_build_test.ini -d data_sources_test.yaml -vvv" />
+      <option name="PARAMETERS" value="build dflowfm test &quot;{'geom': 'n:/Projects/11208000/11208014/F. Other information/028_HYDROLIB-HydroMT/003_testmaterial/example_data_layers/geojsons/1D_extent.geojson'}&quot; -i dflowfm_build_test.ini -d data_sources_test.yaml -d data_sources_global.yaml -vvv" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="true" />
@@ -106,33 +49,6 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="paramario" type="PythonConfigurationType" factoryName="Python">
-      <module name="HYDROLIB-HYDROMT" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/examples/test" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="hydromt.cli.main" />
-      <option name="PARAMETERS" value="build dflowfm paramaribo &quot;{'geom': '$PROJECT_DIR$/../paramaribo/region.geojson'}&quot; -i dflowfm_build_paramaribo.ini -d data_sources_paramaribo.yaml -vvv" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="true" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <list>
-      <item itemvalue="Python.hydromt-delft3dfm" />
-      <item itemvalue="Python.paramario" />
-      <item itemvalue="Python.dili_merit" />
-      <item itemvalue="Python.dili_fabdem" />
-    </list>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
@@ -145,17 +61,6 @@
     </task>
     <servers />
   </component>
-  <component name="Vcs.Log.Tabs.Properties">
-    <option name="TAB_STATES">
-      <map>
-        <entry key="MAIN">
-          <value>
-            <State />
-          </value>
-        </entry>
-      </map>
-    </option>
-  </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
@@ -164,7 +69,24 @@
           <line>62</line>
           <option name="timeStamp" value="9" />
         </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
+          <line>1686</line>
+          <option name="timeStamp" value="31" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
+          <line>1761</line>
+          <option name="timeStamp" value="32" />
+        </line-breakpoint>
       </breakpoints>
+      <default-breakpoints>
+        <breakpoint type="python-exception">
+          <properties notifyOnTerminate="true" exception="BaseException">
+            <option name="notifyOnTerminate" value="true" />
+          </properties>
+        </breakpoint>
+      </default-breakpoints>
     </breakpoint-manager>
     <watches-manager>
       <configuration name="PythonConfigurationType">

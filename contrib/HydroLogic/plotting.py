@@ -1,5 +1,6 @@
-import matplotlib.pyplot as plt
 from typing import List
+
+import matplotlib.pyplot as plt
 
 
 def default_plot(dfs: List, variable: str, labels: List = None) -> None:

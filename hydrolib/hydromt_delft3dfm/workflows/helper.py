@@ -30,7 +30,6 @@ __all__ = [
     "write_shp",
     "parse_ini",
     "append_data_columns_based_on_ini_query",
-    "check_geodataframe",
     "split_lines",
     "check_gpd_attributes",
 ]
@@ -125,7 +124,6 @@ def parse_ini(ini_fn) -> dict:
     ----------
     ini_fn
         The location of the ini file.
-
     Returns
     -------
     dict
@@ -153,7 +151,6 @@ def slice_geodataframe(
     logger=logger,
 ):
     """Function to read gpd.GeoDataFrame with preprocessing: rename, slice, convert type and set index.
-
     Parameters
     ----------
     gdf : gpd.GeoDataFrame.
@@ -340,7 +337,7 @@ def write_shp(data: gpd.GeoDataFrame, filename: str, columns: list = None):
             gpd.GeoDataFrame(data).to_file(filename, index=False)
 
 
-# data handeling
+# data handling
 
 
 def append_data_columns_based_on_ini_query(
@@ -409,9 +406,7 @@ def append_data_columns_based_on_ini_query(
         columns = _columns_
     return data.loc[:, columns]
 
-
-def check_geodataframe(gdf: gpd.GeoDataFrame):
-    """Check the geo data frame for None and length.
+    """ Check the geo data frame for None and length.
     A warning will be logged, if the geo data frame is None or empty.
 
     Parameters
@@ -436,7 +431,10 @@ def check_geodataframe(gdf: gpd.GeoDataFrame):
 ## geometry
 def cut_pieces(line, distances):
     """cut a line into pieces based on distances"""
-    distances.insert(0, 0)
+    if distances[0] != 0:
+        distances.insert(0, 0)
+    if distances[-1] == line.length:
+        distances.pop(-1)
     pieces = [line]
     for d in np.diff(np.sort(distances)):
         line = pieces.pop(-1)
