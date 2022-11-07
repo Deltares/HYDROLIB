@@ -15,7 +15,7 @@ from shapely.geometry import LineString, Point
 from .branches import find_nearest_branch
 
 # from delft3dfmpy.core import geometry
-from .helper import split_lines
+from .helper import check_gpd_attributes, split_lines
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "set_branch_crosssections",
     "set_xyz_crosssections",
+    "set_point_crosssections",
 ]  # , "process_crosssections", "validate_crosssections"]
 
 
@@ -35,7 +36,7 @@ def set_branch_crosssections(
     only support rectangle, trapezoid and circle.
     Crosssections are derived at branches mid points if ``midpoints`` is True,
     else at both upstream and downstream extremities of branches if False.
-    
+
     Parameters
     ----------
     branches : gpd.GeoDataFrame
@@ -163,7 +164,7 @@ def set_xyz_crosssections(
     branches: gpd.GeoDataFrame,
     crosssections: gpd.GeoDataFrame,
 ):
-    """ Set up xyz crosssections.
+    """Set up xyz crosssections.
     xyz crosssections should be points gpd, column z and column order.
 
     Parameters
@@ -205,6 +206,9 @@ def set_xyz_crosssections(
     # setup failed - drop based on branch_offset that are not snapped to branch (inplace of yz_crosssections) and issue warning
     _old_ids = crosssections.index.to_list()
     crosssections.dropna(axis=0, inplace=True, subset=["branch_offset"])
+    crosssections = crosssections.merge(
+        branches["frictionId"], left_on="branch_id", right_index=True
+    )
     _new_ids = crosssections.index.to_list()
     if len(_old_ids) != len(_new_ids):
         logger.warning(
@@ -232,9 +236,12 @@ def set_xyz_crosssections(
             ],
             # 'crsdef_xylength': ' '.join(['{:.1f}'.format(i) for i in crosssections.l.to_list()[0]]),
             # lower case key means temp keys (not written to file)
-            "crsdef_frictionId": branches.loc[
+            "crsdef_frictionIds": branches.loc[
                 crosssections.branch_id.to_list(), "frictionId"
             ],
+            "crsdef_frictionPositions": [
+                "0 {:.4f}".format(l) for l in crosssections.geometry.length.to_list()
+            ]
             # lower case key means temp keys (not written to file)
         }
     )
@@ -265,26 +272,400 @@ def set_xyz_crosssections(
         left_on=["crsloc_definitionId"],
         right_on=["crsdef_id"],
     )
+
+    crosssections_["crsdef_thalweg"] = 0.0
+
+    crosssections_ = gpd.GeoDataFrame(crosssections_, crs=branches.crs)
     return crosssections_
 
 
 def set_point_crosssections(
     branches: gpd.GeoDataFrame,
     crosssections: gpd.GeoDataFrame,
-    crs_type: str = "point",
 ):
-    pass
+    """
+    Function to set regular cross-sections from point.
+    only support rectangle, trapezoid, circle and yz
+
+    Parameters
+    ----------
+    branches : gpd.GeoDataFrame
+        Require index to contain the branch id
+        The branches.
+    crosssections : gpd.GeoDataFrame
+        Required columns: shape,shift
+        The crosssections.
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        The cross sections.
+    """
+
+    # check if crs mismatch
+    if crosssections.crs != branches.crs:
+        logger.error(f"mismatch crs between cross-sections and branches")
+    # snap to branch
+    # setup branch_id - snap bridges to branch (inplace of bridges, will add branch_id and branch_offset columns)
+    find_nearest_branch(branches=branches, geometries=crosssections, method="overal")
+    # get branch friction
+    crosssections = crosssections.merge(
+        branches["frictionId"], left_on="branch_id", right_index=True
+    )
+
+    # setup failed - drop based on branch_offset that are not snapped to branch (inplace of yz_crosssections) and issue warning
+    _old_ids = crosssections.index.to_list()
+    crosssections.dropna(axis=0, inplace=True, subset=["branch_offset"])
+    _new_ids = crosssections.index.to_list()
+    if len(_old_ids) != len(_new_ids):
+        logger.warning(
+            f"Crosssection with id: {list(set(_old_ids) - set(_new_ids))} are dropped: unable to find closest branch. "
+        )
+
+    crosssections_ = pd.DataFrame()
+    # loop through the shapes
+    all_shapes = crosssections["shape"].unique().tolist()
+    for shape in all_shapes:
+        if shape == "rectangle":
+            rectangle_crs = crosssections.loc[crosssections["shape"] == shape, :]
+            valid_attributes = check_gpd_attributes(
+                rectangle_crs,
+                required_columns=[
+                    "branch_id",
+                    "branch_offset",
+                    "frictionId",
+                    "width",
+                    "height",
+                    "closed",
+                ],
+            )
+            crosssections_ = pd.concat(
+                [crosssections_, _set_rectangle_crs(rectangle_crs)]
+            )
+        if shape == "trapezoid":
+            trapezoid_crs = crosssections.loc[crosssections["shape"] == shape, :]
+            valid_attributes = check_gpd_attributes(
+                trapezoid_crs,
+                required_columns=[
+                    "branch_id",
+                    "branch_offset",
+                    "frictionId",
+                    "width",
+                    "height",
+                    "t_width",
+                    "closed",
+                ],
+            )
+            crosssections_ = pd.concat(
+                [crosssections_, _set_trapezoid_crs(trapezoid_crs)]
+            )
+        elif shape == "zw":
+            zw_crs = crosssections.loc[crosssections["shape"] == shape, :]
+            valid_attributes = check_gpd_attributes(
+                trapezoid_crs,
+                required_columns=[
+                    "branch_id",
+                    "branch_offset",
+                    "frictionId",
+                    "numlevels",
+                    "levels",
+                    "flowwidths",
+                    "totalwidths",
+                    "closed",
+                ],
+            )
+            crosssections_ = pd.concat([crosssections_, _set_zw_crs(zw_crs)])
+        elif shape == "yz":
+            yz_crs = crosssections.loc[crosssections["shape"] == shape, :]
+            valid_attributes = check_gpd_attributes(
+                trapezoid_crs,
+                required_columns=[
+                    "branch_id",
+                    "branch_offset",
+                    "frictionId",
+                    "yzcount",
+                    "ycoordinates",
+                    "zcoordinates",
+                    "closed",
+                ],
+            )
+            crosssections_ = pd.concat([crosssections_, _set_yz_crs(yz_crs)])
+        else:
+            logger.error(
+                "crossection shape not supported. For now only support trapezoid, zw and yz"
+            )
+
+    # setup thaiweg for GUI
+    crosssections_["crsdef_thalweg"] = 0.0
+
+    # support both string and boolean for closed column
+    crosssections_["crsdef_closed"].replace({"yes": 1, "no": 0}, inplace=True)
+
+    crosssections_ = gpd.GeoDataFrame(crosssections_, crs=branches.crs)
+
+    return crosssections_
+
+
+def _set_rectangle_crs(crosssections: gpd.GeoDataFrame):
+    """rectangle crossection"""
+
+    crsdefs = []
+    crslocs = []
+    for c in crosssections.itertuples():
+        crsdefs.append(
+            {
+                "crsdef_id": c.Index,
+                "crsdef_type": "rectangle",
+                "crsdef_branchId": c.branch_id,  # FIXME test if leave this out
+                "crsdef_height": c.height,
+                "crsdef_width": c.width,
+                "crsdef_frictionId": c.frictionId,
+                "crsdef_closed": c.closed,
+            }
+        )
+        crslocs.append(
+            {
+                "crsloc_id": f"{c.branch_id}_{c.branch_offset:.2f}",
+                "crsloc_branchId": c.branch_id,  # FIXME change to branchId everywhere
+                "crsloc_chainage": c.branch_offset,
+                "crsloc_shift": c.shift,
+                "crsloc_definitionId": c.Index,
+                "geometry": c.geometry,
+            }
+        )
+
+    crosssections_ = pd.merge(
+        pd.DataFrame.from_records(crslocs),
+        pd.DataFrame.from_records(crsdefs),
+        how="left",
+        left_on=["crsloc_definitionId"],
+        right_on=["crsdef_id"],
+    )
+    return crosssections_
+
+
+def _set_trapezoid_crs(crosssections: gpd.GeoDataFrame):
+    """trapezoid need to be converted into zw type"""
+
+    crsdefs = []
+    crslocs = []
+    for c in crosssections.itertuples():
+        levels = f"0 {c.height:.6f}"
+        flowwidths = f"{c.width:.6f} {c.t_width:.6f}"
+        crsdefs.append(
+            {
+                "crsdef_id": c.Index,
+                "crsdef_type": "zw",
+                "crsdef_branchId": c.branch_id,  # FIXME test if leave this out
+                "crsdef_numlevels": 2,
+                "crsdef_levels": levels,
+                "crsdef_flowwidths": flowwidths,
+                "crsdef_totalwidths": flowwidths,
+                "crsdef_frictionId": c.frictionId,
+                "crsdef_closed": c.closed,
+            }
+        )
+        crslocs.append(
+            {
+                "crsloc_id": f"{c.branch_id}_{c.branch_offset:.2f}",
+                "crsloc_branchId": c.branch_id,  # FIXME change to branchId everywhere
+                "crsloc_chainage": c.branch_offset,
+                "crsloc_shift": c.shift,
+                "crsloc_definitionId": c.Index,
+                "geometry": c.geometry,
+            }
+        )
+
+    crosssections_ = pd.merge(
+        pd.DataFrame.from_records(crslocs),
+        pd.DataFrame.from_records(crsdefs),
+        how="left",
+        left_on=["crsloc_definitionId"],
+        right_on=["crsdef_id"],
+    )
+    return crosssections_
+
+
+def _set_zw_crs(crosssections: gpd.GeoDataFrame):
+    """set zw profile"""
+
+    crsdefs = []
+    crslocs = []
+    for c in crosssections.itertuples():
+        crsdefs.append(
+            {
+                "crsdef_id": c.Index,
+                "crsdef_type": "zw",
+                "crsdef_branchId": c.branch_id,  # FIXME test if leave this out
+                "crsdef_numlevels": c.numlevels,
+                "crsdef_levels": c.levels,
+                "crsdef_flowwidths": c.flowwidths,
+                "crsdef_totalwidths": c.totalwidths,
+                "crsdef_frictionId": c.frictionId,
+            }
+        )
+        crslocs.append(
+            {
+                "crsloc_id": f"{c.branch_id}_{c.branch_offset:.2f}",
+                "crsloc_branchId": c.branch_id,  # FIXME change to branchId everywhere
+                "crsloc_chainage": c.branch_offset,
+                "crsloc_shift": c.shift,
+                "crsloc_definitionId": c.Index,
+                "geometry": c.geometry,
+            }
+        )
+
+    crosssections_ = pd.merge(
+        pd.DataFrame.from_records(crslocs),
+        pd.DataFrame.from_records(crsdefs),
+        how="left",
+        left_on=["crsloc_definitionId"],
+        right_on=["crsdef_id"],
+    )
+    return crosssections_
+
+
+def _set_yz_crs(crosssections: gpd.GeoDataFrame):
+    """set yz profile"""
+
+    crsdefs = []
+    crslocs = []
+    for c in crosssections.itertuples():
+        crsdefs.append(
+            {
+                "crsdef_id": c.Index,
+                "crsdef_type": "yz",
+                "crsdef_branchId": c.branch_id,  # FIXME test if leave this out
+                "crsdef_yzcount": c.yzcount,
+                "crsdef_ycoordinates": c.ycoordinates,
+                "crsdef_zcoordinates": c.zcoordinates,
+                "crsdef_frictionId": c.frictionId,
+            }
+        )
+        crslocs.append(
+            {
+                "crsloc_id": f"{c.branch_id}_{c.branch_offset:.2f}",
+                "crsloc_branchId": c.branch_id,  # FIXME change to branchId everywhere
+                "crsloc_chainage": c.branch_offset,
+                "crsloc_shift": c.shift,
+                "crsloc_definitionId": c.Index,
+                "geometry": c.geometry,
+            }
+        )
+
+    crosssections_ = pd.merge(
+        pd.DataFrame.from_records(crslocs),
+        pd.DataFrame.from_records(crsdefs),
+        how="left",
+        left_on=["crsloc_definitionId"],
+        right_on=["crsdef_id"],
+    )
+    return crosssections_
+
+
+def parse_sobek_crs(filename, logger=logger):
+    """read sobek crosssection files as a dataframe. Include location and definition file.
+    #TODO: include parsing geometry as well
+
+    Parameters
+    ----------
+    filename : Path
+        Path to the sobek crosssection files. supported format: .DAT amd .DEF
+    logger : logger, Optional
+
+    Raise
+    -----
+    NotImplementedError
+        do not support other files than .dat and .def
+
+    Returns
+    -------
+    df.DataFrame
+        The data frame with each item as a row
+    """
+    import shlex
+    from pathlib import Path
+
+    import numpy as np
+    import pandas as pd
+
+    # check file
+    if Path(filename).name.lower().endswith(".def"):
+        logger.info("Parsing cross section definition")
+        prefix = "CRDS"
+        suffix = "crds"
+    elif Path(filename).name.lower().endswith(".dat"):
+        logger.info("Parsing cross section location")
+        prefix = "CRSN"
+        suffix = "crsn"
+    else:
+        raise NotImplementedError("do not support other files than .dat and .def")
+
+    with open(filename) as myFile:
+        text = myFile.read()
+        raw_lines = text.split(suffix + "\n")
+
+    lines = []
+    for l in raw_lines:
+        if l.startswith(prefix):  # new item
+            # preliminary handling
+            l = l.removeprefix(prefix)
+            t = None
+            # parse zw profile
+            if "lt lw\nTBLE" in l:
+                # the table contains height, total width en flowing width.
+                l, t = l.split("lt lw\nTBLE")
+                levels, totalwidths, flowwidths = np.array(
+                    [shlex.split(r, posix=False) for r in t.split("<")][:-1]
+                ).T  # last element is the suffix of tble
+                table_dict = {}
+                table_dict["numlevels"] = len(levels)
+                table_dict["levels"] = " ".join(str(n) for n in levels)
+                table_dict["totalwidths"] = " ".join(str(n) for n in totalwidths)
+                table_dict["flowwidths"] = " ".join(str(n) for n in flowwidths)
+            # parse yz profile
+            if "lt yz\nTBLE" in l:
+                # Y horizontal distance increasing from the left to right,
+                # Z vertical distance increasing from bottom to top in m.
+                # In other words, use a coordinate system to define the Y-Z profile.
+                l, t = l.split("lt yz\nTBLE")
+                yCoordinates, zCoordinates = np.array(
+                    [shlex.split(r, posix=False) for r in t.split("<")][:-1]
+                ).T
+                table_dict["yzcount"] = len(yCoordinates)
+                table_dict["ycoordinates"] = " ".join(str(n) for n in yCoordinates)
+                table_dict["zcoordinates"] = " ".join(str(n) for n in zCoordinates)
+                # storage width on surface in m
+                if "lt sw 0" in l:
+                    l.replace("lt lw 0", "lt_lw_0")  # remove space
+                else:
+                    logger.error(
+                        "storage width function is not supported. Check lt sw field"
+                    )
+            # parse line
+            line = shlex.split(l, posix=False)
+            line_dict = {line[i]: line[i + 1] for i in range(0, len(line), 2)}
+            # add table
+            if t is not None:
+                line_dict.update(table_dict)
+            lines.append(line_dict)
+
+    df = pd.DataFrame.from_records(lines)
+    df["id"] = df["id"].str.strip("'")
+    df.set_index("id", inplace=True)
+
+    return df
 
 
 def xyzp2xyzl(xyz: pd.DataFrame, sort_by: list = ["x", "y"]):
-    """ Convert xyz points to xyz lines.
-    
+    """Convert xyz points to xyz lines.
+
     Parameters
     ----------
     xyz: pd.DataFrame
         The xyz points.
     sort_by: list, optional
-        List of attributes to sort by. Defaults to ["x", "y"]. 
+        List of attributes to sort by. Defaults to ["x", "y"].
 
     Returns
     -------

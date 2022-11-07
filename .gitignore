@@ -137,3 +137,5 @@ hydrolib/dhydamo/debug.py
 .vscode/settings.json
 
 .DS_Store
+coverage-reports
+xunit-reports
