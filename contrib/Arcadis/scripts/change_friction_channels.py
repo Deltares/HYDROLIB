@@ -63,8 +63,8 @@ def change_friction_shape(
     # Read model branches
     netfile = os.path.join(mdu_path.parent, fm.geometry.netfile.filepath)
     branches = net_nc2gdf(netfile)["1d_branches"]
-    
-    # Make sure the dataframes do not have 
+
+    # Make sure the dataframes do not have
     branches.rename(columns={"id": "branchid"}, inplace=True)
     if "branchid" in gdf_frict.columns:
         gdf_frict.rename(columns={"branchid": "branchid_shape"}, inplace=True)
@@ -86,11 +86,8 @@ def change_friction_shape(
     #     crs_def = crs_inf["cross_sections_definition"]
     # =============================================================================
 
-
-
-    
     # Todo: nog in de cross section def duiken de 'on lanes' te verbeteren.
-    if replace == True: 
+    if replace == True:
         # write friction defintions for all branches that intersect with the user defined shape and buffer
         # remove all old friction defitions on those branches and also neglect frictions on branches that do not intersect
         new_fricts = pd.DataFrame()
@@ -166,7 +163,7 @@ def change_friction_shape(
                     lambda x: [x] if isinstance(x, int) else x
                 )
                 if wipe == True:
-                    # write friction defintion to branches that intersect with the user defined 
+                    # write friction defintion to branches that intersect with the user defined
                     # shape and buffer AND already had a friction specified previously
                     new_branches = merge.loc[merge.result == True].copy()
 
@@ -188,9 +185,9 @@ def change_friction_shape(
                     )
 
                 else:
-                    # write friction defintion to branches that intersect with the user defined 
+                    # write friction defintion to branches that intersect with the user defined
                     # shape and buffer AND already had a friction specified previously
-                    # but also keep friction definitions of all other branches that do not 
+                    # but also keep friction definitions of all other branches that do not
                     # intersect with the shape and buffer
                     merge.drop(
                         columns=in_model.columns.difference(
@@ -250,4 +247,3 @@ if __name__ == "__main__":
         r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\Model_cleaned\dflowfm\Flow1D.mdu"
     )
     change_friction_shape(input_mdu, shape_path, output_path, replace=False, wipe=False)
-
