@@ -20,6 +20,6 @@ dependencies:
   - conda-forge::scipy>=1.9,<2.0
   - pip
   - pip:
-    - hydrolib-core==0.3.0
-    - hydromt>=0.4.5,<0.5.0
+    - hydrolib-core==0.3.1
+    - hydromt==0.6.0
     - pyflwdir>=0.5.3,<0.6.0
