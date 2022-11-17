@@ -26,7 +26,9 @@ __all__ = [
 ]
 
 
-def generate_boundaries_from_branches(branches: gpd.GeoDataFrame, where: str = "both") -> gpd.GeoDataFrame:
+def generate_boundaries_from_branches(
+    branches: gpd.GeoDataFrame, where: str = "both"
+) -> gpd.GeoDataFrame:
     """Get the possible boundary locations from the branches with id.
 
     Parameters
@@ -97,7 +99,7 @@ def select_boundary_type(
     logger=logger,
 ) -> pd.DataFrame:
     """Select boundary location per branch type and boundary type.
-    
+
     Parameters
     ----------
 
@@ -109,10 +111,10 @@ def select_boundary_type(
         For rivers 'waterlevel' and 'discharge' are supported.
         For pipes 'waterlevel' is supported.
     boundary_locs : {'both', 'upstream', 'downstream'}
-        The boundary location to use. 
+        The boundary location to use.
     logger
         The logger to log messages with.
-    
+
     Returns
     -------
     pd.DataFrame
@@ -153,14 +155,14 @@ def select_boundary_type(
 def validate_boundaries(boundaries: gpd.GeoDataFrame, branch_type: str = "river"):
     """Validate boundaries per branch type.
     Will log a warning if the validation fails.
-    
+
     Parameters
     ----------
     boundaries : gpd.GeoDataFrame
         The boundaries.
     branch_type : {'river', 'pipe'}
-        The branch type.   
-    
+        The branch type.
+
     """
 
     if branch_type == "river":  # TODO add other open system branch_type

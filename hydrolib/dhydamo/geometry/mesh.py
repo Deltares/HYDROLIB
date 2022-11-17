@@ -4,7 +4,7 @@ import numpy as np
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon
 from shapely.wkt import loads,dumps
 
-from hydrolib.core.io.net.models import Branch, Network
+from hydrolib.core.io.dflowfm.net.models import Branch, Network
 from hydrolib.dhydamo.geometry import common
 from hydrolib.dhydamo.geometry.models import GeometryList
 
