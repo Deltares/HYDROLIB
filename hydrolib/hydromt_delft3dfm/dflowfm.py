@@ -1102,6 +1102,7 @@ class DFlowFMModel(MeshModel):
             * Optional variables: [material, friction_type, friction_value]
         crosssections_fn : str Path, optional # TODO: allow multiple crosssection filenames
             Name of data source for crosssections, see data/data_sources.yml.
+            Note that for point crossections, noly ones within the snap_network_offset will be used.
             If ``crosssections_type`` = "xyz"
             Note that only points within the region + 1000m buffer will be read.
             * Required variables: crsId, order, z
@@ -1204,7 +1205,7 @@ class DFlowFMModel(MeshModel):
             gdf_cs.to_crs(self.crs)
 
             # set crsloc and crsdef attributes to crosssections
-            gdf_cs = workflows.set_point_crosssections(branches, gdf_cs)
+            gdf_cs = workflows.set_point_crosssections(branches, gdf_cs, maxdist = self._network_snap_offset)
 
         else:
             raise NotImplementedError(
@@ -1863,8 +1864,8 @@ class DFlowFMModel(MeshModel):
             self.write_geoms()
         if self._mesh:
             self.write_mesh(fn="mesh/FlowFM_2D_net.nc")
-        if self._forcing:
-            self.write_forcing()
+        # if self._forcing:
+            # self.write_forcing()
         if self.dfmmodel:
             self.write_dfmmodel()
         self.write_data_catalog()
@@ -1889,7 +1890,7 @@ class DFlowFMModel(MeshModel):
             interp_method = da_dict["interpolation"]
             locationtype = da_dict["locationtype"]
             _fn = join(mapsroot, f"{name}.tif")
-            if np.isnan(da.raster.nodata):
+            if not da.raster.nodata or np.isnan(da.raster.nodata):
                 da.raster.set_nodata(-999)
             da.raster.to_raster(_fn)
             # Prepare dict
@@ -2123,7 +2124,7 @@ class DFlowFMModel(MeshModel):
         # get crsdef from crosssections gpd # FIXME: change this for update case
         gpd_crsdef = gpd_crs[[c for c in gpd_crs.columns if c.startswith("crsdef")]]
         gpd_crsdef = gpd_crsdef.rename(
-            columns={c: c.split("_")[1] for c in gpd_crsdef.columns}
+            columns={c: c.removeprefix("crsdef_") for c in gpd_crsdef.columns}
         )
         gpd_crsdef = gpd_crsdef.drop_duplicates(subset="id")
         crsdef = CrossDefModel(definition=gpd_crsdef.to_dict("records"))
@@ -2133,7 +2134,7 @@ class DFlowFMModel(MeshModel):
         # get crsloc from crosssections gpd # FIXME: change this for update case
         gpd_crsloc = gpd_crs[[c for c in gpd_crs.columns if c.startswith("crsloc")]]
         gpd_crsloc = gpd_crsloc.rename(
-            columns={c: c.split("_")[1] for c in gpd_crsloc.columns}
+            columns={c: c.removeprefix("crsloc_") for c in gpd_crsloc.columns}
         )
 
         crsloc = CrossLocModel(crosssection=gpd_crsloc.to_dict("records"))

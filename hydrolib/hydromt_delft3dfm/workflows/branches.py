@@ -225,6 +225,7 @@ def cleanup_branches(
     """Clean up the branches by:
     * Removing null geomtry
     * Exploding branches with multiline strings
+    * simply line geometry by removing Z coordinates
     * Removing branches with duplicated geometry
     * Removing branches that are shorter than 0.1 meters
     * Renaming branches with duplicate IDs
@@ -258,7 +259,7 @@ def cleanup_branches(
     for branch_index, branch in branches.iterrows():
         if branch.geometry.type != "LineString":
             branches.at[branch_index, "geometry"] = LineString(
-                [p for l in branch.geometry for p in l.coords]
+                [p[:2] for l in branch.geometry for p in l.coords] #simply line geometry by removing Z coodinates
             )
             n += 1
     logger.debug(f"Exploding {n} branches which have multipline geometry.")

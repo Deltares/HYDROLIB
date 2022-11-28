@@ -46,6 +46,9 @@ def set_branch_crosssections(
     -------
     gpd.GeoDataFrame
         The cross sections.
+
+    #TODO: improve the function based on _set_** methods below
+    #FIXME: upstream and downstream crosssection type needs further improvement
     """
     # Get the crs at the midpoint of branches if midpoint
     if midpoint:
@@ -57,6 +60,9 @@ def set_branch_crosssections(
         crosssections["crsloc_branchId"] = branches["branchId"]
         crosssections["crsloc_chainage"] = [l / 2 for l in branches["geometry"].length]
         crosssections["crsloc_shift"] = branches["bedlev"]
+        branches["branch_id"] = crosssections["crsloc_branchId"]
+        branches["branch_offset"] = crosssections["crsloc_chainage"]
+        branches["shift"] = crosssections["crsloc_shift"]
     # Else prepares crosssections at both upstream and dowsntream extremities
     else:
         # Upstream
@@ -82,7 +88,7 @@ def set_branch_crosssections(
         # Merge
         crosssections = crosssections_up.append(crosssections_dn)
 
-    # circle profile
+    # circle profile # TODO: make this a separate function
     circle_indexes = branches.loc[branches["shape"] == "circle", :].index
     for bi in circle_indexes:
         if midpoint:
@@ -110,22 +116,8 @@ def set_branch_crosssections(
         else:
             bicrs = [f"{bi}_up", f"{bi}_dn"]
         for b in bicrs:
-            crosssections.at[
-                b, "crsloc_definitionId"
-            ] = "rect_h{:,.3f}_w{:,.3f}_c{:s}_{:s}".format(
-                branches.loc[bi, "height"],
-                branches.loc[bi, "width"],
-                branches.loc[bi, "closed"],
-                "branch",
-            )
-            crosssections.at[b, "crsdef_id"] = crosssections.loc[
-                b, "crsloc_definitionId"
-            ]
-            crosssections.at[b, "crsdef_type"] = branches.loc[bi, "shape"]
-            crosssections.at[b, "crsdef_frictionId"] = branches.loc[bi, "frictionId"]
-            crosssections.at[b, "crsdef_height"] = branches.loc[bi, "height"]
-            crosssections.at[b, "crsdef_width"] = branches.loc[bi, "width"]
-            crosssections.at[b, "crsdef_closed"] = branches.loc[bi, "closed"]
+            r_crs = branches.loc[branches["branchId"] == b, :]
+            crosssections = pd.concat([crosssections, _set_rectangle_crs(r_crs)])
 
     # trapezoid profile
     trapezoid_indexes = branches.loc[branches["shape"] == "trapezoid", :].index
@@ -135,26 +127,14 @@ def set_branch_crosssections(
         else:
             bicrs = [f"{bi}_up", f"{bi}_dn"]
         for b in bicrs:
-            crosssections.at[
-                b, "crsloc_definitionId"
-            ] = "trapz_h{:,.1f}_bw{:,.1f}_tw{:,.1f}_c{:s}_{:s}".format(
-                branches.loc[bi, "height"],
-                branches.loc[bi, "width"],
-                branches.loc[bi, "t_width"],
-                branches.loc[bi, "closed"],
-                "branch",
-            )
-            crosssections.at[b, "crsdef_id"] = crosssections.loc[
-                b, "crsloc_definitionId"
-            ]
-            crosssections.at[b, "crsdef_type"] = branches.loc[bi, "shape"]
-            crosssections.at[b, "crsdef_frictionId"] = branches.loc[bi, "frictionId"]
-            crosssections.at[b, "crsdef_height"] = branches.loc[bi, "height"]
-            crosssections.at[b, "crsdef_width"] = branches.loc[bi, "width"]
-            crosssections.at[b, "crsdef_t_width"] = branches.loc[bi, "t_width"]
-            crosssections.at[b, "crsdef_closed"] = branches.loc[bi, "closed"]
+            zw_crs = branches.loc[branches["branchId"] == b, :]
+            crosssections = pd.concat([crosssections, _set_trapezoid_crs(zw_crs)])
 
-    # setup thaiweg for GUI
+    # drop nan crossections
+    crosssections = crosssections.dropna()
+    logger.debug("dropping nans in crosssections.")
+
+    # setup thalweg for GUI
     crosssections["crsdef_thalweg"] = 0.0
 
     return crosssections
@@ -282,6 +262,7 @@ def set_xyz_crosssections(
 def set_point_crosssections(
     branches: gpd.GeoDataFrame,
     crosssections: gpd.GeoDataFrame,
+    maxdist: float = 1.0
 ):
     """
     Function to set regular cross-sections from point.
@@ -295,7 +276,9 @@ def set_point_crosssections(
     crosssections : gpd.GeoDataFrame
         Required columns: shape,shift
         The crosssections.
-
+    maxdist : float, optional
+        the maximum distant that a point crossection is snapped to the branch.
+        By default 1.0
     Returns
     -------
     gpd.GeoDataFrame
@@ -307,7 +290,7 @@ def set_point_crosssections(
         logger.error(f"mismatch crs between cross-sections and branches")
     # snap to branch
     # setup branch_id - snap bridges to branch (inplace of bridges, will add branch_id and branch_offset columns)
-    find_nearest_branch(branches=branches, geometries=crosssections, method="overal")
+    find_nearest_branch(branches=branches, geometries=crosssections, method="overal", maxdist=maxdist)
     # get branch friction
     crosssections = crosssections.merge(
         branches["frictionId"], left_on="branch_id", right_index=True
@@ -394,6 +377,10 @@ def set_point_crosssections(
             logger.error(
                 "crossection shape not supported. For now only support trapezoid, zw and yz"
             )
+
+    # drop nan crossections
+    crosssections_ = crosssections_.dropna()
+    logger.debug("dropping nans in crosssections.")
 
     # setup thaiweg for GUI
     crosssections_["crsdef_thalweg"] = 0.0
