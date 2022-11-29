@@ -728,14 +728,17 @@ class DFlowFMModel(MeshModel):
         gdf_riv.index.name = id_col
 
         # assign default attributes
-        if rivers_defaults_fn is None or not rivers_defaults_fn.is_file():
+        if rivers_defaults_fn is None:
             self.logger.warning(
                 f"rivers_defaults_fn ({rivers_defaults_fn}) does not exist. Fall back choice to defaults. "
             )
             rivers_defaults_fn = Path(self._DATADIR).joinpath(
                 "rivers", "rivers_defaults.csv"
             )
-        defaults = pd.read_csv(rivers_defaults_fn)
+            defaults = pd.read_csv(rivers_defaults_fn)
+        else:
+            defaults = self.data_catalog.get_dataframe(rivers_defaults_fn)
+
         self.logger.info(f"river default settings read from {rivers_defaults_fn}.")
 
         # filter for allowed columns
