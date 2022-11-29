@@ -116,8 +116,21 @@ def set_branch_crosssections(
         else:
             bicrs = [f"{bi}_up", f"{bi}_dn"]
         for b in bicrs:
-            r_crs = branches.loc[branches["branchId"] == b, :]
-            crosssections = pd.concat([crosssections, _set_rectangle_crs(r_crs)])
+            rectangle_crs = branches.loc[branches["branchId"] == b, :]
+            valid_attributes = check_gpd_attributes(
+                rectangle_crs,
+                required_columns=[
+                    "branch_id",
+                    "branch_offset",
+                    "frictionId",
+                    "width",
+                    "height",
+                    "closed",
+                ],
+            )
+            crosssections = pd.concat(
+                [crosssections, _set_rectangle_crs(rectangle_crs)]
+            )
 
     # trapezoid profile
     trapezoid_indexes = branches.loc[branches["shape"] == "trapezoid", :].index
@@ -127,8 +140,20 @@ def set_branch_crosssections(
         else:
             bicrs = [f"{bi}_up", f"{bi}_dn"]
         for b in bicrs:
-            zw_crs = branches.loc[branches["branchId"] == b, :]
-            crosssections = pd.concat([crosssections, _set_trapezoid_crs(zw_crs)])
+            trapezoid_crs = branches.loc[branches["branchId"] == b, :]
+            valid_attributes = check_gpd_attributes(
+                trapezoid_crs,
+                required_columns=[
+                    "branch_id",
+                    "branch_offset",
+                    "frictionId",
+                    "width",
+                    "height",
+                    "t_width",
+                    "closed",
+                ],
+            )
+            crosssections = pd.concat([crosssections, _set_trapezoid_crs(trapezoid_crs)])
 
     # drop nan crossections
     crosssections = crosssections.dropna()
