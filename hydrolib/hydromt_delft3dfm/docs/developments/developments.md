@@ -1,2 +1,0 @@
-# Developments
-*work-in-progress*
