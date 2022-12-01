@@ -261,6 +261,10 @@ def cleanup_branches(
             branches.at[branch_index, "geometry"] = LineString(
                 [p[:2] for l in branch.geometry for p in l.coords] #simply line geometry by removing Z coodinates
             )
+        elif len(branch.geometry.coords[:][0]) >2:
+            branches.at[branch_index, "geometry"] = LineString(
+                [p[:2] for p in branch.geometry .coords]  # simply line geometry by removing Z coodinates
+            )
             n += 1
     logger.debug(f"Exploding {n} branches which have multipline geometry.")
 

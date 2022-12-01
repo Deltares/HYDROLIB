@@ -719,7 +719,7 @@ class DFlowFMModel(MeshModel):
                 data=np.repeat("river", len(gdf_riv)), index=gdf_riv.index, dtype=str
             )
         if "branchId" not in gdf_riv.columns:
-            data = [f"river_{i}" for i in np.arange(1, len(gdf_riv) + 1)]
+            data = [f"river_{i}" for i in np.arange(len(self.rivers), len(self.rivers) + len(gdf_riv))]
             gdf_riv["branchId"] = pd.Series(data, index=gdf_riv.index, dtype=str)
 
         # assign id
@@ -1945,7 +1945,12 @@ class DFlowFMModel(MeshModel):
         self.write_config()
 
         # Assign initial fields to model and write
+        # FIXME: _absolute_anchor_path limits the use of intermediate link
+        import os
+        cwd = os.getcwd()
+        os.chdir(self.dfmmodel.filepath.parent)
         inifield_model = IniFieldModel(initial=inilist, parameter=paramlist)
+        os.chdir(cwd)
         inifield_model_filename = inifield_model._filename() + ".ini"
         self.dfmmodel.geometry.inifieldfile = inifield_model
         self.dfmmodel.geometry.inifieldfile.save(
@@ -2384,7 +2389,7 @@ class DFlowFMModel(MeshModel):
 
     @property
     def rivers(self):
-        if "rivers" in self.sgeoms:
+        if "rivers" in self.geoms:
             gdf = self.geoms["rivers"]
         else:
             gdf = self.set_branches_component("rivers")
