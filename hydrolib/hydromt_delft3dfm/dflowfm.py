@@ -1989,7 +1989,7 @@ class DFlowFMModel(MeshModel):
         branches = utils.read_branches_gui(branches, self.dfmmodel)
 
         # Add crosssections properties, should be done before friction
-        self, logger.info("Reading cross-sections files")
+        self.logger.info("Reading cross-sections files")
         branches, crosssections = utils.read_crosssections(branches, self.dfmmodel)
         self.set_geoms(crosssections, "crosssections")
 
