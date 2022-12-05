@@ -1205,7 +1205,9 @@ class DFlowFMModel(MeshModel):
             gdf_cs.to_crs(self.crs)
 
             # set crsloc and crsdef attributes to crosssections
-            gdf_cs = workflows.set_point_crosssections(branches, gdf_cs, maxdist = self._network_snap_offset)
+            gdf_cs = workflows.set_point_crosssections(
+                branches, gdf_cs, maxdist=self._network_snap_offset
+            )
 
         else:
             raise NotImplementedError(

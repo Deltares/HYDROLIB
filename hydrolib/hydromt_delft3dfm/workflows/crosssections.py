@@ -66,7 +66,9 @@ def set_branch_crosssections(
     if midpoint:
         crosssections = branches.copy()
         crosssections["branch_id"] = crosssections["branchId"]
-        crosssections["branch_offset"] = [l / 2 for l in crosssections["geometry"].length]
+        crosssections["branch_offset"] = [
+            l / 2 for l in crosssections["geometry"].length
+        ]
         crosssections["shift"] = crosssections["bedlev"]
         crosssections["geometry"] = [
             l.interpolate(0.5, normalized=True) for l in crosssections.geometry
@@ -288,9 +290,7 @@ def set_xyz_crosssections(
 
 
 def set_point_crosssections(
-    branches: gpd.GeoDataFrame,
-    crosssections: gpd.GeoDataFrame,
-    maxdist: float = 1.0
+    branches: gpd.GeoDataFrame, crosssections: gpd.GeoDataFrame, maxdist: float = 1.0
 ):
     """
     Function to set regular cross-sections from point.
@@ -318,7 +318,9 @@ def set_point_crosssections(
         logger.error(f"mismatch crs between cross-sections and branches")
     # snap to branch
     # setup branch_id - snap bridges to branch (inplace of bridges, will add branch_id and branch_offset columns)
-    find_nearest_branch(branches=branches, geometries=crosssections, method="overal", maxdist=maxdist)
+    find_nearest_branch(
+        branches=branches, geometries=crosssections, method="overal", maxdist=maxdist
+    )
     # get branch friction
     crosssections = crosssections.merge(
         branches["frictionId"], left_on="branch_id", right_index=True
@@ -419,6 +421,7 @@ def set_point_crosssections(
     crosssections_ = gpd.GeoDataFrame(crosssections_, crs=branches.crs)
 
     return crosssections_
+
 
 def _set_circle_crs(crosssections: gpd.GeoDataFrame):
     """circle crossection"""
