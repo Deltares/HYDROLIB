@@ -1,0 +1,21 @@
+{
+"type": "FeatureCollection",
+"name": "xyz_crosssections",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_1", "ORDER": 1, "Z": 4.0 }, "geometry": { "type": "Point", "coordinates": [ 665154.532672414323315, 1526007.58099774713628 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_1", "ORDER": 2, "Z": 2.1 }, "geometry": { "type": "Point", "coordinates": [ 665154.905249262810685, 1526004.600382958073169 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_1", "ORDER": 3, "Z": 2.05 }, "geometry": { "type": "Point", "coordinates": [ 665155.774595242924988, 1525995.720634732861072 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_1", "ORDER": 4, "Z": 2.15 }, "geometry": { "type": "Point", "coordinates": [ 665157.078614213038236, 1525985.785252103116363 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_1", "ORDER": 5, "Z": 3.853 }, "geometry": { "type": "Point", "coordinates": [ 665157.264902637340128, 1525979.63773410115391 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_3", "ORDER": 1, "Z": 3.8 }, "geometry": { "type": "Point", "coordinates": [ 664964.937628576881252, 1526034.996444192482159 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_3", "ORDER": 2, "Z": 2.01 }, "geometry": { "type": "Point", "coordinates": [ 664960.792711135814898, 1526029.811416381504387 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_3", "ORDER": 3, "Z": 2.03 }, "geometry": { "type": "Point", "coordinates": [ 664957.812096346984617, 1526026.458224744070321 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_3", "ORDER": 4, "Z": 2.05 }, "geometry": { "type": "Point", "coordinates": [ 664955.949212103965692, 1526021.366341146407649 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_3", "ORDER": 5, "Z": 3.77 }, "geometry": { "type": "Point", "coordinates": [ 664953.713751012226567, 1526016.895418962929398 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_2", "ORDER": 1, "Z": 4.22 }, "geometry": { "type": "Point", "coordinates": [ 665605.521423624013551, 1525951.663422386161983 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_2", "ORDER": 2, "Z": 2.23 }, "geometry": { "type": "Point", "coordinates": [ 665605.0773, 1525947.017799999564886 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_2", "ORDER": 3, "Z": 2.215 }, "geometry": { "type": "Point", "coordinates": [ 665604.621029573027045, 1525942.566337666241452 ] } },
+{ "type": "Feature", "properties": { "CRS_ID": "EXAMPLE_CRS_XYZ_2", "ORDER": 4, "Z": 3.9 }, "geometry": { "type": "Point", "coordinates": [ 665604.372645007213578, 1525937.598646351601928 ] } }
+]
+}

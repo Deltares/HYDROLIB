@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "branchId": "river_1", "branchType": "river", "branchOrder": 1.0, "material": "clay", "shape": "rectangle", "width": 10.0, "t_width": 20.0, "height": 10.0, "bedlev": -10.0, "closed": "no", "frictionType": "Manning", "frictionValue": 0.023, "ORIG_branchId": "river_1", "frictionId": "Manning_0.023", "diameter": null, "invlev_up": null, "invlev_dn": null, "manhole_up": null, "manhole_dn": null }, "geometry": { "type": "LineString", "coordinates": [ [ 664057.966297403792851, 1526147.834882111055776 ], [ 663918.391924358904362, 1525803.10090322420001 ], [ 663700.482064640615135, 1525466.331120023271069 ], [ 663353.045365229598247, 1525088.417517154943198 ], [ 662879.129516471526586, 1524643.454726681346074 ], [ 662793.794186791637912, 1524515.451732161454856 ] ] } },
+{ "type": "Feature", "properties": { "branchId": "river_2", "branchType": "river", "branchOrder": 1.0, "material": "clay", "shape": "rectangle", "width": 10.0, "t_width": 20.0, "height": 10.0, "bedlev": -10.0, "closed": "no", "frictionType": "Manning", "frictionValue": 0.023, "ORIG_branchId": "river_2", "frictionId": "Manning_0.023", "diameter": null, "invlev_up": null, "invlev_dn": null, "manhole_up": null, "manhole_dn": null }, "geometry": { "type": "LineString", "coordinates": [ [ 664057.966297403792851, 1526147.834882111055776 ], [ 664218.310854589915834, 1526625.788610660471022 ], [ 664218.310854589915834, 1527005.169120056321844 ], [ 664197.234159623389132, 1527152.705984821310267 ] ] } }
+]
+}

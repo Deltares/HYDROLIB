@@ -522,14 +522,18 @@ def read_1dboundary(
     # Check if all timeseries
     elif np.all(df_forcing.function == "timeseries"):
         # Prepare data
-        data = np.array()
-        for v in df_forcing.datablock:
-            data = data.append(np.array([n[1] for n in v]))
-        data = data + df_forcing.offset.values * df_forcing.factor.values
+        data = list()
+        for i in np.arange(len(df_forcing.datablock)):
+            v = df_forcing.datablock.iloc[i]
+            offset = df_forcing.offset.iloc[i]
+            factor = df_forcing.factor.iloc[i]
+            databl = [n[1] * factor + offset for n in v]
+            data.append(databl)
+        data = np.array(data)
         # Assume unique times
         times = np.array([n[0] for n in df_forcing.datablock.iloc[0]])
         # Prepare dataarray properties
-        dims = (["index", "time"],)
+        dims = ["index", "time"]
         coords = dict(index=nodeids, time=times)
         bc["function"] = "timeseries"
         bc["units"] = df_forcing.quantityunitpair.iloc[0][1].unit
@@ -599,12 +603,8 @@ def write_1dboundary(forcing: Dict, savedir: str) -> Tuple:
             else:
                 # two quantityunitpair
                 bc["quantityunitpair"] = [
-                    {
-                        "quantity": ["time", da.name],
-                        "unit": [bc["time_unit"], bc["units"]]
-                        # tuple(("time", bc["time_unit"])),
-                        # tuple((da.name, bc["units"])),
-                    }
+                    {"quantity": "time", "unit": bc["time_unit"]},
+                    {"quantity": da.name, "unit": bc["units"]},
                 ]
                 bc.pop("time_unit")
                 # time/value datablock

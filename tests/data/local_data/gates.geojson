@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "gates",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "STRUC_ID": "Sluice", "NAME": "main channel", "BRANCH_ID": "branch_7", "STRUC_TYPE": "gate", "FLOW_DIR": "positive", "CREST_W": 14.0, "CREST_LEV": 2.6, "OPEN_W": 13.5, "GATE_H": 4.0, "OPEN_DIR": "symmetric", "GATE_LEV": 2.6, "IS_MAIN": null, "GATE_STATE": "open", "OPEN_HMAX": null, "OPEN_H": null, "CTRL_OPEN": null, "CTRL_CLOSE": null }, "geometry": { "type": "Point", "coordinates": [ 664137.740000000223517, 1526141.099999999627471 ] } },
+{ "type": "Feature", "properties": { "STRUC_ID": "GATE_vertical", "NAME": "small channel", "BRANCH_ID": "branch_5", "STRUC_TYPE": "gate", "FLOW_DIR": "both", "CREST_W": 10.0, "CREST_LEV": 2.4, "OPEN_W": 10.0, "GATE_H": 4.0, "OPEN_DIR": null, "GATE_LEV": 4.4, "IS_MAIN": null, "GATE_STATE": null, "OPEN_HMAX": null, "OPEN_H": null, "CTRL_OPEN": null, "CTRL_CLOSE": null }, "geometry": { "type": "Point", "coordinates": [ 664826.210000000428408, 1526041.519999999552965 ] } }
+]
+}
