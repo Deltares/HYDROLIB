@@ -1,12 +1,81 @@
 from pathlib import Path
-from typing import Dict, Union
-
+from typing import Dict, Union,Tuple
+from os.path import basename, isfile, join
 import geopandas as gpd
 import numpy as np
 
 from .workflows import helper
+from hydrolib.core.io.ext.models import ExtModel, Boundary
+from hydrolib.core.io.bc.models import ForcingModel
 
-__all__ = ["get_process_geodataframe"]
+__all__ = ["write_1dboundary", "get_process_geodataframe"]
+
+def write_1dboundary(forcing: Dict, savedir: str) -> Tuple:
+    """ "
+    write 1dboundary ext and boundary files from forcing dict
+    Parameters
+    ----------
+    forcing: dict of xarray DataArray
+        Dict of boundary DataArray for each variable
+    savedir: str
+        path to the directory where to save the file.
+    Returns
+    -------
+    forcing_fn: str
+        relative path to boundary forcing file.
+    ext_fn: str
+        relative path to external boundary file.
+    """
+    extdict = list()
+    bcdict = list()
+    # Loop over forcing dict
+    for name, da in forcing.items():
+        for i in da.index.values:
+            bc = da.attrs.copy()
+            # Boundary
+            ext = dict()
+            ext["quantity"] = bc["quantity"]
+            ext["nodeId"] = i
+            extdict.append(ext)
+            # Forcing
+            bc["name"] = i
+            if bc["function"] == "constant":
+                # one quantityunitpair
+                bc["quantityunitpair"] = [{"quantity": da.name, "unit": bc["units"]}]
+                # only one value column (no times)
+                bc["datablock"] = [[da.sel(index=i).values.item()]]
+            else:
+                # two quantityunitpair
+                bc["quantityunitpair"] = [
+                    {
+                        "quantity": ["time", da.name],
+                        "unit": [bc["time_unit"], bc["units"]]
+                        # tuple(("time", bc["time_unit"])),
+                        # tuple((da.name, bc["units"])),
+                    }
+                ]
+                bc.pop("time_unit")
+                # time/value datablock
+                bc["datablock"] = [
+                    [t, x] for t, x in zip(da.time.values, da.sel(index=i).values)
+                ]
+            bc.pop("quantity")
+            bc.pop("units")
+            bcdict.append(bc)
+
+    forcing_model = ForcingModel(forcing=bcdict)
+    forcing_fn = forcing_model._filename() + ".bc"
+
+    ext_model = ExtModel()
+    ext_fn = ext_model._filename() + ".ext"
+    for i in range(len(extdict)):
+        ext_model.boundary.append(
+            Boundary(**{**extdict[i], "forcingFile": forcing_model})
+        )
+    # Save ext and forcing files
+    ext_model.save(join(savedir, ext_fn), recurse=True)
+
+    return forcing_fn, ext_fn
 
 
 def get_process_geodataframe(

@@ -4,7 +4,7 @@ import glob
 import logging
 from datetime import datetime, timedelta
 from os import times
-from os.path import basename, isfile, join
+from os.path import basename, isfile, join, dirname
 from pathlib import Path
 from turtle import st
 from typing import List, Tuple, Union
@@ -30,7 +30,7 @@ from hydrolib.core.io.net.models import *
 from hydrolib.core.io.storagenode.models import StorageNodeModel
 from hydrolib.dhydamo.geometry import common, mesh, viz
 
-from . import DATADIR, workflows
+from . import DATADIR, workflows, utils
 
 __all__ = ["DFlowFMModel"]
 logger = logging.getLogger(__name__)
@@ -1867,8 +1867,8 @@ class DFlowFMModel(MeshModel):
             self.write_geoms()
         if self._mesh:
             self.write_mesh(fn="mesh/FlowFM_2D_net.nc")
-        # if self._forcing:
-            # self.write_forcing()
+        if self._forcing:
+            self.write_forcing()
         if self.dfmmodel:
             self.write_dfmmodel()
         self.write_data_catalog()
@@ -1988,55 +1988,14 @@ class DFlowFMModel(MeshModel):
 
     def write_forcing(self) -> None:
         """write forcing into hydrolib-core ext and forcing models"""
-        extdict = list()
-        bcdict = list()
-        # Loop over forcing dict
-        for name, da in self.forcing.items():
-            for i in da.index.values:
-                bc = da.attrs.copy()
-                # Boundary
-                ext = dict()
-                ext["quantity"] = bc["quantity"]
-                ext["nodeId"] = i
-                extdict.append(ext)
-                # Forcing
-                bc["name"] = i
-                if bc["function"] == "constant":
-                    # one quantityunitpair
-                    bc["quantityunitpair"] = [tuple((da.name, bc["units"]))]
-                    # only one value column (no times)
-                    bc["datablock"] = [[da.sel(index=i).values.item()]]
-                else:
-                    # two quantityunitpair
-                    bc["quantityunitpair"] = [
-                        tuple(("time", bc["time_unit"])),
-                        tuple((da.name, bc["units"])),
-                    ]
-                    bc.pop("time_unit")
-                    # time/value datablock
-                    bc["datablock"] = [
-                        [t, x] for t, x in zip(da.time.values, da.sel(index=i).values)
-                    ]
-                bc.pop("quantity")
-                bc.pop("units")
-                bcdict.append(bc)
-
-        forcing_model = ForcingModel(forcing=bcdict)
-        forcing_model_filename = forcing_model._filename() + ".bc"
-
-        ext_model = ExtModel()
-        ext_model_filename = ext_model._filename() + ".ext"
-        for i in range(len(extdict)):
-            ext_model.boundary.append(
-                Boundary(**{**extdict[i], "forcingFile": forcing_model})
-            )
-        # assign to model
-        self.dfmmodel.external_forcing.extforcefilenew = ext_model
-        self.dfmmodel.external_forcing.extforcefilenew.save(
-            self.dfmmodel.filepath.with_name(ext_model_filename), recurse=True
-        )
-        # save relative path to mdu
-        self.dfmmodel.external_forcing.extforcefilenew.filepath = ext_model_filename
+        if len(self._forcing) == 0:
+            self.logger.debug("No forcing data found, skip writing.")
+        else:
+            # self._assert_write_mode
+            self.logger.info("Writting forcing files.")
+            savedir = dirname(join(self.root, self._config_fn))
+            forcing_fn, ext_fn = utils.write_1dboundary(self.forcing, savedir)
+            self.set_config("external_forcing.extforcefilenew", ext_fn)
 
     def read_dfmmodel(self):
         """Read dfmmodel at <root/?/> and parse to model class (deflt3dfmpy)"""
