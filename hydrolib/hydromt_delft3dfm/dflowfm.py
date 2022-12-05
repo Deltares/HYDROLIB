@@ -2,6 +2,8 @@
 
 import glob
 import logging
+import copy
+import os
 from os.path import basename, isfile, join, dirname
 from pathlib import Path
 from turtle import st
@@ -15,7 +17,7 @@ import pandas as pd
 import xarray as xr
 import xugrid as xu
 from hydromt.models import MeshModel
-from shapely.geometry import box
+from shapely.geometry import box, Point, LineString, MultiLineString
 from datetime import datetime, timedelta
 
 from hydrolib.core.io.dflowfm.mdu.models import FMModel
@@ -156,8 +158,10 @@ class DFlowFMModel(MeshModel):
             join("dflowfm", self._CONF) if config_fn is None else config_fn
         )
         self.data_catalog.from_yml(self._CATALOGS)
-        self.write_config()  #  create the mdu file in order to initialise dfmmodel properly and at correct output location
-        self._dfmmodel = self.init_dfmmodel()
+        # Create MDU-file from Hydrolib-core template and pass to config
+        self._dfmmodel = None
+        self.init_dfmmodel()
+        self.config
         # Gloabl options for generation of the mesh1d network
         self._network_snap_offset = network_snap_offset
         self._openwater_computation_node_distance = openwater_computation_node_distance
@@ -1196,7 +1200,6 @@ class DFlowFMModel(MeshModel):
             Snapping tolenrance to automatically connecting manholes to network nodes.
             By default 0.001. Use a higher value if large number of user manholes are missing.
         """
-
         # geom columns for manholes
         _allowed_columns = [
             "geometry",
@@ -1373,7 +1376,6 @@ class DFlowFMModel(MeshModel):
                 Snapping tolerance to automatically applying boundaries at the correct network nodes.
             By default 0.1, a small snapping is applied to avoid precision errors.
         """
-
         self.logger.info(f"Preparing 1D {boundary_type} boundaries for {branch_type}.")
         boundaries = self.boundaries.copy()
         refdate, tstart, tstop = self.get_model_time()  # time slice
@@ -1678,8 +1680,9 @@ class DFlowFMModel(MeshModel):
         self.read_config()
         self.read_maps()
         self.read_geoms()
-        self.read_mesh(fn="mesh/FlowFM_2D_net.nc")
-        self.read_dfmmodel()
+        self.read_mesh()
+        self.read_forcing()
+        # self.read_dfmmodel()
 
     def write(self):  # complete model
         """Method to write the complete model schematization and configuration to file."""
@@ -1689,50 +1692,98 @@ class DFlowFMModel(MeshModel):
             self.logger.warning("Cannot write in read-only mode")
             return
 
-        if self.dimr:
-            self.write_dimr()
-        if self.config:  # try to read default if not yet set
-            self.write_config()
         if self._maps:
             self.write_maps()
         if self._geoms:
             self.write_geoms()
-        if self._mesh:
-            self.write_mesh(fn="mesh/FlowFM_2D_net.nc")
+        if self._mesh or not self._branches.empty:
+            self.write_mesh()
         if self._forcing:
             self.write_forcing()
-        if self.dfmmodel:
-            self.write_dfmmodel()
+        if self.config:  # should always be last!
+            self.write_config()
+        if self.dimr:  # should always be last after config!
+            self.write_dimr()
+        # if self.dfmmodel:
+        #    self.write_dfmmodel()
         self.write_data_catalog()
+
+    def read_config(self) -> None:
+        """Use Hydrolib-core reader and return to dictionnary"""
+        # Read via init_dfmmodel
+        if self._dfmmodel is None:
+            self.init_dfmmodel()
+        # Convert to full dictionnary without hydrolib-core objects
+        cf_dict = dict()
+        for k, v in self._dfmmodel.__dict__.items():
+            if v is None or k == "filepath":
+                cf_dict[k] = v
+            else:
+                ci_dict = dict()
+                for ki, vi in v.__dict__.items():
+                    if ki != "comments":
+                        if hasattr(vi, "filepath"):
+                            ci_dict[
+                                ki
+                            ] = (
+                                vi.filepath
+                            )  # need to change the filepath object to path
+                        else:
+                            ci_dict[ki] = vi
+                cf_dict[k] = ci_dict
+        self._config = cf_dict
+
+    def write_config(self) -> None:
+        """From config dict to Hydrolib MDU"""
+        # TODO: not sure if this is worth it compare to just calling write_config super method
+        # advantage is the validator but the whole model is then read when initialising FMModel
+
+        cf_dict = self._config.copy()
+        # Need to switch to dflowfm folder for files to be found and properly added
+        mdu_fn = basename(cf_dict.pop("filepath", None))
+        cwd = os.getcwd()
+        os.chdir(join(self.root, "dflowfm"))
+        mdu = FMModel(**cf_dict)
+        # add filepath
+        mdu.filepath = join(self.root, "dflowfm", mdu_fn)
+        # write
+        mdu.save(recurse=False)
+        # Go back to working dir
+        os.chdir(cwd)
 
     def read_maps(self) -> Dict[str, Union[xr.Dataset, xr.DataArray]]:
         """Read maps from initialfield and parse to dict of xr.DataArray"""
         self._assert_read_mode
-        # Get mdu file root
-        mduroot = dirname(self._config_fn)
         # Read initial fields
         inifield_model = self.dfmmodel.geometry.inifieldfile
         # Loop over initial / parameter to read the geotif
         inilist = inifield_model.initial.copy()
-        inilist.append(inifield_model.parameter)
-        # DFM map names
-        rm_dict = dict()
-        for v in self._MAPS:
-            rm_dict[v["name"]] = v
-        for inidict in inilist:
-            _fn = join(mduroot, inidict["dataFile"])
-            inimap = hydromt.io.open_raster(_fn)
-            name = inidict["quantity"]
-            # Check if name in self._MAPS to update properties
-            if name in rm_dict:
-                # Update default interpolation method
-                self._MAPS[rm_dict[name]]["interpolation"] = inidict[
-                    "interpolationMethod"
-                ]
-                # Rename to hydromt name
-                name = rm_dict[name]
-            # Add to maps
-            self.set_maps(inimap, name)
+        inilist.extend(inifield_model.parameter)
+
+        if len(inilist) > 0:
+            # DFM map names
+            rm_dict = dict()
+            for v in self._MAPS:
+                rm_dict[self._MAPS[v]["name"]] = v
+            for inidict in inilist:
+                _fn = inidict.datafile.filepath
+                inimap = hydromt.io.open_raster(_fn)
+                name = inidict.quantity
+                # Check if name in self._MAPS to update properties
+                if name in rm_dict:
+                    # Update default interpolation method
+                    if inidict.interpolationmethod == "averaging":
+                        self._MAPS[rm_dict[name]][
+                            "interpolation"
+                        ] = inidict.averagingtype
+                    else:
+                        self._MAPS[rm_dict[name]][
+                            "interpolation"
+                        ] = inidict.interpolationmethod
+                    # Rename to hydromt name
+                    name = rm_dict[name]
+                # Add to maps
+                self.set_maps(inimap, name)
 
         return self._maps
 
@@ -1741,7 +1792,6 @@ class DFlowFMModel(MeshModel):
         if len(self._maps) == 0:
             self.logger.debug("No maps data found, skip writing.")
             return
-
         self._assert_write_mode
         # Global parameters
         maproot = join(self.root, "maps")
@@ -1804,8 +1854,6 @@ class DFlowFMModel(MeshModel):
                             self.set_config(
                                 "physics.UniFrictType", self._MAPS[name]["frictype"]
                             )
-        # rewrite config
-        self.write_config()
 
         # Assign initial fields to model and write
         inifield_model = IniFieldModel(initial=inilist, parameter=paramlist)
@@ -1819,39 +1867,30 @@ class DFlowFMModel(MeshModel):
             inifield_model.parameter[i].datafile.filepath = path
         # Write inifield file
         inifield_model_filename = inifield_model._filename() + ".ini"
-        self.dfmmodel.geometry.inifieldfile = inifield_model
-        self.dfmmodel.geometry.inifieldfile.save(
-            self.dfmmodel.filepath.with_name(inifield_model_filename),
+        inifield_model.save(
+            join(self.root, "dflowfm", inifield_model_filename),
             recurse=False,
         )
-        # save relative path to mdu
-        self.dfmmodel.geometry.inifieldfile.filepath = inifield_model_filename
+        # save filepath in the config
+        self.set_config("geometry.inifieldfile", inifield_model_filename)
 
     def read_geoms(self) -> None:
         """
         Read model geometries files at <root>/<geoms> and add to geoms property.
         """
-        super().read_geoms(fn="geoms/*.geojson")
-        # TODO: when write is implemented we may want to give priority to dfm file reading for branches/crosssections/boundaries
+        super().read_geoms(fn="geoms/region.geojson")
+        # For branches / crosssections / manholes etc... the reading of hydrolib-core objects happens in read_mesh
+        # There the geoms geojson copies are re-set
 
     def write_geoms(self) -> None:
         """Write model geometries to a GeoJSON file at <root>/<geoms>"""
-        # First write geojson equivalent of all objects for easy model update
+        # Write geojson equivalent of all objects for easy model update
+        # Create additionnal geoms from branches if not already present
+        geom_names = ["rivers", "pipes"]
+        for name in geom_names:
+            if name not in self.geoms:
+                getattr(self, name)
         super().write_geoms(fn="geoms/{name}.geojson")
-
-        # Then write the correct related different dfm files
-        # Friction
-        self._dfmmodel = utils.write_friction(
-            self.branches, self.dfmmodel
-        )  # FIXME: ask Rinske, add global section correctly
-        # Crosssections
-        if "crosssections" in self.geoms:
-            self._dfmmodel = utils.write_crosssections(
-                self.geoms["crosssections"], self.dfmmodel
-            )
-        # Manholes
-        if "manholes" in self._geoms:
-            self._dfmmodel = utils.write_manholes(self.geoms["manholes"], self.dfmmodel)
 
     def read_forcing(self) -> None:
         """Read forcing at <root/?/> and parse to dict of xr.DataArray"""
@@ -1878,49 +1917,143 @@ class DFlowFMModel(MeshModel):
             self.logger.debug("No forcing data found, skip writing.")
         else:
             self._assert_write_mode
-            self._dfmmodel = utils.write_1dboundary(self.forcing, self.dfmmodel)
+            self.logger.info("Writting forcing files.")
+            savedir = join(self.root, "dflowfm")
+            forcing_fn, ext_fn = utils.write_1dboundary(
+                self.forcing, self.dfmmodel, savedir
+            )
+            self.set_config("external_forcing.extforcefilenew", ext_fn)
 
-    def read_dfmmodel(self):
-        """Read dfmmodel at <root/?/> and parse to model class (deflt3dfmpy)"""
-        pass
-        # raise NotImplementedError()
+    def read_mesh(self):
+        """Read network file with Hydrolib-core and extract 2D mesh/branches info"""
+        self._assert_read_mode
+        # Read network
+        net = self.dfmmodel.geometry.netfile.network
 
-    def write_dfmmodel(self):
-        """Write dfmmodel at <root/?/> in model ready format"""
-        if not self._write:
-            raise IOError("Model opened in read-only mode")
-        self.logger.info(f"Writing dfmmodel in {self.root}")
-        # write 1D mesh
-        # self._write_mesh1d()  # FIXME None handling
-        # write 2d mesh
-        self._write_mesh2d()
-        # TODO: create self._write_mesh2d() using hydrolib-core funcitonalities
-        # write branches
-        utils.write_branches_gui(self.branches, self.dfmmodel)
+        # Extract the 2D part and add to self.mesh
+        net._mesh2d._set_mesh2d()
+        mesh2d = net._mesh2d.get_mesh2d()
+        # Create Ugrid2d object
+        # TODO: after release of xugrid use grid = xu.Ugrid2d.from_meshkernel(mesh2d)
+        n_max_node = mesh2d.nodes_per_face.max()
+        grid = xu.Ugrid2d(
+            node_x=mesh2d.node_x,
+            node_y=mesh2d.node_y,
+            fill_value=-1,
+            face_node_connectivity=mesh2d.face_nodes.reshape((-1, n_max_node)),
+            crs=self.crs,
+        )
+        # grid._mesh = mesh2d
+        # Create UgridDataset
+        da = xr.DataArray(
+            data=np.arange(grid.n_face),
+            dims=[grid.face_dimension],
+        )
+        uda = xu.UgridDataArray(da, grid)
+        uds = uda.to_dataset(name="index")
+        uds = uds.assign_coords(
+            coords={
+                "mesh2d_node_x": ("mesh2d_nNodes", grid.node_x),
+                "mesh2d_node_y": ("mesh2d_nNodes", grid.node_y),
+            }
+        )
+        uds.ugrid.grid.set_crs(grid.crs)
+        self.set_mesh(uds)
 
-        # save model
-        self.dfmmodel.save(recurse=False)
+        # Extract the 1D part
+        mesh1d = net._mesh1d
+        branch_id = mesh1d.network1d_branch_id
+        # branch_x = mesh1d.network1d_node_x
+        # branch_y = mesh1d.network1d_node_y
+        # edges = mesh1d.network1d_edge_nodes
 
-    # TODO: move to write_mesh
-    def _write_mesh2d(self):
-        """
-        TODO: write docstring
+        # Reconstruct the branches lines
+        # branch_lines = [LineString([Point(branch_x[ed[0]], branch_y[ed[0]]), Point(branch_x[ed[1]], branch_y[ed[1]])]) for ed in edges]
+        branch_lines = list()
+        for ids in branch_id:
+            geom = mesh1d.branches[ids].geometry
+            if len(geom) == 2:  # LineString
+                line = LineString(geom)
+            else:  # MultiLineString
+                lines = list()
+                for i in range(len(geom) - 1):
+                    lines.append(LineString([geom[i], geom[i + 1]]))
+                line = MultiLineString(lines)
+            branch_lines.append(line)
 
-        :return:
-        """
-        # Get meshkernel Mesh2d objec
-        mesh2d = self._mesh.ugrid.grid.mesh
+        # Create the GeoDataFrame
+        branches = gpd.GeoDataFrame(geometry=branch_lines, crs=self.crs)
+        branches["branchId"] = branch_id
+        branches["branchOrder"] = mesh1d.network1d_branch_order
 
-        # add mesh2d
-        # FIXME: improve the way of adding a 2D mesh
-        self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
+        # Add branchType, closed and manholes ID properties from branches.gui file
+        self.logger.info("Reading branches GUI file")
+        branches = utils.read_branches_gui(branches, self.dfmmodel)
+
+        # Add crosssections properties, should be done before friction
+        self, logger.info("Reading cross-sections files")
+        branches, crosssections = utils.read_crosssections(branches, self.dfmmodel)
+        self.set_geoms(crosssections, "crosssections")
+
+        # Add friction properties from roughness files
+        self.logger.info("Reading friction files")
+        branches = utils.read_friction(branches, self.dfmmodel)
+
+        # Add manholes properties
+        self.logger.info("Reading manholes file")
+        branches, manholes = utils.read_manholes(branches, self.dfmmodel)
+        self.set_geoms(manholes, "manholes")
+
+        # Add branches
+        self.set_branches(branches)
+        # self.set_geoms(branches, "branches")
+
+    def write_mesh(self):
+        """Write 1D branches and 2D mesh at <root/dflowfm/fm_net.nc> in model ready format"""
+        self._assert_write_mode
+        # If mesh2d add to network
+        if self._mesh:
+            # First write the 2D mesh only to mesh folder
+            super().write_mesh(fn="mesh/FlowFM_2D_net.nc")
+
+            # Then add mesh2d to network and write using hydrolib core writter
+            self.logger.info(f"Writing mesh in {self.root}")
+            # Get meshkernel Mesh2d objec
+            mesh2d = self._mesh.ugrid.grid.mesh
+            # add to network
+            self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
+
+        # write
         mesh_filename = "fm_net.nc"
         self.dfmmodel.geometry.netfile.save(
-            self.dfmmodel.filepath.with_name(mesh_filename),
+            join(self.root, "dflowfm", mesh_filename),
             recurse=False,
         )
         # save relative path to mdu
-        self.dfmmodel.geometry.netfile.filepath = mesh_filename
+        self.set_config("geometry.netfile", mesh_filename)
+
+        # Then write the different branches related dfm files
+        # write branches gui render file
+        savedir = join(self.root, "dflowfm")
+        _ = utils.write_branches_gui(self.branches, self.dfmmodel, savedir)
+        # Friction
+        friction_fns = utils.write_friction(
+            self.branches, self.dfmmodel, savedir
+        )  # FIXME: ask Rinske, add global section correctly
+        self.set_config("geometry.frictfile", ";".join(friction_fns))
+        # Crosssections
+        if "crosssections" in self.geoms:
+            crsdef_fn, crsloc_fn = utils.write_crosssections(
+                self.geoms["crosssections"], self.dfmmodel, savedir
+            )
+            self.set_config("geometry.crossdeffile", crsdef_fn)
+            self.set_config("geometry.crosslocfile", crsloc_fn)
+        # Manholes
+        if "manholes" in self._geoms:
+            storage_fn = utils.write_manholes(
+                self.geoms["manholes"], self.dfmmodel, savedir
+            )
+            self.set_config("geometry.storagenodefile", storage_fn)
 
     def read_states(self):
         """Read states at <root/?/> and parse to dict of xr.DataArray"""
@@ -1984,20 +2117,28 @@ class DFlowFMModel(MeshModel):
         return self._dfmmodel
 
     def init_dfmmodel(self):
-        # Create output directories
+        # Create output directories --> should be done in __init__ already
         outputdir = Path(self.root).joinpath("dflowfm")
-        outputdir.mkdir(parents=True, exist_ok=True)
-        # TODO: check that HydroMT already wrote the updated config
+        # outputdir.mkdir(parents=True, exist_ok=True)
         # create a new MDU-Model
-        self._dfmmodel = FMModel(filepath=Path(join(self.root, self._config_fn)))
-        self._dfmmodel.geometry.netfile = NetworkModel()
-        self._dfmmodel.geometry.netfile.filepath = (
-            "fm_net.nc"  # because hydrolib.core writes this argument as absolute path
-        )
-        self._dfmmodel.geometry.crossdeffile = CrossDefModel()
-        self._dfmmodel.geometry.crossdeffile.filepath = outputdir.joinpath("crsdef.ini")
-        self._dfmmodel.geometry.crosslocfile = CrossLocModel()
-        self._dfmmodel.geometry.crosslocfile.filepath = outputdir.joinpath("crsloc.ini")
+        mdu_fn = Path(join(self.root, self._config_fn))
+        if isfile(mdu_fn):
+            self.logger.info(f"Reading mdu file at {mdu_fn}")
+            self._dfmmodel = FMModel(filepath=mdu_fn)
+        else:  # use hydrolib template
+            self.logger.info("Setting mdu file from hydrolib-core template")
+            self._dfmmodel = FMModel()
+            self._dfmmodel.filepath = mdu_fn
+        # Initialise network if not present already
+        # if self._dfmmodel.geometry.netfile.filepath is None:
+        #    self._dfmmodel.geometry.netfile = NetworkModel()
+        #    self._dfmmodel.geometry.netfile.filepath = (
+        #        "fm_net.nc"  # because hydrolib.core writes this argument as absolute path
+        #    )
+        # self._dfmmodel.geometry.crossdeffile = CrossDefModel()
+        # self._dfmmodel.geometry.crossdeffile.filepath = outputdir.joinpath("crsdef.ini")
+        # self._dfmmodel.geometry.crosslocfile = CrossLocModel()
+        # self._dfmmodel.geometry.crosslocfile.filepath = outputdir.joinpath("crsloc.ini")
         # self._dfmmodel.geometry.frictfile = [FrictionModel()]
         # self._dfmmodel.geometry.frictfile[0].filepath = outputdir.joinpath(
         #    "roughness.ini"
@@ -2071,8 +2212,9 @@ class DFlowFMModel(MeshModel):
         Returns the branches (gpd.GeoDataFrame object) representing the 1D network.
         Contains several "branchType" for : channel, river, pipe, tunnel.
         """
-        if self._branches is None:
-            # self.read_branches() #not implemented yet
+        if self._branches is None and self._read:
+            self.read_mesh()
+        elif self._branches is None:
             self._branches = gpd.GeoDataFrame(crs=self.crs)
         return self._branches
 
@@ -2158,7 +2300,6 @@ class DFlowFMModel(MeshModel):
 
         # Check if we need to do more check/process to make sure everything is well connected
         workflows.validate_branches(branches)
-
         # set geom and mesh1d
         self.set_branches(branches)
         self.set_mesh1d()
@@ -2171,7 +2312,7 @@ class DFlowFMModel(MeshModel):
 
     @property
     def rivers(self):
-        if "rivers" in self.sgeoms:
+        if "rivers" in self.geoms:
             gdf = self.geoms["rivers"]
         else:
             gdf = self.set_branches_component("rivers")
@@ -2241,13 +2382,13 @@ class DFlowFMModel(MeshModel):
         """update the mesh1d in hydrolib-core net object by overwrite and #TODO the xugrid mesh1d"""
 
         # init mesh1d
-        self.dfmmodel.geometry.netfile.network._mesh1d = Mesh1d()
+        self._dfmmodel.geometry.netfile.network._mesh1d = Mesh1d()
 
         # add open system mesh
         opensystem = self.opensystem
         node_distance = self._openwater_computation_node_distance
         mesh.mesh1d_add_branch(
-            self.dfmmodel.geometry.netfile.network,
+            self._dfmmodel.geometry.netfile.network,
             opensystem.geometry.to_list(),
             node_distance=node_distance,
             branch_names=opensystem.branchId.to_list(),
@@ -2258,7 +2399,7 @@ class DFlowFMModel(MeshModel):
         closedsystem = self.closedsystem
         node_distance = np.inf
         mesh.mesh1d_add_branch(
-            self.dfmmodel.geometry.netfile.network,
+            self._dfmmodel.geometry.netfile.network,
             closedsystem.geometry.to_list(),
             node_distance=node_distance,
             branch_names=closedsystem.branchId.to_list(),
@@ -2321,10 +2462,10 @@ class DFlowFMModel(MeshModel):
     def get_model_time(self):
         """Return (refdate, tstart, tstop) tuple with parsed model reference datem start and end time"""
         refdate = datetime.strptime(
-            str(self.get_config("time.RefDate")), "%Y%m%d"
+            str(self.get_config("time.refdate")), "%Y%m%d"
         )  # FIXME: case senstivie might cause problem when changing template, consider use hydrolib.core reader for mdu files later.
-        tstart = refdate + timedelta(seconds=float(self.get_config("time.TStart")))
-        tstop = refdate + timedelta(seconds=float(self.get_config("time.TStop")))
+        tstart = refdate + timedelta(seconds=float(self.get_config("time.tstart")))
+        tstop = refdate + timedelta(seconds=float(self.get_config("time.tstop")))
         return refdate, tstart, tstop
 
     @property

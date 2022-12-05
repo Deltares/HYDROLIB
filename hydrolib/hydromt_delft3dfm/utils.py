@@ -1,10 +1,12 @@
 from pathlib import Path
-from typing import Dict, Union
+from os.path import join
+from typing import Dict, Union, Tuple, List
 
 import geopandas as gpd
 import pandas as pd
 import xarray as xr
 import numpy as np
+from shapely.geometry import Point, LineString
 
 from hydrolib.core.io.dflowfm.mdu.models import FMModel
 from hydrolib.core.io.dflowfm.friction.models import FrictionModel
@@ -19,7 +21,59 @@ from .workflows import helper
 __all__ = ["get_process_geodataframe"]
 
 
-def write_branches_gui(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> None:
+def read_branches_gui(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFrame:
+    """
+    Read branches.gui and add the properties to branches geodataframe
+
+    Parameters
+    ----------
+    gdf: geopandas.GeoDataFrame
+        gdf containing the branches
+    fm_model: hydrolib.core FMModel
+        DflowFM model object from hydrolib
+
+    Returns
+    -------
+    gdf_out: geopandas.GeoDataFrame
+        gdf containing the branches updated with branches gui params
+    """
+    branchgui_model = BranchModel()
+    filepath = fm_model.filepath.with_name(
+        branchgui_model._filename() + branchgui_model._ext()
+    )
+    branchgui_model = BranchModel(filepath)
+    br_list = branchgui_model.branch
+
+    # Create df with all attributes from gui
+    df_gui = pd.DataFrame()
+    df_gui["branchId"] = [b.name for b in br_list]
+    df_gui["branchType"] = [b.branchtype for b in br_list]
+    df_gui["manhole_up"] = [b.sourcecompartmentname for b in br_list]
+    df_gui["manhole_dn"] = [b.targetcompartmentname for b in br_list]
+
+    # Adapt type and add close attribute
+    # TODO: channel and tunnel types are not defined
+    df_gui["branchType"] = df_gui["branchType"].replace(
+        {0: "river", 2: "pipe", 1: "sewerconnection"}
+    )
+    df_gui["closed"] = df_gui["branchType"]
+    df_gui["closed"] = df_gui["closed"].replace(
+        {
+            "river": "no",
+            "channel": "no",
+            "pipe": "yes",
+            "tunnel": "yes",
+            "sewerconnection": "yes",
+        }
+    )
+
+    # Merge the two df based on branchId
+    gdf_out = gdf.merge(df_gui, on="branchId")
+
+    return gdf_out
+
+
+def write_branches_gui(gdf: gpd.GeoDataFrame, fm_model: FMModel, savedir: str) -> str:
     """
     write branches.gui file from branches geodataframe
 
@@ -29,6 +83,13 @@ def write_branches_gui(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> None:
         gdf containing the branches
     fm_model: hydrolib.core FMModel
         DflowFM model object from hydrolib
+    savedir: str
+        path to the directory where to save the file.
+
+    Returns
+    -------
+    branchgui_fn: str
+        relative filepath to branches_gui file.
     """
     branches = gdf[["branchId", "branchType", "manhole_up", "manhole_dn"]]
     branches = branches.rename(
@@ -39,18 +100,20 @@ def write_branches_gui(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> None:
         }
     )
     branches["branchType"] = branches["branchType"].replace(
-        {"river": 0, "channel": 0, "pipe": 2, "tunnel": 2, "sewerconnection": 1}
+        {"river": 0, "pipe": 2, "sewerconnection": 1}
     )
     branchgui_model = BranchModel(branch=branches.to_dict("records"))
-    branchgui_model.filepath = fm_model.filepath.with_name(
-        branchgui_model._filename() + branchgui_model._ext()
-    )
+    branchgui_fn = branchgui_model._filename() + branchgui_model._ext()
+    branchgui_model.filepath = join(savedir, branchgui_fn)
     branchgui_model.save()
 
+    return branchgui_fn
 
-def write_friction(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> FMModel:
+
+def read_friction(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFrame:
     """
-    write friction files from branches geodataframe
+    read friction files and add properties to branches geodataframe.
+    assumes cross-sections have been read before to contain per branch frictionId
 
     Parameters
     ----------
@@ -61,28 +124,186 @@ def write_friction(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> FMModel:
 
     Returns
     -------
+    gdf_out: geopandas.GeoDataFrame
+        gdf containing the branches update with the friction params
+    """
+    fric_list = fm_model.geometry.frictfile
+
+    # Create dictionnaries with all attributes from fricfile
+    # For now assume global only
+    fricval = dict()
+    frictype = dict()
+    for i in range(len(fric_list)):
+        for j in range(len(fric_list[i].global_)):
+            fricval[fric_list[i].global_[j].frictionid] = (
+                fric_list[i].global_[j].frictionvalue
+            )
+            frictype[fric_list[i].global_[j].frictionid] = (
+                fric_list[i].global_[j].frictiontype
+            )
+
+    if not "frictionId" in gdf:
+        gdf = read_crosssections(gdf, fm_model)
+
+    # Create friction value and type by replacing frictionid values with dict
+    gdf_out = gdf.copy()
+    gdf_out["frictionValue"] = gdf_out["frictionId"]
+    gdf_out["frictionValue"] = gdf_out["frictionValue"].replace(fricval)
+    gdf_out["frictionType"] = gdf_out["frictionId"]
+    gdf_out["frictionType"] = gdf_out["frictionType"].replace(frictype)
+    # TODO: check, for splitted river branches, friction and cross-sections were not saved and cannot be read?
+    gdf_out = gdf_out.dropna(subset="frictionId")
+
+    return gdf_out
+
+
+def write_friction(gdf: gpd.GeoDataFrame, fm_model: FMModel, savedir: str) -> List[str]:
+    """
+    write friction files from branches geodataframe
+
+    Parameters
+    ----------
+    gdf: geopandas.GeoDataFrame
+        gdf containing the branches
     fm_model: hydrolib.core FMModel
-        DflowFM model object from hydrolib with the link to the written friction files.
+        DflowFM model object from hydrolib
+    savedir: str
+        path to the directory where to save the file.
+
+    Returns
+    -------
+    friction_fns: List of str
+        list of relative filepaths to friction files.
     """
     frictions = gdf[["frictionId", "frictionValue", "frictionType"]]
     frictions = frictions.drop_duplicates(subset="frictionId")
 
-    fm_model.geometry.frictfile = []
+    friction_fns = []
     # create a new friction
     for i, row in frictions.iterrows():
         fric_model = FrictionModel(global_=row.to_dict())
         fric_filename = f"{fric_model._filename()}_{i}" + fric_model._ext()
-        fric_model.filepath = fm_model.filepath.with_name(fric_filename)
+        fric_model.filepath = join(savedir, fric_filename)
         fric_model.save(fric_model.filepath, recurse=True)
 
         # save relative path to mdu
-        fric_model.filepath = fric_filename
-        fm_model.geometry.frictfile.append(fric_model)
+        friction_fns.append(fric_filename)
 
-    return fm_model
+    return friction_fns
 
 
-def write_crosssections(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> FMModel:
+def read_crosssections(
+    gdf: gpd.GeoDataFrame, fm_model: FMModel
+) -> tuple((gpd.GeoDataFrame, gpd.GeoDataFrame)):
+    """
+    Read crosssections from hydrolib-core crsloc and crsdef objects and add to branches.
+    Also returns crosssections geodataframe.
+
+    Parameters
+    ----------
+    gdf: geopandas.GeoDataFrame
+        gdf containing the branches
+    fm_model: hydrolib.core FMModel
+        DflowFM model object from hydrolib
+
+    Returns
+    -------
+    gdf_out: geopandas.GeoDataFrame
+        gdf containing the branches update with the cross-sections params
+    gdf_crs: geopandas.GeoDataFrame
+        geodataframe copy of the cross-sections and data
+    """
+    # Start with crsdef to create the crosssections attributes
+    crsdef = fm_model.geometry.crossdeffile
+    crs_dict = dict()
+    for b in crsdef.definition:
+        crs_dict[b.id] = b.__dict__
+    df_crsdef = pd.DataFrame.from_dict(crs_dict, orient="index")
+    df_crsdef = df_crsdef.drop("comments", axis=1)
+    df_crsdef = df_crsdef.rename(columns={"id": "crsdef_id"})
+    df_crsdef["crs_id"] = df_crsdef["crsdef_id"]  # column to merge
+
+    # Continue with locs to get the locations and branches id
+    crsloc = fm_model.geometry.crosslocfile
+    crsloc_dict = dict()
+    for b in crsloc.crosssection:
+        crsloc_dict[b.id] = b.__dict__
+    df_crsloc = pd.DataFrame.from_dict(crsloc_dict, orient="index")
+    df_crsloc = df_crsloc.drop("comments", axis=1)
+    df_crsloc = df_crsloc.rename(columns={"id": "crsloc_id"})
+    df_crsloc["crs_id"] = df_crsloc["definitionid"]  # column to merge
+
+    # Combine def attributes with locs
+    df_crs = df_crsloc.merge(df_crsdef, on="crs_id")
+    # Rename for branches
+    df_crs = df_crs.rename(
+        columns={"branchid": "branchId", "frictionid": "frictionId", "type": "shape"}
+    )
+
+    # Add attributes to branches
+    # For pipes there are two cross-sections up and dn nodes. In the merge only one is saved for branches
+    gdf_out = gdf.merge(
+        df_crs[
+            ["branchId", "shape", "width", "height", "diameter", "frictionId"]
+        ].drop_duplicates(subset="branchId"),
+        on="branchId",
+        how="left",
+    )
+
+    # Convert to geodataframe
+    gdf_crs = gpd.GeoDataFrame(
+        df_crs.merge(gdf_out[["branchId", "branchType", "geometry"]], on="branchId"),
+        crs=gdf.crs,
+    )
+    # Simplification for now should use chainage and shift and snap but for now hydromt build also uses simplification anyway
+    up_coord = gdf_crs["geometry"].apply(
+        lambda g: Point(g.coords[0]) if isinstance(g, LineString) else g
+    )
+    dn_coord = gdf_crs["geometry"].apply(
+        lambda g: Point(g.coords[-1]) if isinstance(g, LineString) else g
+    )
+    points = gdf_crs["geometry"].where(gdf_crs["chainage"] == 0, dn_coord)
+    points = points.where(gdf_crs["chainage"] != 0, up_coord)
+    points = points.where(
+        gdf_crs["branchType"] != "river", gdf_crs.geometry.representative_point()
+    )
+
+    gdf_crs["geometry"] = points
+    gdf_crs = gdf_crs.drop(
+        [
+            "crs_id",
+            "x",
+            "y",
+            "locationtype",
+            "frictiontype",
+            "frictionvalue",
+            "branchType",
+        ],
+        axis=1,
+    )
+    # Rename
+    gdf_crs = gdf_crs.rename(
+        columns={c: f"crsdef_{c}" for c in df_crsdef.columns if c != "crsdef_id"}
+    )
+    gdf_crs = gdf_crs.rename(
+        columns={c: f"crsloc_{c}" for c in df_crsloc.columns if c != "crsloc_id"}
+    )
+    # Rename for case sensitive
+    gdf_crs = gdf_crs.rename(
+        columns={
+            "branchId": "crsloc_branchId",
+            "crsloc_definitionid": "crsloc_definitionId",
+            "frictionId": "crsdef_frictionId",
+            "shape": "crsdef_type",
+        }
+    )
+
+    return gdf_out, gdf_crs
+
+
+def write_crosssections(
+    gdf: gpd.GeoDataFrame, fm_model: FMModel, savedir: str
+) -> Tuple[str, str]:
     """write crosssections into hydrolib-core crsloc and crsdef objects
 
     Parameters
@@ -91,11 +312,15 @@ def write_crosssections(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> FMModel:
         gdf containing the crosssections
     fm_model: hydrolib.core FMModel
         DflowFM model object from hydrolib
+    savedir: str
+        path to the directory where to save the file.
 
     Returns
     -------
-    fm_model: hydrolib.core FMModel
-        DflowFM model object from hydrolib with the link to the written cross-sections files.
+    crsdef_fn: str
+        relative filepath to crsdef file.
+    crsloc_fn: str
+        relative filepath to crsloc file.
     """
     # crsdef
     # get crsdef from crosssections gpd # FIXME: change this for update case
@@ -105,15 +330,13 @@ def write_crosssections(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> FMModel:
     )
     gpd_crsdef = gpd_crsdef.drop_duplicates(subset="id")
     crsdef = CrossDefModel(definition=gpd_crsdef.to_dict("records"))
-    fm_model.geometry.crossdeffile = crsdef
+    # fm_model.geometry.crossdeffile = crsdef
 
-    crsdef_filename = crsdef._filename() + ".ini"
-    fm_model.geometry.crossdeffile.save(
-        fm_model.filepath.with_name(crsdef_filename),
+    crsdef_fn = crsdef._filename() + ".ini"
+    crsdef.save(
+        join(savedir, crsdef_fn),
         recurse=False,
     )
-    # save relative path to mdu
-    fm_model.geometry.crossdeffile.filepath = crsdef_filename
 
     # crsloc
     # get crsloc from crosssections gpd # FIXME: change this for update case
@@ -121,22 +344,121 @@ def write_crosssections(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> FMModel:
     gpd_crsloc = gpd_crsloc.rename(
         columns={c: c.split("_")[1] for c in gpd_crsloc.columns}
     )
+    # add x,y column --> hydrolib value_error: branchId and chainage or x and y should be provided
+    # x,y would make reading back much faster than re-computing from branchid and chainage....
+    # xs, ys = np.vectorize(lambda p: (p.xy[0][0], p.xy[1][0]))(gdf["geometry"])
+    # gpd_crsloc["x"] = xs
+    # gpd_crsloc["y"] = ys
 
     crsloc = CrossLocModel(crosssection=gpd_crsloc.to_dict("records"))
-    fm_model.geometry.crosslocfile = crsloc
+    # fm_model.geometry.crosslocfile = crsloc
 
-    crsloc_filename = crsloc._filename() + ".ini"
-    fm_model.geometry.crosslocfile.save(
-        fm_model.filepath.with_name(crsloc_filename),
+    crsloc_fn = crsloc._filename() + ".ini"
+    crsloc.save(
+        join(savedir, crsloc_fn),
         recurse=False,
     )
-    # save relative path to mdu
-    fm_model.geometry.crosslocfile.filepath = crsloc_filename
 
-    return fm_model
+    return crsdef_fn, crsloc_fn
 
 
-def write_manholes(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> FMModel:
+def read_manholes(
+    gdf: gpd.GeoDataFrame, fm_model: FMModel
+) -> tuple((gpd.GeoDataFrame, gpd.GeoDataFrame)):
+    """
+    Read manholes from hydrolib-core storagenodes and add to branches.
+    Also returns manholes geodataframe.
+
+    Parameters
+    ----------
+    gdf: geopandas.GeoDataFrame
+        gdf containing the branches
+    fm_model: hydrolib.core FMModel
+        DflowFM model object from hydrolib
+
+    Returns
+    -------
+    gdf_out: geopandas.GeoDataFrame
+        gdf containing the branches update with the manholes params
+    gdf_manholes: geopandas.GeoDataFrame
+        geodataframe copy of the manholes and data
+    """
+    manholes = fm_model.geometry.storagenodefile
+    # Parse to dict and DataFrame
+    manholes_dict = dict()
+    for b in manholes.storagenode:
+        manholes_dict[b.id] = b.__dict__
+    df_manholes = pd.DataFrame.from_dict(manholes_dict, orient="index")
+
+    # Drop variables
+    df_manholes = df_manholes.drop(
+        ["comments", "nodetype", "numlevels", "levels", "storagearea", "interpolate"],
+        axis=1,
+    )
+    # Rename case sensitive
+    df_manholes = df_manholes.rename(
+        columns={
+            "manholeid": "manholeId",
+            "nodeid": "nodeId",
+            "usetable": "useTable",
+            "bedlevel": "bedLevel",
+            "streetlevel": "streetLevel",
+            "streetstoragearea": "streetStorageArea",
+            "storagetype": "storageType",
+        }
+    )
+
+    # Add attributes to branches
+    df_man = df_manholes[["name", "bedLevel", "streetLevel"]]
+    df_man_up = df_man.rename(
+        columns={
+            "name": "manhole_up",
+            "streetLevel": "elevtn_up",
+            "bedLevel": "invlev_up",
+        }
+    )
+    df_man_dn = df_man.rename(
+        columns={
+            "name": "manhole_dn",
+            "streetLevel": "elevtn_dn",
+            "bedLevel": "invlev_dn",
+        }
+    )
+    gdf_out = gdf.merge(df_man_up, on="manhole_up", how="left")
+    gdf_out = gdf_out.merge(df_man_dn, on="manhole_dn", how="left")
+
+    # Add coordinates
+    up_coord = gdf_out["geometry"].apply(
+        lambda g: Point(g.coords[0]) if isinstance(g, LineString) else g
+    )
+    gdf_man_up = gdf_out[["manhole_up", "geometry"]].rename(
+        columns={"manhole_up": "name"}
+    )
+    gdf_man_up["geometry"] = up_coord
+    df_manholes = df_manholes.merge(gdf_man_up, on="name", how="left")
+    # Do also dowsntream else the most downstream manholes will be missed
+    dn_coord = gdf_out["geometry"].apply(
+        lambda g: Point(g.coords[-1]) if isinstance(g, LineString) else g
+    )
+    gdf_man_dn = gdf_out[["manhole_dn", "geometry"]].rename(
+        columns={"manhole_dn": "name"}
+    )
+    gdf_man_dn["geometry"] = dn_coord
+    df_manholes = df_manholes.merge(gdf_man_dn, on="name", how="left")
+    df_manholes["geometry"] = df_manholes["geometry_x"].where(
+        df_manholes["geometry_x"] != None, df_manholes["geometry_y"]
+    )
+    df_manholes = df_manholes.drop(
+        ["geometry_x", "geometry_y"], axis=1
+    ).drop_duplicates()
+
+    # Convert to geodataframe
+    gdf_manholes = gpd.GeoDataFrame(df_manholes, crs=gdf.crs)
+
+    return gdf_out, gdf_manholes
+
+
+def write_manholes(gdf: gpd.GeoDataFrame, fm_model: FMModel, savedir: str) -> str:
     """
     write manholes into hydrolib-core storage nodes objects
 
@@ -146,24 +468,26 @@ def write_manholes(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> FMModel:
         gdf containing the manholes
     fm_model: hydrolib.core FMModel
         DflowFM model object from hydrolib
+    savedir: str
+        path to the directory where to save the file.
 
     Returns
     -------
-    fm_model: hydrolib.core FMModel
-        DflowFM model object from hydrolib with the link to the written storage nodes files.
+    storage_fn: str
+        relative path to storage nodes file.
     """
     storagenodes = StorageNodeModel(storagenode=gdf.to_dict("records"))
-    fm_model.geometry.storagenodefile = storagenodes
+    # fm_model.geometry.storagenodefile = storagenodes
 
-    storagenodes_filename = storagenodes._filename() + ".ini"
-    fm_model.geometry.storagenodefile.save(
-        fm_model.filepath.with_name(storagenodes_filename),
+    storage_fn = storagenodes._filename() + ".ini"
+    storagenodes.save(
+        join(savedir, storage_fn),
         recurse=False,
     )
     # save relative path to mdu
-    fm_model.geometry.storagenodefile.filepath = storagenodes_filename
+    # fm_model.geometry.storagenodefile.filepath = storagenodes_filename
 
-    return fm_model
+    return storage_fn
 
 
 def read_1dboundary(
@@ -249,7 +573,7 @@ def read_1dboundary(
     return da_out
 
 
-def write_1dboundary(forcing: Dict, fm_model: FMModel) -> FMModel:
+def write_1dboundary(forcing: Dict, fm_model: FMModel, savedir: str) -> Tuple:
     """ "
     write 1dboundary ext and boundary files from forcing dict
 
@@ -259,11 +583,15 @@ def write_1dboundary(forcing: Dict, fm_model: FMModel) -> FMModel:
         Dict of boundary DataArray for each variable
     fm_model: hydrolib.core FMModel
         DflowFM model object from hydrolib
+    savedir: str
+        path to the directory where to save the file.
 
     Returns
     -------
-    fm_model: hydrolib.core FMModel
-        DflowFM model object from hydrolib with the link to the written boundary files.
+    forcing_fn: str
+        relative path to boundary forcing file.
+    ext_fn: str
+        relative path to external boundary file.
     """
     extdict = list()
     bcdict = list()
@@ -303,23 +631,21 @@ def write_1dboundary(forcing: Dict, fm_model: FMModel) -> FMModel:
             bcdict.append(bc)
 
     forcing_model = ForcingModel(forcing=bcdict)
-    forcing_model_filename = forcing_model._filename() + ".bc"
+    forcing_fn = forcing_model._filename() + ".bc"
 
     ext_model = ExtModel()
-    ext_model_filename = ext_model._filename() + ".ext"
+    ext_fn = ext_model._filename() + ".ext"
     for i in range(len(extdict)):
         ext_model.boundary.append(
             Boundary(**{**extdict[i], "forcingFile": forcing_model})
         )
     # assign to model
-    fm_model.external_forcing.extforcefilenew = ext_model
-    fm_model.external_forcing.extforcefilenew.save(
-        fm_model.filepath.with_name(ext_model_filename), recurse=True
-    )
+    # fm_model.external_forcing.extforcefilenew = ext_model
+    ext_model.save(join(savedir, ext_fn), recurse=True)
     # save relative path to mdu
-    fm_model.external_forcing.extforcefilenew.filepath = ext_model_filename
+    # fm_model.external_forcing.extforcefilenew.filepath = ext_model_filename
 
-    return fm_model
+    return forcing_fn, ext_fn
 
 
 def get_process_geodataframe(
