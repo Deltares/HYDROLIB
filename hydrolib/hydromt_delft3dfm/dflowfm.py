@@ -1102,6 +1102,7 @@ class DFlowFMModel(MeshModel):
             * Optional variables: [material, friction_type, friction_value]
         crosssections_fn : str Path, optional # TODO: allow multiple crosssection filenames
             Name of data source for crosssections, see data/data_sources.yml.
+            Note that for point crossections, only ones within the snap_network_offset will be used.
             If ``crosssections_type`` = "xyz"
             Note that only points within the region + 1000m buffer will be read.
             * Required variables: crsId, order, z
@@ -1204,7 +1205,7 @@ class DFlowFMModel(MeshModel):
             gdf_cs.to_crs(self.crs)
 
             # set crsloc and crsdef attributes to crosssections
-            gdf_cs = workflows.set_point_crosssections(branches, gdf_cs)
+            gdf_cs = workflows.set_point_crosssections(branches, gdf_cs, maxdist = self._network_snap_offset)
 
         else:
             raise NotImplementedError(
@@ -2014,7 +2015,7 @@ class DFlowFMModel(MeshModel):
         # get crsdef from crosssections gpd # FIXME: change this for update case
         gpd_crsdef = gpd_crs[[c for c in gpd_crs.columns if c.startswith("crsdef")]]
         gpd_crsdef = gpd_crsdef.rename(
-            columns={c: c.split("_")[1] for c in gpd_crsdef.columns}
+            columns={c: c.removeprefix("crsdef_") for c in gpd_crsdef.columns}
         )
         gpd_crsdef = gpd_crsdef.drop_duplicates(subset="id")
         crsdef = CrossDefModel(definition=gpd_crsdef.to_dict("records"))
@@ -2024,7 +2025,7 @@ class DFlowFMModel(MeshModel):
         # get crsloc from crosssections gpd # FIXME: change this for update case
         gpd_crsloc = gpd_crs[[c for c in gpd_crs.columns if c.startswith("crsloc")]]
         gpd_crsloc = gpd_crsloc.rename(
-            columns={c: c.split("_")[1] for c in gpd_crsloc.columns}
+            columns={c: c.removeprefix("crsloc_") for c in gpd_crsloc.columns}
         )
 
         crsloc = CrossLocModel(crosssection=gpd_crsloc.to_dict("records"))
@@ -2271,7 +2272,7 @@ class DFlowFMModel(MeshModel):
 
     @property
     def rivers(self):
-        if "rivers" in self.sgeoms:
+        if "rivers" in self.geoms:
             gdf = self.geoms["rivers"]
         else:
             gdf = self.set_branches_component("rivers")
