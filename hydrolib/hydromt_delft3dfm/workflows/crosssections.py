@@ -48,7 +48,7 @@ def set_branch_crosssections(
     """
     # Get the crs at the midpoint of branches if midpoint
     if midpoint:
-        crosssections = gpd.GeoDataFrame({}, index=branches.index, crs=branches.crs)
+        crosssections = pd.DataFrame({}, index=branches.index)
         crosssections["geometry"] = [
             l.interpolate(0.5, normalized=True) for l in branches.geometry
         ]
@@ -56,12 +56,13 @@ def set_branch_crosssections(
         crosssections["crsloc_branchId"] = branches["branchId"]
         crosssections["crsloc_chainage"] = [l / 2 for l in branches["geometry"].length]
         crosssections["crsloc_shift"] = branches["bedlev"]
+        crosssections = gpd.GeoDataFrame(crosssections, crs=branches.crs)
     # Else prepares crosssections at both upstream and dowsntream extremities
     else:
         # Upstream
         ids = [f"{i}_up" for i in branches.index]
-        crosssections_up = gpd.GeoDataFrame({}, index=ids, crs=branches.crs)
-        crosssections_up["geometry"] = [Point(l.coords[0]) for l in branches.geometry]
+        crosssections_up = gpd.GeoDataFrame({"geometry": [Point(l.coords[0]) for l in branches.geometry]}, index=ids, crs=branches.crs)
+
         crosssections_up["crsloc_id"] = [
             f"crs_up_{bid}" for bid in branches["branchId"]
         ]
@@ -70,8 +71,7 @@ def set_branch_crosssections(
         crosssections_up["crsloc_shift"] = branches["invlev_up"].values
         # Downstream
         ids = [f"{i}_dn" for i in branches.index]
-        crosssections_dn = gpd.GeoDataFrame({}, index=ids, crs=branches.crs)
-        crosssections_dn["geometry"] = [Point(l.coords[-1]) for l in branches.geometry]
+        crosssections_dn = gpd.GeoDataFrame({"geometry": [Point(l.coords[0]) for l in branches.geometry]}, index=ids, crs=branches.crs)
         crosssections_dn["crsloc_id"] = [
             f"crs_dn_{bid}" for bid in branches["branchId"]
         ]

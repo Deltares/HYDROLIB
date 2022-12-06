@@ -7,33 +7,32 @@
 # the pyproject.toml file and then use poetry2conda again to update this file.
 # Alternatively, stop using (ana)conda.
 ###############################################################################
-name: hydrolib-hydromt
+name: hydromt-delft3dfm
 channels:
   - conda-forge
-  - default
 dependencies:
   - python>=3.8,<4.0
   - pip
-  - hydromt>=0.4.3
+  - hydromt>=0.6.0
   - affine
   - bottleneck
   - click
   - dask
   - entrypoints
-  - flit>=3.2
   - gdal>=3.1
-  - geopandas=0.10
+  - geopandas>=0.10
   - netcdf4=1.5.8
   - numba
   - numpy
   - openpyxl
   - pandas
+  - pytest
   - pyflwdir>=0.5.3
   - pygeos>=0.8
-  - python>=3.8
   - rasterio
   - requests
   - rtree 
   - scipy
   - xarray
+  - xugrid
   - zarr
