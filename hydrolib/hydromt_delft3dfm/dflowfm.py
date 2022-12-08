@@ -1382,7 +1382,7 @@ class DFlowFMModel(MeshModel):
         branch_type: str = "river",
         boundary_type: str = "waterlevel",
         boundary_unit: str = "m",
-        boundary_locs: str = "downstream",
+        boundary_locs: str = "both",
         snap_offset: float = 1.0,
     ):
         """
@@ -1439,12 +1439,12 @@ class DFlowFMModel(MeshModel):
             if ''boundary_type`` = "discharge":
                Allowed unit is [m3/s]
             By default m.
-        boundary_locs:
+        boundary_locs: str, optional
             Boundary locations to consider. One of ["upstream", "downstream", "both"].
-            Only used for river waterlevel which can be upstream, downstream or both. By default "downstream".
+            Only used for river waterlevel which can be upstream, downstream or both. By default "both".
             For the others, it is automatically derived from branch_type and boundary_type.
         snap_offset : float, optional
-                Snapping tolerance to automatically applying boundaries at the correct network nodes.
+            Snapping tolerance to automatically applying boundaries at the correct network nodes.
             By default 0.1, a small snapping is applied to avoid precision errors.
         """
 
@@ -1478,7 +1478,7 @@ class DFlowFMModel(MeshModel):
                 )
             # reproject if needed and convert to location
             if da_bnd.vector.crs != self.crs:
-                da_bnd.vector.to_crs(self.crs)
+                da_bnd = da_bnd.vector.to_crs(self.crs)
         elif boundaries_timeseries_fn is not None:
             raise NotImplementedError()
         else:
@@ -2478,6 +2478,7 @@ class DFlowFMModel(MeshModel):
         """
 
         # generate all possible and allowed boundary locations
+        # FIXME: if the network is not correctly connected, the boundaries nodes will have duplicates, causing issues in forcing.
         _boundaries = workflows.generate_boundaries_from_branches(
             self.branches, where="both"
         )
