@@ -45,3 +45,11 @@ dem:
   meta:
     category: dem
     history: temporary dem within model extent
+roughness_manning:
+  path: local_data/frictioncoefficient.tif
+  data_type: RasterDataset
+  crs: 32647
+  rename:
+    frictioncoefficient: roughness_manning
+  meta:
+    category: roughness_manning
