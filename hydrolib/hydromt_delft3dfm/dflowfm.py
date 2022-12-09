@@ -16,7 +16,7 @@ import xarray as xr
 import xugrid as xu
 from pyproj import CRS
 from hydromt.models import MeshModel
-from shapely.geometry import box, LineString, MultiLineString
+from shapely.geometry import box, LineString
 from datetime import datetime, timedelta
 
 from hydrolib.core.io.dflowfm.mdu.models import FMModel
@@ -67,12 +67,14 @@ class DFlowFMModel(MeshModel):
             "initype": "initial",
             "interpolation": "mean",
             "locationtype": "2d",
+            "averagingrelsize": 1.01, # default
         },
         "waterdepth": {
             "name": "waterdepth",
             "initype": "initial",
             "interpolation": "mean",
             "locationtype": "2d",
+            "averagingrelsize": 1.01,
         },
         "pet": {
             "name": "PotentialEvaporation",
@@ -153,7 +155,7 @@ class DFlowFMModel(MeshModel):
             raise ValueError("The 'root' parameter should be a of str or Path.")
 
         super().__init__(
-            root=root,
+            root=root, # FIXME review: when building the model into exisiting folder, old files will not be deleted, which might cause confusion.
             mode=mode,
             config_fn=config_fn,
             data_libs=data_libs,
@@ -174,6 +176,7 @@ class DFlowFMModel(MeshModel):
         # Gloabl options for generation of the mesh1d network
         self._network_snap_offset = network_snap_offset
         self._openwater_computation_node_distance = openwater_computation_node_distance
+        self._res = None
 
     def setup_region(
         self,
@@ -1479,6 +1482,7 @@ class DFlowFMModel(MeshModel):
         ----------
 
         """
+
         # Function moved to MeshModel in hydromt core
         # Recreate region dict for core function
         if mesh2d_fn is not None:
@@ -1489,22 +1493,36 @@ class DFlowFMModel(MeshModel):
             bbox = [float(v) for v in bbox]  # needs to be str in config file
             region = {"bbox": bbox}
         else:  # use model region
-            # raise ValueError(
-            #    "At least one argument of mesh2d_fn, geom_fn or bbox must be provided."
-            # )
+            self.logger.warning(
+               "Mesh2d is generated for model region."
+            )
             region = {"geom": self.region}
-        # Get the 2dmesh TODO when ready with generation, pass other arg like resolution
+
+        # reserve existing mesh
+        _mesh = self._mesh
+
+        # Get and set the 2dmesh
         mesh2d = super().setup_mesh(region=region, crs=self.crs, res=res)
+        # TODO: if we do not want to clip mesh 2d comment the following line
         # Check if intersects with region
         xmin, ymin, xmax, ymax = self.bounds
         subset = mesh2d.ugrid.sel(y=slice(ymin, ymax), x=slice(xmin, xmax))
-        err = f"RasterDataset: No data within spatial domain for mesh."
+        err = f"RasterDataset: No data within model region."
         subset = subset.ugrid.assign_node_coords()
         if subset.ugrid.grid.node_x.size == 0 or subset.ugrid.grid.node_y.size == 0:
             raise IndexError(err)
-        # TODO: if we want to keep the clipped mesh 2d uncomment the following line
-        # Else mesh2d is used as mesh instead of susbet
-        self._mesh = subset  # reinitialise mesh2d grid (set_mesh is used in super)  #FIXME Xiaohan: use set_mesh and merge with exisiting 1D mesh
+        self._mesh = subset  # reinitialise mesh2d grid (set_mesh is used in super)
+
+        # add to hydrolib-core net object
+        self.set_mesh2d()
+
+        # update the 2dmesh to self._mesh
+        if _mesh is not None:
+            self._mesh = _mesh.update(subset)
+
+        # update res
+        self._res = res
+
 
     def setup_maps_from_raster(
         self,
@@ -1532,6 +1550,7 @@ class DFlowFMModel(MeshModel):
             Source name of raster data in data_catalog.
         variables: list, optional
             List of variables to add to maps from raster_fn. By default all.
+            Available variables: ['elevtn', 'waterlevel', 'waterdepth', 'pet', 'infiltcap', 'roughness_chezy', 'roughness_manning', 'roughness_walllawnikuradse', 'roughness_whitecolebrook']
         fill_method : str, optional
             If specified, fills no data values using fill_nodata method. Available methods
             are ['linear', 'nearest', 'cubic', 'rio_idw'].
@@ -1542,6 +1561,7 @@ class DFlowFMModel(MeshModel):
         interpolation_method : str, optional
             Interpolation method for DFlow-FM. By default triangulation. Except for waterlevel and
             waterdepth then the default is mean.
+            When methods other than 'triangulation', the relative search cell size will be estimated based on resolution of the raster.
             Available methods: ['triangulation', 'mean', 'nearestNb', 'max', 'min', 'invDist', 'minAbs', 'median']
         locationtype : str, optional
             LocationType in initial fields. Either 2d (default), 1d or all.
@@ -1556,6 +1576,8 @@ class DFlowFMModel(MeshModel):
             self.logger.error("name must be specified when split_dataset = False")
 
         # Call super method
+        # FIXME review: for now it seems that during update, all maps are replaced at once
+        # FIXME review: self.region is used for setup_maps_from_raster; but in our case it is not the 2D region.
         variables = super().setup_maps_from_raster(
             raster_fn=raster_fn,
             variables=variables,
@@ -1563,7 +1585,7 @@ class DFlowFMModel(MeshModel):
             reproject_method=reproject_method,
             name=name,
             split_dataset=split_dataset,
-        ) # Updates the variables (Please check)
+        )
 
         allowed_methods = [
             "triangulation",
@@ -1585,8 +1607,14 @@ class DFlowFMModel(MeshModel):
             )
         for var in variables:
             if var in self._MAPS:
-                self._MAPS[var]["interpolation"] = interpolation_method
                 self._MAPS[var]["locationtype"] = locationtype
+                self._MAPS[var]["interpolation"] = interpolation_method
+                if interpolation_method != "triangulation":
+                    # adjust relative search cell size for averaging methods
+                    relsize = np.round(
+                        np.abs(self.maps[var].raster.res[0])/self.res * np.sqrt(2) + 0.05,
+                        2)
+                    self._MAPS[var]["averagingrelsize"] = relsize
 
     def setup_maps_from_raster_reclass(
         self,
@@ -1618,6 +1646,7 @@ class DFlowFMModel(MeshModel):
         reclass_variables: list
             List of mapping_variables from raster_mapping_fn table to add to mesh. Index column should match values
             in raster_fn.
+            Available variables: ['elevtn', 'waterlevel', 'waterdepth', 'pet', 'infiltcap', 'roughness_chezy', 'roughness_manning', 'roughness_walllawnikuradse', 'roughness_whitecolebrook']
         fill_method : str, optional
             If specified, fills no data values using fill_nodata method. Available methods
             are {'linear', 'nearest', 'cubic', 'rio_idw'}.
@@ -1628,6 +1657,7 @@ class DFlowFMModel(MeshModel):
         interpolation_method : str, optional
             Interpolation method for DFlow-FM. By default triangulation. Except for waterlevel and waterdepth then
             the default is mean.
+            When methods other than 'triangulation', the relative search cell size will be estimated based on resolution of the raster.
             Available methods: ['triangulation', 'mean', 'nearestNb', 'max', 'min', 'invDist', 'minAbs', 'median']
         locationtype : str, optional
             LocationType in initial fields. Either 2d (default), 1d or all.
@@ -1672,8 +1702,14 @@ class DFlowFMModel(MeshModel):
             )
         for var in reclass_variables:
             if var in self._MAPS:
-                self._MAPS[var]["interpolation"] = interpolation_method
                 self._MAPS[var]["locationtype"] = locationtype
+                self._MAPS[var]["interpolation"] = interpolation_method
+                if interpolation_method != "triangulation":
+                    # adjust relative search cell size for averaging methods
+                    relsize = np.round(
+                        np.abs(self.maps[var].raster.res[0])/self.res * np.sqrt(2) + 0.05,
+                        2)
+                    self._MAPS[var]["averagingrelsize"] = relsize
 
     # ## I/O
     def read(self):
@@ -1740,7 +1776,7 @@ class DFlowFMModel(MeshModel):
 
         cf_dict = self._config.copy()
         # Need to switch to dflowfm folder for files to be found and properly added
-        # FIXME Xiaohan: should this be fixed in hydrolib-core?
+        # FIXME review: should this be fixed in hydrolib-core?
         mdu_fn = cf_dict.pop("filepath", None)
         mdu_fn = Path(join(self.root, self._config_fn))
         cwd = os.getcwd()
@@ -1766,7 +1802,7 @@ class DFlowFMModel(MeshModel):
             if len(inilist) > 0:
                 # DFM map names
                 rm_dict = dict()
-                for v in self._MAPS:
+                for v in self._MAPS: #FIXME review: frictioncoefficient cannot be mapped back to the correct roughness. Maybe for now support less roughness types.
                     rm_dict[self._MAPS[v]["name"]] = v
                 for inidict in inilist:
                     _fn = inidict.datafile.filepath
@@ -1815,6 +1851,7 @@ class DFlowFMModel(MeshModel):
             _fn = join(mapsroot, f"{name}.tif")
             if da.raster.nodata is None or np.isnan(da.raster.nodata):
                 da.raster.set_nodata(-999)
+            # FIXME review: does not allow overwrite when update existing raster files
             da.raster.to_raster(_fn)
             # Prepare dict
             if interp_method == "triangulation":
@@ -1835,6 +1872,7 @@ class DFlowFMModel(MeshModel):
                     "averagingType": interp_method,
                     "operand": "O",
                     "locationType": locationtype,
+                    "averagingRelSize": da_dict["averagingrelsize"],
                 }
             if type == "initial":
                 inilist.append(inidict)
@@ -1889,7 +1927,7 @@ class DFlowFMModel(MeshModel):
         For branches / crosssections / manholes etc... the reading of hydrolib-core objects happens in read_mesh
         There the geoms geojson copies are re-set based on dflowfm files content.
         """
-        # FIXME Xiaohan: what happens if geoms do not exist?
+        # FIXME review: what happens if geoms do not exist?
         super().read_geoms(fn="geoms/region.geojson")
 
     def write_geoms(self) -> None:
@@ -1966,6 +2004,9 @@ class DFlowFMModel(MeshModel):
             )
             uds.ugrid.grid.set_crs(grid.crs)
             self.set_mesh(uds)
+            if self._res is None:
+                np.diff(grid.node_x)
+
         # add mesh1d to self.mesh
         if not net._mesh1d.is_empty():
             self._add_mesh1d(net._mesh1d)
@@ -1996,9 +2037,9 @@ class DFlowFMModel(MeshModel):
             self.set_branches(branches)
             # self.set_geoms(branches, "branches")
 
-        # Read mesh1d related geometry (other features) #FIXME Xiaohan: might better be done in geoms
+        # Read mesh1d related geometry (other features) #FIXME review: might better be done in read_geoms
         # Add manholes properties
-        # FIXME Xiaohan: manholes might need to be moved to storage nodes writers
+        # FIXME: manholes might need to be moved to storage nodes writers
         if self.dfmmodel.geometry.storagenodefile is not None:
             self.logger.info("Reading manholes file")
             branches, manholes = utils.read_manholes(branches, self.dfmmodel)
@@ -2043,7 +2084,7 @@ class DFlowFMModel(MeshModel):
             self.logger.info("Writting branches.gui file")
             _ = utils.write_branches_gui(self.branches, savedir)
 
-            # FIXME Xiaohan: manholes might need to be moved to storage nodes writers and might be more suitable to be read/written in geoms
+            # FIXME review: manholes might need to be moved to storage nodes writers and might be more suitable to be read/written in geoms
             # Manholes
             if "manholes" in self._geoms:
                 self.logger.info(f"Writting manholes file.")
@@ -2196,8 +2237,8 @@ class DFlowFMModel(MeshModel):
         Returns the branches (gpd.GeoDataFrame object) representing the 1D network.
         Contains several "branchType" for : channel, river, pipe, tunnel.
         """
-        if self._branches is None and self._read: #FIXME Xiaohan: why not use self.asset_read_mode
-            self.read_mesh()    # FIXME Xiaohan: why not read network?
+        if self._branches is None and self._read:
+            self.read_mesh()    # FIXME: might be changed to read network
         elif self._branches is None:
             self._branches = gpd.GeoDataFrame() # no crs can be assigned due to not supported by geopandas
         return self._branches
@@ -2260,7 +2301,7 @@ class DFlowFMModel(MeshModel):
             mesh1d_nodes = self.mesh1d_nodes.copy()
             mesh1d_nodes_open = mesh1d_nodes.loc[
                 mesh1d_nodes.branch_name.isin(self.opensystem.branchId.tolist())
-            ] #FIXME Xaohan: harmornize branch_name and branchId
+            ] #FIXME: harmornize branch_name and branchId
 
             # snap the new endnodes to existing mesh1d_nodes_open
             snapnodes = hydromt.gis_utils.nearest_merge(
@@ -2287,8 +2328,9 @@ class DFlowFMModel(MeshModel):
 
         # Check if we need to do more check/process to make sure everything is well-connected
         workflows.validate_branches(branches)
-        # set geom and mesh1d
+        # set geom
         self.set_branches(branches)
+        # set hydrolib-core net object and update self._mesh
         self.set_mesh1d()
 
     def set_branches_component(self, name: str):
@@ -2366,7 +2408,7 @@ class DFlowFMModel(MeshModel):
         return mesh1d_nodes
 
     def set_mesh1d(self):
-        """update the mesh1d in hydrolib-core net object by overwrite and #TODO the xugrid mesh1d"""
+        """update the mesh1d in hydrolib-core net object by overwrite and add to self._mesh"""
 
         # reinitialise mesh1d (TODO: a clear() function in hydrolib-core could be handy)
         self.dfmmodel.geometry.netfile.network._mesh1d = Mesh1d(
@@ -2377,7 +2419,7 @@ class DFlowFMModel(MeshModel):
         opensystem = self.opensystem
         node_distance = self._openwater_computation_node_distance
         mesh.mesh1d_add_branch(
-            self._dfmmodel.geometry.netfile.network, #FIXME Xiaohan: why self._dfmmodel instead of dfmmodel
+            self._dfmmodel.geometry.netfile.network, 
             opensystem.geometry.to_list(),
             node_distance=node_distance,
             branch_names=opensystem.branchId.to_list(),
@@ -2482,7 +2524,7 @@ class DFlowFMModel(MeshModel):
         if "crosssections" in self.geoms:
             gdf = self.geoms["crosssections"]
         else:
-            gdf = gpd.GeoDataFrame() #FIXME Xiaohan: no crs can be assigned dueAttributeError: The CRS attribute of a GeoDataFrame without an active geometry column is not defined. Use GeoDataFrame.set_geometry to set the active geometry column.
+            gdf = gpd.GeoDataFrame() #FIXME review: no crs can be assigned to empty GeoDataFrame. AttributeError: The CRS attribute of a GeoDataFrame without an active geometry column is not defined. Use GeoDataFrame.set_geometry to set the active geometry column.
         return gdf
 
     def set_crosssections(self, crosssections: gpd.GeoDataFrame):
@@ -2496,7 +2538,7 @@ class DFlowFMModel(MeshModel):
     @property
     def boundaries(self):
         """Quick accessor to boundaries geoms"""
-        if "boundaries" in self.geoms: #FIXME Xiaohan: should this also be combined with a read method?
+        if "boundaries" in self.geoms: #FIXME review: how to read it back?
             gdf = self.geoms["boundaries"]
         else:
             gdf = self.get_boundaries()
@@ -2539,6 +2581,13 @@ class DFlowFMModel(MeshModel):
         return refdate, tstart, tstop
 
     @property
+    def network(self):
+        """
+        Returns the network (hydrolib-core Network object) representing the entire network file.
+        """
+        return self.dfmmodel.geometry.netfile.network
+
+    @property
     def network1d_nodes(self):
         """get network1d nodes as gdp"""
         # get networkids to complete the boundaries
@@ -2556,21 +2605,23 @@ class DFlowFMModel(MeshModel):
         return _network1d_nodes
 
     @property
+    def res(self):
+        "resolution of the mesh2d"
+        if self._res is not None:
+            return self._res
+
+
+    @property
     def mesh2d(self):
         """
-        Returns the mesh2d (hydrolib-core Mesh2d object) representing the 2D mesh. # FIXME Xiaohan: assign to hydrolib-core before writing to be used by other network related functions
+        Returns the mesh2d (hydrolib-core Mesh2d object) representing the 2D mesh.
         """
+        return self.dfmmodel.geometry.netfile.network._mesh2d # needed to setup 1d2d links
+
+    def set_mesh2d(self):
+        """update the mesh2d in hydrolib-core net object by overwrite"""
+
+        # process mesh2d to net object
         if self._mesh:
             mesh2d = self._mesh.ugrid.grid.mesh
             self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
-
-        return (
-            self.dfmmodel.geometry.netfile.network._mesh2d
-        )  # needed to setup 1d2d links
-
-    @property
-    def network(self):
-        """
-        Returns the network (hydrolib-core Network object) representing the entire network file.
-        """
-        return self.dfmmodel.geometry.netfile.network
