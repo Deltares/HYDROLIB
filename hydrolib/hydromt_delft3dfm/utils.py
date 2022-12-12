@@ -43,13 +43,17 @@ def write_1dboundary(forcing: Dict, savedir: str) -> Tuple:
                 # one quantityunitpair
                 bc["quantityunitpair"] = [{"quantity": da.name, "unit": bc["units"]}]
                 # only one value column (no times)
+                print(bc["name"])
                 bc["datablock"] = [[da.sel(index=i).values.item()]]
             else:
                 # two quantityunitpair
                 bc["quantityunitpair"] = [
                     {
-                        "quantity": ["time", da.name],
-                        "unit": [bc["time_unit"], bc["units"]]
+                        "quantity": "time",
+                        "unit": bc["time_unit"]
+                    }, {
+                        "quantity": da.name,
+                        "unit": bc["units"]
                         # tuple(("time", bc["time_unit"])),
                         # tuple((da.name, bc["units"])),
                     }
@@ -64,6 +68,7 @@ def write_1dboundary(forcing: Dict, savedir: str) -> Tuple:
             bcdict.append(bc)
 
     forcing_model = ForcingModel(forcing=bcdict)
+
     forcing_fn = forcing_model._filename() + ".bc"
 
     ext_model = ExtModel()
