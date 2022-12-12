@@ -7,7 +7,7 @@
     <list default="true" id="e17ae184-fc0e-4c24-8eeb-2fb065132b9d" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/boundaries.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/boundaries.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -29,10 +29,10 @@
   &quot;keyToString&quot;: {
     &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/Projects/HYDROLIB-HYDROMT/examples/SantaCruz/modelbuilder&quot;
+    &quot;last_opened_file_path&quot;: &quot;D:/Projects/hydromt-delft3dfm/HYDROLIB&quot;
   }
 }</component>
-  <component name="RunManager" selected="Python.santacruz V0.0 (global)">
+  <component name="RunManager" selected="Python.santacruz V0.1.2 (V0.1.1 + 1dboundary)">
     <configuration name="hydromt-delft3dfm" type="PythonConfigurationType" factoryName="Python">
       <module name="HYDROLIB-HYDROMT" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -117,6 +117,27 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="santacruz V0.1.2 (V0.1.1 + 1dboundary)" type="PythonConfigurationType" factoryName="Python">
+      <module name="HYDROLIB-HYDROMT" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/examples/SantaCruz/modelbuilder" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="hydromt.cli.main" />
+      <option name="PARAMETERS" value="build dflowfm v0.1.2 &quot;{'geom': '$PROJECT_DIR$/examples/SantaCruz/data/Region.geojson'}&quot; -i dflowfm_build_santacruz_v0.1.2.ini -d data_sources_santacruz.yaml -d data_sources_global.yaml -vvv" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="true" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="santacruz V0.2 (local 2D DTM res 30m)" type="PythonConfigurationType" factoryName="Python">
       <module name="HYDROLIB-HYDROMT" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -164,6 +185,7 @@
       <item itemvalue="Python.santacruz V0.0 (global)" />
       <item itemvalue="Python.santacruz V0.1 (local 1D)" />
       <item itemvalue="Python.santacruz V0.1.1 (local 1D with bedlevel sampled from raster)" />
+      <item itemvalue="Python.santacruz V0.1.2 (V0.1.1 + 1dboundary)" />
       <item itemvalue="Python.santacruz V0.2 (local 2D DTM res 30m)" />
       <item itemvalue="Python.santacruz V0.2.1 (local 2D DTM res 4m)" />
     </list>
@@ -191,16 +213,6 @@
           <url>file://$PROJECT_DIR$/../HYDROLIB-CORE/hydrolib/core/io/bc/models.py</url>
           <line>146</line>
           <option name="timeStamp" value="53" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/utils.py</url>
-          <line>75</line>
-          <option name="timeStamp" value="89" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
-          <line>1995</line>
-          <option name="timeStamp" value="90" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>
