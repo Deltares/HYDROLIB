@@ -124,6 +124,7 @@ def parse_ini(ini_fn) -> dict:
     ----------
     ini_fn
         The location of the ini file.
+
     Returns
     -------
     dict
@@ -151,6 +152,7 @@ def slice_geodataframe(
     logger=logger,
 ):
     """Function to read gpd.GeoDataFrame with preprocessing: rename, slice, convert type and set index.
+
     Parameters
     ----------
     gdf : gpd.GeoDataFrame.
@@ -406,7 +408,9 @@ def append_data_columns_based_on_ini_query(
         columns = _columns_
     return data.loc[:, columns]
 
-    """ Check the geo data frame for None and length.
+
+def check_geodataframe(gdf: gpd.GeoDataFrame):
+    """Check the geo data frame for None and length.
     A warning will be logged, if the geo data frame is None or empty.
 
     Parameters

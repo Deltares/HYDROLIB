@@ -13,7 +13,7 @@ from shapely.geometry import (
 from shapely.prepared import prep
 from shapely.wkt import dumps, loads
 
-from hydrolib.core.io.net.models import Branch, Network
+from hydrolib.core.io.dflowfm.net.models import Branch, Network
 from hydrolib.dhydamo.geometry import common
 from hydrolib.dhydamo.geometry.models import GeometryList
 

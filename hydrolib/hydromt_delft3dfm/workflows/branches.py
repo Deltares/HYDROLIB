@@ -440,7 +440,7 @@ def generate_branchnodes(
     # give index
     nodes.index = [f"branchnodes_{i}" for i in range(len(nodes))]
     nodes.index.name = "branchnodeid"
-    nodes[nodes.index.name] = nodes.index
+    # nodes[nodes.index.name] = nodes.index # creates a duplicate column
     return nodes
 
 
