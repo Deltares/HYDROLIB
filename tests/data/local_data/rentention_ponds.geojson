@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "rentention_ponds",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "POND_ID": "retention_1", "POND_FILE": "storage_area_table_retention_1.csv", "NAME": "retention_1", "INTERPOLAT": "linear", "BRANCH_ID": "branch_11", "IS_MAIN": null, "AREA": 100.0, "CAPACITY": 500.0, "STOR_MIN": -4.0, "STOR_MAX": 1.0 }, "geometry": { "type": "Point", "coordinates": [ 664779.154896484455094, 1525232.053703404963017 ] } }
+]
+}

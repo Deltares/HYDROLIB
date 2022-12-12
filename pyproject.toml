@@ -1,23 +1,20 @@
 [tool.poetry]
 name = "hydrolib"
-version = "0.1.1"
+version = "0.1.0"
 description = "Python wrappers around D-HYDRO Suite."
 authors = ["Deltares"]
 license = "LGPL"
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.11"
-pandas = "^1.2"
-geopandas = "^0.10"
-xarray = "^0.17"
-hydrolib-core = "0.3.0"
-shapely = "^1.8"
-matplotlib = "^3.5.2"
-hydromt = "^0.4.5"
-numpy = "^1.23"
-openpyxl = "^3"
-pyflwdir = "^0.5.3"
-scipy = "^1.9"
+python = ">=3.8,<4.0"
+pandas = ">=1.2"
+geopandas = ">=0.9"
+xarray = ">=0.17"
+xugrid = ">=0.1.7"
+hydrolib-core = ">=0.3.1"
+shapely = ">=1.8"
+matplotlib = ">=3.5.2"
+hydromt = ">=0.6.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
@@ -84,16 +81,7 @@ pandas = { channel = "conda-forge" }
 geopandas = { channel = "conda-forge" }
 xarray = { channel = "conda-forge" }
 hydrolib-core = { channel = "pip" }
-shapely = { channel = "conda-forge" }
-matplotlib = { channel = "conda-forge" }
-hydromt = { channel = "pip" }
-numpy = { channel = "conda-forge" }
-openpyxl = { channel = "conda-forge" }
-pyflwdir = { channel = "pip" }
-scipy = { channel = "conda-forge" }
+xugrid = { channel = "conda-forge" }
 
 [tool.poetry.plugins."hydromt.models"]
 dflowfm = "hydrolib.hydromt_delft3dfm.dflowfm:DFlowFMModel"
-
-[tool.pytest.ini_options]
-markers = "plot"

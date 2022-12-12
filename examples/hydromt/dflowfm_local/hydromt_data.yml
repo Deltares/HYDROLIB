@@ -1,0 +1,38 @@
+1D_boundaries_timeseries:
+  data_type: GeoDataset
+  path: C:\Users\boisgont\D\Repos\hydromt\HYDROLIB\tests\data\local_data\boundaries.geojson
+  driver: vector
+  filesystem: local
+  kwargs:
+    fn_data: C:\Users\boisgont\D\Repos\hydromt\HYDROLIB\tests\data\local_data\boundaries_series.csv
+  crs: 32647
+1D_rivers:
+  data_type: GeoDataFrame
+  path: C:\Users\boisgont\D\Repos\hydromt\HYDROLIB\tests\data\local_data\1D_rivers.geojson
+  driver: vector
+  filesystem: local
+  crs: 32647
+  rename:
+    BRANCH_ID: branchId
+    BR_TYPE: branchType
+1d_manholes:
+  data_type: GeoDataFrame
+  path: C:\Users\boisgont\D\Repos\hydromt\HYDROLIB\tests\data\local_data\manholes.geojson
+  driver: vector
+  filesystem: local
+  crs: 32647
+  rename:
+    ID: manholeId
+    AREA: area
+    STR_AREA: streetArea
+dem:
+  data_type: RasterDataset
+  path: C:\Users\boisgont\D\Repos\hydromt\HYDROLIB\tests\data\local_data\dem.tif
+  driver: raster
+  filesystem: local
+  crs: 32647
+  rename:
+    dem: elevtn
+  meta:
+    category: dem
+    history: temporary dem within model extent

@@ -1,0 +1,68 @@
+1D_rivers:
+  data_type: GeoDataFrame
+  driver: vector
+  path: local_data/1D_rivers.geojson
+  crs: 32647
+  rename:
+    BRANCH_ID: branchId
+    BR_TYPE: branchType
+1D_rivers_xyzcrosssections:
+  data_type: GeoDataFrame
+  driver: vector
+  path: local_data/1D_rivers_xyzcrosssections.geojson
+  crs: 32647
+  rename:
+    ORDER: order
+    CRS_ID: crsId
+    Z: z
+1D_rivers_pointcrosssections:
+  data_type: GeoDataFrame
+  driver: vector
+  path: local_data/1D_rivers_pointcrosssections.geojson
+  crs: 32647
+  rename:
+    id: crsId
+    TYPE: shape
+    WIDTH: width
+    HEIGHT: height
+    BEDLEVEL: shift
+1D_pipes:
+    alias: 1D_rivers
+1d_manholes:
+  data_type: GeoDataFrame
+  driver: vector
+  path: local_data/manholes.geojson
+  crs: 32647
+  rename:
+    ID: manholeId
+    AREA: area
+    STR_AREA: streetArea
+1D_boundaries:
+  data_type: GeoDataFrame
+  driver: vector
+  path: local_data/boundaries.geojson
+  crs: 32647
+1D_boundaries_timeseries:
+  path: local_data/boundaries.geojson
+  data_type: GeoDataset
+  driver: vector
+  crs: 32647
+  kwargs:
+    fn_data: local_data/boundaries_series.csv
+dem:
+  path: local_data/dem.tif
+  data_type: RasterDataset
+  crs: 32647
+  rename:
+    dem: elevtn
+  meta:
+    category: dem
+    history: temporary dem within model extent
+roughness_manning:
+  path: local_data/frictioncoefficient.tif
+  data_type: RasterDataset
+  crs: 32647
+  rename:
+    frictioncoefficient: roughness_manning
+  meta:
+    category: roughness_manning

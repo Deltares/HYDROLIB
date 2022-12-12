@@ -1,0 +1,16 @@
+# written by HYDROLIB-core 0.3.1
+
+[General]
+fileVersion = 2.01
+fileType    = extForce
+
+[Boundary]
+quantity     = waterlevel
+nodeId       = 662793.794187_1524515.451732
+forcingFile  = boundaryconditions.bc
+
+[Boundary]
+quantity     = waterlevel
+nodeId       = 664197.234160_1527152.705985
+forcingFile  = boundaryconditions.bc
+

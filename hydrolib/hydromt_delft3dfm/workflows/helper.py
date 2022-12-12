@@ -31,6 +31,7 @@ __all__ = [
     "parse_ini",
     "append_data_columns_based_on_ini_query",
     "split_lines",
+    "check_geodataframe",
     "check_gpd_attributes",
 ]
 
@@ -142,7 +143,7 @@ def parse_ini(ini_fn) -> dict:
     return config_
 
 
-## GeoDataFrame handling
+## GeoDataFrame handeling
 
 
 def slice_geodataframe(

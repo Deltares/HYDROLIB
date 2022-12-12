@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "boundaries",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "BC_ID": "BND_DN_WL", "NAME": "downstream water level boundary time series", "BCTYPE": "waterlevel", "SERIES": null, "SERIES_ID": "BND_DN_WL_tsid", "index": 0 }, "geometry": { "type": "Point", "coordinates": [ 664197.234159623389132, 1527152.705984821310267 ] } },
+{ "type": "Feature", "properties": { "BC_ID": "BND_UP_D", "NAME": "upstream discharge boundary time series", "BCTYPE": "discharge", "SERIES": null, "SERIES_ID": "BNA_UP_D_tsid", "index": 1 }, "geometry": { "type": "Point", "coordinates": [ 666180.040000000037253, 1525894.769999999320135 ] } }
+]
+}

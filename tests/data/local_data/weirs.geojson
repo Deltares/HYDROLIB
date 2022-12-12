@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "weirs",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "STRUC_ID": "weir_1", "NAME": "weir_at_pipe", "BRANCH_ID": "pipe_5", "STRUC_TYPE": "weir", "FLOW_DIR": "negative", "CREST_LEV": 2.9, "CREST_W": 0.4, "CORR_COEF": 0.9, "USE_VEL": "no", "IS_MAIN": null }, "geometry": { "type": "Point", "coordinates": [ 664307.245500199031085, 1525881.253866584971547 ] } },
+{ "type": "Feature", "properties": { "STRUC_ID": "weir_2", "NAME": "weir_at_branch", "BRANCH_ID": "branch_4", "STRUC_TYPE": "weir", "FLOW_DIR": "both", "CREST_LEV": 3.0, "CREST_W": 6.0, "CORR_COEF": 1.0, "USE_VEL": "yes", "IS_MAIN": null }, "geometry": { "type": "Point", "coordinates": [ 665560.620547444559634, 1525952.124135404126719 ] } }
+]
+}
