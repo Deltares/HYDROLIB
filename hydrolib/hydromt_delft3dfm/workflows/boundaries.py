@@ -233,10 +233,12 @@ def compute_boundary_values(
         _TIMESTR = {"D": "days", "H": "hours", "T": "minutes", "S": "seconds"}
         dt = pd.to_timedelta((da_bnd.time[1].values - da_bnd.time[0].values))
         freq = dt.resolution_string
+        multiplier = 1
         if freq == "D":
-            logger.error(
+            logger.warning(
                 "time unit days is not supported by the current GUI version: 2022.04"
-            )  # FIXME: require update in the future
+            ) # converting to hours as temporary solution # FIXME: day is converted to hours temporarily
+            multiplier = 24
         if len(
             pd.date_range(da_bnd.time[0].values, da_bnd.time[-1].values, freq=freq)
         ) != len(da_bnd.time):
@@ -244,6 +246,9 @@ def compute_boundary_values(
         freq_name = _TIMESTR[freq]
         freq_step = getattr(dt.components, freq_name)
         bd_times = np.array([(i * freq_step) for i in range(len(da_bnd.time))])
+        if multiplier == 24:
+            bd_times = np.array([(i * freq_step * multiplier) for i in range(len(da_bnd.time))])
+            freq_name = "hours"
 
         # instantiate xr.DataArray for bnd data
         da_out = xr.DataArray(
@@ -266,7 +271,7 @@ def compute_boundary_values(
             ),
         )
         da_out.name = f"{boundary_type}bnd"
-
+        da_out.dropna(dim = 'time')
         # snap user boundary to potential boundary locations
         boundaries = hydromt.gis_utils.nearest_merge(
             boundaries,

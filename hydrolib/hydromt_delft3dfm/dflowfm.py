@@ -1995,7 +1995,8 @@ class DFlowFMModel(MeshModel):
             self.logger.info("Writting forcing files.")
             savedir = dirname(join(self.root, self._config_fn))
             forcing_fn, ext_fn = utils.write_1dboundary(self.forcing, savedir)
-            self.set_config("external_forcing.extforcefilenew", ext_fn)
+            self.dfmmodel.external_forcing.extforcefilenew = join(savedir, ext_fn)
+            self.set_config("External Forcing.extForceFileNew", ext_fn)
 
     def read_dfmmodel(self):
         """Read dfmmodel at <root/?/> and parse to model class (deflt3dfmpy)"""
