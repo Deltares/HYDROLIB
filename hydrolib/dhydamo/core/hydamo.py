@@ -22,13 +22,14 @@ from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
 
+
 class HyDAMO:
     """Main data structure for both the HyDAMO input data and the intermediate dataframes. Contains subclasses
     for network, structures, cross sections, observation points, storage nodes and external forcings.
     """
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
-    def __init__(self, extent_file: Union[Path, str]=None) -> None:
+    def __init__(self, extent_file: Union[Path, str] = None) -> None:
         """Initiate subclasses and IO-methods
 
         Args:
@@ -304,7 +305,7 @@ class Network:
         # Save
         self.mesh1d.set_values("nbranchorder", branchorder)
 
-    def set_branch_interpolation_modelwide(self)-> None:
+    def set_branch_interpolation_modelwide(self) -> None:
         """
         Set cross-section interpolation over nodes on all branches model-wide. I
 
@@ -319,9 +320,8 @@ class Network:
             if len(group) > 1:
                 self.set_branch_order(group)
 
-    def make_nodes_to_branch_map(self)->None:
-        """Map nodes connected to each branch
-        """
+    def make_nodes_to_branch_map(self) -> None:
+        """Map nodes connected to each branch"""
         # Note: first node is upstream, second node is downstream
         self.nodes_to_branch_map = {
             b: [self.mesh1d.description1d["network_node_ids"][_idx - 1] for _idx in idx]
@@ -332,8 +332,7 @@ class Network:
         }
 
     def make_branches_to_node_map(self) -> None:
-        """Map branches connected to each node
-        """
+        """Map branches connected to each node"""
         self.make_nodes_to_branch_map()
         self.branches_to_node_map = {
             n: [k for k, v in self.nodes_to_branch_map.items() if n in v]
@@ -342,7 +341,9 @@ class Network:
 
     @validate_arguments
     def generate_nodes_with_bedlevels(
-        self, resolve_at_bifurcation_method:str="min", return_reversed_branches:bool=False
+        self,
+        resolve_at_bifurcation_method: str = "min",
+        return_reversed_branches: bool = False,
     ):
         """
         Generate nodes with upstream and downstream bedlevels derived from set cross-sections on branch. It takes into
@@ -745,7 +746,6 @@ class CrossSections:
         self.convert = CrossSectionsIO(self)
 
     def get_roughness_description(self, roughnesstype, value):
-        
 
         if np.isnan(float(value)):
             raise ValueError("Roughness value should not be NaN.")
@@ -776,11 +776,11 @@ class CrossSections:
         self.default_definition = definition
         self.default_definition_shift = shift
 
-    # def set_default_locations(self, locations):
-    #     """
-    #     Add default profile locations
-    #     """
-    #     self.default_locations = locations
+    def set_default_locations(self, locations):
+        """
+        Add default profile locations
+        """
+        self.default_locations = locations
 
     def add_yz_definition(
         self, yz=None, thalweg=None, roughnesstype=None, roughnessvalue=None, name=None
@@ -983,14 +983,22 @@ class CrossSections:
         return no_crosssection.tolist()
 
     def get_structures_without_crosssection(self):
-        struc_ids = [dct["id"] for _, dct in self.crosssection_def.items()]
+        csdef_ids = [dct["id"] for _, dct in self.crosssection_def.items()]
+        no_crosssection = []
         bridge_ids = [
-            dct["csDefId"] for _, dct in self.hydamo.structures.bridges.items()
+            dct["csdefid"] for _, dct in self.hydamo.structures.bridges_df.iterrows()
         ]
         no_cross_bridge = np.asarray(bridge_ids)[
-            ~np.isin(bridge_ids, struc_ids)
+            ~np.isin(bridge_ids, csdef_ids)
         ].tolist()
-        no_crosssection = no_cross_bridge
+        no_crosssection = no_crosssection + no_cross_bridge
+        culvert_ids = [
+            dct["csdefid"] for _, dct in self.hydamo.structures.culverts_df.iterrows()
+        ]
+        no_cross_culvert = np.asarray(culvert_ids)[
+            ~np.isin(culvert_ids, csdef_ids)
+        ].tolist()
+        no_crosssection = no_crosssection + no_cross_culvert
         return no_crosssection
 
     def get_bottom_levels(self):

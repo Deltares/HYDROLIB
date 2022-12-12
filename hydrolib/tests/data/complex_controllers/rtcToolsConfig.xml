@@ -16,7 +16,7 @@
         <interpolationOption>BLOCK</interpolationOption>
         <extrapolationOption>BLOCK</extrapolationOption>
         <input>
-          <x ref="IMPLICIT">[Input]ObsPt2/Water level (op)</x>
+		<x ref="IMPLICIT">[Input]ObsS_96684_1/Water level (op)</x>
         </input>
         <output>
           <y>[Output]S_96684/Crest level (s)</y>
@@ -28,7 +28,7 @@
     <trigger>
       <standard id="[StandardCondition]Control Group 1/Standard Condition">
         <condition>
-          <x1Series ref="EXPLICIT">[Input]ObsPt3/Water level (op)</x1Series>
+          <x1Series ref="EXPLICIT">[Input]ObsS_96684_2/Water level (op)</x1Series>
           <relationalOperator>Greater</relationalOperator>
           <x2Value>19</x2Value>
         </condition>

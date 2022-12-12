@@ -118,7 +118,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         total_features = len(gdf)
         missing_features = len(gdf.index[gdf.geometry.isnull()])
         gdf.drop(gdf.index[gdf.geometry.isnull()], inplace=True)  # temporary fix
-        logger.debug(f"{missing_features} out of {total_features} do not have a geometry")
+        logger.debug(
+            f"{missing_features} out of {total_features} do not have a geometry"
+        )
 
         # Rename columns:
         if column_mapping is not None:
@@ -129,7 +131,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             for ftc in gdf[id_col].unique():
                 if len(gdf[gdf[id_col] == ftc]) > 1:
                     gdf.loc[gdf[id_col] == ftc, id_col] = [
-                        f"{i}_{n}" for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
+                        f"{i}_{n}"
+                        for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
                     ]
                     logger.info("%s is MultiPolygon; split into single parts." % ftc)
 
@@ -176,7 +179,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             self.index = gdf[index_col]
             self.index.name = index_col
 
-        # Check geometry types
+        # Check geometry types      
         if check_geotype:
             self._check_geotype()
 
@@ -218,8 +221,12 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         ogr.UseExceptions()
         gpkg = ogr.Open(gpkg_path)
-        print(f"Content of gpkg-file {gpkg_path}, containing {gpkg.GetLayerCount()} layers:")
-        print(f"\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS")
+        print(
+            f"Content of gpkg-file {gpkg_path}, containing {gpkg.GetLayerCount()} layers:"
+        )
+        print(
+            f"\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS"
+        )
         lay_names = []
         for laynum in range(gpkg.GetLayerCount()):
             layer = gpkg.GetLayer(laynum)
@@ -260,7 +267,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         nfields = layerDefinition.GetFieldCount()
 
         # Get column names for features
-        columns = [layerDefinition.GetFieldDefn(i).GetName().lower() for i in range(nfields)]
+        columns = [
+            layerDefinition.GetFieldDefn(i).GetName().lower() for i in range(nfields)
+        ]
 
         # Collect features
         # if 'profiellijnid' in columns:
@@ -330,15 +339,21 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             singlepoint = counts < 2
 
             # Assign points
-            for point, volgnr, branch, volgnr_rel in zip(geometries, order, groupbyvalues, order_rel):
+            for point, volgnr, branch, volgnr_rel in zip(
+                geometries, order, groupbyvalues, order_rel
+            ):
                 # lines[branch][volgnr - startnr[branch]] = point
                 lines[branch][volgnr_rel] = point
 
             # Group geometries to lines
             for branch in branches[~singlepoint]:
                 if any(isinstance(pt, int) for pt in lines[branch]):
-                    print(f'Points are not properly assigned for branch "{branch}". Check the input file.')
-                    lines[branch] = [pt for pt in lines[branch] if not isinstance(pt, int)]
+                    print(
+                        f'Points are not properly assigned for branch "{branch}". Check the input file.'
+                    )
+                    lines[branch] = [
+                        pt for pt in lines[branch] if not isinstance(pt, int)
+                    ]
                 lines[branch] = LineString(lines[branch])
 
             # Set order for branches with single point to 0, so features are not loaded
@@ -369,7 +384,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             for ftc in gdf[id_col].unique():
                 if len(gdf[gdf[id_col] == ftc]) > 1:
                     gdf.loc[gdf[id_col] == ftc, id_col] = [
-                        f"{i}_{n}" for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
+                        f"{i}_{n}"
+                        for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
                     ]
                     print(f"{ftc} is MultiPolygon; split into single parts.")
 
@@ -382,7 +398,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         )
 
         if clip is not None:
-            self.clip(geometry=clip)
+            self.clip(geometry=clip)                
 
     def read_gml(
         self,
@@ -495,15 +511,21 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             singlepoint = counts < 2
 
             # Assign points
-            for point, volgnr, branch, volgnr_rel in zip(geometries, order, groupbyvalues, order_rel):
+            for point, volgnr, branch, volgnr_rel in zip(
+                geometries, order, groupbyvalues, order_rel
+            ):
                 # lines[branch][volgnr - startnr[branch]] = point
                 lines[branch][volgnr_rel] = point
 
             # Group geometries to lines
             for branch in branches[~singlepoint]:
                 if any(isinstance(pt, int) for pt in lines[branch]):
-                    print(f'Points are not properly assigned for branch "{branch}". Check the GML.')
-                    lines[branch] = [pt for pt in lines[branch] if not isinstance(pt, int)]
+                    print(
+                        f'Points are not properly assigned for branch "{branch}". Check the GML.'
+                    )
+                    lines[branch] = [
+                        pt for pt in lines[branch] if not isinstance(pt, int)
+                    ]
                 lines[branch] = LineString(lines[branch])
 
             # Set order for branches with single point to 0, so features are not loaded
@@ -572,7 +594,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         else:
             logger.info(f"OSM data has same projection as projected crs in ini-file")
 
-    def branch_to_prof(self, offset=0.0, vertex_end=False, rename_col=None, prefix="", suffix=""):
+    def branch_to_prof(
+        self, offset=0.0, vertex_end=False, rename_col=None, prefix="", suffix=""
+    ):
         """Create profiles on branches from branch data"""
 
         gdf_out = self.copy()
@@ -590,7 +614,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if rename_col is not None:
             try:
                 gdf_out["branch_id"] = gdf_out[rename_col]
-                gdf_out[rename_col] = [f"{prefix}{g[1][rename_col]}{suffix}" for g in self.iterrows()]
+                gdf_out[rename_col] = [
+                    f"{prefix}{g[1][rename_col]}{suffix}" for g in self.iterrows()
+                ]
             except:
                 raise ValueError(f"Column rename with '{rename_col}' did not succeed.")
 
@@ -606,11 +632,15 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             try:
                 self[rename_col] = self[col1] + self[col2]
             except:
-                raise ValueError(f"Merge of two profile columns'{col1}' and '{col2}' did not succeed.")
+                raise ValueError(
+                    f"Merge of two profile columns'{col1}' and '{col2}' did not succeed."
+                )
 
     def snap_to_branch(self, branches, snap_method, maxdist=5):
         """Snap the geometries to the branch"""
-        spatial.find_nearest_branch(branches=branches, geometries=self, method=snap_method, maxdist=maxdist)
+        spatial.find_nearest_branch(
+            branches=branches, geometries=self, method=snap_method, maxdist=maxdist
+        )
 
 
 class ExtendedDataFrame(pd.DataFrame):
@@ -624,7 +654,9 @@ class ExtendedDataFrame(pd.DataFrame):
             required_columns = []
 
         self.required_columns = (
-            required_columns[:] if isinstance(required_columns, list) else [required_columns]
+            required_columns[:]
+            if isinstance(required_columns, list)
+            else [required_columns]
         )
 
     def delete_all(self):
@@ -658,7 +690,9 @@ class ExtendedDataFrame(pd.DataFrame):
     def add_data(self, df):
 
         if not np.in1d(df.columns, self.columns).all():
-            raise KeyError("The new df contains columns that are not present in the current df.")
+            raise KeyError(
+                "The new df contains columns that are not present in the current df."
+            )
 
         # Concatenate data
         current = pd.DataFrame(self.values, index=self.index, columns=self.columns)
@@ -685,7 +719,9 @@ class ExtendedDataFrame(pd.DataFrame):
                     )
                 )
 
-    def read_gml(self, gml_path: Union[str, Path], column_mapping: dict = None, index_col=None):
+    def read_gml(
+        self, gml_path: Union[str, Path], column_mapping: dict = None, index_col=None
+    ):
         """
         Read GML file to GeoDataFrame.
 
@@ -771,7 +807,9 @@ class ExtendedDataFrame(pd.DataFrame):
         nfields = layer_definition.GetFieldCount()
 
         # Get column names for features
-        columns = [layer_definition.GetFieldDefn(i).GetName().lower() for i in range(nfields)]
+        columns = [
+            layer_definition.GetFieldDefn(i).GetName().lower() for i in range(nfields)
+        ]
 
         # Collect features
         features = [f for f in layer]

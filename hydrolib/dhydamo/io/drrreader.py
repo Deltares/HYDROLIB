@@ -512,7 +512,18 @@ class PavedIO:
                             pav_area = str(pixels[14.0] * px_area)
                         else:
                             pav_area = 0.0
-
+                else:
+                    pixels = zonal_stats(
+                                cat.geometry,
+                                lu_rast,
+                                affine=lu_affine,
+                                categorical=True,
+                                all_touched=all_touched,
+                            )[0]
+                    if 14.0 in pixels:
+                        pav_area = str(pixels[14.0] * px_area)
+                    else:
+                        pav_area = 0.0
             else:
                 pav_area = (
                     str(lu_counts[num][14.0] * px_area)

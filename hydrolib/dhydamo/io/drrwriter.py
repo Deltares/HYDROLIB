@@ -408,7 +408,7 @@ class DRRWriter:
                             + dct["sp"]
                             + "' nm '"
                             + dct["sp"]
-                            + "' co 4 PDIN 1 1 '365;00:00:00' pdin ss 0\n"
+                            + "' co 4 PDIN 0 0 pdin ss 0\n"
                         )
                         f.write("TBLE\n")
                         for row in self.rrmodel.external_forcings.seepage[dct["sp"]][

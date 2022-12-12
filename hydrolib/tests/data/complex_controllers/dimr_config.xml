@@ -67,12 +67,12 @@
     <sourceComponent>DFM</sourceComponent>
     <targetComponent>Real_Time_Control</targetComponent>
     <item>
-      <sourceName>observations/ObsPt2/water_level</sourceName>
-      <targetName>[Input]ObsPt2/Water level (op)</targetName>
+      <sourceName>observations/ObsS_96684_1/water_level</sourceName>
+      <targetName>[Input]ObsS_96684_1/Water level (op)</targetName>
     </item>
     <item>
-      <sourceName>observations/ObsPt3/water_level</sourceName>
-      <targetName>[Input]ObsPt3/Water level (op)</targetName>
+      <sourceName>observations/ObsS_96684_2/water_level</sourceName>
+      <targetName>[Input]ObsS_96684_2/Water level (op)</targetName>
     </item>
     <logger>
       <workingDir>.</workingDir>

@@ -171,18 +171,31 @@ class DRTCModel:
                     )
                 struc_id = weir.id.values[0]
             elif management.pompid is not None:
-                logger.info(
-                    f"{management.pompid} is a regular pump - controllers for pump capacities are not yet implemented."
-                )
-                continue
+                logger.info(f'Management for pump {management.pompid} is included in FM.')
             else:
                 raise ValueError(
                     "Only management_devices and pumps can be connected to a management object."
                 )
             if management.stuurvariabele == "bovenkant afsluitmiddel":
                 steering_variable = "Crest level (s)"
+            elif management.stuurvariabele == "hoogte opening":
+                steering_variable = "Opening height"
+            elif management.stuurvariabele == "pompdebiet":
+                steering_variable = "Capacity (p)"
+            else:
+                raise ValueError(
+                    f"Invalid value for steering variable of {struc_id}: {management.stuurvariabele}."
+                )
+
             if management.doelvariabele == "waterstand":
                 target_variable = "Water level (op)"
+            elif management.doelvariabele == "debiet":
+                target_variable = "Discharge (op)"
+            else:
+                raise ValueError(
+                    f"Invalid value for target variable of {struc_id}: {management.doelvariabele}."
+                )
+
             #  if the ID is not specified separately, use the global settings
             if management.id not in pid_settings:
                 settings = pid_settings["global"]
@@ -214,9 +227,7 @@ class DRTCModel:
                         data=data,
                     )
             else:
-                raise ValueError(
-                    "Only PID and time controllers are implemented at this moment."
-                )
+                logger.warning(f'{management.typecontroller} is not a valid controller type - skipped.')
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def add_time_controller(
@@ -677,7 +688,7 @@ class DRTCModel:
                 c.text = "instantaneous"
                 c.tail = "\n"
                 d = ET.SubElement(b, gn_brackets + "locationId")
-                d.text = f"[TimeRule]Control Group {key}/Time Rule"
+                d.text = f"[TimeRule]Control group {key}/Time Rule"
                 d.tail = "\n"
                 e = ET.SubElement(b, gn_brackets + "parameterId")
                 e.text = "TimeSeries"

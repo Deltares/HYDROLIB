@@ -292,6 +292,33 @@ def mesh1d_add_branches_from_gdf(
         network.mesh1d_add_branch(branch, name=branchname)
 
 
+def mesh1d_set_branch_order(network: Network, branchids: list, idx: int = None) -> None:
+    """
+    Group branch ids so that the cross sections are
+    interpolated along the branch.
+
+    Parameters
+    ----------
+    branchids : list
+        List of branches to group
+    idx : int
+        Order number with which to update a branch
+    """
+    # Get the ids (integers) of the branch names given by the user
+    branchidx = np.isin(network._mesh1d.network1d_branch_id, branchids)
+    # Get current order
+    branchorder = network._mesh1d.network1d_branch_order
+    # Update
+    if idx is None:
+        branchorder[branchidx] = branchorder.max() + 1
+    else:
+        if not isinstance(idx, int):
+            raise TypeError("Expected integer.")
+        branchorder[branchidx] = idx
+    # Save
+    network._mesh1d.network1d_branch_order = branchorder
+
+
 def links1d2d_add_links_1d_to_2d(
     network: Network,
     branchids: List[str] = None,
@@ -657,6 +684,7 @@ def mesh2d_altitude_from_raster(
     cells = network._mesh2d.mesh2d_face_nodes
     nodatavalue = np.iinfo(cells.dtype).min
     indices = cells != nodatavalue
+    indices = cells != -2147483648
     cells = [xy_facenodes[cell[index]] for cell, index in zip(cells, indices)]
     facedata = gpd.GeoDataFrame(geometry=[Polygon(cell) for cell in cells])
 

@@ -122,14 +122,22 @@ class CrossSectionsIO:
         and standard are not given, branches can be without cross section. In that case
         a standard profile should be assigned
         """
-
+        dp_branches = None
+        dp_structures = None
         if profile_groups is not None:
             # check for profile_groups items with valid brugid or stuwid. They need to be droppped from profiles.
             groupidx = [
                 idx
                 for idx, group in profile_groups.iterrows()
-                if (len(group["brugid"]) > 10) | (len("stuwid"))
+                if ("brugid" in profile_groups.columns) and (group.brugid != "")
             ]
+
+            groupidx = groupidx + [
+                idx
+                for idx, group in profile_groups.iterrows()
+                if ("stuwid" in profile_groups.columns) & (group.stuwid != "")
+            ]
+
             # index of the lines that are associated to these groups
             lineidx = [
                 profile_lines[
@@ -553,7 +561,10 @@ class StructuresIO:
             else:
                 name = weir.code
 
-            if weir_mandev.overlaatonderlaat.to_string(index=False) == "Overlaat":
+            if (
+                weir_mandev.overlaatonderlaat.to_string(index=False).lower()
+                == "overlaat"
+            ):
                 self.structures.add_rweir(
                     id=weir.code,
                     name=name,
@@ -566,7 +577,10 @@ class StructuresIO:
                     usevelocityheight=usevelocityheight,
                 )
 
-            elif weir_mandev.overlaatonderlaat.to_string(index=False) == "Onderlaat":
+            elif (
+                weir_mandev.overlaatonderlaat.to_string(index=False).lower()
+                == "onderlaat"
+            ):
                 if "maximaaldebiet" not in weir_mandev:
                     limitflow = "false"
                     maxq = 0.0
@@ -582,7 +596,8 @@ class StructuresIO:
                     corrcoeff=weir.afvoercoefficient,
                     allowedflowdir="both",
                     usevelocityheight=usevelocityheight,
-                    gateloweredgelevel=weir_mandev.hoogteopening.values[0],
+                    gateloweredgelevel=weir_opening.laagstedoorstroomhoogte.values[0]
+                    + weir_mandev.hoogteopening.values[0],
                     uselimitflowpos=limitflow,
                     limitflowpos=maxq,
                     uselimitflowneg=limitflow,
