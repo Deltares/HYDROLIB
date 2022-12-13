@@ -117,24 +117,32 @@ def set_branch_crosssections(
     else:
         # Upstream
         ids = [f"{i}_up" for i in branches.index]
-        crosssections_up = gpd.GeoDataFrame({}, index=ids, crs=branches.crs)
+        crosssections_up = gpd.GeoDataFrame({}, index=ids)
         crosssections_up["geometry"] = [Point(l.coords[0]) for l in branches.geometry]
+        crosssections_up.crs = branches.crs
         crosssections_up["crsloc_id"] = [
             f"crs_up_{bid}" for bid in branches["branchId"]
         ]
         crosssections_up["branch_id"] = branches["branchId"].values
         crosssections_up["branch_offset"] = [0.0 for l in branches.geometry]
         crosssections_up["shift"] = branches["invlev_up"].values
+        crosssections_up["shape"] = branches["shape"].values
+        crosssections_up["diameter"] = branches["diameter"].values
+        crosssections_up["frictionId"] = branches["frictionId"].values
         # Downstream
         ids = [f"{i}_dn" for i in branches.index]
-        crosssections_dn = gpd.GeoDataFrame({}, index=ids, crs=branches.crs)
+        crosssections_dn = gpd.GeoDataFrame({}, index=ids)
         crosssections_dn["geometry"] = [Point(l.coords[-1]) for l in branches.geometry]
+        crosssections_dn.crs = branches.crs
         crosssections_dn["crsloc_id"] = [
             f"crs_dn_{bid}" for bid in branches["branchId"]
         ]
         crosssections_dn["branch_id"] = branches["branchId"].values
         crosssections_dn["branch_offset"] = [l for l in branches["geometry"].length]
         crosssections_dn["shift"] = branches["invlev_dn"].values
+        crosssections_dn["shape"] = branches["shape"].values
+        crosssections_dn["diameter"] = branches["diameter"].values
+        crosssections_dn["frictionId"] = branches["frictionId"].values
         # Merge
         crosssections = crosssections_up.append(crosssections_dn)
 
