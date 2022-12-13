@@ -2,7 +2,7 @@
 
 import logging
 import os
-from os.path import basename, isfile, join, dirname
+from os.path import basename, isfile, join, dirname, isdir
 from pathlib import Path
 from turtle import st
 from typing import Union, Optional, List, Tuple, Dict, Any
@@ -1518,7 +1518,9 @@ class DFlowFMModel(MeshModel):
 
         # update the 2dmesh to self._mesh
         if _mesh is not None:
-            self._mesh = _mesh.update(subset)
+            _mesh = _mesh.drop_vars(set(_mesh.variables.keys()).intersection(subset.variables.keys()))
+            self._mesh = _mesh.merge(subset)
+        # else already set in setup_mesh
 
         # update res
         self._res = res
@@ -2010,10 +2012,10 @@ class DFlowFMModel(MeshModel):
         # add mesh1d to self.mesh
         if not net._mesh1d.is_empty():
             self._add_mesh1d(net._mesh1d)
-            mesh1d = self.mesh1d
 
         # Read mesh1d related geometry (branches)
-        if not mesh1d.is_empty():
+        if not net._mesh1d.is_empty():
+            mesh1d = self.mesh1d
             branch_id = mesh1d.network1d_branch_id
             # Create the GeoDataFrame
             branches = gpd.GeoDataFrame(geometry=[LineString(mesh1d.branches[i].geometry) for i in branch_id], crs=self.crs)
@@ -2053,7 +2055,20 @@ class DFlowFMModel(MeshModel):
 
         # write mesh
         # hydromt convention
-        super().write_mesh(fn="mesh/fm_net.nc") # FIXME: writes incomplete mesh for 1d2d model. to be improved in xugrid
+        # super().write_mesh(fn="mesh/fm_net.nc") # FIXME: writes incomplete mesh for 1d2d model. to be improved in xugrid
+        # FIXME review: cannot write because of existing 2 grids
+        fn = "mesh/fm_net.nc"
+        _fn = join(self.root, fn)
+        if not isdir(dirname(_fn)):
+            os.makedirs(dirname(_fn))
+        ds_out = xr.Dataset()
+        for grid in self._mesh.ugrid.grids:
+            ds_out = ds_out.merge(grid.to_dataset())
+        if grid.crs is not None:
+            # save crs to spatial_ref coordinate
+            ds_out = ds_out.rio.write_crs(grid.crs)
+        self._mesh = ds_out
+        ds_out.to_netcdf(_fn, mode = "w")
 
         # hydrolib-core convention (meshkernel)
         mesh_filename = "fm_net.nc"
@@ -2514,9 +2529,8 @@ class DFlowFMModel(MeshModel):
 
         # set
         if self._mesh is not None:
-            self.set_mesh(self._mesh.merge(uds_1d))
-        else:
-            self.set_mesh(uds_1d)
+            self._mesh = self._mesh.drop_vars(set(self._mesh.variables.keys()).intersection(uds_1d.variables.keys()))
+        self.set_mesh(uds_1d)
 
     @property
     def crosssections(self):
