@@ -16,25 +16,25 @@ from read_dhydro import map_nc2gdf, net_nc2gdf, read_locations
 def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours=0):
 
     """
-   Check whether the 1D waterlevels of the 1D flow network are higher than
-   the left and right embankments in cross section profiles
+       Check whether the 1D waterlevels of the 1D flow network are higher than
+       the left and right embankments in cross section profiles
 
-   Parameters:
-        mdu_path : str
-           Path to mdu file containing the D-hydro model structure
-        nc_path
-            Path to the FlowFM_map.nc, containing the results of the simulation 
-        output_path
-            Path where the shapefile is saved as output
-        skip_hours: int
-            Number of hours at the front of the simulation results that
-            should be skipped (i.e. because model is not stable yet)
+       Parameters:
+            mdu_path : str
+               Path to mdu file containing the D-hydro model structure
+            nc_path
+                Path to the FlowFM_map.nc, containing the results of the simulation
+            output_path
+                Path where the shapefile is saved as output
+            skip_hours: int
+                Number of hours at the front of the simulation results that
+                should be skipped (i.e. because model is not stable yet)
 
-    Returns:
-        Shapefile with the margins of the left and right embankment
-___________________________________________________________________________________________________________
-   Warning: function currently only checks yz and zwRiver cross sections
-               ...
+        Returns:
+            Shapefile with the margins of the left and right embankment
+    ___________________________________________________________________________________________________________
+       Warning: function currently only checks yz and zwRiver cross sections
+                   ...
     """
 
     ## READ DATA
