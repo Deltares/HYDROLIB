@@ -5,27 +5,18 @@
 # Author: Stefan de Vries, Waterschap Drents Overijsselse Delta
 #
 # =========================================================================================
-import csv
 import os
-import sys
 from pathlib import Path
-
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from read_dhydro import net_nc2gdf, read_locations
+from read_dhydro import read_locations
 from shapely.geometry import LineString, Point
 from stationpoints import stationpoints
-
-from hydrolib.core.io import polyfile
 from hydrolib.core.io.crosssection.models import CrossDefModel, CrossLocModel
-from hydrolib.core.io.mdu.models import FMModel, FrictionModel
+from clean_dhydro import clean_crsdefs, split_duplicate_crsdef_references
 
-# TO DO
-# Werkt nu alleen voor yz cross sections
-
-
-def change_depth_crosssection(
+def change_depth_crosssections(
     mdu_path,
     shape_path,
     column_horizontal,
@@ -102,6 +93,9 @@ def change_depth_crosssection(
     ## REMOVE SHARED DEFINITIONS
     crsdefs = gdfs_results["cross_sections_definition"]
     crslocs, crsdefs = split_duplicate_crsdef_references(crslocs, crsdefs, loc_ids)
+    
+    # clean crsdefs
+    crsdefs = clean_crsdefs(crsdefs) 
 
     ## Adjust selected profile definitions)
     print("Starting to adjust " + str(len(loc_ids)) + " profile definitions")
@@ -117,55 +111,76 @@ def change_depth_crosssection(
             0
         ]  # index of the cross section definition
 
+        # Determine the right parameters for this profile
+        vertical_distance = gdf_frict.loc[
+            gdf_frict.intersects(crslocs.loc[index_loc, "geometry"]),
+            column_vertical,
+        ].to_list()[0]
+        slot_width = gdf_frict.loc[
+            gdf_frict.intersects(crslocs.loc[index_loc, "geometry"]),
+            column_horizontal,
+        ].to_list()[0]
         if (
-            crsdefs.loc[index_def, "type"] != "yz"
-        ):  # this tool can currently only adjust yz-profiles
-            print(
-                "Cannot adjust profile definition "
-                + str(def_id)
-                + " at location "
-                + str(loc_id)
-                + " because it is not a yz-profile"
+            isinstance(vertical_distance, (int, float)) == False
+            or isinstance(slot_width, (int, float)) == False
+        ):
+            raise Exception(
+                "The input shapefile does not contain int/float numbers for the vertical/horizontal adjustment"
             )
-        else:
-
-            # Determine the right parameters for this profile
-            vertical_distance = gdf_frict.loc[
-                gdf_frict.intersects(crslocs.loc[index_loc, "geometry"]),
-                column_vertical,
-            ].to_list()[0]
-            slot_width = gdf_frict.loc[
-                gdf_frict.intersects(crslocs.loc[index_loc, "geometry"]),
-                column_horizontal,
-            ].to_list()[0]
-            if (
-                isinstance(vertical_distance, (int, float)) == False
-                or isinstance(slot_width, (int, float)) == False
-            ):
-                raise Exception(
-                    "The input shapefile does not contain int/float numbers for the vertical/horizontal adjustment"
-                )
-            if (
-                (vertical_distance_type != "distance")
-                and (vertical_distance_type != "referencelevel")
-                and (vertical_distance_type != "uniform")
-            ):
-                raise Exception(
-                    "The input does not contain the right key word to describe the type of vertical adjustment"
-                )
-                print('It is either "distance", "referencelevel" or "uniform"')
-            if slot_width < 0:
-                raise Exception("Section/slot width should be a positive number")
-
+        if (
+            (vertical_distance_type != "distance")
+            and (vertical_distance_type != "referencelevel")
+            and (vertical_distance_type != "uniform")
+        ):
+            raise Exception(
+                "The input does not contain the right key word to describe the type of vertical adjustment"
+            )
+            print('It is either "distance", "referencelevel" or "uniform"')
+        if slot_width < 0:
+            raise Exception("Section/slot width should be a positive number")
+        
+        if crsdefs.loc[index_def, "type"] == "zwRiver":
+            # convert to yz profile
+            y = []
+            z = []
+            if type(crsdefs.loc[index_def, "totalwidths"]) == list:
+                if crsdefs.loc[index_def, "totalwidths"] != []:
+                    crsdefs.at[index_def, "flowwidths"] = crsdefs.loc[index_def, "totalwidths"]
+            for i in range(int(crsdefs.loc[index_def, "numlevels"])):
+                y = [crsdefs.loc[index_def, "flowwidths"][i]/2*-1] + y + [crsdefs.loc[index_def, "flowwidths"][i]/2]
+                z = [crsdefs.loc[index_def, "levels"][i]] + z + [crsdefs.loc[index_def, "levels"][i]]           
+            crsdefs.at[index_def, "zcoordinates"] = z
+            crsdefs.at[index_def, "ycoordinates"] = y
+            crsdefs.loc[index_def, "yzcount"] = len(z)
+            crsdefs.loc[index_def, "frictionids"] = ["Channels"] # will be overwritten
+            crsdefs.loc[index_def, "sectioncount"] = 1
+            crsdefs.loc[index_def, "type"] = "yz"
+            crsdefs.loc[index_def, "thalweg"] = max(y)/2
+            crsdefs.loc[index_def, "singleValuedZ"] = 1
+            
+            crsdefs.loc[index_def, "numlevels"] = None
+            crsdefs.loc[index_def, "levels"] = None
+            crsdefs.loc[index_def, "flowwidths"] = None
+            crsdefs.loc[index_def, "flowwidths"] = None
+            crsdefs.loc[index_def, "leveeflowarea"] = None
+            crsdefs.loc[index_def, "leveetotalarea"] = None
+            crsdefs.loc[index_def, "leveecrestlevel"] = None
+            crsdefs.loc[index_def, "leveebaselevel"] = None
+            crsdefs.loc[index_def, "mainwidth"] = None
+            crsdefs.loc[index_def, "fp1width"] = None
+            crsdefs.loc[index_def, "fp2width"] = None
+            crsdefs.loc[index_def, "frictiontypes"] = None
+            crsdefs.loc[index_def, "frictionvalues"] = None
+        
+        if crsdefs.loc[index_def, "type"] == "yz":           
             y = crsdefs.loc[index_def, "ycoordinates"].copy()
             z = crsdefs.loc[index_def, "zcoordinates"].copy()
             bot_value = min(z)
 
-            if slot_width < (
-                max(y) - min(y)
-            ):  # if only a certain part of the cross section should we changed (not the full width)
+            if slot_width < (max(y) - min(y)):  
+                # if only a certain part of crs should be changed 
                 ## SELECT LOWEST POINT IN THE PROFILE
-                # This will be the starting point when finding the optimal area to deepen the profile
+                # This will be the starting point when finding the optimal area to deepen/raise the profile
                 bot_position = [i for i, zz in enumerate(z) if float(zz) == bot_value]
                 if (
                     len(bot_position) > 2
@@ -173,7 +188,7 @@ def change_depth_crosssection(
                     points_next_to_each_other = -1
                     for i in range(
                         len(bot_position) - 2
-                    ):  # Check there are lowest points that lie next to each other
+                    ):  # Check if the lowest points lie next to each other
                         if abs(bot_position[i + 1] - bot_position[i]) == 1:
                             points_next_to_each_other = i
                     if (
@@ -188,10 +203,9 @@ def change_depth_crosssection(
                     if (y[bot_position[0]] - y[bot_position[1]]) <= slot_width:
                         index_left = bot_position[0]
                         index_right = bot_position[1]
-                    else:  # If the distance between the lowest points is too larg
+                    else:  # If the distance between the lowest points is too large
                         if abs(bot_position[-1] - bot_position[0]) != 1:
-                            # If the lowest points are not next to each other, pick point in the middle based in index (not distance)
-                            # TO DO: improve selection
+                            # If the lowest points are not next to each other, pick point in the middle based on index (not distance)
                             bot_position = round(
                                 abs(bot_position[-1] - bot_position[0]) / 2
                             )  #
@@ -221,7 +235,7 @@ def change_depth_crosssection(
                 crsdefs.loc[index_def, "thalweg"] = y_middle
 
                 ## ADD EXTRA INTERMEDIATE POINTS IN THE PROFILE
-                # This makes the profile line more detailed and makes it easier to select the lowest section which should be deepened
+                # This makes the profile line more detailed
                 line = []
                 for i in range(len(y)):
                     line.append([0, 0])
@@ -387,143 +401,96 @@ def change_depth_crosssection(
             crsdefs["zcoordinates"] = pd.Series(temp)
             crsdefs.loc[index_def, "yzcount"] = len(z)
 
-    ## PUT THE CRS DEFINITION BACK INTO THE CROSSDEFMODEL AND WRITE OUTPUT
+        else:  # this tool can currently only adjust yz-profiles
+            print(
+                "Cannot adjust profile definition "
+                + str(def_id)
+                + " at location "
+                + str(loc_id)
+                + " because it is not a yz or zwRiver-profile"
+            )
+            
+    write_cross_section_data(crsdefs, crslocs ,output_path)
+    print("Finished adjusting " + str(len(loc_ids)) + " profile definitions")
+    
+def write_cross_section_data(crsdefs, crslocs ,output_path):
+    ## WRITE CROSS SECTION DATA
+    # crsdefs = crsdefs.drop(columns=["waterlevel", "left_y_waterlevel", "right_y_waterlevel", "method"])
+    print("Write cross section definition data") 
     tempfile = os.path.join(output_path, "crsdef_temp.ini")
     crsdefs = crsdefs.replace({np.nan: None})
     crossdef_new = CrossDefModel(definition=crsdefs.to_dict("records"))
     crossdef_new.save(Path(tempfile))
-
-    ## TEMPORARY BUG FIX, OPEN FILE AND DELETE THE ROWS ‘frictionId’, ‘frictionType’, ‘frictionValue’
-    # read lines
-    def_data = []
-    with open(tempfile, "r") as file_temp:
-        data = csv.reader(file_temp)
-        for row in data:
-            def_data.append(row)
-
+    
+    # open crsdef file and clean, remove unnecessary lines
+    with open(tempfile, "r") as file:
+        def_data = file.readlines()
     filename = os.path.join(output_path, "crsdef.ini")
-    writefric = False
-    with open(filename, "w") as file_def:
-        for row in def_data:
-            if row != []:
-                if len(row[0]) > 8:
-                    if row[0][4:6] == "id":
-                        def_id = row[0].split("= ")[1]
-                        index_def = crsdefs.loc[
-                            crsdefs["id"] == def_id, :
-                        ].index.to_list()[
-                            0
-                        ]  # index of the cross section definition
-                        if isinstance(crsdefs.loc[index_def, "frictionids"], list):
-                            writefric = True
-                        else:
-                            writefric = False
-                    if row[0][4:8] == "fric":
-                        if writefric == True:
-                            file_def.write(row[0])
-                            file_def.write("\n")
-                    else:
-                        file_def.write(row[0])
-                        file_def.write("\n")
-            else:
-                file_def.write("\n")
+    proftype = ""
+    for num, line in enumerate(def_data, 1):
+        if "\n" in line:
+            line  = line.replace("\n","")
+        if line != "":  
+            if "=" in line:
+                if line.strip()[-1] == "=":
+                    # Dont write line, this is a empty line
+                    def_data[num - 1] = ""
+                elif line.split("= ")[1].strip()[0] == "#":
+                    # Dont write line, this is a empty line
+                    def_data[num - 1] = ""
+                elif line.split("= ")[0].strip() == "conveyance":
+                    if line.split("=")[1].strip().split(" ")[0] == "segmented":
+                        if proftype == "yz" or  proftype == "zwRiver" or  proftype == "zw":
+                            # Dont write line, default values for conveyance
+                            def_data[num - 1] = ""                        
+                else:
+                    if line.split("= ")[0].strip() == "type":
+                        proftype = line.split("= ")[1].strip()
+                        if "#" in line.split("= ")[1].strip():
+                            proftype = proftype("#")[0].strip()      
+    with open(filename, "w") as file:
+        file.writelines(def_data)           
     os.remove(tempfile)
 
-    ## PUT THE CRS DEFINITION BACK INTO THE CROSSDEFMODEL AND WRITE OUTPUT
-    filename = os.path.join(output_path, "crsloc.ini")
+    print("Write cross section location data") 
+    tempfile = os.path.join(output_path, "crsloc_temp.ini")
     crslocs = crslocs.replace({np.nan: None})
     crossloc_new = CrossLocModel(crosssection=crslocs.to_dict("records"))
-    crossloc_new.save(Path(filename))
-
-    print("Finished adjusting " + str(len(loc_ids)) + " profile definitions")
-
-
-def split_duplicate_crsdef_references(crslocs, crsdefs, loc_ids=[]):
-    """
-    If a cross section definition is used at more than 1 cross section locatoin, it is called a shared definition.
-    Sometimes, for example when use want to adjust 1 profile at 1 location, it is wise to split these shared definitions.
-    Otherwise, also the cross sections elsewhere will have an adjusted profile
-
-
-    This function splits the shared defintions for those cross section LOCATIONS that are included in the list loc_ids
-
-    Parameters
-    ----------
-    crsloc : pandas geodataframe with the cross section locations
-    crsdefs : pandas geodataframe with the cross section defintions
-    loc_ids : list with the cross section locations for which the defintions should be checked and (if needed) splitted.
-            if empty, the function will check all cross section locations
-
-    Returns
-    -------
-    crsloc : pandas geodataframe with the cross section locations
-    crsdefs : pandas geodataframe with the cross section defintions
-
-    """
-
-    counter = 0
-
-    if loc_ids == []:  # if list is empyt, all cross section locations will be checked
-        loc_ids = crslocs["id"].tolist()
-
-    for loc_id in loc_ids:
-        def_id = crslocs.loc[crslocs["id"] == loc_id, "definitionid"].iloc[
-            0
-        ]  # ID cross section definition
-        index_loc = crslocs.loc[crslocs["id"] == loc_id, :].index.to_list()[
-            0
-        ]  # index of the cross section location
-        if (
-            crslocs["definitionid"] == def_id
-        ).sum() > 1:  # if a cross section definition is used more than once
-            if (crslocs["definitionid"] == def_id).sum() == 2:
-                # if a definition is used 2 times, the label shared definition should be adjusted
-                # the first location that refers to the shared definition, gets its own new cross section definition
-                # the location that still refers to the shared definition remains untouched. However, the definition itself does not get the label 'shared_definition' anymore
-                crsdefs.loc[
-                    crsdefs.id == def_id, "isshared"
-                ] = np.nan  # remove the label 'shared_definition'
-                # if a definition is used more than 2 times, we can keep the shared definition. But we should make a new definition for our location.
-
-            # determine the new ID of the cross section definition
-            i = 1
-            new_def_id = str(def_id) + "_-_" + str(i)
-            while len(crslocs.loc[crslocs["definitionid"] == new_def_id, :]) > 0:
-                i = i + 1
-                new_def_id = str(def_id) + "_-_" + str(i)
-
-            # enter the new information in the dataframes
-            crslocs.loc[index_loc, "definitionid"] = new_def_id
-            new_row = crsdefs.loc[crsdefs.id == def_id, :].copy()
-            new_row["id"] = new_def_id
-            new_row["isshared"] = np.nan
-            new_row.name = len(crsdefs)
-            crsdefs = crsdefs.append(new_row)
-            counter = counter + 1
-            crsdefs.reset_index(drop=True, inplace=True)
-
-    if counter > 0:
-        print("Splitted the shared definitions for the selected profile loctions")
-        print("Therefore, created " + str(counter) + " new profile definitions")
-    else:
-        print(
-            "Did not have to split shared definitions for the selected profile loctions"
-        )
-
-    return crslocs, crsdefs
-
+    crossloc_new.save(Path(tempfile))
+    
+    # open crsloc file and clean, remove unnecessary lines
+    with open(tempfile, "r") as file:
+        def_data = file.readlines()
+    filename = os.path.join(output_path, "crsloc.ini")
+    for num, line in enumerate(def_data, 1):
+        if "\n" in line:
+            line  = line.replace("\n","")
+        if line != "":
+            if "=" in line:
+                if line[-1] == "=":
+                    # Dont write line, this is a empty line
+                    def_data[num - 1] = ""
+                elif line.split("= ")[1].strip()[0] == "#":
+                    # Dont write line, this is a empty line
+                    def_data[num - 1] = ""
+                elif line.strip() == "locationtype = 1d":
+                    # Dont write line, default values locationtype"
+                    def_data[num - 1] = ""
+    with open(filename, "w") as file:
+        file.writelines(def_data)           
+    os.remove(tempfile)
 
 if __name__ == "__main__":
     # Read shape
     mdu_path = Path(
-        r"C:\Users\devop\Desktop\Zwolle-Minimodel_inputtestmodel\1D2D-DIMR\dflowfm\flowFM.mdu"
+        r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\flowFM.mdu"
     )
     shape_path = r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\shapes\change_fric.shp"
     column_vertical = "bdm_mNAP"
     vertical_vertical_distance_type = "referencelevel"
     column_horizontal = "breedte"
     output_path = r"C:\Users\devop\Desktop"
-    change_depth_crosssection(
+    change_depth_crosssections(
         mdu_path,
         shape_path,
         column_horizontal,
