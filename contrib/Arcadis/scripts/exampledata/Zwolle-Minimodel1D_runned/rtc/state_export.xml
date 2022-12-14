@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<treeVectorFile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.openda.org" xsi:schemaLocation="http://www.openda.org ../../../xsd/treeVector.xsd">
+  <treeVector>
+    <treeVectorLeaf id="[Input]measUpSW-S570/Water level (op)">
+      <vector>-0.150116391246  -0.150116391246 -0.139829784783 </vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[SP]Control group of SW-S570/CTR_SW-S570">
+      <vector>-99  -99 -99 </vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Output]SW-S570/Crest level (s)">
+      <vector>-38.52  -38.7 -38.88 </vector>
+    </treeVectorLeaf>
+    <treeVectorLeaf id="[Status]Control group of SW-S570/CTR_SW-S570">
+      <vector>1  1 1 </vector>
+    </treeVectorLeaf>
+  </treeVector>
+</treeVectorFile>

@@ -1,0 +1,189 @@
+ Run datum (DD-MM-YY) and time: 12-12-2022  19: 7
+
+ Summary of common data    
+ ===============================
+
+ Case name                                     
+ Number of nodes              142     37.32 ha
+ Number of links               72
+ Number of paved areas         16     23.69 ha
+ Number of unpaved areas       56     13.64 ha
+ Number of greenhouse-areas     0      0.00 ha
+           with basins                 0.00 ha
+ Number of open water nodes     0      0.00 ha
+ Number of structures           0
+ Number of boundaries          70
+ Number of NWRW nodes           0      0.00 ha
+ Number of Sacramento nodes     0      0.00 ha
+ Number of RR Runoff nodes      0      0.00 ha
+ Number of Cells                0      0.00 ha
+
+ Number of events               1
+ Timestepsize    (s)         3600
+
+
+
+
+ Summary input data paved area          
+
+ Node identification     Node    Surface    Surf. max storage    max.storage  Capacity  
+                         name                         street      sewer       sewerpump  
+                                   (ha)      (m NAP)    (mm)       (mm)         (m3/s)   
+===========================================================================================
+pv122                pv122            0.172      3.29      0.00      0.00     0.000
+pv133                pv133            0.105      2.28      0.00      0.00     0.000
+pv156                pv156            0.042      2.78      0.00      0.00     0.000
+pv291                pv291            0.887      2.37      0.00      0.00     0.000
+pv435                pv435            1.517      2.67      0.00      0.00     0.000
+pv506                pv506            0.680      4.29      0.00      0.00     0.000
+pv590                pv590            1.089      2.49      0.00      0.00     0.000
+pv725                pv725            0.401      2.42      0.00      0.00     0.000
+pv730                pv730            1.124      2.76      0.00      0.00     0.000
+pv831                pv831            1.144      2.78      0.00      0.00     0.000
+pv870                pv870            1.707      2.27      0.00      0.00     0.000
+pv1089               pv1089           0.195      1.52      0.00      0.00     0.000
+pv1204               pv1204           4.435      1.52      0.00      0.00     0.000
+pv1278               pv1278           2.928      2.40      0.00      0.00     0.000
+pv1468               pv1468           2.797      2.88      0.00      0.00     0.000
+pv1937               pv1937           4.460      2.32      0.00      0.00     0.000
+
+
+ Summary input data unpaved area          
+
+ Node identification    Node   Surface   Surf.Level max.storage Drainage     Infiltration Alfa-factors    Storagecoefficient
+                        name                       on land      depth        velocity     land  soil   (based on ref.level summer)
+                                  (ha)     (m NAP)    (mm)      (m NAP)      (mm/hour)      (1/day)       (mm)
+======================================================================================================================================
+upGRASLANDZAND122    upGRASLANDZA     0.080      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upNATUURZAND122      upNATUURZAND     0.003      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDZAND133    upGRASLANDZA     0.125      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN133    upGRASLANDVE     0.007      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upGRASLANDZAND156    upGRASLANDZA     0.190      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN156    upGRASLANDVE     0.120      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upGRASLANDZAND259    upGRASLANDZA     0.110      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN259    upGRASLANDVE     0.050      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upNATUURVEEN259      upNATUURVEEN     0.205      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upNATUURZAND259      upNATUURZAND     0.003      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN291    upGRASLANDVE     0.022      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upGRASLANDZAND291    upGRASLANDZA     0.115      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDZAND295    upGRASLANDZA     0.154      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN295    upGRASLANDVE     0.052      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upNATUURVEEN295      upNATUURVEEN     0.100      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upGRASLANDZAND370    upGRASLANDZA     0.405      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN370    upGRASLANDVE     0.043      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upNATUURVEEN370      upNATUURVEEN     0.095      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upNATUURZAND370      upNATUURZAND     0.013      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDZAND435    upGRASLANDZA     0.155      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upNATUURZAND435      upNATUURZAND     0.180      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN435    upGRASLANDVE     0.003      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upNATUURVEEN435      upNATUURVEEN     0.003      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upGRASLANDZAND506    upGRASLANDZA     1.730      1.15     10.00     -0.10     99.00      0.00      0.00    0.0415
+upGRASLANDZAND570    upGRASLANDZA     0.048      0.99     10.00     -0.40     99.00      0.00      0.00    0.0446
+upGRASLANDVEEN570    upGRASLANDVE     0.055      0.99     10.00     -0.40     99.00      0.00      0.00    0.1524
+upNATUURVEEN570      upNATUURVEEN     0.245      0.99     10.00     -0.40     99.00      0.00      0.00    0.1524
+upNATUURZAND570      upNATUURZAND     0.290      0.99     10.00     -0.40     99.00      0.00      0.00    0.0446
+upGRASLANDZAND590    upGRASLANDZA     0.207      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN590    upGRASLANDVE     0.083      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upGRASLANDZAND725    upGRASLANDZA     0.865      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN725    upGRASLANDVE     0.055      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upNATUURZAND725      upNATUURZAND     0.052      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDZAND730    upGRASLANDZA     0.292      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN730    upGRASLANDVE     0.130      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upNATUURVEEN730      upNATUURVEEN     0.035      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upGRASLANDZAND831    upGRASLANDZA     0.412      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN831    upGRASLANDVE     0.110      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upGRASLANDZAND870    upGRASLANDZA     2.342      1.15     10.00     -0.10     99.00      0.00      0.00    0.0415
+upNATUURZAND870      upNATUURZAND     0.188      1.15     10.00     -0.10     99.00      0.00      0.00    0.0415
+upGRASLANDZAND1089   upGRASLANDZA     0.422      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN1089   upGRASLANDVE     0.113      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upNATUURVEEN1089     upNATUURVEEN     0.043      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upNATUURZAND1089     upNATUURZAND     0.305      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDZAND1204   upGRASLANDZA     0.075      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN1204   upGRASLANDVE     0.015      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upGRASLANDZAND1278   upGRASLANDZA     0.980      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN1278   upGRASLANDVE     0.045      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upNATUURZAND1278     upNATUURZAND     0.233      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upNATUURVEEN1278     upNATUURVEEN     0.102      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upGRASLANDZAND1468   upGRASLANDZA     0.728      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN1468   upGRASLANDVE     0.005      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upNATUURZAND1468     upNATUURZAND     0.613      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upNATUURVEEN1468     upNATUURVEEN     0.033      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+upGRASLANDZAND1937   upGRASLANDZA     0.550      1.05     10.00     -0.40     99.00      0.00      0.00    0.0459
+upGRASLANDVEEN1937   upGRASLANDVE     0.005      1.05     10.00     -0.40     99.00      0.00      0.00    0.1574
+
+
+ Summary input data boundaries      
+
+ Node identification   Node    Init.level variable  serie
+                       name      (m NAP)   (1=yes)   number
+================================================================
+ucGRASLANDZAND122    ucGRASLANDZA    0.000        0        0
+ucNATUURZAND122      ucNATUURZAND    0.000        0        0
+ucGRASLANDZAND133    ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN133    ucGRASLANDVE    0.000        0        0
+ucGRASLANDZAND156    ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN156    ucGRASLANDVE    0.000        0        0
+ucGRASLANDZAND259    ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN259    ucGRASLANDVE    0.000        0        0
+ucNATUURVEEN259      ucNATUURVEEN    0.000        0        0
+ucNATUURZAND259      ucNATUURZAND    0.000        0        0
+ucGRASLANDVEEN291    ucGRASLANDVE    0.000        0        0
+ucGRASLANDZAND291    ucGRASLANDZA    0.000        0        0
+ucGRASLANDZAND295    ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN295    ucGRASLANDVE    0.000        0        0
+ucNATUURVEEN295      ucNATUURVEEN    0.000        0        0
+ucGRASLANDZAND370    ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN370    ucGRASLANDVE    0.000        0        0
+ucNATUURVEEN370      ucNATUURVEEN    0.000        0        0
+ucNATUURZAND370      ucNATUURZAND    0.000        0        0
+ucGRASLANDZAND435    ucGRASLANDZA    0.000        0        0
+ucNATUURZAND435      ucNATUURZAND    0.000        0        0
+ucGRASLANDVEEN435    ucGRASLANDVE    0.000        0        0
+ucNATUURVEEN435      ucNATUURVEEN    0.000        0        0
+ucGRASLANDZAND506    ucGRASLANDZA    0.000        0        0
+ucGRASLANDZAND570    ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN570    ucGRASLANDVE    0.000        0        0
+ucNATUURVEEN570      ucNATUURVEEN    0.000        0        0
+ucNATUURZAND570      ucNATUURZAND    0.000        0        0
+ucGRASLANDZAND590    ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN590    ucGRASLANDVE    0.000        0        0
+ucGRASLANDZAND725    ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN725    ucGRASLANDVE    0.000        0        0
+ucNATUURZAND725      ucNATUURZAND    0.000        0        0
+ucGRASLANDZAND730    ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN730    ucGRASLANDVE    0.000        0        0
+ucNATUURVEEN730      ucNATUURVEEN    0.000        0        0
+ucGRASLANDZAND831    ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN831    ucGRASLANDVE    0.000        0        0
+ucGRASLANDZAND870    ucGRASLANDZA    0.000        0        0
+ucNATUURZAND870      ucNATUURZAND    0.000        0        0
+ucGRASLANDZAND1089   ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN1089   ucGRASLANDVE    0.000        0        0
+ucNATUURVEEN1089     ucNATUURVEEN    0.000        0        0
+ucNATUURZAND1089     ucNATUURZAND    0.000        0        0
+ucGRASLANDZAND1204   ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN1204   ucGRASLANDVE    0.000        0        0
+ucGRASLANDZAND1278   ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN1278   ucGRASLANDVE    0.000        0        0
+ucNATUURZAND1278     ucNATUURZAND    0.000        0        0
+ucNATUURVEEN1278     ucNATUURVEEN    0.000        0        0
+ucGRASLANDZAND1468   ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN1468   ucGRASLANDVE    0.000        0        0
+ucNATUURZAND1468     ucNATUURZAND    0.000        0        0
+ucNATUURVEEN1468     ucNATUURVEEN    0.000        0        0
+ucGRASLANDZAND1937   ucGRASLANDZA    0.000        0        0
+ucGRASLANDVEEN1937   ucGRASLANDVE    0.000        0        0
+seep122              seep122         0.000        0        0
+seep156              seep156         0.000        0        0
+seep291              seep291         0.000        0        0
+seep435              seep435         0.000        0        0
+seep506              seep506         0.000        0        0
+seep725              seep725         0.000        0        0
+seep730              seep730         0.000        0        0
+seep831              seep831         0.000        0        0
+seep870              seep870         0.000        0        0
+seep1089             seep1089        0.000        0        0
+seep1204             seep1204        0.000        0        0
+seep1278             seep1278        0.000        0        0
+seep1468             seep1468        0.000        0        0
+seep1937             seep1937        0.000        0        0

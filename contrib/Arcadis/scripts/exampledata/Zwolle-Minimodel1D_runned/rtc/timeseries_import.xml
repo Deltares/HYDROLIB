@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<TimeSeries xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.wldelft.nl/fews/PI" xsi:schemaLocation="http://www.wldelft.nl/fews/PI C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel1D\rtc\pi_timeseries.xsd" version="1.2">
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[IntervalRule]Control group of SW-S570/CTR_SW-S570</locationId>
+      <parameterId>SP</parameterId>
+      <timeStep unit="hour" multiplier="1" divider="1" />
+      <startDate date="2017-06-01" time="00:00:00" />
+      <endDate date="2017-06-15" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="2017-06-01" time="00:00:00" value="-99" />
+    <event date="2017-06-15" time="00:00:00" value="-99" />
+  </series>
+</TimeSeries>

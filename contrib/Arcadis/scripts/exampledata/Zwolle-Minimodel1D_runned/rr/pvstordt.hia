@@ -1,0 +1,36 @@
+[General]
+FileType=DelftIO HIA file
+DioVersion=Deltares, DELFTIO Version 1.09.00.141339, Jun 04 2022, 20:10:32
+HiaVersion=1.00
+ 
+[DioCheck]
+NumberOfParameters=17
+NumberOfLocations=16
+T0=2017. 6. 1  0: 0: 0
+TimeStepUnit=Second
+TimeStepMultiplyer=3600
+ 
+[Long Parameters]
+8=DWF to CSS/SWS [m3/s]
+10=Street to CSS/SWS [m3/s]
+ 
+[Long Locations]
+ 
+[Location Descriptions]
+1=pv122
+2=pv133
+3=pv156
+4=pv291
+5=pv435
+6=pv506
+7=pv590
+8=pv725
+9=pv730
+10=pv831
+11=pv870
+12=pv1089
+13=pv1204
+14=pv1278
+15=pv1468
+16=pv1937
+ 
