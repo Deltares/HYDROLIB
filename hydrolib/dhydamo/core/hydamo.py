@@ -1,23 +1,25 @@
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Union
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from pathlib import Path
+import shapely
 from pydantic import validate_arguments
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, Point, Polygon
 from tqdm.auto import tqdm
-import shapely
+
 from hydrolib import dhydamo
-from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.converters.hydamo2df import (
-    RoughnessVariant,
-    StructuresIO,
     CrossSectionsIO,
     ExternalForcingsIO,
+    RoughnessVariant,
+    StructuresIO,
 )
+from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)

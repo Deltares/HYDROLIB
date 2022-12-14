@@ -1,0 +1,8 @@
+__title__ = 'profile_optimizer'
+__description__ = 'The Profile Optimizer is a package that automatically optimizes a profile in a D-HYDRO model'
+__version__ = '0.1.3'
+__author__ = 'Royal HaskoningDHV'
+__author_email__ = 'lisa.weijers@rhdhv.com'
+__license__ = 'Open Source (HYDROLIB)'
+__url__ = 'https://github.com/Deltares/HYDROLIB'
+__keywords__ = 'D-HYDRO dhydro hydrology hydraulics HYDROLIB profile crosssection optimization automation model'

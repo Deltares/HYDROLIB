@@ -13,7 +13,6 @@ from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
 from hydrolib.dhydamo.geometry import spatial
 
-
 logger = logging.getLogger()
 
 

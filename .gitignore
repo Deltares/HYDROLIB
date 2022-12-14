@@ -135,7 +135,7 @@ contrib/d2hydro/scripts/*
 .vscode/launch.json
 hydrolib/dhydamo/debug.py
 .vscode/settings.json
-
+.idea/
 .DS_Store
 
 # Core, using two different hydrolib repos (core, dhydamo)
@@ -147,3 +147,6 @@ hydrolib/core/*
 # Notebook test output
 hydrolib/tests/model/*
 hydrolib/notebooks/dimr_config.xml
+
+coverage-reports
+xunit-reports
