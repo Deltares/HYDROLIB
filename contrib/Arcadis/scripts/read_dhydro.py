@@ -740,7 +740,7 @@ def read_locations(
         gdf_bclocs.dropna(axis=1, how="all", inplace=True)
         gdf_bclocs.drop(columns=["comments", "forcingfile"], inplace=True)
 
-        gdfs_results["laterals"] = gdf_bclocs
+        gdfs_results["boundaries"] = gdf_bclocs
 
     # read laterals
     if "laterals" in results:
