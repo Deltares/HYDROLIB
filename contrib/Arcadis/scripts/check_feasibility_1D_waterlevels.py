@@ -26,15 +26,17 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
             mdu_path : str
                Path to mdu file containing the D-hydro model structure
             nc_path
-                Path to the FlowFM_map.nc, containing the results of the simulation
+                Path to the FlowFM_map.nc, containing the results of the simulation 
             output_path
                 Path where the ... file is saved as output
             skip_hours: int
                 Number of hours at the front of the simulation results that
                 should be skipped (i.e. because model is not stable yet)
 
+            Returns:
+                Shapefile with the margins of the left and right embankment
     ___________________________________________________________________________________________________________
-       Warning:
+       Warning: function currently only checks yz and zwRiver cross sections
                ...
     """
 
@@ -103,8 +105,7 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
         ].copy()
         
         
-        for j, row2 in nodes_on_branch.iterrows():
-            
+        for j, row2 in nodes_on_branch.iterrows():          
             # Check if the node with the same ID was already in the dataframe
             # of the meshnodes
             selection = meshnodes[
@@ -127,25 +128,28 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
                     meshnodes = meshnodes.append(new_row)
                     meshnodes.reset_index(drop=True, inplace=True)
             else:
-                # It is also possible that the row in the dataframe 
-                # 'total_nodes_per_branch' refers to a connection node that 
-                # lies almost at a similar location as a known meshnode
-                # but the id is a little bit different for meshnodes
-                # , sometimes a "_1" is added
-                # Check whether this is the case
-                if (
-                    nodes_on_branch.loc[j, "nodeid"] + "_1"
-                    in meshnodes["meshnodeid"].values
-                ):
+                selection = pd.DataFrame()    
+                if (nodes_on_branch.loc[j, "nodeid"] + "_1" in meshnodes["meshnodeid"].values):
+                    # It is also possible that the row in the dataframe 
+                    # 'total_nodes_per_branch' refers to a connection node that 
+                    # lies almost at a similar location as a known meshnode
+                    # but the id is a little bit different for meshnodes
+                    # , sometimes a "_1" is added
+                    # Check whether this is the case
                     selection = meshnodes[
                         meshnodes["meshnodeid"]
                         == nodes_on_branch.loc[j, "nodeid"] + "_1"
                     ].copy()
+                elif nodes_on_branch.loc[j,'nodeid'][0:4].isnumeric():
+                    #Sometimes, a mesh node is created with the coordinates as the name
+                    #and lies on the connection node
+                    selection = meshnodes[meshnodes.intersects(nodes_on_branch.loc[j,'geometry'].buffer(0.01))]
+                if len(selection) >= 1:
                     if (
                         nodes_on_branch.loc[j, "branchid"]
                         not in selection["branchid"].values
                     ):
-                        # Found a suitable node
+                        # Found a suitable node that was not yet registered
                         # Add it to the dataframe of the meshnodes
                         if (
                             nodes_on_branch.loc[j, "geometry"]
@@ -158,6 +162,9 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
                             new_row["offset"] = nodes_on_branch.loc[j, "offset"]
                             meshnodes = meshnodes.append(new_row)
                             meshnodes.reset_index(drop=True, inplace=True)
+
+                        
+                    
 
     ## READ WATERLEVELS
     # Read calculated waterlevels at meshnodes from map.nc
@@ -405,8 +412,8 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
                             * (crs_chainage - meshnodes_selection.loc[0, "offset"])
                             + meshnodes_selection.loc[0, "max_wl"]
                         )
-                        
-                
+
+
                 crslocs.loc[index_loc,"margn_lft"] = crslocs.loc[index_loc,"lft_zcrst"] - crslocs.loc[index_loc,"max_wl"]
                 crslocs.loc[index_loc,"margn_rght"] = crslocs.loc[index_loc,"rght_zcrst"] - crslocs.loc[index_loc,"max_wl"]
       
@@ -417,10 +424,10 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
 if __name__ == "__main__":
     # Read shape
     mdu_path = Path(
-        r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel1D_runned\dflowfm\flowFM.mdu"
+        r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\Model_cleaned\dflowfm\Flow1D.mdu"
     )
     nc_path = Path(
-        r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel1D_runned\dflowfm\output\FlowFM_map.nc"
+        r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\Model_cleaned\dflowfm\output\Flow1D_map.nc"
     )
     output_path = r"C:\Users\devop\Desktop"
     check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path)

@@ -26,53 +26,55 @@ def change_depth_crosssections(
 ):
 
     """
-       Adjust the depth of yz cross sections. Do this over a certain width (deepest part of the profile)
+    Adjust the depth of yz cross sections. Do this over a certain width (deepest part of the profile)
 
-       One could think of two scenario's in which this tool is usefil
-       - Deepen the bottom of the crosssection, e.g. due to maintenance/dredging activities
-       - Heighten/increase the bottom level of the crosssection, e.g. due to sedimentation processes
+    One could think of two scenario's in which this tool is usefil
+    - Deepen the bottom of the crosssection, e.g. due to maintenance/dredging activities
+    - Heighten/increase the bottom level of the crosssection, e.g. due to sedimentation processes
 
-       Parameters:
-            mdu_path : str
-               Path to mdu file containing the D-hydro model structure
-            shape_path : str
-               Path to shape file with polygons describing in which areas to adjust the cross section. The
-               user can define multiple polygons within the shapefile and these can have different setting
-            column_horizontal : str
-                Horizontal width (always in meters) over which the cross section bottom is adjusted. The
-                horizontal width/section is always placed in the deepest part of (current) cross section.
-                The tool identifies the lowest point of the profile and than looks to the left
-                and right to find the lowest section (with the defined width)
-            column_vertical : str
-                column name in the shapefile that gives the dimensions with which the cross sections should be
-                deepened/raised. column should contain float numbers.
-                if type_column_vertical = 'distance'/'uniform', the unit is in meters.
-                if type_column_vertical = 'referencelevel', the unit is a reference height with a vertical datum.
-            vertical_vertical_distance_type : str, only three options
-                The cross section can be adjusted vertically using three options. All options can be used to
-                raise or lower the profile.
-                - 'distance' --> indicates that the bottom of the profile for the user-defined width is flattened
-                and moved to a certain level. This level is computed by adding up the bottom level of the profile plus
-                the vertical displacement. Positive number is increasing the bottom level, negative number is
-                lowering the bottom level. E.g. if the column_vertical contains the number -0.5 and the lowest point
-                is currently +5 m NAP, the bottom of the cross section is flattened (width is user defined) and lies
-                at +4.5 m NAP
-                - 'referencelevel' --> indicates that the bottom of the profile for the user-defined width is flattened
-                and moved to a certain reference height that is defined with a vertical datum. In the Netherlands,
-                we use meters in Amsterdam Ordnance Datum or Normaal Amsterdams Peil (NAP). E.g. if the column_vertical
-                contains the number 4, the bottom of the cross section is flattened (width is user defined) and lies
-                at +4 m NAP. In this way, the bottom of the profile can lowered/raised. This can also vary within
-                the width-section that is selected. Maybe a part of the section is raised, and another part is lowered.
-                - 'uniform' --> indicates that the bottom is uniformly/evenly lowered/raised with a certain distance
-                The existing variations/irregularities persist.
+    Parameters:
+         mdu_path : str
+            Path to mdu file containing the D-hydro model structure
+         shape_path : str
+            Path to shape file with polygons describing in which areas to adjust the cross section. The
+            user can define multiple polygons within the shapefile and these can have different setting
+         column_horizontal : str
+             Horizontal width (always in meters) over which the cross section bottom is adjusted. The
+             horizontal width/section is always placed in the deepest part of (current) cross section.
+             The tool identifies the lowest point of the profile and than looks to the left
+             and right to find the lowest section (with the defined width)
+         column_vertical : str
+             column name in the shapefile that gives the dimensions with which the cross sections should be
+             deepened/raised. column should contain float numbers.
+             if type_column_vertical = 'distance'/'uniform', the unit is in meters.
+             if type_column_vertical = 'referencelevel', the unit is a reference height with a vertical datum.
+         vertical_vertical_distance_type : str, only three options
+             The cross section can be adjusted vertically using three options. All options can be used to
+             raise or lower the profile.
+             - 'distance' --> indicates that the bottom of the profile for the user-defined width is flattened
+             and moved to a certain level. This level is computed by adding up the bottom level of the profile plus
+             the vertical displacement. Positive number is increasing the bottom level, negative number is
+             lowering the bottom level. E.g. if the column_vertical contains the number -0.5 and the lowest point
+             is currently +5 m NAP, the bottom of the cross section is flattened (width is user defined) and lies
+             at +4.5 m NAP
+             - 'referencelevel' --> indicates that the bottom of the profile for the user-defined width is flattened
+             and moved to a certain reference height that is defined with a vertical datum. In the Netherlands,
+             we use meters in Amsterdam Ordnance Datum or Normaal Amsterdams Peil (NAP). E.g. if the column_vertical
+             contains the number 4, the bottom of the cross section is flattened (width is user defined) and lies
+             at +4 m NAP. In this way, the bottom of the profile can lowered/raised. This can also vary within
+             the width-section that is selected. Maybe a part of the section is raised, and another part is lowered.
+             - 'uniform' --> indicates that the bottom is uniformly/evenly lowered/raised with a certain distance
+             The existing variations/irregularities persist.
 
 
-            output_path
-                Path where the ... file is saved as output
+    Returns:
+        Updated crsdef.ini, crsloc.ini,
 
     ___________________________________________________________________________________________________________
-       Warning:
-               ...
+       Warning: currently only works for yz and zwRiver cross sections
+       zwRiver cross sections are converted to yz and conveyance type 
+       'segmeted' is used
+
     """
 
     ## READ DATA
@@ -157,6 +159,7 @@ def change_depth_crosssections(
             crsdefs.loc[index_def, "type"] = "yz"
             crsdefs.loc[index_def, "thalweg"] = max(y)/2
             crsdefs.loc[index_def, "singleValuedZ"] = 1
+            crsdefs.loc[index_def, "conveyance"] = 'segmented'
             
             crsdefs.loc[index_def, "numlevels"] = None
             crsdefs.loc[index_def, "levels"] = None
