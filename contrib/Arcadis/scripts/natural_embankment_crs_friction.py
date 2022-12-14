@@ -24,7 +24,8 @@ from clean_dhydro import remove_double_friction_definitions, clean_friction_file
 def natural_embankment_crs_friction(
     mdu_path, shape_path, column_waterlevel, width_embak, friction_type, embank_friction, normal_friction, side
 ):
-    """Function uses input shape of frictions and model to change frictions within chosen branches.
+    """
+    Function uses input shape of frictions and model to change frictions within chosen branches.
 
     Args:
         mdu_path : Path()
@@ -355,13 +356,13 @@ def natural_embankment_crs_friction(
 
 if __name__ == "__main__":
     # Read shape
-    mdu_path = Path(r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel1D_referentie_clean\dflowfm\flowFM.mdu")
-    shape_path = Path(r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\shapes\nvo_test.shp")
+    mdu_path = Path(r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\Model_cleaned\dflowfm\Flow1D.mdu")
+    shape_path = Path(r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\GIS\nvo_test.shp")
     column_waterlevel = "wl"
-    width_embak = 10
+    width_embak = 4
     friction_type = "Strickler"
     embank_friction = 1
-    normal_friction = 4
+    normal_friction = 30
     side = "left"
     
     
