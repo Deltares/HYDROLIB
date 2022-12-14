@@ -8,7 +8,7 @@ from pydantic import validate_arguments
 from datetime import datetime as dt
 import xml.etree.ElementTree as ET
 
-from hydrolib.core.io.mdu.models import FMModel
+from hydrolib.core.io.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 # TODO: these classes are generated from XSD-files, but still to figure out how to use them

@@ -2,7 +2,7 @@ import logging
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from hydrolib.core.io.structure.models import (
+from hydrolib.core.io.dflowfm.structure.models import (
     Weir,
     UniversalWeir,
     Orifice,
@@ -10,19 +10,24 @@ from hydrolib.core.io.structure.models import (
     Pump,
     Culvert,
 )
-from hydrolib.core.io.crosssection.models import (
+from hydrolib.core.io.dflowfm.crosssection.models import (
     CircleCrsDef,
     RectangleCrsDef,
     YZCrsDef,
     CrossSection,
 )
-from hydrolib.core.io.ext.models import Boundary, Lateral
-from hydrolib.core.io.bc.models import ForcingModel, TimeSeries, Constant
-from hydrolib.core.io.friction.models import FrictGlobal
-from hydrolib.core.io.obs.models import ObservationPoint
-from hydrolib.core.io.storagenode.models import StorageNode
-from hydrolib.core.io.inifield.models import InitialField
-from hydrolib.core.io.onedfield.models import OneDFieldGlobal
+from hydrolib.core.io.dflowfm.ext.models import Boundary, Lateral
+from hydrolib.core.io.dflowfm.bc.models import (
+    ForcingModel,
+    TimeSeries,
+    Constant,
+    QuantityUnitPair,
+)
+from hydrolib.core.io.dflowfm.friction.models import FrictGlobal
+from hydrolib.core.io.dflowfm.obs.models import ObservationPoint
+from hydrolib.core.io.dflowfm.storagenode.models import StorageNode
+from hydrolib.core.io.dflowfm.inifield.models import InitialField
+from hydrolib.core.io.dflowfm.onedfield.models import OneDFieldGlobal
 
 
 logger = logging.getLogger(__name__)
@@ -148,7 +153,7 @@ class Df2HydrolibModel:
             default_locs = self.hydamo.branches.index[
                 ~self.hydamo.branches["code"].isin(branchids)
             ]
-        else: 
+        else:
             default_locs = self.hydamo.crosssections.default_locations
 
         missing = self.hydamo.branches.index[
@@ -228,8 +233,10 @@ class Df2HydrolibModel:
                     function="timeseries",
                     timeinterpolation="linear",
                     quantityunitpair=[
-                        ("time", bound["time_unit"]),
-                        (bound["quantity"], bound["value_unit"]),
+                        QuantityUnitPair(quantity="time", unit=bound["time_unit"]),
+                        QuantityUnitPair(
+                            quantity=bound["quantity"], unit=bound["value_unit"]
+                        ),
                     ],
                     datablock=list(map(list, zip(bound["time"], bound["value"]))),
                 )

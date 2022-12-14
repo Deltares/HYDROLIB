@@ -7,7 +7,7 @@ from pydantic import validate_arguments
 
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.core.drr import DRRModel
-from hydrolib.core.io.mdu.models import FMModel
+from hydrolib.core.io.dflowfm.mdu.models import FMModel
 
 
 class DIMRWriter:
