@@ -5,18 +5,15 @@
 # Author: Stefan de Vries, Waterschap Drents Overijsselse Delta
 #
 # =========================================================================================
+import math
 import os
 from pathlib import Path
 
 import pandas as pd
-from read_dhydro import (
-    map_nc2gdf,
-    net_nc2gdf,
-    read_locations,
-)
-import math
+from read_dhydro import map_nc2gdf, net_nc2gdf, read_locations
 
-def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours = 0):
+
+def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours=0):
 
     """
        Check whether the 1D waterlevels of the 1D flow network are higher than
@@ -26,7 +23,7 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
             mdu_path : str
                Path to mdu file containing the D-hydro model structure
             nc_path
-                Path to the FlowFM_map.nc, containing the results of the simulation 
+                Path to the FlowFM_map.nc, containing the results of the simulation
             output_path
                 Path where the ... file is saved as output
             skip_hours: int
@@ -55,9 +52,7 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
     meshnodes = network["1d_meshnodes"]
     meshnodes = meshnodes.rename(columns={"id": "meshnodeid"})
     meshnodes = meshnodes.rename(columns={"branch": "branchnr"})
-    meshnodes = pd.merge(
-        meshnodes, branche_ids , on="branchnr"
-    )  
+    meshnodes = pd.merge(meshnodes, branche_ids, on="branchnr")
 
     # Read locations and definitions of cross sections + structures
     gdfs_results = read_locations(
@@ -82,7 +77,7 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
     # The difficulty is that the mesh nodes are a little bit shifted and do not lie at
     # exact same locations (decimals rounding) as the connection nodes (= start/end points of branches)
     # and the id's can be different (sometimes an underscorre is added) and
-    
+
     # In the function net_nc2gdf a dataframe is made with all nodes and corresponding
     # connected branches, there are many duplicates in the dataframe
     # However, we can use the dataframe to find out which meshnodes are in fact
@@ -98,20 +93,19 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
 
     for i, row in branches.iterrows():
         branchid = branches.loc[i, "branchid"]
-        
+
         # dataframe which nodes lie on the branch
         nodes_on_branch = total_nodes_per_branch[
             total_nodes_per_branch["branchid"] == branchid
         ].copy()
-        
-        
-        for j, row2 in nodes_on_branch.iterrows():          
+
+        for j, row2 in nodes_on_branch.iterrows():
             # Check if the node with the same ID was already in the dataframe
             # of the meshnodes
             selection = meshnodes[
                 meshnodes["meshnodeid"] == nodes_on_branch.loc[j, "nodeid"]
             ].copy()
-            if len(selection) >= 1: #
+            if len(selection) >= 1:  #
                 # The node from the dataframe 'total_nodes_per_branch'
                 # has a similar id as one that was already in the meshnode dataframe
                 # Now,check if the meshnode is connected to a branch we didn't know about
@@ -119,7 +113,7 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
                     nodes_on_branch.loc[j, "branchid"]
                     not in selection["branchid"].values
                 ):
-                    # New information, we find out that the meshnode is 
+                    # New information, we find out that the meshnode is
                     # connected to a new branch we didnot know about
                     new_row = selection.iloc[[0]].copy()
                     new_row["branchid"] = branchid
@@ -128,10 +122,13 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
                     meshnodes = meshnodes.append(new_row)
                     meshnodes.reset_index(drop=True, inplace=True)
             else:
-                selection = pd.DataFrame()    
-                if (nodes_on_branch.loc[j, "nodeid"] + "_1" in meshnodes["meshnodeid"].values):
-                    # It is also possible that the row in the dataframe 
-                    # 'total_nodes_per_branch' refers to a connection node that 
+                selection = pd.DataFrame()
+                if (
+                    nodes_on_branch.loc[j, "nodeid"] + "_1"
+                    in meshnodes["meshnodeid"].values
+                ):
+                    # It is also possible that the row in the dataframe
+                    # 'total_nodes_per_branch' refers to a connection node that
                     # lies almost at a similar location as a known meshnode
                     # but the id is a little bit different for meshnodes
                     # , sometimes a "_1" is added
@@ -140,10 +137,14 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
                         meshnodes["meshnodeid"]
                         == nodes_on_branch.loc[j, "nodeid"] + "_1"
                     ].copy()
-                elif nodes_on_branch.loc[j,'nodeid'][0:4].isnumeric():
-                    #Sometimes, a mesh node is created with the coordinates as the name
-                    #and lies on the connection node
-                    selection = meshnodes[meshnodes.intersects(nodes_on_branch.loc[j,'geometry'].buffer(0.01))]
+                elif nodes_on_branch.loc[j, "nodeid"][0:4].isnumeric():
+                    # Sometimes, a mesh node is created with the coordinates as the name
+                    # and lies on the connection node
+                    selection = meshnodes[
+                        meshnodes.intersects(
+                            nodes_on_branch.loc[j, "geometry"].buffer(0.01)
+                        )
+                    ]
                 if len(selection) >= 1:
                     if (
                         nodes_on_branch.loc[j, "branchid"]
@@ -163,19 +164,19 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
                             meshnodes = meshnodes.append(new_row)
                             meshnodes.reset_index(drop=True, inplace=True)
 
-                        
-                    
-
     ## READ WATERLEVELS
     # Read calculated waterlevels at meshnodes from map.nc
     waterlevel = map_nc2gdf(nc_path, "mesh1d_s1")
-    
+
     skip_hours = int(skip_hours)
     if skip_hours > 0:
-        if (waterlevel.columns[-2]-waterlevel.columns[0]).seconds/3600 > skip_hours:
-            skip_steps = math.ceil(skip_hours/((waterlevel.columns[1]-waterlevel.columns[0]).seconds/3600))
+        if (waterlevel.columns[-2] - waterlevel.columns[0]).seconds / 3600 > skip_hours:
+            skip_steps = math.ceil(
+                skip_hours
+                / ((waterlevel.columns[1] - waterlevel.columns[0]).seconds / 3600)
+            )
             waterlevel.drop(waterlevel.columns[0:skip_steps], inplace=True, axis=1)
-    
+
     waterlevel = waterlevel.max(axis=1, numeric_only=True).to_frame()
     waterlevel = waterlevel.rename(columns={0: "max_wl"})
     waterlevel["meshnodeid"] = waterlevel.index
@@ -210,7 +211,7 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
         index_def = crsdefs.loc[crsdefs["id"] == def_id, :].index.to_list()[
             0
         ]  # index of the cross section definition
-        
+
         y = []
         z = []
         # LEFT AND RIGHT EMBANKMENT HEIGHT
@@ -219,13 +220,21 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
             z = crsdefs.loc[index_def, "zcoordinates"].copy()
         elif crsdefs.loc[index_def, "type"] == "zwRiver":
             for i in range(int(crsdefs.loc[index_def, "numlevels"])):
-                y = [crsdefs.loc[index_def, "flowwidths"][i]/2*-1] + y + [crsdefs.loc[index_def, "flowwidths"][i]/2]
-                z = [crsdefs.loc[index_def, "levels"][i]] + z + [crsdefs.loc[index_def, "levels"][i]]          
+                y = (
+                    [crsdefs.loc[index_def, "flowwidths"][i] / 2 * -1]
+                    + y
+                    + [crsdefs.loc[index_def, "flowwidths"][i] / 2]
+                )
+                z = (
+                    [crsdefs.loc[index_def, "levels"][i]]
+                    + z
+                    + [crsdefs.loc[index_def, "levels"][i]]
+                )
         else:
             crslocs.loc[
                 index_loc, "method"
-            ] = "cannot find embankment height because it is not a yz or zwRiver-profile"            
-        
+            ] = "cannot find embankment height because it is not a yz or zwRiver-profile"
+
         if y != []:
             bot_value = min(z)
             bot_position = [i for i, zz in enumerate(z) if float(zz) == bot_value]
@@ -268,7 +277,7 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
             # DETERMINE MAX WATERLEVEL BASED ON SURROUNDING MESH NODES
             # Pay attention, the cross section locations are based on chainages
             # For meshnodes, this is called offset
-            
+
             meshnodes_selection = meshnodes[
                 meshnodes["branchid"] == crslocs.loc[index_loc, "branchid"]
             ].copy()
@@ -312,11 +321,9 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
                     structures_selection = structures[
                         structures["branchid"] == crslocs.loc[index_loc, "branchid"]
                     ]
-                    if (
-                        len(structures_selection) > 0
-                    ):  
-                    # there is a structure on the same branch
-                    # select meshnodes that do not lie behind a structure
+                    if len(structures_selection) > 0:
+                        # there is a structure on the same branch
+                        # select meshnodes that do not lie behind a structure
                         structures_selection = structures_selection[
                             (
                                 structures_selection["chainage"]
@@ -373,9 +380,9 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
                             crslocs.loc[
                                 index_loc, "method"
                             ] = "There lies a structure at the front of the cross section, waterlevel determined based on mesh node at the back of it"
-                            crslocs.loc[
-                                index_loc, "max_wl"
-                            ] = meshnodes_selection.loc[0, "max_wl"]
+                            crslocs.loc[index_loc, "max_wl"] = meshnodes_selection.loc[
+                                0, "max_wl"
+                            ]
                         elif (
                             len(
                                 structures_selection[
@@ -392,9 +399,9 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
                             crslocs.loc[
                                 index_loc, "method"
                             ] = "There lies a structure at the back of the cross section, waterlevel determined based on mesh node at the front of it"
-                            crslocs.loc[
-                                index_loc, "max_wl"
-                            ] = meshnodes_selection.loc[1, "max_wl"]
+                            crslocs.loc[index_loc, "max_wl"] = meshnodes_selection.loc[
+                                1, "max_wl"
+                            ]
 
                     else:  # there is no structure in between the cross section and selected mesh nodes, calculate the water level at the cross section by interpolation
                         crslocs.loc[
@@ -413,13 +420,19 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours 
                             + meshnodes_selection.loc[0, "max_wl"]
                         )
 
+                crslocs.loc[index_loc, "margn_lft"] = (
+                    crslocs.loc[index_loc, "lft_zcrst"]
+                    - crslocs.loc[index_loc, "max_wl"]
+                )
+                crslocs.loc[index_loc, "margn_rght"] = (
+                    crslocs.loc[index_loc, "rght_zcrst"]
+                    - crslocs.loc[index_loc, "max_wl"]
+                )
 
-                crslocs.loc[index_loc,"margn_lft"] = crslocs.loc[index_loc,"lft_zcrst"] - crslocs.loc[index_loc,"max_wl"]
-                crslocs.loc[index_loc,"margn_rght"] = crslocs.loc[index_loc,"rght_zcrst"] - crslocs.loc[index_loc,"max_wl"]
-      
     print("Finished, now writing output as shapefile")
     crslocs = crslocs.rename(columns={"definitionid": "def_id", "locationtype": "type"})
-    crslocs.to_file(os.path.join(output_path,'feasibility_1D.shp'))
+    crslocs.to_file(os.path.join(output_path, "feasibility_1D.shp"))
+
 
 if __name__ == "__main__":
     # Read shape

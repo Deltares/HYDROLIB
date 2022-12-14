@@ -7,14 +7,17 @@
 # =========================================================================================
 import os
 from pathlib import Path
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+from clean_dhydro import clean_crsdefs, split_duplicate_crsdef_references
 from read_dhydro import read_locations
 from shapely.geometry import LineString, Point
 from stationpoints import stationpoints
+
 from hydrolib.core.io.crosssection.models import CrossDefModel, CrossLocModel
-from clean_dhydro import clean_crsdefs, split_duplicate_crsdef_references
+
 
 def change_depth_crosssections(
     mdu_path,
@@ -72,7 +75,7 @@ def change_depth_crosssections(
 
     ___________________________________________________________________________________________________________
        Warning: currently only works for yz and zwRiver cross sections
-       zwRiver cross sections are converted to yz and conveyance type 
+       zwRiver cross sections are converted to yz and conveyance type
        'segmeted' is used
 
     """
@@ -95,9 +98,9 @@ def change_depth_crosssections(
     ## REMOVE SHARED DEFINITIONS
     crsdefs = gdfs_results["cross_sections_definition"]
     crslocs, crsdefs = split_duplicate_crsdef_references(crslocs, crsdefs, loc_ids)
-    
+
     # clean crsdefs
-    crsdefs = clean_crsdefs(crsdefs) 
+    crsdefs = clean_crsdefs(crsdefs)
 
     ## Adjust selected profile definitions)
     print("Starting to adjust " + str(len(loc_ids)) + " profile definitions")
@@ -140,27 +143,37 @@ def change_depth_crosssections(
             print('It is either "distance", "referencelevel" or "uniform"')
         if slot_width < 0:
             raise Exception("Section/slot width should be a positive number")
-        
+
         if crsdefs.loc[index_def, "type"] == "zwRiver":
             # convert to yz profile
             y = []
             z = []
             if type(crsdefs.loc[index_def, "totalwidths"]) == list:
                 if crsdefs.loc[index_def, "totalwidths"] != []:
-                    crsdefs.at[index_def, "flowwidths"] = crsdefs.loc[index_def, "totalwidths"]
+                    crsdefs.at[index_def, "flowwidths"] = crsdefs.loc[
+                        index_def, "totalwidths"
+                    ]
             for i in range(int(crsdefs.loc[index_def, "numlevels"])):
-                y = [crsdefs.loc[index_def, "flowwidths"][i]/2*-1] + y + [crsdefs.loc[index_def, "flowwidths"][i]/2]
-                z = [crsdefs.loc[index_def, "levels"][i]] + z + [crsdefs.loc[index_def, "levels"][i]]           
+                y = (
+                    [crsdefs.loc[index_def, "flowwidths"][i] / 2 * -1]
+                    + y
+                    + [crsdefs.loc[index_def, "flowwidths"][i] / 2]
+                )
+                z = (
+                    [crsdefs.loc[index_def, "levels"][i]]
+                    + z
+                    + [crsdefs.loc[index_def, "levels"][i]]
+                )
             crsdefs.at[index_def, "zcoordinates"] = z
             crsdefs.at[index_def, "ycoordinates"] = y
             crsdefs.loc[index_def, "yzcount"] = len(z)
-            crsdefs.loc[index_def, "frictionids"] = ["Channels"] # will be overwritten
+            crsdefs.loc[index_def, "frictionids"] = ["Channels"]  # will be overwritten
             crsdefs.loc[index_def, "sectioncount"] = 1
             crsdefs.loc[index_def, "type"] = "yz"
-            crsdefs.loc[index_def, "thalweg"] = max(y)/2
+            crsdefs.loc[index_def, "thalweg"] = max(y) / 2
             crsdefs.loc[index_def, "singleValuedZ"] = 1
-            crsdefs.loc[index_def, "conveyance"] = 'segmented'
-            
+            crsdefs.loc[index_def, "conveyance"] = "segmented"
+
             crsdefs.loc[index_def, "numlevels"] = None
             crsdefs.loc[index_def, "levels"] = None
             crsdefs.loc[index_def, "flowwidths"] = None
@@ -174,14 +187,14 @@ def change_depth_crosssections(
             crsdefs.loc[index_def, "fp2width"] = None
             crsdefs.loc[index_def, "frictiontypes"] = None
             crsdefs.loc[index_def, "frictionvalues"] = None
-        
-        if crsdefs.loc[index_def, "type"] == "yz":           
+
+        if crsdefs.loc[index_def, "type"] == "yz":
             y = crsdefs.loc[index_def, "ycoordinates"].copy()
             z = crsdefs.loc[index_def, "zcoordinates"].copy()
             bot_value = min(z)
 
-            if slot_width < (max(y) - min(y)):  
-                # if only a certain part of crs should be changed 
+            if slot_width < (max(y) - min(y)):
+                # if only a certain part of crs should be changed
                 ## SELECT LOWEST POINT IN THE PROFILE
                 # This will be the starting point when finding the optimal area to deepen/raise the profile
                 bot_position = [i for i, zz in enumerate(z) if float(zz) == bot_value]
@@ -412,19 +425,20 @@ def change_depth_crosssections(
                 + str(loc_id)
                 + " because it is not a yz or zwRiver-profile"
             )
-            
-    write_cross_section_data(crsdefs, crslocs ,output_path)
+
+    write_cross_section_data(crsdefs, crslocs, output_path)
     print("Finished adjusting " + str(len(loc_ids)) + " profile definitions")
-    
-def write_cross_section_data(crsdefs, crslocs ,output_path):
+
+
+def write_cross_section_data(crsdefs, crslocs, output_path):
     ## WRITE CROSS SECTION DATA
     # crsdefs = crsdefs.drop(columns=["waterlevel", "left_y_waterlevel", "right_y_waterlevel", "method"])
-    print("Write cross section definition data") 
+    print("Write cross section definition data")
     tempfile = os.path.join(output_path, "crsdef_temp.ini")
     crsdefs = crsdefs.replace({np.nan: None})
     crossdef_new = CrossDefModel(definition=crsdefs.to_dict("records"))
     crossdef_new.save(Path(tempfile))
-    
+
     # open crsdef file and clean, remove unnecessary lines
     with open(tempfile, "r") as file:
         def_data = file.readlines()
@@ -432,8 +446,8 @@ def write_cross_section_data(crsdefs, crslocs ,output_path):
     proftype = ""
     for num, line in enumerate(def_data, 1):
         if "\n" in line:
-            line  = line.replace("\n","")
-        if line != "":  
+            line = line.replace("\n", "")
+        if line != "":
             if "=" in line:
                 if line.strip()[-1] == "=":
                     # Dont write line, this is a empty line
@@ -443,31 +457,35 @@ def write_cross_section_data(crsdefs, crslocs ,output_path):
                     def_data[num - 1] = ""
                 elif line.split("= ")[0].strip() == "conveyance":
                     if line.split("=")[1].strip().split(" ")[0] == "segmented":
-                        if proftype == "yz" or  proftype == "zwRiver" or  proftype == "zw":
+                        if (
+                            proftype == "yz"
+                            or proftype == "zwRiver"
+                            or proftype == "zw"
+                        ):
                             # Dont write line, default values for conveyance
-                            def_data[num - 1] = ""                        
+                            def_data[num - 1] = ""
                 else:
                     if line.split("= ")[0].strip() == "type":
                         proftype = line.split("= ")[1].strip()
                         if "#" in line.split("= ")[1].strip():
-                            proftype = proftype("#")[0].strip()      
+                            proftype = proftype("#")[0].strip()
     with open(filename, "w") as file:
-        file.writelines(def_data)           
+        file.writelines(def_data)
     os.remove(tempfile)
 
-    print("Write cross section location data") 
+    print("Write cross section location data")
     tempfile = os.path.join(output_path, "crsloc_temp.ini")
     crslocs = crslocs.replace({np.nan: None})
     crossloc_new = CrossLocModel(crosssection=crslocs.to_dict("records"))
     crossloc_new.save(Path(tempfile))
-    
+
     # open crsloc file and clean, remove unnecessary lines
     with open(tempfile, "r") as file:
         def_data = file.readlines()
     filename = os.path.join(output_path, "crsloc.ini")
     for num, line in enumerate(def_data, 1):
         if "\n" in line:
-            line  = line.replace("\n","")
+            line = line.replace("\n", "")
         if line != "":
             if "=" in line:
                 if line[-1] == "=":
@@ -480,8 +498,9 @@ def write_cross_section_data(crsdefs, crslocs ,output_path):
                     # Dont write line, default values locationtype"
                     def_data[num - 1] = ""
     with open(filename, "w") as file:
-        file.writelines(def_data)           
+        file.writelines(def_data)
     os.remove(tempfile)
+
 
 if __name__ == "__main__":
     # Read shape

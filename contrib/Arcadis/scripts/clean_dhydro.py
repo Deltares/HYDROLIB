@@ -2,7 +2,7 @@
 #
 # License: LGPL
 #
-# Author: 
+# Author:
 #           Arjon Buijert and Robert de Lange, Arcadis
 #           Stefan de Vries, Waterschap Drents Overijsselse Delta
 #
@@ -12,6 +12,7 @@ import os
 import shutil
 from distutils import dir_util
 from pathlib import Path
+
 import numpy as np
 
 
@@ -149,134 +150,174 @@ def clean_grw(mdufile):
         file.writelines(mdu)
     print("[grw] verwijderd")
 
+
 def remove_double_friction_definitions(crslocs, crsdefs, dict_frictions):
-    # You can define frictions in different files and different ways. 
+    # You can define frictions in different files and different ways.
     # However, there is a certain hierarchy. Some friction definitions are
     # more important than others
-    
+
     # In a d-hydro model (especially when it is a imported Sobek 2 model)
-    # the friction definitions are sometimes messy and contradictory. 
-    # Unintentionally, there are multiple friction definitions for the 
+    # the friction definitions are sometimes messy and contradictory.
+    # Unintentionally, there are multiple friction definitions for the
     # same cross section and/or channel
     # This function tries to repair that, it makes sure every channel/
     # cross section has only one friction definition
-    
+
     # You can define friction in either the crsdef.ini file or one of the
-    # many roughness-###.ini files that are refered to in the mdu-file. 
+    # many roughness-###.ini files that are refered to in the mdu-file.
     # The hierarchy of friction definitions (from high to low importance)
-    
-    #1. Branch constant/chainge friction from roughness-Channels.ini. 
+
+    # 1. Branch constant/chainge friction from roughness-Channels.ini.
     # Therefore, in crsdef.ini, the the cross section should refer to
     # frictionID "Channels"
-    
-    #2. Global value "Channels" from roughness-Channels.ini. 
+
+    # 2. Global value "Channels" from roughness-Channels.ini.
     # Therefore, in crsdef.ini, the the cross section should refer to
     # frictionID "Channels"
-    
-    #3. On lanes: constant/chainge friction from roughness-###.ini. 
+
+    # 3. On lanes: constant/chainge friction from roughness-###.ini.
     # Therefore, in crsdef.ini, the the cross section should refer to
     # frictionID "###"
-    
-    #4. Global value "###" from roughness-###.ini. 
+
+    # 4. Global value "###" from roughness-###.ini.
     # Therefore, in crsdef.ini, the the cross section should refer to
     # frictionID "###"
-     
-    #4. Global value from roughness-Channels.ini
+
+    # 4. Global value from roughness-Channels.ini
     # When a branch has no specific constant/chainage in roughness-Channels.ini
-    # and also the requirements for level 2 and 2 are not met, a global value 
+    # and also the requirements for level 2 and 2 are not met, a global value
     # is used. This is the global value "Channels"
-    
+
     friction_files = list(dict_frictions.keys())
- 
+
     # Cleaning roughness-###.ini file(s)
     # If a branch is included in a roughness-###.ini, but none of the cross sections
     # on the branch refer to that, the information obsolete/redundant
     for file in friction_files:
-        if len(dict_frictions[file]) > 0: # only loop through file if it consists lines
-            branches_list = dict_frictions[file]["branchid"].to_list()    
-            for branch_id in branches_list:             
+        if len(dict_frictions[file]) > 0:  # only loop through file if it consists lines
+            branches_list = dict_frictions[file]["branchid"].to_list()
+            for branch_id in branches_list:
                 indices_loc = list(crslocs[crslocs["branchid"] == branch_id].index)
                 roughness_files = []
                 for index_loc in indices_loc:
-                    def_id = crslocs.loc[index_loc,"definitionid"]
+                    def_id = crslocs.loc[index_loc, "definitionid"]
                     index_def = list(crsdefs[crsdefs["id"] == def_id].index)[0]
-                    if crsdefs.loc[index_def,"frictionids"] != None:
-                        roughness_files = roughness_files + list(set(crsdefs.loc[index_def,"frictionids"]))
-                roughness_files = list(set(roughness_files))                
+                    if crsdefs.loc[index_def, "frictionids"] != None:
+                        roughness_files = roughness_files + list(
+                            set(crsdefs.loc[index_def, "frictionids"])
+                        )
+                roughness_files = list(set(roughness_files))
             if file not in roughness_files:
-                i = dict_frictions[file].index[dict_frictions[file]["branchid"] == branch_id][0]
-                dict_frictions[file] = dict_frictions[file].drop(labels=i, axis=0)                
-   
-    # The "on lanes" principle is meant for frictions that vary over a 
-    # cross section. Sometimes, yz cross sections get a on lanes friction, 
-    # while this is unnecessary. In those situations, the cross sections 
+                i = dict_frictions[file].index[
+                    dict_frictions[file]["branchid"] == branch_id
+                ][0]
+                dict_frictions[file] = dict_frictions[file].drop(labels=i, axis=0)
+
+    # The "on lanes" principle is meant for frictions that vary over a
+    # cross section. Sometimes, yz cross sections get a on lanes friction,
+    # while this is unnecessary. In those situations, the cross sections
     # have only 1 friction and they do not vary over the width.
     # This can be corrected. Frictions can be renamed as "Channels"
     for file in friction_files:
         if file != "Channels":
-            if len(dict_frictions[file]) > 0: # only loop through file if it consists lines
-                branches_list = dict_frictions[file]["branchid"].to_list()    
-                for branch_id in branches_list: 
+            if (
+                len(dict_frictions[file]) > 0
+            ):  # only loop through file if it consists lines
+                branches_list = dict_frictions[file]["branchid"].to_list()
+                for branch_id in branches_list:
                     roughness_files = []
                     indices_loc = list(crslocs[crslocs["branchid"] == branch_id].index)
-                    def_ids = crslocs.loc[indices_loc,"definitionid"]
+                    def_ids = crslocs.loc[indices_loc, "definitionid"]
                     for def_id in def_ids:
                         index_def = list(crsdefs[crsdefs["id"] == def_id].index)[0]
-                        if file in list(set(crsdefs.loc[index_def,"frictionids"])):
-                            roughness_files = roughness_files + list(set(crsdefs.loc[index_def,"frictionids"]))
+                        if file in list(set(crsdefs.loc[index_def, "frictionids"])):
+                            roughness_files = roughness_files + list(
+                                set(crsdefs.loc[index_def, "frictionids"])
+                            )
                     roughness_files = list(set(roughness_files))
                     # If the cross sections on branch X that refer to file/roughness
-                    # Y, only refer to that roughness (sectioncount = 1), it is not an 
+                    # Y, only refer to that roughness (sectioncount = 1), it is not an
                     # actual on lanes principle. We can move this definition to
                     # roughness-channels.ini if the branch is not already included in
                     # that file or if the roughness was the same
                     if roughness_files == [file]:
-                        if branch_id not in dict_frictions["Channels"]["branchid"].to_list():
-                            i = dict_frictions[file].index[dict_frictions[file]["branchid"] == branch_id][0]    
-                            dict_frictions["Channels"] = dict_frictions["Channels"].append(dict_frictions[file].loc[i,:])
-                            dict_frictions["Channels"].reset_index(drop=True,inplace=True)
-                            dict_frictions[file] = dict_frictions[file].drop(labels=i, axis=0)
+                        if (
+                            branch_id
+                            not in dict_frictions["Channels"]["branchid"].to_list()
+                        ):
+                            i = dict_frictions[file].index[
+                                dict_frictions[file]["branchid"] == branch_id
+                            ][0]
+                            dict_frictions["Channels"] = dict_frictions[
+                                "Channels"
+                            ].append(dict_frictions[file].loc[i, :])
+                            dict_frictions["Channels"].reset_index(
+                                drop=True, inplace=True
+                            )
+                            dict_frictions[file] = dict_frictions[file].drop(
+                                labels=i, axis=0
+                            )
                             for def_id in def_ids:
-                                index_def = list(crsdefs[crsdefs["id"] == def_id].index)[0]
-                                crsdefs.loc[index_def,"frictionids"] = ["Channels"]                
+                                index_def = list(
+                                    crsdefs[crsdefs["id"] == def_id].index
+                                )[0]
+                                crsdefs.loc[index_def, "frictionids"] = ["Channels"]
     return crslocs, crsdefs, dict_frictions
+
 
 def clean_friction_files(dict_frictions):
     # Remove unnecessary information, simplify the data
-    friction_files = list(dict_frictions.keys())    
+    friction_files = list(dict_frictions.keys())
     # Cleaning roughness-###.ini file(s)
     for file in friction_files:
-        if len(dict_frictions[file]) > 0: # only loop through file if it consists lines
+        if len(dict_frictions[file]) > 0:  # only loop through file if it consists lines
             for index, row in dict_frictions[file].iterrows():
-                if len(list(set(dict_frictions[file].loc[index,"frictionvalues"]))) == 1: # if only 1 unique friction value is given
+                if (
+                    len(list(set(dict_frictions[file].loc[index, "frictionvalues"])))
+                    == 1
+                ):  # if only 1 unique friction value is given
                     if file == "Channels":
-                        dict_frictions[file].loc[index,"numlocations"] = 0
-                        dict_frictions[file].loc[index,"frictionvalues"] = [list(set(dict_frictions[file].loc[index,"frictionvalues"]))]
-                        dict_frictions[file].loc[index,"chainage"] = None
+                        dict_frictions[file].loc[index, "numlocations"] = 0
+                        dict_frictions[file].loc[index, "frictionvalues"] = [
+                            list(set(dict_frictions[file].loc[index, "frictionvalues"]))
+                        ]
+                        dict_frictions[file].loc[index, "chainage"] = None
                     else:
-                        dict_frictions[file].loc[index,"numlocations"] = 1
-                        dict_frictions[file].loc[index,"frictionvalues"] = [list(set(dict_frictions[file].loc[index,"frictionvalues"]))]
-                        dict_frictions[file].loc[index,"chainage"] = [[0]]
+                        dict_frictions[file].loc[index, "numlocations"] = 1
+                        dict_frictions[file].loc[index, "frictionvalues"] = [
+                            list(set(dict_frictions[file].loc[index, "frictionvalues"]))
+                        ]
+                        dict_frictions[file].loc[index, "chainage"] = [[0]]
     return dict_frictions
 
-def clean_crsdefs(crsdefs):             
+
+def clean_crsdefs(crsdefs):
     # Cleaning crsdef.ini
     # Remove unnecessary information, simplify the data
     for index_def, row in crsdefs.iterrows():
         # If yz-profile, than conveyace is default segmentened
-        if crsdefs.loc[index_def,"type"] == "yz" and crsdefs.loc[index_def,"conveyance"] == 'segmented':
-            crsdefs.loc[index_def,"conveyance"] = None
-        # If yz-profile and all frictionid are the same, they can be merged
-            if crsdefs.loc[index_def,"frictionpositions"] != None:
-                if len(crsdefs.loc[index_def,"frictionpositions"]) > 1 and len(list(set(crsdefs.loc[index_def,"frictionids"]))) == 1:
-                    crsdefs.loc[index_def,"frictionids"] = list(set(crsdefs.loc[index_def,"frictionids"]))[0]
-                    crsdefs.loc[index_def,"sectioncount"] = 1                
-        # If yz-profile, sectioncount is 1 and frictionID is Channel, no need to 
+        if (
+            crsdefs.loc[index_def, "type"] == "yz"
+            and crsdefs.loc[index_def, "conveyance"] == "segmented"
+        ):
+            crsdefs.loc[index_def, "conveyance"] = None
+            # If yz-profile and all frictionid are the same, they can be merged
+            if crsdefs.loc[index_def, "frictionpositions"] != None:
+                if (
+                    len(crsdefs.loc[index_def, "frictionpositions"]) > 1
+                    and len(list(set(crsdefs.loc[index_def, "frictionids"]))) == 1
+                ):
+                    crsdefs.loc[index_def, "frictionids"] = list(
+                        set(crsdefs.loc[index_def, "frictionids"])
+                    )[0]
+                    crsdefs.loc[index_def, "sectioncount"] = 1
+        # If yz-profile, sectioncount is 1 and frictionID is Channel, no need to
         # write down frictionpositions
-        if crsdefs.loc[index_def,"sectioncount"] == 1:
-            if list(set(crsdefs.loc[index_def,"frictionids"])) == ["Channels"]:
-                crsdefs.loc[index_def,"frictionpositions"] = None
-    return crsdefs        
+        if crsdefs.loc[index_def, "sectioncount"] == 1:
+            if list(set(crsdefs.loc[index_def, "frictionids"])) == ["Channels"]:
+                crsdefs.loc[index_def, "frictionpositions"] = None
+    return crsdefs
+
 
 def split_duplicate_crsdef_references(crslocs, crsdefs, loc_ids=[]):
     """
@@ -351,6 +392,7 @@ def split_duplicate_crsdef_references(crslocs, crsdefs, loc_ids=[]):
         )
 
     return crslocs, crsdefs
+
 
 if __name__ == "__main__":
     mdu_path = r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel1D_referentie_clean\dflowfm\FlowFM.mdu"
