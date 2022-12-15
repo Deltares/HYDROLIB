@@ -5,11 +5,32 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e17ae184-fc0e-4c24-8eeb-2fb065132b9d" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/tests/data/dflowfm_build_local_update.ini" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/DFlowFM.mdu" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/DFlowFM.mdu" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/bnd.ext" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/bnd.ext" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/boundaryconditions.bc" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/boundaryconditions.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/branches.gui" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/branches.gui" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/crsdef.ini" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/crsdef.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/crsloc.ini" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/crsloc.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/fieldFile.ini" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/fieldFile.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/fm_net.nc" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/fm_net.nc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/nodeFile.ini" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/nodeFile.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/roughness_M-0p023.ini" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/roughness_M-0p023.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/roughness_W-0p003.ini" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dflowfm/roughness_W-0p003.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dimr_config.xml" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/dimr_config.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/branches.geojson" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/branches.geojson" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/crosssections.geojson" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/crosssections.geojson" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/manholes.geojson" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/manholes.geojson" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/pipe_nodes.geojson" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/pipe_nodes.geojson" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/pipes.geojson" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/pipes.geojson" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/region.geojson" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/region.geojson" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/rivers.geojson" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/rivers.geojson" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/rivers_nodes.geojson" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/geoms/rivers_nodes.geojson" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/hydromt_data.yml" beforeDir="false" afterPath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/hydromt_data.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/hydromt/dflowfm_local/mesh/FlowFM_2D_net.nc" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/crosssections.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/crosssections.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/data/dflowfm_build_local.ini" beforeDir="false" afterPath="$PROJECT_DIR$/tests/data/dflowfm_build_local.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/data/dflowfm_build_local_update.ini" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -39,7 +60,7 @@
       <recent name="D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.hydromt-delft3dfm update">
+  <component name="RunManager" selected="Python.hydromt-delft3dfm">
     <configuration name="hydromt-delft3dfm update" type="PythonConfigurationType" factoryName="Python">
       <module name="HYDROLIB" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -74,7 +95,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="hydromt.cli.main" />
-      <option name="PARAMETERS" value="build dflowfm ../dflowfm_local &quot;{'geom': '../../tests/data/local_data/1D_extent.geojson'}&quot; -i dflowfm_build_local.ini -d &quot;../../tests/data/test_data.yaml&quot; -vvv" />
+      <option name="PARAMETERS" value="build dflowfm ../../examples/hydromt/dflowfm_local &quot;{'geom': '../../tests/data/local_data/1D_extent.geojson'}&quot; -i dflowfm_build_local.ini -d &quot;../../tests/data/test_data.yaml&quot; -vvv" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="true" />
@@ -82,10 +103,68 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="pytest for test_hydrolib.test_namespace" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
+      <module name="HYDROLIB" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;test_hydrolib.test_namespace&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="pytest for test_hydrolib.test_version" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
+      <module name="HYDROLIB" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;test_hydrolib.test_version&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="pytest for test_hydromt.test_model_class" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
+      <module name="HYDROLIB" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;test_hydromt.test_model_class&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
     <list>
       <item itemvalue="Python.hydromt-delft3dfm" />
       <item itemvalue="Python.hydromt-delft3dfm update" />
+      <item itemvalue="Python tests.pytest for test_hydrolib.test_namespace" />
+      <item itemvalue="Python tests.pytest for test_hydrolib.test_version" />
+      <item itemvalue="Python tests.pytest for test_hydromt.test_model_class" />
     </list>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python tests.pytest for test_hydromt.test_model_class" />
+        <item itemvalue="Python tests.pytest for test_hydrolib.test_namespace" />
+        <item itemvalue="Python tests.pytest for test_hydrolib.test_version" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
@@ -136,14 +215,14 @@
           <option name="timeStamp" value="56" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
-          <line>2144</line>
-          <option name="timeStamp" value="121" />
+          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/crosssections.py</url>
+          <line>126</line>
+          <option name="timeStamp" value="131" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/utils.py</url>
-          <line>209</line>
-          <option name="timeStamp" value="122" />
+          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/crosssections.py</url>
+          <line>188</line>
+          <option name="timeStamp" value="134" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>
