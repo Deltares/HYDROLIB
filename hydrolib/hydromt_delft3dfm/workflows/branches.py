@@ -12,9 +12,10 @@ import pandas as pd
 import shapely
 from hydromt import config
 from scipy.spatial import distance
-from shapely.geometry import Point, LineString, MultiLineString
+from shapely.geometry import LineString, MultiLineString, Point
 from shapely.ops import snap, split
-from .helper import split_lines, cut_pieces
+
+from .helper import cut_pieces, split_lines
 
 logger = logging.getLogger(__name__)
 

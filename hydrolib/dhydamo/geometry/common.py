@@ -1,13 +1,14 @@
 from typing import List, Union
+
+import numpy as np
 from shapely.geometry import (
-    Point,
-    MultiPoint,
     LineString,
     MultiLineString,
-    Polygon,
+    MultiPoint,
     MultiPolygon,
+    Point,
+    Polygon,
 )
-import numpy as np
 
 
 def _as_geometry_list(geometry, singletype, multitype):
