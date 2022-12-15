@@ -214,6 +214,7 @@ def set_xyz_crosssections(
 
     # convert xyz crosssection into yz profile
     crosssections = crosssections.groupby(level=0).apply(xyzp2xyzl, (["order"]))
+    crosssections.crs = branches.crs
 
     # snap to branch
     # setup branch_id - snap bridges to branch (inplace of bridges, will add branch_id and branch_offset columns)
@@ -363,7 +364,7 @@ def set_point_crosssections(
             crosssections_ = pd.concat(
                 [crosssections_, _set_rectangle_crs(rectangle_crs)]
             )
-        if shape == "trapezoid":
+        elif shape == "trapezoid":
             trapezoid_crs = crosssections.loc[crosssections["shape"] == shape, :]
             valid_attributes = check_gpd_attributes(
                 trapezoid_crs,
@@ -413,7 +414,7 @@ def set_point_crosssections(
             crosssections_ = pd.concat([crosssections_, _set_yz_crs(yz_crs)])
         else:
             logger.error(
-                "crossection shape not supported. For now only support trapezoid, zw and yz"
+                "crossection shape not supported. For now only support rectangle, trapezoid, zw and yz"
             )
 
     # drop nan crossections
@@ -751,7 +752,7 @@ def xyzp2xyzl(xyz: pd.DataFrame, sort_by: list = ["x", "y"]):
         # new_z[-1] = 1.4
 
         line = LineString([(px, py) for px, py in zip(xyz_sorted.x, xyz_sorted.y)])
-        xyz_line = gpd.GeoSeries(
+        xyz_line = pd.Series(
             {
                 "geometry": line,
                 "l": list(

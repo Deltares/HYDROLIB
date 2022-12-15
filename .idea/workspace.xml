@@ -7,9 +7,8 @@
     <list default="true" id="e17ae184-fc0e-4c24-8eeb-2fb065132b9d" name="Changes" comment="">
       <change afterPath="$PROJECT_DIR$/tests/data/dflowfm_build_local_update.ini" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/crosssections.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/crosssections.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/manholes.py" beforeDir="false" afterPath="$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/workflows/manholes.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/data/dflowfm_build_local.ini" beforeDir="false" afterPath="$PROJECT_DIR$/tests/data/dflowfm_build_local.ini" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -28,13 +27,13 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "last_opened_file_path": "D:/Projects/hydromt-delft3dfm/HYDROLIB/tests/data"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Projects/hydromt-delft3dfm/HYDROLIB/tests/data&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data" />
@@ -135,6 +134,16 @@
           <url>file://$PROJECT_DIR$/../HYDROLIB-CORE/hydrolib/core/io/bc/models.py</url>
           <line>405</line>
           <option name="timeStamp" value="56" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/dflowfm.py</url>
+          <line>2144</line>
+          <option name="timeStamp" value="121" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/hydrolib/hydromt_delft3dfm/utils.py</url>
+          <line>209</line>
+          <option name="timeStamp" value="122" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>
