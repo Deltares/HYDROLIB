@@ -20,7 +20,7 @@ from shapely.geometry import box, LineString
 from datetime import datetime, timedelta
 
 from hydrolib.core.io.dflowfm.mdu.models import FMModel
-from hydrolib.core.io.dflowfm.net.models import NetworkModel, Mesh1d
+from hydrolib.core.io.dflowfm.net.models import Network, Mesh1d
 from hydrolib.core.io.dflowfm.inifield.models import IniFieldModel
 
 # from hydrolib.core.io.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
@@ -67,7 +67,7 @@ class DFlowFMModel(MeshModel):
             "initype": "initial",
             "interpolation": "mean",
             "locationtype": "2d",
-            "averagingrelsize": 1.01, # default
+            "averagingrelsize": 1.01,  # default
         },
         "waterdepth": {
             "name": "waterdepth",
@@ -155,7 +155,7 @@ class DFlowFMModel(MeshModel):
             raise ValueError("The 'root' parameter should be a of str or Path.")
 
         super().__init__(
-            root=root, # FIXME review: when building the model into exisiting folder, old files will not be deleted, which might cause confusion.
+            root=root,
             mode=mode,
             config_fn=config_fn,
             data_libs=data_libs,
@@ -229,8 +229,8 @@ class DFlowFMModel(MeshModel):
 
     def _setup_branches(
         self,
-        br_fn: Union[str, Path],
-        defaults_fn: Union[str, Path],
+        br_fn: Union[str, Path, gpd.GeoDataFrame],
+        defaults_fn: Union[str, Path, pd.DataFrame],
         br_type: str,
         friction_type: str,
         friction_value: float,
@@ -248,9 +248,9 @@ class DFlowFMModel(MeshModel):
          Parameters
          ----------
          br_fn : str, gpd.GeoDataFrame
-             Either data source in data catalogue for branches or a path to the branches data.
+             Either data source in data catalogue or Path for branches file or branches gpd.GeoDataFrame directly.
          defaults_fn : str Path
-             Either data source in data catalogue or path to a csv file containing all defaults values per "branchType".
+             Either data source in data catalogue or path to a csv file containing all defaults values per "branchType" or defaults pd.DataFRame directly.
          br_type : str
              branches type. Either "river", "channel", "pipe".
          friction_type : str
@@ -288,6 +288,8 @@ class DFlowFMModel(MeshModel):
             gdf_br = self.data_catalog.get_geodataframe(
                 br_fn, geom=self.region, buffer=0, predicate="intersects"
             )
+        else:
+            gdf_br = br_fn
         # Filter features based on filter
         if filter is not None and "branchType" in gdf_br.columns:
             gdf_br = gdf_br[gdf_br["branchType"].str.lower() == filter.lower()]
@@ -297,16 +299,18 @@ class DFlowFMModel(MeshModel):
             return None
 
         # Read defaults table
-        if defaults_fn is None:
-            self.logger.warning(
-                f"defaults_fn ({defaults_fn}) does not exist. Fall back choice to defaults. "
-            )
-            defaults_fn = Path(self._DATADIR).joinpath(
-                f"{br_type}s", f"{br_type}s_defaults.csv"
-            )
-        if isinstance(defaults_fn, str) or isinstance(defaults_fn, Path):
+        if isinstance(defaults_fn, pd.DataFrame):
+            defaults = defaults_fn
+        else:
+            if defaults_fn is None:
+                self.logger.warning(
+                    f"defaults_fn ({defaults_fn}) does not exist. Fall back choice to defaults. "
+                )
+                defaults_fn = Path(self._DATADIR).joinpath(
+                    f"{br_type}s", f"{br_type}s_defaults.csv"
+                )
             defaults = self.data_catalog.get_dataframe(defaults_fn)
-        self.logger.info(f"{br_type} default settings read from {defaults_fn}.")
+            self.logger.info(f"{br_type} default settings read from {defaults_fn}.")
 
         # 2. Add defaults
         # Add branchType and branchId attributes if does not exist
@@ -315,7 +319,12 @@ class DFlowFMModel(MeshModel):
                 data=np.repeat(br_type, len(gdf_br)), index=gdf_br.index, dtype=str
             )
         if "branchId" not in gdf_br.columns:
-            data = [f"{br_type}_{i}" for i in np.arange(len(self.branches), len(self.branches) + len(gdf_br))] # avoid duplicated ids being generated
+            data = [
+                f"{br_type}_{i}"
+                for i in np.arange(
+                    len(self.branches) + 1, len(self.branches) + len(gdf_br) + 1
+                )
+            ]  # avoid duplicated ids being generated
             gdf_br["branchId"] = pd.Series(data, index=gdf_br.index, dtype=str)
 
         # assign id
@@ -346,9 +355,7 @@ class DFlowFMModel(MeshModel):
             if isinstance(crosssections_value, list) and len(crosssections_value) == 2:
                 defaults["shape"] = crosssections_shape
                 defaults["width"], defaults["height"] = crosssections_value
-                defaults[
-                    "closed"
-                ] = "no"
+                defaults["closed"] = "no"
             else:
                 self.logger.warning(
                     "If crosssections_shape is rectangle, crosssections_value should be a list with [width, height] values. Keeping defaults"
@@ -1231,6 +1238,7 @@ class DFlowFMModel(MeshModel):
             id_suffix="_generated",
             logger=self.logger,
         )
+        # FIXME Xiaohan: why do we need set_branches here?
         self.set_branches(branches)
 
         # add manhole attributes from defaults
@@ -1493,13 +1501,11 @@ class DFlowFMModel(MeshModel):
             bbox = [float(v) for v in bbox]  # needs to be str in config file
             region = {"bbox": bbox}
         else:  # use model region
-            self.logger.warning(
-               "Mesh2d is generated for model region."
-            )
+            self.logger.warning("Mesh2d is generated for model region.")
             region = {"geom": self.region}
 
         # reserve existing mesh
-        _mesh = self._mesh
+        # _mesh = self._mesh
 
         # Get and set the 2dmesh
         mesh2d = super().setup_mesh(region=region, crs=self.crs, res=res)
@@ -1517,14 +1523,13 @@ class DFlowFMModel(MeshModel):
         self.set_mesh2d()
 
         # update the 2dmesh to self._mesh
-        if _mesh is not None:
-            _mesh = _mesh.drop_vars(set(_mesh.variables.keys()).intersection(subset.variables.keys()))
-            self._mesh = _mesh.merge(subset)
+        # if _mesh is not None:
+        #    _mesh = _mesh.drop_vars(set(_mesh.variables.keys()).intersection(subset.variables.keys()))
+        #    self._mesh = _mesh.merge(subset)
         # else already set in setup_mesh
 
         # update res
         self._res = res
-
 
     def setup_maps_from_raster(
         self,
@@ -1578,7 +1583,6 @@ class DFlowFMModel(MeshModel):
             self.logger.error("name must be specified when split_dataset = False")
 
         # Call super method
-        # FIXME review: for now it seems that during update, all maps are replaced at once
         # FIXME review: self.region is used for setup_maps_from_raster; but in our case it is not the 2D region.
         variables = super().setup_maps_from_raster(
             raster_fn=raster_fn,
@@ -1614,8 +1618,10 @@ class DFlowFMModel(MeshModel):
                 if interpolation_method != "triangulation":
                     # adjust relative search cell size for averaging methods
                     relsize = np.round(
-                        np.abs(self.maps[var].raster.res[0])/self.res * np.sqrt(2) + 0.05,
-                        2)
+                        np.abs(self.maps[var].raster.res[0]) / self.res * np.sqrt(2)
+                        + 0.05,
+                        2,
+                    )
                     self._MAPS[var]["averagingrelsize"] = relsize
 
     def setup_maps_from_raster_reclass(
@@ -1682,7 +1688,7 @@ class DFlowFMModel(MeshModel):
             reproject_method=reproject_method,
             name=name,
             split_dataset=split_dataset,
-        ) # Updates the reclass_variables (Please check)
+        )  # Updates the reclass_variables (Please check)
 
         allowed_methods = [
             "triangulation",
@@ -1709,8 +1715,10 @@ class DFlowFMModel(MeshModel):
                 if interpolation_method != "triangulation":
                     # adjust relative search cell size for averaging methods
                     relsize = np.round(
-                        np.abs(self.maps[var].raster.res[0])/self.res * np.sqrt(2) + 0.05,
-                        2)
+                        np.abs(self.maps[var].raster.res[0]) / self.res * np.sqrt(2)
+                        + 0.05,
+                        2,
+                    )
                     self._MAPS[var]["averagingrelsize"] = relsize
 
     # ## I/O
@@ -1804,11 +1812,15 @@ class DFlowFMModel(MeshModel):
             if len(inilist) > 0:
                 # DFM map names
                 rm_dict = dict()
-                for v in self._MAPS: #FIXME review: frictioncoefficient cannot be mapped back to the correct roughness. Maybe for now support less roughness types.
+                for (
+                    v
+                ) in (
+                    self._MAPS
+                ):  # FIXME review: frictioncoefficient cannot be mapped back to the correct roughness. Maybe for now support less roughness types.
                     rm_dict[self._MAPS[v]["name"]] = v
                 for inidict in inilist:
                     _fn = inidict.datafile.filepath
-                    # TODO: fixme when initialising IniFieldModel hydrolib-core does not parse correclty the relative path
+                    # FIXME: when initialising IniFieldModel hydrolib-core does not parse correclty the relative path
                     # For now re-update manually....
                     if not isfile(_fn):
                         _fn = join(self.root, "maps", _fn.name)
@@ -1904,7 +1916,7 @@ class DFlowFMModel(MeshModel):
 
         # Assign initial fields to model and write
         inifield_model = IniFieldModel(initial=inilist, parameter=paramlist)
-        # TODO: fixme when initialising IniFieldModel hydrolib-core does not parse correclty the relative path
+        # FIXME: when initialising IniFieldModel hydrolib-core does not parse correclty the relative path
         # For now re-update manually....
         for i in range(len(inifield_model.initial)):
             path = Path(f"../maps/{inifield_model.initial[i].datafile.filepath.name}")
@@ -1929,7 +1941,6 @@ class DFlowFMModel(MeshModel):
         For branches / crosssections / manholes etc... the reading of hydrolib-core objects happens in read_mesh
         There the geoms geojson copies are re-set based on dflowfm files content.
         """
-        # FIXME review: what happens if geoms do not exist?
         super().read_geoms(fn="geoms/region.geojson")
 
     def write_geoms(self) -> None:
@@ -2018,7 +2029,10 @@ class DFlowFMModel(MeshModel):
             mesh1d = self.mesh1d
             branch_id = mesh1d.network1d_branch_id
             # Create the GeoDataFrame
-            branches = gpd.GeoDataFrame(geometry=[LineString(mesh1d.branches[i].geometry) for i in branch_id], crs=self.crs)
+            branches = gpd.GeoDataFrame(
+                geometry=[LineString(mesh1d.branches[i].geometry) for i in branch_id],
+                crs=self.crs,
+            )
             branches["branchId"] = branch_id
             branches["branchOrder"] = mesh1d.network1d_branch_order
 
@@ -2041,12 +2055,10 @@ class DFlowFMModel(MeshModel):
 
         # Read mesh1d related geometry (other features) #FIXME review: might better be done in read_geoms
         # Add manholes properties
-        # FIXME: manholes might need to be moved to storage nodes writers
         if self.dfmmodel.geometry.storagenodefile is not None:
             self.logger.info("Reading manholes file")
             branches, manholes = utils.read_manholes(branches, self.dfmmodel)
             self.set_geoms(manholes, "manholes")
-
 
     def write_mesh(self):
         """Write 1D branches and 2D mesh at <root/dflowfm/fm_net.nc> in model ready format"""
@@ -2067,8 +2079,8 @@ class DFlowFMModel(MeshModel):
         if grid.crs is not None:
             # save crs to spatial_ref coordinate
             ds_out = ds_out.rio.write_crs(grid.crs)
-        self._mesh = ds_out
-        ds_out.to_netcdf(_fn, mode = "w")
+        # self._mesh = ds_out
+        ds_out.to_netcdf(_fn, mode="w")
 
         # hydrolib-core convention (meshkernel)
         mesh_filename = "fm_net.nc"
@@ -2084,9 +2096,7 @@ class DFlowFMModel(MeshModel):
         if not self.mesh1d.is_empty():
             # Friction
             self.logger.info("Writting friction file(s)")
-            friction_fns = utils.write_friction(
-                self.branches, savedir
-            )  # FIXME: ask Rinske, add global section correctly
+            friction_fns = utils.write_friction(self.branches, savedir)
             self.set_config("geometry.frictfile", ";".join(friction_fns))
             # Crosssections
             self.logger.info("Writting cross-sections files crsdef and crsloc")
@@ -2108,7 +2118,6 @@ class DFlowFMModel(MeshModel):
                     savedir,
                 )
                 self.set_config("geometry.storagenodefile", storage_fn)
-
 
     def read_states(self):
         """Read states at <root/?/> and parse to dict of xr.DataArray"""
@@ -2148,17 +2157,17 @@ class DFlowFMModel(MeshModel):
             region = self.geoms["region"]
         # Else derives from branches
         else:
-            if self.branches is not None:
-                bounds = self.branches.total_bounds
-                crs = self.branches.crs
+            # if self.branches is not None:
+            #     bounds = self.branches.total_bounds
+            #     crs = self.branches.crs
             # Else tries from mesh
-            elif self.mesh is not None:
+            if self.mesh is not None:
                 bounds = self.mesh.ugrid.grid.total_bounds
                 crs = self.mesh.ugrid.crs
             else:
                 # Finally raise error assuming model is empty
                 self.logger.error(
-                    "Could not derive region from geoms, mesh1d or mesh2d. Model may be empty."
+                    "Could not derive region from geoms, or mesh. Model may be empty."
                 )
             region = gpd.GeoDataFrame(geometry=[box(*bounds)], crs=crs)
             self.set_geoms(region, "region")
@@ -2253,9 +2262,9 @@ class DFlowFMModel(MeshModel):
         Contains several "branchType" for : channel, river, pipe, tunnel.
         """
         if self._branches is None and self._read:
-            self.read_mesh()    # FIXME: might be changed to read network
+            self.read_mesh()
         elif self._branches is None:
-            self._branches = gpd.GeoDataFrame() # no crs can be assigned due to not supported by geopandas
+            self._branches = gpd.GeoDataFrame()
         return self._branches
 
     def set_branches(self, branches: gpd.GeoDataFrame):
@@ -2267,6 +2276,7 @@ class DFlowFMModel(MeshModel):
             self.logger.error(
                 "'branchType' column absent from the new branches, could not update."
             )
+        # FIXME Xiaohan: can this be combined into one argument?
         if "manhole_up" in branches.columns:
             self._branches = branches
         else:
@@ -2310,13 +2320,13 @@ class DFlowFMModel(MeshModel):
             else:
                 endnodes = workflows.generate_boundaries_from_branches(
                     new_branches, where="both"
-                ) # only connect both ends to existing network
+                )  # only connect both ends to existing network
 
             # get possible connection points (allow connection only at mesh nodes) from existing open system
             mesh1d_nodes = self.mesh1d_nodes.copy()
             mesh1d_nodes_open = mesh1d_nodes.loc[
                 mesh1d_nodes.branch_name.isin(self.opensystem.branchId.tolist())
-            ] #FIXME: harmornize branch_name and branchId
+            ]  # FIXME: harmornize branch_name and branchId
 
             # snap the new endnodes to existing mesh1d_nodes_open
             snapnodes = hydromt.gis_utils.nearest_merge(
@@ -2399,6 +2409,7 @@ class DFlowFMModel(MeshModel):
         """
         Returns the mesh1d (hydrolib-core Mesh1d object) representing the 1D mesh.
         """
+        # FIXME dfmmodel : derive from self.mesh
         return self.dfmmodel.geometry.netfile.network._mesh1d
 
     @property
@@ -2424,7 +2435,7 @@ class DFlowFMModel(MeshModel):
 
     def set_mesh1d(self):
         """update the mesh1d in hydrolib-core net object by overwrite and add to self._mesh"""
-
+        # FIXME dfmmodel: should avoid using dfmmodel and use self.mesh instead
         # reinitialise mesh1d (TODO: a clear() function in hydrolib-core could be handy)
         self.dfmmodel.geometry.netfile.network._mesh1d = Mesh1d(
             meshkernel=self.dfmmodel.geometry.netfile.network.meshkernel
@@ -2434,7 +2445,7 @@ class DFlowFMModel(MeshModel):
         opensystem = self.opensystem
         node_distance = self._openwater_computation_node_distance
         mesh.mesh1d_add_branch(
-            self._dfmmodel.geometry.netfile.network, 
+            self._dfmmodel.geometry.netfile.network,
             opensystem.geometry.to_list(),
             node_distance=node_distance,
             branch_names=opensystem.branchId.to_list(),
@@ -2464,11 +2475,11 @@ class DFlowFMModel(MeshModel):
         # Create Ugrid1d object for mesh
         # TODO: after release of xugrid use grid = xu.Ugrid1d.from_meshkernel(mesh1d)
         grid = xu.Ugrid1d(
-            node_x = mesh1d.mesh1d_node_x,
-            node_y = mesh1d.mesh1d_node_y,
+            node_x=mesh1d.mesh1d_node_x,
+            node_y=mesh1d.mesh1d_node_y,
             fill_value=-1,
             edge_node_connectivity=mesh1d.mesh1d_edge_nodes,
-            name = 'mesh1d',
+            name="mesh1d",
             crs=self.crs,
         )
         # grid._mesh = mesh1d
@@ -2477,15 +2488,33 @@ class DFlowFMModel(MeshModel):
             data_vars={
                 "mesh1d_node_x": ("mesh1d_nNodes", mesh1d.mesh1d_node_x),
                 "mesh1d_node_y": ("mesh1d_nNodes", mesh1d.mesh1d_node_y),
-                'mesh1d_node_id': ("mesh1d_nNodes", mesh1d.mesh1d_node_id),
-                'mesh1d_node_long_name': ("mesh1d_nNodes", mesh1d.mesh1d_node_long_name),
-                'mesh1d_node_branch_id': ("mesh1d_nNodes", mesh1d.mesh1d_node_branch_id),
-                'mesh1d_node_branch_offset': ("mesh1d_nNodes", mesh1d.mesh1d_node_branch_offset),
-                'mesh1d_edge_nodes': (["mesh1d_nEdges", "two"], mesh1d.mesh1d_edge_nodes),
+                "mesh1d_node_id": ("mesh1d_nNodes", mesh1d.mesh1d_node_id),
+                "mesh1d_node_long_name": (
+                    "mesh1d_nNodes",
+                    mesh1d.mesh1d_node_long_name,
+                ),
+                "mesh1d_node_branch_id": (
+                    "mesh1d_nNodes",
+                    mesh1d.mesh1d_node_branch_id,
+                ),
+                "mesh1d_node_branch_offset": (
+                    "mesh1d_nNodes",
+                    mesh1d.mesh1d_node_branch_offset,
+                ),
+                "mesh1d_edge_nodes": (
+                    ["mesh1d_nEdges", "two"],
+                    mesh1d.mesh1d_edge_nodes,
+                ),
                 "mesh1d_edge_x": ("mesh1d_nEdges", mesh1d.mesh1d_edge_x),
                 "mesh1d_edge_y": ("mesh1d_nEdges", mesh1d.mesh1d_edge_y),
-                'mesh1d_edge_branch_id': ("mesh1d_nEdges", mesh1d.mesh1d_edge_branch_id),
-                'mesh1d_edge_branch_offset': ("mesh1d_nEdges", mesh1d.mesh1d_edge_branch_offset),
+                "mesh1d_edge_branch_id": (
+                    "mesh1d_nEdges",
+                    mesh1d.mesh1d_edge_branch_id,
+                ),
+                "mesh1d_edge_branch_offset": (
+                    "mesh1d_nEdges",
+                    mesh1d.mesh1d_edge_branch_offset,
+                ),
             }
         )
         uds = xu.UgridDataset(ds, grid)
@@ -2495,11 +2524,11 @@ class DFlowFMModel(MeshModel):
         # Create Ugrid1d object for network
         # TODO: after release of xugrid use grid = xu.Ugrid1d.from_meshkernel(mesh1d)
         grid = xu.Ugrid1d(
-            node_x = mesh1d.network1d_node_x,
-            node_y = mesh1d.network1d_node_y,
+            node_x=mesh1d.network1d_node_x,
+            node_y=mesh1d.network1d_node_y,
             fill_value=-1,
             edge_node_connectivity=mesh1d.network1d_edge_nodes,
-            name = 'network1d',
+            name="network1d",
             crs=self.crs,
         )
         # grid._mesh = mesh1d
@@ -2508,16 +2537,40 @@ class DFlowFMModel(MeshModel):
             data_vars={
                 "network1d_node_x": ("network1d_nNodes", mesh1d.network1d_node_x),
                 "network1d_node_y": ("network1d_nNodes", mesh1d.network1d_node_y),
-                'network1d_node_id': ("network1d_nNodes", mesh1d.network1d_node_id),
-                'network1d_node_long_name': ("network1d_nNodes", mesh1d.network1d_node_long_name),
-                'network1d_edge_nodes': (["network1d_nEdges", "two"], mesh1d.network1d_edge_nodes),
-                'network1d_geom_x': ("network1d_nGeometryNodes", mesh1d.network1d_geom_x),
-                'network1d_geom_y': ("network1d_nGeometryNodes", mesh1d.network1d_geom_y),
+                "network1d_node_id": ("network1d_nNodes", mesh1d.network1d_node_id),
+                "network1d_node_long_name": (
+                    "network1d_nNodes",
+                    mesh1d.network1d_node_long_name,
+                ),
+                "network1d_edge_nodes": (
+                    ["network1d_nEdges", "two"],
+                    mesh1d.network1d_edge_nodes,
+                ),
+                "network1d_geom_x": (
+                    "network1d_nGeometryNodes",
+                    mesh1d.network1d_geom_x,
+                ),
+                "network1d_geom_y": (
+                    "network1d_nGeometryNodes",
+                    mesh1d.network1d_geom_y,
+                ),
                 "network1d_branch_id": ("network1d_nEdges", mesh1d.network1d_branch_id),
-                "network1d_branch_length": ("network1d_nEdges", mesh1d.network1d_branch_length),
-                "network1d_branch_long_name": ("network1d_nEdges", mesh1d.network1d_branch_long_name),
-                "network1d_branch_order": ("network1d_nEdges", mesh1d.network1d_branch_order),
-                "network1d_part_node_count": ("network1d_nEdges", mesh1d.network1d_part_node_count),
+                "network1d_branch_length": (
+                    "network1d_nEdges",
+                    mesh1d.network1d_branch_length,
+                ),
+                "network1d_branch_long_name": (
+                    "network1d_nEdges",
+                    mesh1d.network1d_branch_long_name,
+                ),
+                "network1d_branch_order": (
+                    "network1d_nEdges",
+                    mesh1d.network1d_branch_order,
+                ),
+                "network1d_part_node_count": (
+                    "network1d_nEdges",
+                    mesh1d.network1d_part_node_count,
+                ),
             },
         )
         uds = xu.UgridDataset(ds, grid)
@@ -2529,7 +2582,9 @@ class DFlowFMModel(MeshModel):
 
         # set
         if self._mesh is not None:
-            self._mesh = self._mesh.drop_vars(set(self._mesh.variables.keys()).intersection(uds_1d.variables.keys()))
+            self._mesh = self._mesh.drop_vars(
+                set(self._mesh.variables.keys()).intersection(uds_1d.variables.keys())
+            )
         self.set_mesh(uds_1d)
 
     @property
@@ -2538,7 +2593,7 @@ class DFlowFMModel(MeshModel):
         if "crosssections" in self.geoms:
             gdf = self.geoms["crosssections"]
         else:
-            gdf = gpd.GeoDataFrame() #FIXME review: no crs can be assigned to empty GeoDataFrame. AttributeError: The CRS attribute of a GeoDataFrame without an active geometry column is not defined. Use GeoDataFrame.set_geometry to set the active geometry column.
+            gdf = gpd.GeoDataFrame()
         return gdf
 
     def set_crosssections(self, crosssections: gpd.GeoDataFrame):
@@ -2552,7 +2607,9 @@ class DFlowFMModel(MeshModel):
     @property
     def boundaries(self):
         """Quick accessor to boundaries geoms"""
-        if "boundaries" in self.geoms: #FIXME review: how to read it back?
+        if (
+            "boundaries" in self.geoms
+        ):  # FIXME review: how to read it back? when reading mesh? Or always generate (ie if branches are updated, boundaries also)
             gdf = self.geoms["boundaries"]
         else:
             gdf = self.get_boundaries()
@@ -2587,23 +2644,22 @@ class DFlowFMModel(MeshModel):
 
     def get_model_time(self):
         """Return (refdate, tstart, tstop) tuple with parsed model reference datem start and end time"""
-        refdate = datetime.strptime(
-            str(self.get_config("time.refdate")), "%Y%m%d"
-        )  # FIXME: case senstivie might cause problem when changing template, consider use hydrolib.core reader for mdu files later.
+        refdate = datetime.strptime(str(self.get_config("time.refdate")), "%Y%m%d")
         tstart = refdate + timedelta(seconds=float(self.get_config("time.tstart")))
         tstop = refdate + timedelta(seconds=float(self.get_config("time.tstop")))
         return refdate, tstart, tstop
 
-    @property
-    def network(self):
-        """
-        Returns the network (hydrolib-core Network object) representing the entire network file.
-        """
-        return self.dfmmodel.geometry.netfile.network
+    # @property
+    # def network(self):
+    #     """
+    #     Returns the network (hydrolib-core Network object) based on self.mesh content.
+    #     """
+    #     return self.dfmmodel.geometry.netfile.network
 
     @property
     def network1d_nodes(self):
         """get network1d nodes as gdp"""
+        # FIXME dfmmodel: use self.mesh
         # get networkids to complete the boundaries
         _network1d_nodes = gpd.points_from_xy(
             x=self.dfmmodel.geometry.netfile.network._mesh1d.network1d_node_x,
@@ -2624,17 +2680,19 @@ class DFlowFMModel(MeshModel):
         if self._res is not None:
             return self._res
 
-
     @property
     def mesh2d(self):
         """
         Returns the mesh2d (hydrolib-core Mesh2d object) representing the 2D mesh.
         """
-        return self.dfmmodel.geometry.netfile.network._mesh2d # needed to setup 1d2d links
+        # FIXME dfmmodel: use self.mesh
+        return (
+            self.dfmmodel.geometry.netfile.network._mesh2d
+        )  # needed to setup 1d2d links
 
     def set_mesh2d(self):
         """update the mesh2d in hydrolib-core net object by overwrite"""
-
+        # FIXME dfmmodel: use self.mesh
         # process mesh2d to net object
         if self._mesh:
             mesh2d = self._mesh.ugrid.grid.mesh
