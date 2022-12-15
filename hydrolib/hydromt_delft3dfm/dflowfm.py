@@ -288,6 +288,8 @@ class DFlowFMModel(MeshModel):
             gdf_br = self.data_catalog.get_geodataframe(
                 br_fn, geom=self.region, buffer=0, predicate="intersects"
             )
+        elif isinstance(br_fn, gpd.GeoDataFrame):
+            gdf_br = br_fn.copy()
         # Filter features based on filter
         if filter is not None and "branchType" in gdf_br.columns:
             gdf_br = gdf_br[gdf_br["branchType"].str.lower() == filter.lower()]
@@ -306,6 +308,8 @@ class DFlowFMModel(MeshModel):
             )
         if isinstance(defaults_fn, str) or isinstance(defaults_fn, Path):
             defaults = self.data_catalog.get_dataframe(defaults_fn)
+        elif isinstance(defaults_fn, pd.DataFrame):
+            defaults = defaults_fn.copy()
         self.logger.info(f"{br_type} default settings read from {defaults_fn}.")
 
         # 2. Add defaults
