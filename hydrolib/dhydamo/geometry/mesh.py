@@ -181,7 +181,6 @@ def mesh1d_add_branch(
     The branch is discretized with the given node distance.
     if node distance is given as infinity, no discretization will be performed at mid point of the branch,
     i.e. branch is treated as a pipe
-
     Args:
         network (Network): Network to which the branch is added
         branches (Union[ LineString, MultiLineString, List[Union[LineString, MultiLineString]] ]): Geometry object(s) for which the branch is created
@@ -223,8 +222,25 @@ def mesh1d_add_branch(
             force_midpoint=force_midpoint,
         )
         branchids.append(branchid)
-
+    
     return branchids
+
+
+def round_geometry(geometry, rounding_precision: int = 6):
+    """
+    Round the coordinates of the geometry object to the provided precision.
+    Parameters
+    ----------
+    geometry
+        The geometry object.
+    rounding_preicision: int, optional
+        Round coordinates to the specified number of digits.
+        Defaults to 6.
+    Returns
+    -------
+    A shapely geometry object.
+    """
+    return loads(dumps(geometry, rounding_precision=rounding_precision))
 
 
 def round_geometry(geometry, rounding_precision: int = 6):

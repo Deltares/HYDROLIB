@@ -340,7 +340,7 @@ def write_shp(data: gpd.GeoDataFrame, filename: str, columns: list = None):
             gpd.GeoDataFrame(data).to_file(filename, index=False)
 
 
-# data handeling
+# data handling
 
 
 def append_data_columns_based_on_ini_query(
@@ -436,7 +436,10 @@ def check_geodataframe(gdf: gpd.GeoDataFrame):
 ## geometry
 def cut_pieces(line, distances):
     """cut a line into pieces based on distances"""
-    distances.insert(0, 0)
+    if distances[0] != 0:
+        distances.insert(0, 0)
+    if distances[-1] == line.length:
+        distances.pop(-1)
     pieces = [line]
     for d in np.diff(np.sort(distances)):
         line = pieces.pop(-1)

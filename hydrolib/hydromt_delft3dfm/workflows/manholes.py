@@ -17,7 +17,7 @@ __all__ = [
 
 def generate_manholes_on_branches(
     branches: gpd.GeoDataFrame,
-    use_branch_variables: list[str] = ["diameter", "width"],
+    use_branch_variables: list = ["diameter", "width"],
     bedlevel_shift: float = 0.0,
     id_prefix: str = "",
     id_suffix: str = "",
@@ -125,6 +125,7 @@ def generate_manholes_on_branches(
         [(Point(l.coords[0]), li) for li, l in channels["geometry"].iteritems()]
         + [(Point(l.coords[-1]), li) for li, l in channels["geometry"].iteritems()],
         columns=["geometry", channels.index.name],
+        crs = branches.crs
     )
 
     nodes_channels = gpd.GeoDataFrame(_nodes_channels, crs=branches.crs)

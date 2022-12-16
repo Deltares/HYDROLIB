@@ -1,8 +1,7 @@
 grip_roads:
   data_type: GeoDataFrame
-  path: C:\Users\boisgont\.hydromt_data\artifact_data\v0.0.6\grip_roads.gpkg
+  path: C:\Users\li_xn\.hydromt_data\artifact_data\v0.0.7\grip_roads.gpkg
   driver: vector
-  filesystem: local
   crs: 4326
   meta:
     category: road
@@ -13,9 +12,8 @@ grip_roads:
     source_version: v4
 merit_hydro:
   data_type: RasterDataset
-  path: C:\Users\boisgont\.hydromt_data\artifact_data\v0.0.6\merit_hydro\{variable}.tif
+  path: C:\Users\li_xn\.hydromt_data\artifact_data\v0.0.7\merit_hydro\{variable}.tif
   driver: raster
-  filesystem: local
   crs: 4326
   meta:
     category: topography
@@ -24,11 +22,14 @@ merit_hydro:
     source_license: CC-BY-NC 4.0 or ODbL 1.0
     source_url: http://hydro.iis.u-tokyo.ac.jp/~yamadai/MERIT_Hydro
     source_version: 1.0
+pipes_defaults:
+  data_type: DataFrame
+  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\hydrolib\hydromt_delft3dfm\data\pipes\pipes_defaults.csv
+  driver: csv
 rivers_lin2019_v1:
   data_type: GeoDataFrame
-  path: C:\Users\boisgont\.hydromt_data\artifact_data\v0.0.6\rivers_lin2019_v1.gpkg
+  path: C:\Users\li_xn\.hydromt_data\artifact_data\v0.0.7\rivers_lin2019_v1.gpkg
   driver: vector
-  filesystem: local
   meta:
     category: hydrography
     paper_doi: 10.5281/zenodo.3552776
@@ -38,9 +39,8 @@ rivers_lin2019_v1:
     source_version: 1
 vito:
   data_type: RasterDataset
-  path: C:\Users\boisgont\.hydromt_data\artifact_data\v0.0.6\vito.tif
+  path: C:\Users\li_xn\.hydromt_data\artifact_data\v0.0.7\vito.tif
   driver: raster
-  filesystem: local
   crs: 4326
   meta:
     category: landuse & landcover
@@ -50,9 +50,8 @@ vito:
     source_version: v2.0.2
 vito_mapping:
   data_type: DataFrame
-  path: C:\Users\boisgont\D\Repos\hydromt\HYDROLIB\hydrolib\hydromt_delft3dfm\data\landuse\vito_mapping.csv
+  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\hydrolib\hydromt_delft3dfm\data\landuse\vito_mapping.csv
   driver: csv
-  filesystem: local
   kwargs:
     index_col: 0
   nodata:

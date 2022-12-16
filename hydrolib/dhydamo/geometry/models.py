@@ -1,14 +1,11 @@
-from typing import List, Union
-
-import numpy as np
 from meshkernel import GeometryList as GeometryListMK
 from shapely.geometry import (
+    Point,
+    MultiPoint,
     LineString,
     MultiLineString,
-    MultiPoint,
-    MultiPolygon,
-    Point,
     Polygon,
+    MultiPolygon,
 )
 import numpy as np
 from typing import Union, List
@@ -120,17 +117,17 @@ class GeometryList(GeometryListMK):
     def _to_linestring(
         self, geometries: List[GeometryListMK], is_multi: bool
     ) -> Union[LineString, MultiLineString]:
-        linestrings = [
-            LineString(np.stack([p.x_coordinates, p.y_coordinates], axis=1))
-            for p in geometries
-        ]
-        if is_multi:
-            return MultiLineString(linestrings)
-        else:
-            return linestrings[0]
+                linestrings = [
+                    LineString(np.stack([p.x_coordinates, p.y_coordinates], axis=1))
+                    for p in geometries
+                ]
+                if is_multi:
+                    return MultiLineString(linestrings)
+                else:
+                    return linestrings[0]
 
     def _to_points(
-        self, geometries: List[GeometryListMK], is_multi: bool
+        	self, geometries: List[GeometryListMK], is_multi: bool
     ) -> Union[Point, MultiPoint]:
         points = [
             Point(np.stack([p.x_coordinates, p.y_coordinates], axis=1))
@@ -140,6 +137,7 @@ class GeometryList(GeometryListMK):
             return MultiPoint(points)
         else:
             return points[0]
+
 
     def to_geometry(self):
         geometries = [

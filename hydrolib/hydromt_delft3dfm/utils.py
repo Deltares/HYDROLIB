@@ -1,6 +1,7 @@
 from pathlib import Path
 from os.path import join
 from typing import Dict, Union, Tuple, List
+from enum import Enum
 
 import geopandas as gpd
 import pandas as pd
@@ -152,6 +153,18 @@ def read_crosssections(
     gdf_crs: geopandas.GeoDataFrame
         geodataframe copy of the cross-sections and data
     """
+    def _list2Str(lst):
+
+        if type(lst) is list:
+            # apply conversion to list columns
+            if isinstance(lst[0], float):
+                return " ".join(["{}".format(i) for i in lst])
+            elif isinstance(lst[0], str):
+                return " ".join(["{}".format(i) for i in lst])
+        else:
+            return lst
+
+
     # Start with crsdef to create the crosssections attributes
     crsdef = fm_model.geometry.crossdeffile
     crs_dict = dict()
@@ -159,8 +172,22 @@ def read_crosssections(
         crs_dict[b.id] = b.__dict__
     df_crsdef = pd.DataFrame.from_dict(crs_dict, orient="index")
     df_crsdef = df_crsdef.drop("comments", axis=1)
-    df_crsdef = df_crsdef.rename(columns={"id": "crsdef_id"})
-    df_crsdef["crs_id"] = df_crsdef["crsdef_id"]  # column to merge
+    df_crsdef["crs_id"] = df_crsdef["id"]  # column to merge
+    # convertion needed  for xyz/zw crossections
+    # convert list to str ()
+    df_crsdef = df_crsdef.applymap(lambda x: _list2Str(x))
+    # convert float to int
+    int_columns = set(df_crsdef.columns).intersection(("xyzcount", "sectioncount"))
+    df_crsdef.loc[:,int_columns] = (
+        df_crsdef.loc[:,int_columns].fillna(-999)
+        .astype(int)
+        .astype(object)
+        .where(df_crsdef.loc[:,int_columns].notnull())
+    )
+    # Rename to prepare for crossection geom
+    _gdf_crsdef = df_crsdef.rename(
+        columns={c: f"crsdef_{c}" for c in df_crsdef.columns if c != "crs_id"}
+    )
 
     # Continue with locs to get the locations and branches id
     crsloc = fm_model.geometry.crosslocfile
@@ -169,67 +196,50 @@ def read_crosssections(
         crsloc_dict[b.id] = b.__dict__
     df_crsloc = pd.DataFrame.from_dict(crsloc_dict, orient="index")
     df_crsloc = df_crsloc.drop("comments", axis=1)
-    df_crsloc = df_crsloc.rename(columns={"id": "crsloc_id"})
     df_crsloc["crs_id"] = df_crsloc["definitionid"]  # column to merge
-
-    # Combine def attributes with locs
-    df_crs = df_crsloc.merge(df_crsdef, on="crs_id")
-    # Rename for branches
-    df_crs = df_crs.rename(
-        columns={"branchid": "branchId", "frictionid": "frictionId", "type": "shape"}
-    )
-
-    # get geometry
-    if df_crs.dropna(axis=1).columns.isin(["x", "y"]).all():
-        df_crs["geometry"] = [Point(i.x, i.y) for i in df_crs[["x", "y"]].itertuples()]
+    # convert locationtype from enum to str (due to hydrolib-core bug)
+    if isinstance(df_crsloc["locationtype"][0], Enum):
+        df_crsloc["locationtype"] = df_crsloc["locationtype"].apply(lambda x: x.value)
+    # get crsloc geometry
+    if df_crsloc.dropna(axis = 1).columns.isin(["x", "y"]).all():
+        df_crsloc["geometry"] = [Point(i.x,i.y) for i in df_crsloc[["x","y"]].itertuples()]
     else:
         _gdf = gdf.set_index("branchId")
-        df_crs["geometry"] = [
-            _gdf.loc[i.branchId, "geometry"].interpolate(i.chainage)
-            for i in df_crs.itertuples()
-        ]
-
-    # Convert to geodataframe
-    gdf_crs = gpd.GeoDataFrame(df_crs, crs=gdf.crs)
-
-    # attributes admin
-    gdf_crs = gdf_crs.drop(
-        set(gdf_crs.columns).intersection(
-            [
-                "crs_id",
-                "x",
-                "y",
-                "locationtype",
-                "frictiontype",
-                "frictionvalue",
-                "branchType",
-            ]
-        ),
-        axis=1,
-    )
-    # Rename
-    gdf_crs = gdf_crs.rename(
-        columns={c: f"crsdef_{c}" for c in df_crsdef.columns if c != "crsdef_id"}
-    )
-    gdf_crs = gdf_crs.rename(
-        columns={c: f"crsloc_{c}" for c in df_crsloc.columns if c != "crsloc_id"}
-    )
-    # Rename for case sensitive
-    gdf_crs = gdf_crs.rename(
-        columns={
-            "branchId": "crsloc_branchId",
-            "crsloc_definitionid": "crsloc_definitionId",
-            "frictionId": "crsdef_frictionId",
-            "shape": "crsdef_type",
-        }
+        df_crsloc["geometry"] = [_gdf.loc[i.branchid, "geometry"].interpolate(i.chainage) for i in df_crsloc.itertuples()]
+    # Rename to prepare for crossection geom
+    _gdf_crsloc = df_crsloc.rename(
+        columns={c: f"crsloc_{c}" for c in df_crsloc.columns if c not in ["crs_id", "geometry"]}
     )
 
-    # Add attributes of regular crossection shapes to branches (trapezoid cannot be added back due to being converted to zw)
+    # Combine def attributes with locs for crossection geom
+    gdf_crs = _gdf_crsloc.merge(_gdf_crsdef, on="crs_id")
+    gdf_crs = gpd.GeoDataFrame(gdf_crs, crs=gdf.crs)
+
+    # # Add attributes of regular crossection shapes to branches (trapezoid cannot be added back due to being converted to zw)
+    # # FIXME review: maybe only add for pipes/tunnels
+
+    # combine def attributes with locs for branches geom
+    df_crs =  df_crsloc.merge(df_crsdef.drop(columns = ['branchid']), on="crs_id")
+    # Rename for branches
+    df_crs = df_crs.rename(
+        columns={"branchid": "branchId",
+                 "frictionid": "frictionId",
+                 "type": "shape"}
+    )
+
     gdf_out = gdf.copy()
     # rectangle
     rectangle_index = df_crs["shape"] == "rectangle"
     if rectangle_index.any():
         df_crs.loc[rectangle_index, "bedlev"] = df_crs.loc[rectangle_index, "shift"]
+        gdf_out = gdf_out.merge(
+            df_crs.loc[rectangle_index,
+                ["branchId", "shape", "width", "height", "bedlev", "frictionId"]
+            ].drop_duplicates(subset="branchId"),
+            on="branchId",
+            how="left",
+        )
+
     # circle
     circle_index = df_crs["shape"] == "circle"
     if circle_index.any():
@@ -290,6 +300,7 @@ def write_crosssections(gdf: gpd.GeoDataFrame, savedir: str) -> Tuple[str, str]:
         columns={c: c.removeprefix("crsdef_") for c in gpd_crsdef.columns}
     )
     gpd_crsdef = gpd_crsdef.drop_duplicates(subset="id")
+    gpd_crsdef = gpd_crsdef.astype(object).replace(np.nan, None)
     crsdef = CrossDefModel(definition=gpd_crsdef.to_dict("records"))
     # fm_model.geometry.crossdeffile = crsdef
 

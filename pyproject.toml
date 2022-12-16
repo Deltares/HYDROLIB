@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hydrolib"
-version = "0.1.1"
+version = "0.1.0"
 description = "Python wrappers around D-HYDRO Suite."
 authors = ["Deltares"]
 license = "LGPL"
@@ -96,6 +96,3 @@ scipy = { channel = "conda-forge" }
 
 [tool.poetry.plugins."hydromt.models"]
 dflowfm = "hydrolib.hydromt_delft3dfm.dflowfm:DFlowFMModel"
-
-[tool.pytest.ini_options]
-markers = "plot"

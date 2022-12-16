@@ -753,8 +753,8 @@ class DFlowFMModel(MeshModel):
         river_filter: str = None,
         friction_type: str = "Manning",  # what about constructing friction_defaults_fn?
         friction_value: float = 0.023,
-        crosssections_fn: str = None,
-        crosssections_type: str = None,
+        crosssections_fn: Union[int, list] = None,
+        crosssections_type: Union[int, list] = None,
         snap_offset: float = 0.0,
         allow_intersection_snapping: bool = True,
     ):
@@ -772,7 +772,8 @@ class DFlowFMModel(MeshModel):
         Note for now only branch friction or global friction is supported.
 
         Crosssections are read from ``crosssections_fn`` based on the ``crosssections_type``. If there is no
-        ``crosssections_fn`` values are derived at the centroid of each river line based on defaults.
+        ``crosssections_fn`` values are derived at the centroid of each river line based on defaults. If there are multiple
+        types of crossections, specify them as lists.
 
         Adds/Updates model layers:
 
@@ -797,15 +798,15 @@ class DFlowFMModel(MeshModel):
         friction_value : float, optional.
             Units corresponding to [friction_type] are ["Chézy C [m 1/2 /s]", "Manning n [s/m 1/3 ]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Strickler k_s [m 1/3 /s]", "De Bos-Bijkerk γ [1/s]"]
             Friction value. By default 0.023.
-        crosssections_fn : str or Path, optional
+        crosssections_fn : str, Path, or a list of str or Path, optional
             Name of data source for crosssections, see data/data_sources.yml.
-            If ``crosssections_type`` = "xyzpoints"
+            If ``crosssections_type`` = "xyz"
             * Required variables: [crsId, order, z]
-            If ``crosssections_type`` = "points"
-            * Required variables: [crsId, order, z]
+            If ``crosssections_type`` = "point"
+            * Required variables: [crsId, shape, shift]
             By default None, crosssections will be set from branches
-        crosssections_type : str, optional
-            Type of crosssections read from crosssections_fn. One of ["xyzpoints"].
+        crosssections_type : str, or a list of str, optional
+            Type of crosssections read from crosssections_fn. One of ["xyz", "point"].
             By default None.
         snap_offset: float, optional
             Snapping tolerance to automatically connecting branches.
@@ -817,6 +818,7 @@ class DFlowFMModel(MeshModel):
         See Also
         ----------
         dflowfm._setup_branches
+        dflowfm._setup_crosssections
         """
         self.logger.info(f"Preparing 1D rivers.")
         # filter for allowed columns
@@ -852,13 +854,20 @@ class DFlowFMModel(MeshModel):
 
         # setup crosssections
         if crosssections_type is None:
-            crosssections_type = "branch"
-        assert {crosssections_type}.issubset({"xyzpoints", "branch"})
-        self._setup_crosssections(
-            branches=rivers,
-            crosssections_fn=crosssections_fn,
-            crosssections_type=crosssections_type,
-        )
+            crosssections_type = ["branch"]
+            crosssections_fn = [
+                None
+            ]  # TODO: maybe assign a specific one for river, like branch_river
+        elif isinstance(crosssections_type, list):
+            assert len(crosssections_type) == len(crosssections_fn)
+
+        for crs_fn, crs_type in zip(crosssections_fn, crosssections_type):
+            assert {crs_type}.issubset({"xyz", "point", "branch"})
+            self._setup_crosssections(
+                branches=rivers,
+                crosssections_fn=crs_fn,
+                crosssections_type=crs_type,
+            )
 
         # TODO setup frictions, reserve for more complex type of frictions for rivers
 
@@ -1062,14 +1071,11 @@ class DFlowFMModel(MeshModel):
         midpoint=True,
     ):
         """Prepares 1D crosssections.
-        crosssections can be set from branchs, xyzpoints, # TODO to be extended also from dem data for rivers/channels?
+        crosssections can be set from branches, points and xyz, # TODO to be extended also from dem data for rivers/channels?
         Crosssection must only be used after friction has been setup.
 
         Crosssections are read from ``crosssections_fn``.
         Crosssection types of this file is read from ``crosssections_type``
-        If ``crosssections_type`` = "xyzpoints":
-            * Required variables: crsId, order, z
-            * Optional variables:
 
         If ``crosssections_fn`` is not defined, default method is ``crosssections_type`` = 'branch',
         meaning that branch attributes will be used to derive regular crosssections.
@@ -1084,30 +1090,43 @@ class DFlowFMModel(MeshModel):
         branches : gpd.GeoDataFrame
             geodataframe of the branches to apply crosssections.
             * Required variables: [branchId, branchType, branchOrder]
+            If ``crosssections_type`` = "branch"
+                if shape = 'circle': 'diameter'
+                if shape = 'rectangle': 'width', 'height', 'closed'
+                if shape = 'trapezoid': 'width', 't_width', 'height', 'closed'
             * Optional variables: [material, friction_type, friction_value]
         crosssections_fn : str Path, optional
             Name of data source for crosssections, see data/data_sources.yml.
-            If ``crosssections_type`` = "xyzpoints"
+            Note that for point crossections, only ones within the snap_network_offset will be used.
+            If ``crosssections_type`` = "xyz"
             Note that only points within the region + 1000m buffer will be read.
             * Required variables: crsId, order, z
             * Optional variables:
-            If ``crosssections_type`` = "points"
-            * Required variables: crsId, order, z
+            If ``crosssections_type`` = "point"
+            * Required variables: crsId, shape, shift
             * Optional variables:
+                if shape = 'rectangle': 'width', 'height', 'closed'
+                if shape = 'trapezoid': 'width', 't_width', 'height', 'closed'
+                if shape = 'yz': 'yzcount','ycoordinates','zcoordinates','closed'
+                if shape = 'zw': 'numlevels', 'levels', 'flowwidths','totalwidths', 'closed'.
+                if shape = 'zwRiver': Not Supported
+                Note that list input must be strings seperated by a whitespace ''.
             By default None, crosssections will be set from branches
         crosssections_type : {'branch', 'xyz', 'point'}
-            Type of crosssections read from crosssections_fn. One of ["xyzpoints"].
+            Type of crosssections read from crosssections_fn. One of ['branch', 'xyz', 'point'].
             By default `branch`.
+
+        Raise:
+        ------
+        NotImplementedError: if ``crosssection_type`` is not recongnised.
         """
 
         # setup crosssections
         self.logger.info(f"Preparing 1D crosssections.")
 
-        # TODO: allow multiple crosssection filenamess
-
         if crosssections_fn is None and crosssections_type == "branch":
             # TODO: set a seperate type for rivers because other branch types might require upstream/downstream
-
+            # TODO: check for required columns
             # read crosssection from branches
             gdf_cs = workflows.set_branch_crosssections(branches, midpoint=midpoint)
 
@@ -1127,7 +1146,7 @@ class DFlowFMModel(MeshModel):
                     f"No {crosssections_fn} 1D xyz crosssections found within domain"
                 )
                 return None
-            valid_attributes = workflows.helper.heck_gpd_attributes(
+            valid_attributes = workflows.helper.check_gpd_attributes(
                 gdf_cs, required_columns=["crsId", "order", "z"]
             )
             if not valid_attributes:
@@ -1148,10 +1167,43 @@ class DFlowFMModel(MeshModel):
             gdf_cs = workflows.set_xyz_crosssections(branches, gdf_cs)
 
         elif crosssections_type == "point":
-            # add setup point crosssections here
-            raise NotImplementedError(
-                f"Method {crosssections_type} is not implemented."
+
+            # Read the crosssection data
+            gdf_cs = self.data_catalog.get_geodataframe(
+                crosssections_fn,
+                geom=self.region,
+                buffer=100,
+                predicate="contains",
             )
+
+            # check if feature valid
+            if len(gdf_cs) == 0:
+                self.logger.warning(
+                    f"No {crosssections_fn} 1D point crosssections found within domain"
+                )
+                return None
+            valid_attributes = workflows.helper.check_gpd_attributes(
+                gdf_cs, required_columns=["crsId", "shape", "shift"]
+            )
+            if not valid_attributes:
+                self.logger.error(
+                    f"Required attributes [crsId, shape, shift] in point crosssections do not exist"
+                )
+                return None
+
+            # assign id
+            id_col = "crsId"
+            gdf_cs.index = gdf_cs[id_col]
+            gdf_cs.index.name = id_col
+
+            # reproject to model crs
+            gdf_cs.to_crs(self.crs)
+
+            # set crsloc and crsdef attributes to crosssections
+            gdf_cs = workflows.set_point_crosssections(
+                branches, gdf_cs, maxdist=self._network_snap_offset
+            )
+
         else:
             raise NotImplementedError(
                 f"Method {crosssections_type} is not implemented."
@@ -1975,7 +2027,7 @@ class DFlowFMModel(MeshModel):
             self.logger.info("Writting forcing files.")
             savedir = dirname(join(self.root, self._config_fn))
             forcing_fn, ext_fn = utils.write_1dboundary(self.forcing, savedir)
-            self.set_config("external_forcing.extforcefilenew", ext_fn)
+            self.set_config("external_forcing.extforcefilenew", ext_fn) #FIXME check here whether _ is needed
 
     def read_mesh(self):
         """Read network file with Hydrolib-core and extract 2D mesh/branches info"""

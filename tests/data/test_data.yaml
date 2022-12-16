@@ -15,6 +15,19 @@
     ORDER: order
     CRS_ID: crsId
     Z: z
+1D_rivers_pointcrosssections:
+  data_type: GeoDataFrame
+  driver: vector
+  path: local_data/1D_rivers_pointcrosssections.geojson
+  crs: 32647
+  rename:
+    id: crsId
+    TYPE: shape
+    WIDTH: width
+    HEIGHT: height
+    BEDLEVEL: shift
+1D_pipes:
+    alias: 1D_rivers
 1d_manholes:
   data_type: GeoDataFrame
   driver: vector
