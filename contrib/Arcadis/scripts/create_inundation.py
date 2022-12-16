@@ -8,6 +8,7 @@
 
 import os
 from datetime import datetime
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -35,7 +36,7 @@ def inun_dhydro(
 
     """Calculate inundation depths based on 1D and 2D waterlevels and DEM.
     ___________________________________________________________________________________________________________
-    
+
     Parameters:
          nc_path : str
             Path to input nc-file containing the D-hydro model results
@@ -60,11 +61,11 @@ def inun_dhydro(
          areas1D: str
              Path to areas that limit 1D voronoi generation (catchments or watersheds)
     ___________________________________________________________________________________________________________
-    
+
     Returns:
         Raster containing inundation results.
     ___________________________________________________________________________________________________________
-    
+
     Warning:
         only 2D results will be used if type="depth"
         2D depth is used when both 1D and 2D inundation is plausible

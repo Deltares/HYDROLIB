@@ -9,9 +9,11 @@
 
 import os
 from pathlib import Path
+
 import geopandas as gpd
 import pandas as pd
 from read_dhydro import net_nc2gdf
+
 from hydrolib.core.io.onedfield.models import OneDFieldModel
 
 
@@ -27,7 +29,7 @@ def initial_dhydro(
     """
     Create the 1D initial waterlevel D-hydro based on a shape file.
     ___________________________________________________________________________________________________________
-    
+
     Parameters:
          net_nc_path : str
              Path to input nc-file containing the D-hydro network
@@ -44,11 +46,11 @@ def initial_dhydro(
          output_path : str
              Path to results-file
     ___________________________________________________________________________________________________________
-    
+
     Returns:
         initialwaterlevel.ini file
     _______________________________________________________________________________________________________
-    
+
     Warning:
         Waterways that are in several waterlevel control areas are not (always) processed correctly.
 

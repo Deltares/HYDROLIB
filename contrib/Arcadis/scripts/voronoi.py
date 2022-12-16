@@ -11,7 +11,7 @@ def voronoi_extra(gdf_points, gdf_areas, group_id=""):
     Create voronois based on areas and points based on geovoronoi.
     Circumvents errors of geovoronoi and also preserves data.
     ___________________________________________________________________________________________________________
-    
+
     Parameters:
          gdf_points: GeoDataFrame
             Input points
@@ -20,11 +20,11 @@ def voronoi_extra(gdf_points, gdf_areas, group_id=""):
          group_id: str
              Column id for witch the points need to be dissolved
     ___________________________________________________________________________________________________________
-    
-    Returns: 
+
+    Returns:
         Geodataframe with the genereated voronois
     ___________________________________________________________________________________________________________
-    
+
     Warning:
          Major changes in geovoronoi since 0.2.0
          Areas without point will not return an area

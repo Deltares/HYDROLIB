@@ -8,9 +8,11 @@
 
 import os
 from pathlib import Path
+
 import geopandas as gpd
 import pandas as pd
 from read_dhydro import branch_gui2df, net_nc2gdf
+
 from hydrolib.core.io.mdu.models import FMModel, FrictionModel
 
 # =============================================================================
@@ -34,7 +36,7 @@ def change_friction_shape(
     Function uses input shape of frictions and model to change frictions within chosen branches.
     Buffer used = 10
     ___________________________________________________________________________________________________________
-        
+
     Parameters:
         mdu_path : Path()
             Path to mdu file of the model.
@@ -43,7 +45,7 @@ def change_friction_shape(
         output_path : str
             Path to desired output folder.
     ___________________________________________________________________________________________________________
-    
+
     Returns:
         Friction files containing new frictions.
 

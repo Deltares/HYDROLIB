@@ -8,6 +8,7 @@
 
 import sys
 from datetime import datetime
+
 import geopandas as gpd
 from read_dhydro import pli2gdf
 
@@ -32,7 +33,7 @@ def shp2pli(input_file, output_file, id, values=[], write_z=True):
 
     Returns:
         Function creates a .pli file at the location that is chosen by the user
-        
+
     """
     gdf = gpd.read_file(input_file)
     values = values if isinstance(values, list) else [values]

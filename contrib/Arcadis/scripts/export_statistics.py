@@ -9,11 +9,13 @@
 
 import os
 from datetime import datetime
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
-from read_dhydro import (net_nc2gdf,read_nc_data)
+from read_dhydro import net_nc2gdf, read_nc_data
+
 
 def read_params(input_nc):
     ds = xr.open_dataset(input_nc)
@@ -35,13 +37,13 @@ def statistics_dhydro(
     """
     Determine simple statistics of nc-file and write to shp, xlsx or csv.
     ___________________________________________________________________________________________________________
-    
+
     Parameters:
         input_path : str
             Path to input nc-file
         par: str
             Needed parameter of nc-file
-            for example: 'mesh1d_s1', 'mesh1d_s0', 'mesh1d_waterdepth', 'mesh1d_u1', 'mesh1d_u0', mesh1d_q1' 
+            for example: 'mesh1d_s1', 'mesh1d_s0', 'mesh1d_waterdepth', 'mesh1d_u1', 'mesh1d_u0', mesh1d_q1'
         sdate: str
             Start date of data
         edate: str
@@ -49,10 +51,10 @@ def statistics_dhydro(
         output_file : str
             Path to result file (shp,xlsx or csv)
     ___________________________________________________________________________________________________________
-    
+
     Returns:
         A shp, xlsx or csv file with some basics statistics for the chosen parameter
-    
+
     """
 
     # stappen

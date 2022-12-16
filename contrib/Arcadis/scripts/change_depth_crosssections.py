@@ -7,6 +7,7 @@
 # =========================================================================================
 import os
 from pathlib import Path
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -14,6 +15,7 @@ from clean_dhydro import clean_crsdefs, split_duplicate_crsdef_references
 from read_dhydro import read_locations
 from shapely.geometry import LineString, Point
 from stationpoints import stationpoints
+
 from hydrolib.core.io.crosssection.models import CrossDefModel, CrossLocModel
 
 
@@ -33,7 +35,7 @@ def change_depth_crosssections(
     - Deepen the bottom of the crosssection, e.g. due to maintenance/dredging activities
     - Heighten/increase the bottom level of the crosssection, e.g. due to sedimentation processes
     ___________________________________________________________________________________________________________
-    
+
     Parameters:
          mdu_path : str
             Path to mdu file containing the D-hydro model structure

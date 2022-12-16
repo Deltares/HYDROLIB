@@ -7,6 +7,7 @@
 # =========================================================================================
 
 import sys
+
 import geopandas as gpd
 import pandas as pd
 
@@ -29,7 +30,7 @@ def create_stationpoints(input_lines, output_points, spacing, midpoint):
         midpoint: bool
             False = If the resulting lines should be equally spaced (midpoint = False)
             True = If the points define the centres of the equally spaced lines (relevant in case you want to define the locations (stationspoints) of the profiles on channel-lines)
-    
+
             If input is for example line 0----0 (0 are the start and end nodes, line is 4x '-'long)
             False = 0--x--0 (x is a stationpoint, segments are both 2x '--' long)
             True = 0-x--x-0 (x are the stationpoints of the equally spaced segments

@@ -26,8 +26,8 @@ def analyse_bres_run(filepath, outpath, dambreak, shpfile, dijkringnummer):
         dijkringnummer : integer
             Number of the dijkring.
     ___________________________________________________________________________________________________________
-    
-    Returns: 
+
+    Returns:
         All outputs can be found in output folder.
 
     """

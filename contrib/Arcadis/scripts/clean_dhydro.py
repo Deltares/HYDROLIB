@@ -30,7 +30,7 @@ def clean_model(mdufile):
         mdufile : path
             Path to mdu file
     ___________________________________________________________________________________________________________
-    
+
     Returns:
         None. Cleans up folders. Makes a "original" map to make sure the original model is not lost.
 
@@ -161,9 +161,9 @@ def remove_double_friction_definitions(crslocs, crsdefs, dict_frictions):
     In a d-hydro model (especially when it is a imported Sobek 2 model)
     the friction definitions are sometimes messy and contradictory.
     Unintentionally, there are multiple friction definitions for the
-    same cross section and/or channel. This function tries to repair that, 
+    same cross section and/or channel. This function tries to repair that,
     it makes sure every channel/cross section has only one friction definition
-    
+
     This function cleans the crslocs.ini, crsdefs.ini and the separate
     roughness-###.ini files.
 
@@ -187,24 +187,24 @@ def remove_double_friction_definitions(crslocs, crsdefs, dict_frictions):
     is used. This is the global value "Channels"
 
     ___________________________________________________________________________________________________________
-    
+
     Parameters:
         crslocs : DataFrame
-            Data of cross section locations 
+            Data of cross section locations
             Imported from crslocs.ini with the function 'read_locations'
         crsdefs : DataFrame
             Data of cross section definitions
             Imported from crslocs.ini with the function 'read_locations'
         dict_frictions: Dictionary
-            Data of the branch friction values 
+            Data of the branch friction values
             Imported from the roughness-###.ini files with the function 'friction2dict'
 
     ___________________________________________________________________________________________________________
-    
+
     Returns:
         Cleaned dataframes crslocs and crsdefs en clead dictionary dict_frictions
 
-    """    
+    """
 
     friction_files = list(dict_frictions.keys())
 
@@ -288,19 +288,19 @@ def clean_friction_files(dict_frictions):
     Remove unnecessary information from the roughness-###.ini files
 
     ___________________________________________________________________________________________________________
-    
+
     Parameters:
         dict_frictions: Dictionary
-            Data of the branch friction values 
+            Data of the branch friction values
             Imported from the roughness-###.ini files with the function 'friction2dict'
 
     ___________________________________________________________________________________________________________
-    
+
     Returns:
         Cleaned dictionary dict_frictions
 
-    """ 
-    
+    """
+
     friction_files = list(dict_frictions.keys())
     # Cleaning roughness-###.ini file(s)
     for file in friction_files:
@@ -330,20 +330,19 @@ def clean_crsdefs(crsdefs):
     Remove unnecessary information from the crsdef.ini file
 
     ___________________________________________________________________________________________________________
-    
+
     Parameters:
         crsdefs : DataFrame
             Data of cross section definitions
             Imported from crslocs.ini with the function 'read_locations'
 
     ___________________________________________________________________________________________________________
-    
+
     Returns:
         Cleaned dataframe crsdefs
 
-    """       
-    
-    
+    """
+
     # Cleaning crsdef.ini
     # Remove unnecessary information, simplify the data
     for index_def, row in crsdefs.iterrows():
@@ -374,22 +373,22 @@ def clean_crsdefs(crsdefs):
 def split_duplicate_crsdef_references(crslocs, crsdefs, loc_ids=[]):
     """
     If a cross section definition is used at more than 1 cross section location,
-    it is called a shared definition. Sometimes, for example when use want to 
+    it is called a shared definition. Sometimes, for example when use want to
     adjust 1 profile at 1 location, it is wise to split these shared definitions.
     Otherwise, also the cross sections elsewhere will have an adjusted profile
 
     This function splits the shared defintions for those cross section LOCATIONS
     that are included in the list loc_ids
     ___________________________________________________________________________________________________________
-    
+
     Parameters
         crslocs : DataFrame
-            Data of cross section locations 
+            Data of cross section locations
             Imported from crslocs.ini with the function 'read_locations'
         crsdefs : DataFrame
             Data of cross section definitions
-            Imported from crslocs.ini with the function 'read_locations'    
-        loc_ids : list 
+            Imported from crslocs.ini with the function 'read_locations'
+        loc_ids : list
             List with the cross section locations for which the defintions should
             be checked and (if needed) splitted.
             If empty, the function will check all cross section locations

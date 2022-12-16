@@ -19,6 +19,7 @@
 
 import os
 from pathlib import Path
+
 from read_dhydro import net_nc2gdf
 
 from hydrolib.core.io.mdu.models import FMModel
@@ -34,7 +35,7 @@ def make_obs_points(mdu_path, output_path, prefix="rOut", fraction=0.95):
     Status: Draft
     ___________________________________________________________________________________________________________
 
-    Creates new observation point on each branch. Point is placed at a location 'branch length * fraction'  
+    Creates new observation point on each branch. Point is placed at a location 'branch length * fraction'
 
     Parameters
     mdu_path : str
@@ -45,19 +46,19 @@ def make_obs_points(mdu_path, output_path, prefix="rOut", fraction=0.95):
         Name of observation points is prefix + branchid
     fraction : float
         Fraction of the branch length where the observation point should be placed
-        Between 0 and 1.0     
+        Between 0 and 1.0
     ___________________________________________________________________________________________________________
 
     Returns:
-        A observation.ini file ("1DObservationpoints.ini") is saved in the output folder. 
-        This file can be moved to the folder of a D-Hydro model and be registered in 
+        A observation.ini file ("1DObservationpoints.ini") is saved in the output folder.
+        This file can be moved to the folder of a D-Hydro model and be registered in
         the MDU file (keyword ObsFile)
 
     """
-    
+
     if fraction < 0 or fraction > 1:
-        raise Exception("Fraction should be a float number between 0 and 1.0")    
-        
+        raise Exception("Fraction should be a float number between 0 and 1.0")
+
     fm = FMModel(Path(mdu_path))
     net_nc = fm.geometry.netfile.filepath
 
