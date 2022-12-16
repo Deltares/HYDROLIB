@@ -11,7 +11,7 @@ from shapely.geometry import (
     box,
 )
 from shapely.prepared import prep
-from shapely.wkt import dumps, loads
+from shapely.wkt import loads, dumps
 
 from hydrolib.core.io.dflowfm.net.models import Branch, Network
 from hydrolib.dhydamo.geometry import common
@@ -174,9 +174,9 @@ def mesh1d_add_branch(
         LineString, MultiLineString, List[Union[LineString, MultiLineString]]
     ],
     node_distance: Union[float, int],
-    branch_names: Union[str, List[str]] = None,
-    branch_orders: Union[float, int, List[Union[float, int]]] = None,
-) -> None:
+    branch_names: Union[str, list[str]] = None,
+    branch_orders: Union[float, int, list[Union[float, int]]] = -1,
+) -> List[str]:
     """Add branch to 1d mesh, from a (list of) (Multi)LineString geometry.
     The branch is discretized with the given node distance.
     if node distance is given as infinity, no discretization will be performed at mid point of the branch,
@@ -185,35 +185,62 @@ def mesh1d_add_branch(
         network (Network): Network to which the branch is added
         branches (Union[ LineString, MultiLineString, List[Union[LineString, MultiLineString]] ]): Geometry object(s) for which the branch is created
         node_distance (Union[float, int]): Preferred node distance between branch nodes
-        branch_names (Union[str, List[str]]): Branch names to be used in the mesh1d object
-        branch_orfers (Union[float, int, List[Union[float, int]]]): Branch orders to be used in the mesh1d object
-    """
+        branch_names (Union[str, list[str]]): Branch names to be used in the mesh1d object
+        branch_orders (Union[float, int, list[Union[float, int]]]): Branch orders to be used in the mesh1d object
 
+    Returns:
+        List[str]: List of names of added branches
+    """
     if node_distance == np.inf:
         force_midpoint = False
     else:
         force_midpoint = True
 
-    if branch_names is None:
-        branch_names = np.repeat(None, len(branches))
+    branchids = []
+    # for line in common.as_linestring_list(branches):
+    #     branch = Branch(geometry=np.array(line.coords[:]))
+    #     branch.generate_nodes(node_distance)
+    #     branchid = network.mesh1d_add_branch(branch)
+    #     branchids.append(branchid)
 
-    if branch_orders is None:
-        branch_orders = np.repeat(-1, len(branches))
+    if branch_names is None or isinstance(branch_names, str):
+        branch_names = np.repeat(branch_names, len(branches))
+    if isinstance(branch_orders, int) or isinstance(branch_orders, float):
+        branch_orders = np.repeat(branch_orders, len(branches))
 
     for line, branch_name, branch_order in zip(
         common.as_linestring_list(branches), branch_names, branch_orders
     ):
-        # in the script, custumised length for pipes are supported. GUI by default does not support this behaviour and require an explicit isLengthCustom parameter in branches.gui file
         branch = Branch(
             geometry=np.array(round_geometry(line).coords[:])
         )  # avoid error caused by rounding precision
         branch.generate_nodes(node_distance)
-        network.mesh1d_add_branch(
+        branchid = network.mesh1d_add_branch(
             branch,
             name=branch_name,
             branch_order=int(branch_order),
             force_midpoint=force_midpoint,
         )
+        branchids.append(branchid)
+    
+    return branchids
+
+
+def round_geometry(geometry, rounding_precision: int = 6):
+    """
+    Round the coordinates of the geometry object to the provided precision.
+    Parameters
+    ----------
+    geometry
+        The geometry object.
+    rounding_preicision: int, optional
+        Round coordinates to the specified number of digits.
+        Defaults to 6.
+    Returns
+    -------
+    A shapely geometry object.
+    """
+    return loads(dumps(geometry, rounding_precision=rounding_precision))
 
 
 def round_geometry(geometry, rounding_precision: int = 6):

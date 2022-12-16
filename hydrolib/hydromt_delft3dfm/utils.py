@@ -64,9 +64,15 @@ def read_branches_gui(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFr
     # Adapt type and add close attribute
     # TODO: channel and tunnel types are not defined
     df_gui["branchType"] = df_gui["branchType"].replace(
-        {0: "river", 2: "pipe", 1: "sewerconnection"} #FIXME Xiaohan: 0 is channel
+        {
+            0: "river",
+            2: "pipe",
+            1: "sewerconnection",
+        }  # FIXME Xiaohan: 0 is channel / maybe we do not sperate between rivers and channels in hydromt anymore?
     )
-    df_gui["closed"] = df_gui["branchType"] # FIXME Xiaohan: This should be derived from crosssections
+    df_gui["closed"] = df_gui[
+        "branchType"
+    ]  # FIXME Xiaohan: This should be derived from crosssections -> not needed anymore for branches
     df_gui["closed"] = df_gui["closed"].replace(
         {
             "river": "no",
@@ -105,7 +111,7 @@ def write_branches_gui(gdf: gpd.GeoDataFrame, savedir: str) -> str:
     """
 
     if not gdf["branchType"].isin(["pipe", "tunnel"]).any():
-        gdf[["manhole_up", "manhole_dn"]] = ''
+        gdf[["manhole_up", "manhole_dn"]] = ""
 
     branches = gdf[["branchId", "branchType", "manhole_up", "manhole_dn"]]
     branches = branches.rename(
@@ -237,17 +243,35 @@ def read_crosssections(
     # circle
     circle_index = df_crs["shape"] == "circle"
     if circle_index.any():
-        circle_index_up = df_crs[df_crs[circle_index].apply(lambda x: x["chainage"] == 0, axis = 1)].index
-        circle_index_dn = df_crs[df_crs[circle_index].apply(lambda x: x["chainage"] == x["geometry"].length, axis = 1)].index
+        circle_index_up = (
+            df_crs[circle_index].apply(lambda x: x["chainage"] == 0, axis=1).index
+        )
+        circle_index_dn = (
+            df_crs[circle_index]
+            .apply(lambda x: x["chainage"] == x["geometry"].length, axis=1)
+            .index
+        )
         df_crs.loc[circle_index_up, "invlev_up"] = df_crs.loc[circle_index_up, "shift"]
         df_crs.loc[circle_index_dn, "invlev_dn"] = df_crs.loc[circle_index_dn, "shift"]
-        gdf_out = gdf_out.merge(
-            df_crs.loc[circle_index.index,
-                ["branchId", "shape", "diameter", "invlev_up", "invlev_dn", "frictionId"]
-            ].drop_duplicates(subset="branchId"),
-            on="branchId",
-            how="left",
-        )
+    # Merge
+    gdf_out = gdf_out.merge(
+        df_crs.loc[
+            circle_index.index,
+            [
+                "branchId",
+                "shape",
+                "width",
+                "height",
+                "bedlev",
+                "diameter",
+                "invlev_up",
+                "invlev_dn",
+                "frictionId",
+            ],
+        ].drop_duplicates(subset="branchId"),
+        on="branchId",
+        how="left",
+    )
 
     return gdf_out, gdf_crs
 
@@ -301,7 +325,9 @@ def write_crosssections(gdf: gpd.GeoDataFrame, savedir: str) -> Tuple[str, str]:
 
     crsloc = CrossLocModel(crosssection=gpd_crsloc.to_dict("records"))
 
-    crsloc_fn = crsloc._filename() + ".ini" #FIXME Xiaohan, why crsloc._ext() does not exist
+    crsloc_fn = (
+        crsloc._filename() + ".ini"
+    )  # FIXME Xiaohan, why crsloc._ext() does not exist
     crsloc.save(
         join(savedir, crsloc_fn),
         recurse=False,
@@ -314,7 +340,6 @@ def read_friction(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFrame:
     """
     read friction files and add properties to branches geodataframe.
     assumes cross-sections have been read before to contain per branch frictionId
-    # FIXME Xiaohan: is above really the case? I see the crossections will be read anyways on the fly
 
     Parameters
     ----------
@@ -343,8 +368,8 @@ def read_friction(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFrame:
                 fric_list[i].global_[j].frictiontype
             )
 
-    if not "frictionId" in gdf:
-        gdf = read_crosssections(gdf, fm_model)  #FIXME Xiaohan: Why do we need this?
+    # if not "frictionId" in gdf:
+    #    gdf = read_crosssections(gdf, fm_model)
 
     # Create friction value and type by replacing frictionid values with dict
     gdf_out = gdf.copy()
@@ -423,7 +448,7 @@ def read_manholes(
 
     # Drop variables
     df_manholes = df_manholes.drop(
-        ["comments", "nodetype", "numlevels", "levels", "storagearea", "interpolate"], #FIXME XIaohan: why drop these? and why add back to branches
+        ["comments"],
         axis=1,
     )
     # Rename case sensitive
@@ -439,7 +464,7 @@ def read_manholes(
         }
     )
 
-    #FIXME Xiaohan: I dont think we need to add these back to the branches
+    # FIXME Xiaohan: I dont think we need to add these back to the branches
     # Add attributes to branches
     df_man = df_manholes[["name", "bedLevel", "streetLevel"]]
     df_man_up = df_man.rename(
@@ -508,7 +533,9 @@ def write_manholes(gdf: gpd.GeoDataFrame, savedir: str) -> str:
     """
     storagenodes = StorageNodeModel(storagenode=gdf.to_dict("records"))
 
-    storage_fn = storagenodes._filename() + ".ini"  #FIXME Xiaohan why there is not ._ext()
+    storage_fn = (
+        storagenodes._filename() + ".ini"
+    )  # FIXME Xiaohan why there is not ._ext()
     storagenodes.save(
         join(savedir, storage_fn),
         recurse=False,
@@ -522,7 +549,7 @@ def read_1dboundary(
 ) -> xr.DataArray:
     """
     Read for a specific quantity the corresponding external and forcing files and parse to xarray
-    # FIXME Xiaohan: This file also contains external forcing for 2D
+    # TODO: support external forcing for 2D
 
     Parameters
     ----------

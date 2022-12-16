@@ -132,9 +132,12 @@ def set_branch_crosssections(
     else:
         # Upstream
         ids = [f"{i}_up" for i in branches.index]
-        crosssections_up = gpd.GeoDataFrame({}, index=ids)
-        crosssections_up["geometry"] = [Point(l.coords[0]) for l in branches.geometry]
-        crosssections_up.crs = branches.crs
+        crosssections_up = gpd.GeoDataFrame(
+            {"geometry": [Point(l.coords[0]) for l in branches.geometry]},
+            index=ids,
+            crs=branches.crs,
+        )
+
         crosssections_up["crsloc_id"] = [
             f"crs_up_{bid}" for bid in branches["branchId"]
         ]
@@ -146,9 +149,11 @@ def set_branch_crosssections(
         crosssections_up["frictionId"] = branches["frictionId"].values
         # Downstream
         ids = [f"{i}_dn" for i in branches.index]
-        crosssections_dn = gpd.GeoDataFrame({}, index=ids)
-        crosssections_dn["geometry"] = [Point(l.coords[-1]) for l in branches.geometry]
-        crosssections_dn.crs = branches.crs
+        crosssections_dn = gpd.GeoDataFrame(
+            {"geometry": [Point(l.coords[0]) for l in branches.geometry]},
+            index=ids,
+            crs=branches.crs,
+        )
         crosssections_dn["crsloc_id"] = [
             f"crs_dn_{bid}" for bid in branches["branchId"]
         ]
@@ -238,7 +243,8 @@ def set_xyz_crosssections(
     # setup branch_id - snap bridges to branch (inplace of bridges, will add branch_id and branch_offset columns)
     find_nearest_branch(
         branches=branches, geometries=crosssections, method="intersecting"
-    )  # FIXME: what if the line intersect with 2/wrong branches?
+    )
+    logger.warning("Snapping to branches using intersection: Please double check if the crossection is closely located to a bifurcation.")
 
     # setup failed - drop based on branch_offset that are not snapped to branch (inplace of yz_crosssections) and issue warning
     _old_ids = crosssections.index.to_list()
@@ -257,12 +263,12 @@ def set_xyz_crosssections(
         {
             "crsdef_id": crosssections.index.to_list(),
             "crsdef_type": "xyz",
-            "crsdef_branchId": crosssections.branch_id.to_list(),  # FIXME test if leave this out
+            "crsdef_branchId": crosssections.branch_id.to_list(),
             "crsdef_xyzCount": crosssections.x.map(len).to_list(),
             "crsdef_xCoordinates": [
                 " ".join(["{:.1f}".format(i) for i in l])
                 for l in crosssections.x.to_list()
-            ],  # FIXME cannot use list in gpd
+            ],
             "crsdef_yCoordinates": [
                 " ".join(["{:.1f}".format(i) for i in l])
                 for l in crosssections.y.to_list()
@@ -284,7 +290,7 @@ def set_xyz_crosssections(
     )
 
     # setup crsloc from xyz
-    # delete generated ones # FIXME change to branchId everywhere
+    # delete generated ones
     crslocs = pd.DataFrame(
         {
             "crsloc_id": [
@@ -294,12 +300,11 @@ def set_xyz_crosssections(
                     crosssections.branch_offset.to_list(),
                 )
             ],
-            "crsloc_branchId": crosssections.branch_id.to_list(),  # FIXME change to branchId everywhere
+            "crsloc_branchId": crosssections.branch_id.to_list(),
             "crsloc_chainage": crosssections.branch_offset.to_list(),
             "crsloc_shift": 0.0,
             "crsloc_definitionId": crosssections.index.to_list(),
-            "geometry": crosssections.geometry.centroid.to_list()
-            # FIXME: line to centroid? because could not be written to the same sdhp file
+            "geometry": crosssections.geometry.centroid.to_list() # line to centroid. because crossection geom has point feature.
         }
     )
     crosssections_ = pd.merge(
