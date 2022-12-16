@@ -31,11 +31,13 @@ def check_feasibility_1D_waterlevels(mdu_path, nc_path, output_path, skip_hours=
              should be skipped (i.e. because model is not stable yet)
     ___________________________________________________________________________________________________________
      
+        Returns:
     Returns:
          Shapefile with the margins of the left and right embankment
     ___________________________________________________________________________________________________________
     
     Warning: function currently only checks yz and zwRiver cross sections
+               ...
     """
 
     ## READ DATA
