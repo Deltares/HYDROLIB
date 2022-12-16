@@ -17,19 +17,19 @@ import pandas as pd
 def export_model_gis(mdu_path,nc_path,output_path):
     """
     Uses other existing sub-functions to export a D-Hydro schematisation to GIS
-    This function cleans up the dflowfm folder to make sure it can be loaded into hydrolib.
-
-
-   Parameters:
-    mdu_path : path
-        Path to mdu file
-    nc_path
-        Path to the FlowFM_map.nc, containing the results of the simulation 
-    output_path
-        Path where the shapefiles are saved as output  
-
-    Returns:
-        Shapefiles with d-hydro schematisation (e.g. branches, nodes, structures etc.)
+    ___________________________________________________________________________________________________________
+    
+    Parameters:
+         mdu_path : path
+             Path to mdu file
+         nc_path
+             Path to the FlowFM_map.nc, containing the results of the simulation 
+         output_path
+             Path where the shapefiles are saved as output  
+    ___________________________________________________________________________________________________________
+    
+     Returns:
+         Shapefiles with d-hydro schematisation (e.g. branches, nodes, structures etc.)
 
     """    
     

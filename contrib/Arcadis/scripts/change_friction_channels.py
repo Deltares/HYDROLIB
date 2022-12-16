@@ -7,14 +7,10 @@
 # =============================================================================
 
 import os
-import sys
 from pathlib import Path
-
 import geopandas as gpd
-import numpy as np
 import pandas as pd
-from read_dhydro import branch_gui2df, net_nc2gdf, read_locations
-
+from read_dhydro import branch_gui2df, net_nc2gdf
 from hydrolib.core.io.mdu.models import FMModel, FrictionModel
 
 # =============================================================================
@@ -34,21 +30,22 @@ from hydrolib.core.io.mdu.models import FMModel, FrictionModel
 def change_friction_shape(
     mdu_path, shape_path, output_path, wipe=False, replace=False, append=False
 ):
-    """Function uses input shape of frictions and model to change frictions within chosen branches.
-
-    Args:
+    """
+    Function uses input shape of frictions and model to change frictions within chosen branches.
+    Buffer used = 10
+    ___________________________________________________________________________________________________________
+        
+    Parameters:
         mdu_path : Path()
             Path to mdu file of the model.
         shape_path : str
             Path to shape containing friction file.
         output_path : str
             Path to desired output folder.
-
+    ___________________________________________________________________________________________________________
+    
     Returns:
         Friction files containing new frictions.
-
-
-    Buffer used = 10
 
     """
 
@@ -57,8 +54,6 @@ def change_friction_shape(
     fm = FMModel(mdu_path)
     dict_global, dict_frictions = friction2dict(fm)
     gdf_frict = gpd.read_file(shape_path)
-
-    # gdf_frict_buf = gpd.GeoDataFrame(gdf_frict, geometry=gdf_frict.buffer(1))
 
     # Read model branches
     netfile = os.path.join(mdu_path.parent, fm.geometry.netfile.filepath)

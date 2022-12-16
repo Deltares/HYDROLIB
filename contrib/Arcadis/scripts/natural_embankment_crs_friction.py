@@ -7,9 +7,7 @@
 # =========================================================================================
 import os
 from pathlib import Path
-
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 from change_depth_crosssections import write_cross_section_data
 from change_friction_channels import friction2dict
@@ -20,14 +18,7 @@ from clean_dhydro import (
     split_duplicate_crsdef_references,
 )
 from read_dhydro import read_locations
-
-from hydrolib.core.io.crosssection.models import CrossDefModel, CrossLocModel
 from hydrolib.core.io.mdu.models import FMModel, FrictionModel
-
-# to do
-# function currently only works for yz and zwRiver (these will be converted to yz) profiles
-# it may be possible in the future to also apply zw and xyz profiles
-
 
 def natural_embankment_crs_friction(
     mdu_path,
@@ -41,8 +32,9 @@ def natural_embankment_crs_friction(
 ):
     """
     Function uses input shape of frictions and model to change frictions within chosen branches.
-
-    Args:
+    ___________________________________________________________________________________________________________
+    
+    Parameters:
         mdu_path : Path()
             Path to mdu file containing the D-hydro model structure
         shape_path : str
@@ -66,10 +58,12 @@ def natural_embankment_crs_friction(
             friction value with which you want the schematisize the remaining cross section (flow area)
         side : str
             Choose either "left" or "right"
-
+    ___________________________________________________________________________________________________________
+    
     Returns:
         Updated crsdef.ini, crsloc.ini, mdu-file and friction files in the existing model
-
+    ___________________________________________________________________________________________________________
+    
     # to do
     # function only works for yz and zwRiver (these will be converted) profiles
     # it may be possible in the future to also apply zw and xyz profiles

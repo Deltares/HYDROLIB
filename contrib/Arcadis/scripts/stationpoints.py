@@ -6,9 +6,7 @@
 #
 # =========================================================================================
 
-# from math import atan2, cos, sin, degrees
 import sys
-
 import geopandas as gpd
 import pandas as pd
 
@@ -18,34 +16,29 @@ def create_stationpoints(input_lines, output_points, spacing, midpoint):
     Generate interval points along line
     ___________________________________________________________________________________________________________
 
-    Ontwikkelaar: A. Buijert
-    ___________________________________________________________________________________________________________
-
     Parameters:
-    ----------
-    input_line : str
-        Path to shapefile with lines
-    output_points : str
-        Path to new shapefile with created points
-    spacing: float or string
-        Spacing of the station points. Can be based on:
-        - column name (must be text and present in input_line)
-        - percentage (must be text with "%" als last character)
-        - given length (must be string or float)
-    midpoint: bool
-        False = If the resulting lines should be equally spaced (midpoint = False)
-        True = If the points define the centres of the equally spaced lines (relevant in case you want to define the locations (stationspoints) of the profiles on channel-lines)
-
-        If input is for example line 0----0 (0 are the start and end nodes, line is 4x '-'long)
-        False = 0--x--0 (x is a stationpoint, segments are both 2x '--' long)
-        True = 0-x--x-0 (x are the stationpoints of the equally spaced segments
-                         Imagine, first make two segments of 2x '--' long, then draw the centroids of these segements.
-                         If we split the line at these 2 points, the segments have different lenghts)
+        input_line : str
+            Path to shapefile with lines
+        output_points : str
+            Path to new shapefile with created points
+        spacing: float or string
+            Spacing of the station points. Can be based on:
+            - column name (must be text and present in input_line)
+            - percentage (must be text with "%" als last character)
+            - given length (must be string or float)
+        midpoint: bool
+            False = If the resulting lines should be equally spaced (midpoint = False)
+            True = If the points define the centres of the equally spaced lines (relevant in case you want to define the locations (stationspoints) of the profiles on channel-lines)
+    
+            If input is for example line 0----0 (0 are the start and end nodes, line is 4x '-'long)
+            False = 0--x--0 (x is a stationpoint, segments are both 2x '--' long)
+            True = 0-x--x-0 (x are the stationpoints of the equally spaced segments
+                             Imagine, first make two segments of 2x '--' long, then draw the centroids of these segements.
+                             If we split the line at these 2 points, the segments have different lenghts)
     ___________________________________________________________________________________________________________
 
-    Resultaat
-    ----------
-    Shapefile with points
+    Returns:
+        Shapefile with stationpoints
     """
 
     gdf_lines = gpd.read_file(input_lines)

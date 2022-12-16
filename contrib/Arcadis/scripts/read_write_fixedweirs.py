@@ -1,30 +1,15 @@
-import os
+# =============================================================================
+#
+# License: LGPL
+#
+# Author: Arjon Buijert Arcadis
+#
+# =============================================================================
+
 import sys
 from datetime import datetime
-from multiprocessing import Pool, cpu_count
-from pathlib import Path
-
 import geopandas as gpd
-import numpy as np
-import pandas as pd
-import rasterio
-import rasterio.features
-import rasterio.mask
-import shapely
 from read_dhydro import pli2gdf
-from shapely.geometry import (
-    LineString,
-    MultiPoint,
-    MultiPolygon,
-    Point,
-    Polygon,
-    mapping,
-    shape,
-)
-from shapely.ops import linemerge
-
-from hydrolib.core.io import polyfile
-from hydrolib.core.io.polyfile import parser
 
 
 def shp2pli(input_file, output_file, id, values=[], write_z=True):
@@ -34,21 +19,20 @@ def shp2pli(input_file, output_file, id, values=[], write_z=True):
     z values, also these z values will be written.
     ___________________________________________________________________________________________________________
 
-    Developer: A Buijert
+    Parameters:
+        input_file : string
+            Path to shapefile
+        output_file : string
+            Path to output file
+        id : string
+            Field with id's. Features with the same id will connected and merged in a single line.
+        values:
+            list of columns which need to be written. empty if only the z value needs to be written.
     ___________________________________________________________________________________________________________
 
-    Parameters
-    ----------
-    input_file : string
-        Path to shapefile
-    output_file : string
-        Path to output file
-    id : string
-        Field with id's. Features with the same id will connected and merged in a single line.
-    values:
-        list of columns which need to be written. empty if only the z value needs to be written.
-    ___________________________________________________________________________________________________________
-
+    Returns:
+        Function creates a .pli file at the location that is chosen by the user
+        
     """
     gdf = gpd.read_file(input_file)
     values = values if isinstance(values, list) else [values]
@@ -66,11 +50,11 @@ def write_pli(gdf, output, id="unique_id", values=[], write_z=True):
 
     if write_z == True:
         if sum(gdf.geometry.has_z) == len(gdf):
-            print("Z-waarde van geometry wordt wegeschreven")
+            print("z-value of geometry is written")
         else:
-            sys.exit("z-waarde niet voor alle elementen aanwezig")
+            sys.exit("not all elements have a z-value")
     # create dictionary with all values
-    print("Wegschrijven .pli voorbereiden")
+    print("Preparing to write .pli file")
     pli_dict = {}
     for ID in sorted(list(set(gdf[id]))):
         line = gdf[gdf[id] == ID]
@@ -139,7 +123,7 @@ def write_pli(gdf, output, id="unique_id", values=[], write_z=True):
                         # beginning of linepart, part of a larger line
 
     # write fixed weir .pli file
-    print("Wegschrijven .pli gestart")
+    print("Starting to write .pli file")
     with open(output, "w") as file:
         for ID in pli_dict:
             file.write(ID + "\n")
@@ -153,11 +137,10 @@ def write_pli(gdf, output, id="unique_id", values=[], write_z=True):
                     file_string += " " + "{:9.3f}".format(i)
                 file.write(file_string + "\n")
             file.write("\n")
-    print("Wegschrijven .pli afgerond (" + datetime.now().strftime("%H:%M:%S") + ")")
+    print("Finished writing .pli file (" + datetime.now().strftime("%H:%M:%S") + ")")
 
 
 if __name__ == "__main__":
-    input_file = r"C:\scripts\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\cleanup_pliz\ZwolleFWnewpli.pliz"
-    output_path = r"C:\scripts\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\cleanup_pliz\zwolleFW_pli_fxw.shp"
-    # aht_pli2shp(input_file, output_path)
-    shp2pli(output_path, input_file, id="name", values=[], write_z=True)
+    output_path = r"C:\scripts\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\cleanup_pliz\ZwolleFWnewpli.pliz"
+    input_file = r"C:\scripts\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\cleanup_pliz\zwolleFW_pli_fxw.shp"
+    shp2pli(input_file, output_path, id="name", values=[], write_z=True)

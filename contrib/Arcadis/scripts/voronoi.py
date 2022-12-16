@@ -8,20 +8,26 @@ from shapely.geometry import Point
 def voronoi_extra(gdf_points, gdf_areas, group_id=""):
 
     """
-      Create voronois based on areas and points based on geovoronoi.
-      Circumvents errors of geovoronoi and also preserves data.
-
-      Parameters:
-           gdf_points: GeoDataFrame
-              Input points
-           gdf_areas: GeoDataFrame
-              Input areas
-           group_id: str
-               Column id for witch the points need to be dissolved
+    Create voronois based on areas and points based on geovoronoi.
+    Circumvents errors of geovoronoi and also preserves data.
     ___________________________________________________________________________________________________________
-      Warning:
-           Major changes in geovoronoi since 0.2.0
-           Areas without point will not return an area
+    
+    Parameters:
+         gdf_points: GeoDataFrame
+            Input points
+         gdf_areas: GeoDataFrame
+            Input areas
+         group_id: str
+             Column id for witch the points need to be dissolved
+    ___________________________________________________________________________________________________________
+    
+    Returns: 
+        Geodataframe with the genereated voronois
+    ___________________________________________________________________________________________________________
+    
+    Warning:
+         Major changes in geovoronoi since 0.2.0
+         Areas without point will not return an area
     """
 
     # for later on, dissolve areas into 1 are, we can use this later on if the voronoi script fails

@@ -8,34 +8,12 @@
 
 
 import os
-import sys
 from datetime import datetime
-from pathlib import Path
-
 import geopandas as gpd
-import netCDF4 as nc
 import numpy as np
 import pandas as pd
 import xarray as xr
-
-# nodig om een script uit een andere module in te lezen.
-# currentdir = os.path.dirname(os.path.abspath(__file__))
-# parentdir = os.path.dirname(currentdir)
-# sys.path.insert(0,parentdir)
-# from gis.voronoi import voronoi_extra
-from read_dhydro import (
-    branch_gui2df,
-    chainage2gdf,
-    map_nc2gdf,
-    net_nc2gdf,
-    pli2gdf,
-    read_nc_data,
-)
-from shapely.geometry import LineString, MultiPoint, Point, Polygon
-
-from hydrolib.core.io.crosssection.models import CrossLocModel
-from hydrolib.core.io.structure.models import StructureModel
-
+from read_dhydro import (net_nc2gdf,read_nc_data)
 
 def read_params(input_nc):
     ds = xr.open_dataset(input_nc)
@@ -52,22 +30,29 @@ def read_params(input_nc):
 
 
 def statistics_dhydro(
-    input_path, par, sdate="", edate="", output_path="/tmp/dhydro.shp", stat=""
+    input_path, par, sdate="", edate="", output_file="/tmp/dhydro.shp", stat=""
 ):
     """
     Determine simple statistics of nc-file and write to shp, xlsx or csv.
-
+    ___________________________________________________________________________________________________________
+    
     Parameters:
         input_path : str
             Path to input nc-file
         par: str
             Needed parameter of nc-file
+            for example: 'mesh1d_s1', 'mesh1d_s0', 'mesh1d_waterdepth', 'mesh1d_u1', 'mesh1d_u0', mesh1d_q1' 
         sdate: str
             Start date of data
         edate: str
             End date of data
-        output_path : str
+        output_file : str
             Path to result file (shp,xlsx or csv)
+    ___________________________________________________________________________________________________________
+    
+    Returns:
+        A shp, xlsx or csv file with some basics statistics for the chosen parameter
+    
     """
 
     # stappen
@@ -75,11 +60,8 @@ def statistics_dhydro(
     # obv coordinates in dataset baseren.\
 
     # check extension
-    extension = os.path.splitext(output_path)[-1].lower()
+    extension = os.path.splitext(output_file)[-1].lower()
     if extension not in [".csv", ".xlsx", ".shp", ".tif"]:
-        # print("Onbekend extensie " + str(extension))
-        # return 1
-
         print(
             "Onbekende extensie "
             + str(extension)
@@ -113,7 +95,6 @@ def statistics_dhydro(
     edata = max(df.index)
 
     # filter data based on time
-
     if sdate != "":
         if sdate > edata:
             raise ("start date later then end date in model results")
@@ -163,22 +144,22 @@ def statistics_dhydro(
         if extension == ".xlsx":
             if isinstance(gdf, pd.DataFrame):
                 gdf.to_excel(
-                    output_path, float_format="%.3f", sheet_name=str(par), index=True
+                    output_file, float_format="%.3f", sheet_name=str(par), index=True
                 )
             else:
                 df_stat.to_excel(
-                    output_path, float_format="%.3f", sheet_name=str(par), index=True
+                    output_file, float_format="%.3f", sheet_name=str(par), index=True
                 )
         elif extension == ".shp":
             if isinstance(gdf, pd.DataFrame):
-                gdf.to_file(output_path)
+                gdf.to_file(output_file)
             else:
                 print("Shape maken zonder geometrie niet mogelijk")
         elif extension == ".csv":
             if isinstance(gdf, pd.DataFrame):
-                gdf.to_csv(output_path)
+                gdf.to_csv(output_file)
             else:
-                df_stat.to_csv(output_path)
+                df_stat.to_csv(output_file)
         elif extension == ".tif":
             import rasterio
             from shapely.geometry import MultiPoint, Polygon
@@ -188,7 +169,7 @@ def statistics_dhydro(
                 index=[0], crs="EPSG:28992", geometry=[geom_area]
             )
             meta = "fout!!" "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-            with rasterio.open(output_path, "w+", **meta) as out:
+            with rasterio.open(output_file, "w+", **meta) as out:
                 out_arr = out.read(1)
                 shapes = ((geom, value) for geom, value in zip(gdf.geometry, gdf[stat]))
                 level = rasterio.features.rasterize(
@@ -201,11 +182,10 @@ def statistics_dhydro(
 
 
 if __name__ == "__main__":
-    input_path = r"C:\scripts\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel\1D2D-DIMR\dflowfm\output\FlowFM_map.nc"
-    output_path = r"C:\scripts\AHT_scriptjes"
+    input_path = r"C:\Users\devop\Documents\Scripts\Hydrolib\HYDROLIB\contrib\Arcadis\scripts\exampledata\Dellen\Model_cleaned\dflowfm\output\Flow1D_map.nc"
+    output_file = r"C:\Users\devop\Desktop"
     read_params(input_path)
-    par = "Mesh2d_q1"
+    par = "mesh1d_q1"
     test = statistics_dhydro(
-        input_path, par, sdate="", edate="", output_path="", stat=""
+        input_path, par, sdate="", edate="", output_file="", stat=""
     )
-    print("test")

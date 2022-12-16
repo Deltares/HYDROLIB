@@ -1,7 +1,13 @@
-import os
-import sys
-from datetime import datetime
+# =============================================================================
+#
+# License: LGPL
+#
+# Author: Arjon Buijert Arcadis
+#
+# =============================================================================
 
+import os
+from datetime import datetime
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -28,38 +34,41 @@ def inun_dhydro(
 ):
 
     """Calculate inundation depths based on 1D and 2D waterlevels and DEM.
-
-       Args:
-            nc_path : str
-               Path to input nc-file containing the D-hydro model results
-            result_path : str
-               Path to the output file
-            type: str
-               Analysis type ("type" and "level")
-            dtm_path: str
-               Path to the dtm in tif format
-            sdate: datetime.datetime
-               Optional start of period to find maximal level
-            edate: datetime.datetime
-               Optional end of period to find maximal level
-            domain: str
-               Optional domain to determine inundations ("1D" or "2D")
-            filter: bool
-                Optional filtering of the inundations, based on connectivity
-            extrapol: float
-                Optional extrapolation of 2D results
-            debug: bool
-                Write aditional information about the calculation
-            areas1D: str
-                Path to areas that limit 1D voronoi generation (catchments or watersheds)
-
-        Returns:
-            Raster containing inundation results.
     ___________________________________________________________________________________________________________
-       Warning:
-           only 2D results will be used if type="depth"
-           2D depth is used when both 1D and 2D inundation is plausible
-           without filter 1D will only be used outside of 2D to prevent weird errors.
+    
+    Parameters:
+         nc_path : str
+            Path to input nc-file containing the D-hydro model results
+         result_path : str
+            Path to the output file
+         type: str
+            Analysis type ("type" and "level")
+         dtm_path: str
+            Path to the dtm in tif format
+         sdate: datetime.datetime
+            Optional start of period to find maximal level
+         edate: datetime.datetime
+            Optional end of period to find maximal level
+         domain: str
+            Optional domain to determine inundations ("1D" or "2D")
+         filter: bool
+             Optional filtering of the inundations, based on connectivity
+         extrapol: float
+             Optional extrapolation of 2D results
+         debug: bool
+             Write aditional information about the calculation
+         areas1D: str
+             Path to areas that limit 1D voronoi generation (catchments or watersheds)
+    ___________________________________________________________________________________________________________
+    
+    Returns:
+        Raster containing inundation results.
+    ___________________________________________________________________________________________________________
+    
+    Warning:
+        only 2D results will be used if type="depth"
+        2D depth is used when both 1D and 2D inundation is plausible
+        without filter 1D will only be used outside of 2D to prevent weird errors.
     """
 
     output_folder = os.path.dirname(result_path)

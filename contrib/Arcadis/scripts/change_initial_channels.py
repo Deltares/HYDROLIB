@@ -1,12 +1,17 @@
+# =============================================================================
+#
+# License: LGPL
+#
+# Author: Arjon Buijert Arcadis
+#
+# =============================================================================
+
+
 import os
 from pathlib import Path
-
 import geopandas as gpd
-import netCDF4 as nc
 import pandas as pd
 from read_dhydro import net_nc2gdf
-
-from hydrolib.core.io.net.models import Link1d2d, Mesh1d, Network
 from hydrolib.core.io.onedfield.models import OneDFieldModel
 
 
@@ -19,29 +24,33 @@ def initial_dhydro(
     global_value,
     output_path,
 ):
-    """Create the 1D initial waterlevel D-hydro based on a shape file.
-
-       Args:
-           net_nc_path : str
-               Path to input nc-file containing the D-hydro network
-           areas_path : str
-               Path to shape file with areas containing initial values
-           value_field: str
-               Column name containing intial values
-           value_type: str
-               Type of initial value (WaterLevel or WaterDepth)
-           value_unit: str
-               Unit of initial value ("m")
-           global_value: float
-               Standard value for waterways that fall outside of the area
-           output_path : str
-               Path to results-file
-
-       Returns:
-           initialwaterlevel.ini file
+    """
+    Create the 1D initial waterlevel D-hydro based on a shape file.
+    ___________________________________________________________________________________________________________
+    
+    Parameters:
+         net_nc_path : str
+             Path to input nc-file containing the D-hydro network
+         areas_path : str
+             Path to shapefile (polygons) with areas containing initial values
+         value_field: str
+             Column name containing intial values
+         value_type: str
+             Type of initial value (WaterLevel or WaterDepth)
+         value_unit: str
+             Unit of initial value ("m")
+         global_value: float
+             Standard value for waterways that fall outside of the area
+         output_path : str
+             Path to results-file
+    ___________________________________________________________________________________________________________
+    
+    Returns:
+        initialwaterlevel.ini file
     _______________________________________________________________________________________________________
-        Warning:
-            Waterways that are in several waterlevel control areas are not (always) processed correctly.
+    
+    Warning:
+        Waterways that are in several waterlevel control areas are not (always) processed correctly.
 
     """
     global_value = float(global_value)

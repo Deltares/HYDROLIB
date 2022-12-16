@@ -19,11 +19,7 @@
 
 import os
 from pathlib import Path
-
-import numpy as np
-import pandas as pd
-import xarray as xr
-from read_dhydro import branch_gui2df, net_nc2gdf, read_locations
+from read_dhydro import net_nc2gdf
 
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.core.io.obs.models import ObservationPointModel
@@ -38,22 +34,30 @@ def make_obs_points(mdu_path, output_path, prefix="rOut", fraction=0.95):
     Status: Draft
     ___________________________________________________________________________________________________________
 
+    Creates new observation point on each branch. Point is placed at a location 'branch length * fraction'  
+
     Parameters
-    ----------
-    input_file : string
-        pad naar input net_nc bestand in de dflowfm map van het model
-    output_folder : string
-        pad naar output folder
-    observation_len: integer
-        lengte tussen elk observatiepunt op de watergang
+    mdu_path : str
+       Path to mdu file containing the D-hydro model structure
+    output_path : str
+        Path where the 1DObservationpoints.ini file is saved
+    prefix : str
+        Name of observation points is prefix + branchid
+    fraction : float
+        Fraction of the branch length where the observation point should be placed
+        Between 0 and 1.0     
     ___________________________________________________________________________________________________________
 
-    Resultaat
-    -------
-    Een observation.ini bestand in de gekozen output folder. Deze kan in de mdu en folder worden gezet van het D-Hydro model.
-    De naam van het bestand is "1DObservationpoints.ini". Dit kan handmatig worden aangepast.
+    Returns:
+        A observation.ini file ("1DObservationpoints.ini") is saved in the output folder. 
+        This file can be moved to the folder of a D-Hydro model and be registered in 
+        the MDU file (keyword ObsFile)
 
     """
+    
+    if fraction < 0 or fraction > 1:
+        raise Exception("Fraction should be a float number between 0 and 1.0")    
+        
     fm = FMModel(Path(mdu_path))
     net_nc = fm.geometry.netfile.filepath
 
@@ -74,8 +78,8 @@ def make_obs_points(mdu_path, output_path, prefix="rOut", fraction=0.95):
 
 
 if __name__ == "__main__":
-    mdu_path = r"C:\scripts\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\flowFM.mdu"
-    output_path = r"C:\scripts\AHT_scriptjes\make_obs_points"
+    mdu_path = r"C:\Users\devop\Documents\Scripts\Hydrolib - kopie\HYDROLIB\contrib\Arcadis\scripts\exampledata\Zwolle-Minimodel_clean\1D2D-DIMR\dflowfm\FlowFM.mdu"
+    output_path = r"C:\Users\devop\Desktop\Dellen"
     # branches = branch_gui2df(os.path.join(Path(mdu_path).parent, fm.geometry.branchfile))
     make_obs_points(mdu_path, output_path, prefix="rOut", fraction=0.95)
     print("dummy")

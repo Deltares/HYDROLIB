@@ -24,14 +24,15 @@ def clean_model(mdufile):
     The fixed weirs are stored elsewhere and removed from the mdu file. The roughness files are stored in a seperate folder.
     The mdu is changed.
 
-    Parameters
-    ----------
-    mdufile : path
-        Path to mdu file
+    ___________________________________________________________________________________________________________
 
-    Returns
-    -------
-    None. Cleans up folders. Makes a "original" map to make sure the original model is not lost.
+    Parameters:
+        mdufile : path
+            Path to mdu file
+    ___________________________________________________________________________________________________________
+    
+    Returns:
+        None. Cleans up folders. Makes a "original" map to make sure the original model is not lost.
 
     """
     parentdir = Path(os.path.dirname(mdufile)).parent
@@ -152,41 +153,58 @@ def clean_grw(mdufile):
 
 
 def remove_double_friction_definitions(crslocs, crsdefs, dict_frictions):
-    # You can define frictions in different files and different ways.
-    # However, there is a certain hierarchy. Some friction definitions are
-    # more important than others
+    """
+    In D-Hydro, you can define frictions in different files and different ways.
+    However, there is a certain hierarchy. Some friction definitions are
+    more important than others
 
-    # In a d-hydro model (especially when it is a imported Sobek 2 model)
-    # the friction definitions are sometimes messy and contradictory.
-    # Unintentionally, there are multiple friction definitions for the
-    # same cross section and/or channel
-    # This function tries to repair that, it makes sure every channel/
-    # cross section has only one friction definition
+    In a d-hydro model (especially when it is a imported Sobek 2 model)
+    the friction definitions are sometimes messy and contradictory.
+    Unintentionally, there are multiple friction definitions for the
+    same cross section and/or channel. This function tries to repair that, 
+    it makes sure every channel/cross section has only one friction definition
+    
+    This function cleans the crslocs.ini, crsdefs.ini and the separate
+    roughness-###.ini files.
 
-    # You can define friction in either the crsdef.ini file or one of the
-    # many roughness-###.ini files that are refered to in the mdu-file.
-    # The hierarchy of friction definitions (from high to low importance)
+    The hierarchy of friction definitions (from high to low importance)
+    1. Branch constant/chainge friction from roughness-Channels.ini.
+    Therefore, in crsdef.ini, the the cross section should refer to
+    frictionID "Channels"
+    2. Global value "Channels" from roughness-Channels.ini.
+    Therefore, in crsdef.ini, the the cross section should refer to
+    frictionID "Channels"
+    3. On lanes: constant/chainge friction from roughness-###.ini.
+    Therefore, in crsdef.ini, the the cross section should refer to
+    frictionID "###"
+    4. Global value "###" from roughness-###.ini.
+    Therefore, in crsdef.ini, the the cross section should refer to
+    frictionID "###"
+    In the D-Hydro GUI, this is still called 'on lanes'
+    5. Global value from roughness-Channels.ini
+    When a branch has no specific constant/chainage in roughness-Channels.ini
+    and also the requirements for level 2 and 2 are not met, a global value
+    is used. This is the global value "Channels"
 
-    # 1. Branch constant/chainge friction from roughness-Channels.ini.
-    # Therefore, in crsdef.ini, the the cross section should refer to
-    # frictionID "Channels"
+    ___________________________________________________________________________________________________________
+    
+    Parameters:
+        crslocs : DataFrame
+            Data of cross section locations 
+            Imported from crslocs.ini with the function 'read_locations'
+        crsdefs : DataFrame
+            Data of cross section definitions
+            Imported from crslocs.ini with the function 'read_locations'
+        dict_frictions: Dictionary
+            Data of the branch friction values 
+            Imported from the roughness-###.ini files with the function 'friction2dict'
 
-    # 2. Global value "Channels" from roughness-Channels.ini.
-    # Therefore, in crsdef.ini, the the cross section should refer to
-    # frictionID "Channels"
+    ___________________________________________________________________________________________________________
+    
+    Returns:
+        Cleaned dataframes crslocs and crsdefs en clead dictionary dict_frictions
 
-    # 3. On lanes: constant/chainge friction from roughness-###.ini.
-    # Therefore, in crsdef.ini, the the cross section should refer to
-    # frictionID "###"
-
-    # 4. Global value "###" from roughness-###.ini.
-    # Therefore, in crsdef.ini, the the cross section should refer to
-    # frictionID "###"
-
-    # 4. Global value from roughness-Channels.ini
-    # When a branch has no specific constant/chainage in roughness-Channels.ini
-    # and also the requirements for level 2 and 2 are not met, a global value
-    # is used. This is the global value "Channels"
+    """    
 
     friction_files = list(dict_frictions.keys())
 
@@ -266,7 +284,23 @@ def remove_double_friction_definitions(crslocs, crsdefs, dict_frictions):
 
 
 def clean_friction_files(dict_frictions):
-    # Remove unnecessary information, simplify the data
+    """
+    Remove unnecessary information from the roughness-###.ini files
+
+    ___________________________________________________________________________________________________________
+    
+    Parameters:
+        dict_frictions: Dictionary
+            Data of the branch friction values 
+            Imported from the roughness-###.ini files with the function 'friction2dict'
+
+    ___________________________________________________________________________________________________________
+    
+    Returns:
+        Cleaned dictionary dict_frictions
+
+    """ 
+    
     friction_files = list(dict_frictions.keys())
     # Cleaning roughness-###.ini file(s)
     for file in friction_files:
@@ -292,6 +326,24 @@ def clean_friction_files(dict_frictions):
 
 
 def clean_crsdefs(crsdefs):
+    """
+    Remove unnecessary information from the crsdef.ini file
+
+    ___________________________________________________________________________________________________________
+    
+    Parameters:
+        crsdefs : DataFrame
+            Data of cross section definitions
+            Imported from crslocs.ini with the function 'read_locations'
+
+    ___________________________________________________________________________________________________________
+    
+    Returns:
+        Cleaned dataframe crsdefs
+
+    """       
+    
+    
     # Cleaning crsdef.ini
     # Remove unnecessary information, simplify the data
     for index_def, row in crsdefs.iterrows():
@@ -321,24 +373,29 @@ def clean_crsdefs(crsdefs):
 
 def split_duplicate_crsdef_references(crslocs, crsdefs, loc_ids=[]):
     """
-    If a cross section definition is used at more than 1 cross section locatoin, it is called a shared definition.
-    Sometimes, for example when use want to adjust 1 profile at 1 location, it is wise to split these shared definitions.
+    If a cross section definition is used at more than 1 cross section location,
+    it is called a shared definition. Sometimes, for example when use want to 
+    adjust 1 profile at 1 location, it is wise to split these shared definitions.
     Otherwise, also the cross sections elsewhere will have an adjusted profile
 
-
-    This function splits the shared defintions for those cross section LOCATIONS that are included in the list loc_ids
-
+    This function splits the shared defintions for those cross section LOCATIONS
+    that are included in the list loc_ids
+    ___________________________________________________________________________________________________________
+    
     Parameters
-    ----------
-    crsloc : pandas geodataframe with the cross section locations
-    crsdefs : pandas geodataframe with the cross section defintions
-    loc_ids : list with the cross section locations for which the defintions should be checked and (if needed) splitted.
-            if empty, the function will check all cross section locations
-
+        crslocs : DataFrame
+            Data of cross section locations 
+            Imported from crslocs.ini with the function 'read_locations'
+        crsdefs : DataFrame
+            Data of cross section definitions
+            Imported from crslocs.ini with the function 'read_locations'    
+        loc_ids : list 
+            List with the cross section locations for which the defintions should
+            be checked and (if needed) splitted.
+            If empty, the function will check all cross section locations
+    ___________________________________________________________________________________________________________
     Returns
-    -------
-    crsloc : pandas geodataframe with the cross section locations
-    crsdefs : pandas geodataframe with the cross section defintions
+        Cleaned dataframes crslocs and crsdefs
 
     """
 

@@ -7,7 +7,6 @@
 # =========================================================================================
 import os
 from pathlib import Path
-
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -15,7 +14,6 @@ from clean_dhydro import clean_crsdefs, split_duplicate_crsdef_references
 from read_dhydro import read_locations
 from shapely.geometry import LineString, Point
 from stationpoints import stationpoints
-
 from hydrolib.core.io.crosssection.models import CrossDefModel, CrossLocModel
 
 
@@ -34,7 +32,8 @@ def change_depth_crosssections(
     One could think of two scenario's in which this tool is usefil
     - Deepen the bottom of the crosssection, e.g. due to maintenance/dredging activities
     - Heighten/increase the bottom level of the crosssection, e.g. due to sedimentation processes
-
+    ___________________________________________________________________________________________________________
+    
     Parameters:
          mdu_path : str
             Path to mdu file containing the D-hydro model structure
@@ -68,10 +67,10 @@ def change_depth_crosssections(
              the width-section that is selected. Maybe a part of the section is raised, and another part is lowered.
              - 'uniform' --> indicates that the bottom is uniformly/evenly lowered/raised with a certain distance
              The existing variations/irregularities persist.
-
+    ___________________________________________________________________________________________________________
 
     Returns:
-        Updated crsdef.ini, crsloc.ini,
+        Updated crsdef.ini, crsloc.ini
 
     ___________________________________________________________________________________________________________
        Warning: currently only works for yz and zwRiver cross sections

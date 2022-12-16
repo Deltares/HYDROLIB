@@ -1,17 +1,22 @@
+# =========================================================================================
+#
+# License: LGPL
+#
+# Author:
+#           Arjon Buijert and Robert de Lange, Arcadis
+#
+# =========================================================================================
+
 import os
 from pathlib import Path
-
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
 from shapely.geometry import LineString, Point, Polygon
-
 from hydrolib.core.io import polyfile
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.core.io.net.models import Network
-from hydrolib.core.io.polyfile import parser
-
 
 def net_nc2gdf(
     net_ncs,
@@ -27,16 +32,19 @@ def net_nc2gdf(
         "1d_total_nodes_per_branch",
     ],
 ):
-    """This script reads an D-HYDRO *net.nc file and converts it to a dictionary with GeoDataFrames.
-
-    Example:
-        gdfs = net_nc2gdf("C:/temp/model/dflowfm/model_net.nc")
+    """
+    This script reads an D-HYDRO network .net.nc file stored in the 
+    dflowfm folder that contains the 1D, 2D and 1D2D schematisations
+    The function converts it to a dictionary with GeoDataFrames.
+    Example: gdfs = net_nc2gdf("C:/temp/model/dflowfm/model_net.nc")
+    ___________________________________________________________________________________________________________
 
     Args:
         net_ncs: str
             Path to net.nc file
         results(optional): list
             List containing needed parameters out of the net.nc file.
+    ___________________________________________________________________________________________________________
 
     Returns:
         gdfs (dict): Dictionary with all geometries in as GeoDataFrames
@@ -308,16 +316,20 @@ def net_nc2gdf(
 
 
 def map_nc2gdf(input_path, param):
-    """This script reads an D-HYDRO *map.nc file and converts it to a GeoDataFrame for a chosen parameter. Currently, not all parameters work.
+    """
+    This script reads an D-HYDRO map.nc file. This contains the spatially distributed
+    1D and 2D output values and specified timesteps for the chosem parameters 
+    This function converts it to a GeoDataFrame for a chosen parameter. 
+    Currently, not all parameters work.
+    Example: gdf = map_nc2gdf("C:/temp/model/dflowfm/output/FlowFM_map.nc")
+    ___________________________________________________________________________________________________________
 
-    Example:
-        gdf = map_nc2gdf("C:/temp/model/dflowfm/output/FlowFM_map.nc")
-
-    Args:
+    Parameters:
         input_path: str
             Path to map.nc file
         param: str
             Chosen parameter by the user
+    ___________________________________________________________________________________________________________
 
     Returns:
         gdf: GeoDataFrame
@@ -388,17 +400,23 @@ def hisnc_2gdf(
         "uniweir",
     ],
 ):
-    """This script reads an D-HYDRO *his.nc file and converts it to a dictionary containing several geodataframes for all the output.
-
-    Example:
-        gdf = hisnc_2gdf("C:/temp/model/dflowfm/output/FlowFM_his.nc")
-
-    Args:
+    """
+    This script reads an D-HYDRO *his.nc file. This file contains time series of
+    inflow, outflow and flows and settings at structures. Also for example data from
+    observation points are saved in the *his.nc file
+    This function converts it to a dictionary containing several geodataframes for 
+    all the output.
+    Example: gdf = hisnc_2gdf("C:/temp/model/dflowfm/output/FlowFM_his.nc")
+    ___________________________________________________________________________________________________________
+    
+    Parameters:
         input_path (str): Path to his.nc file
-
+    ___________________________________________________________________________________________________________
+    
     Returns:
         gdfs: dict
-            Dictionary containing separate GeoDataFrames of output his. With the point names as index and the timesteps as columns.
+            Dictionary containing separate GeoDataFrames of output his. 
+            With the point names as index and the timesteps as columns.
 
     """
 
@@ -529,9 +547,16 @@ def hisnc_2gdf(
 
 
 def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id="id"):
-    """Gets dataframe as input, converts chainage to x,y datapoints.
-
-    Args
+    """
+    Often used in combination with the function 'read_locations'
+    This function gets a dataframe as input containig information about a 
+    specific feature such as cross sections and structures
+    The locations are stored based on a chainage/relative location on a 
+    branch. This function loads the branch-information and is able to
+    covert the chainage information to x,y datapoints.
+    ___________________________________________________________________________________________________________
+    
+    Parameters
         df : Pandas DataFrame
             containing data to be changed.
         gdf_branches : GeoDataFrame
@@ -544,7 +569,8 @@ def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id=
             Name of the column where "y" is defined. The default is "y".
         branch_id : String, optional
             Name of the column where the branch_id is defined. The default is "id".
-
+    ___________________________________________________________________________________________________________
+    
     Returns:
         gdf : GeoDataFrame
             gdf containing the data with xy.
@@ -569,13 +595,23 @@ def chainage2gdf(df, gdf_branches, chainage="chainage", x="x", y="y", branch_id=
 
 
 def branch_gui2df(branch_file):
-    """Reads the branch_gui into a gdf
+    """
+    This function reads a branch.gui file and converts it to a GeoDataFrame
+    A branch.gui file says say what type of branches there are in the 
+    D-Hydro model. It also says if the branch length is equal to the length
+    of the branch on the map, or a user length is specified
+    
+    This function is often used in combination with the function 'net_nc2gdf'
+    There, the geometry of each channel is loaded. This information can be 
+    combined with the output of this function.
 
-
-    Args:
+    ___________________________________________________________________________________________________________
+    
+    Parameters:
         branch_file : str
             path to the branch.gui file.
-
+    ___________________________________________________________________________________________________________
+    
     Returns:
         df : DataFrame
             DataFrame containing contents of the branch.gui file.
@@ -596,15 +632,17 @@ def branch_gui2df(branch_file):
 
 
 def read_nc_data(ds, par):
-    """Reads .nc data
+    """
+    Reads .nc data
+    ___________________________________________________________________________________________________________
 
-
-    Args:
+    Parameter:
         ds : xarray.DataArray
             Data array of the nc file.
         par : str
             String of the chosen parameter to read.
-
+    ___________________________________________________________________________________________________________
+    
     Returns:
         df : DataFrame
             DataFrame containing the time as index, columns with data.
@@ -634,15 +672,19 @@ def read_nc_data(ds, par):
 
 
 def pli2gdf(input_file):
-    """reads .pli file into gdf.
-
-    Args:
-    input_file : str
-        input pli file.
-
+    """
+    Reads .pli file into gdf.
+    A .pli file contains information about fixed weirs 
+    ___________________________________________________________________________________________________________
+    
+    Parmeter:
+        input_file : str
+            input pli file.
+    ___________________________________________________________________________________________________________
+    
     Returns:
-    gdf : GeoDataFrame
-        .pli file containing contents.
+        gdf : GeoDataFrame
+            .pli file containing contents.
 
     """
     # read pli file, including z value
@@ -673,15 +715,21 @@ def read_locations(
         "laterals",
     ],
 ):
-    """Use an input_mdu to read all locations into a GeoDataFrame. The user can choose which locations to read. If none are defined, all locations are read.
-    The user can choose cross section locations, cross section definitions, structures, boundaries, laterals.
-
-    Args:
+    """
+    This function uses an mdu file to read locations of some specific features
+    of D-Hydro. The user can choose cross section locations, cross section definitions, 
+    structures, boundaries, laterals. The user can choose which locations to read. 
+    If none are defined, all locations are read.
+    The function converts the data into a GeoDataFrame. 
+    ___________________________________________________________________________________________________________    
+    
+    Parameter:
         input_mdu : Path()
             Path to input_mdu in dflowfm folder. The dflowfm needs to be cleaned to be read with hydrolib.
         results : gdfs (dict)
             Dictionary with all locations in as GeoDataFrames
-
+    ___________________________________________________________________________________________________________
+    
     Returns:
         gdfs_results : gdfs (dict)
             Dictionary with all locations in as GeoDataFrames.

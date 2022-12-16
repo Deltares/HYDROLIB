@@ -10,25 +10,25 @@ from shapely.geometry import Polygon
 
 def analyse_bres_run(filepath, outpath, dambreak, shpfile, dijkringnummer):
     """
-    PLEASE NOTE: This script works if there is a run used as input with a dambreak.
     This script can be used to analyse a dambreak run in D-Hydro. The script analyses the fou, his, map en dia file.
+    PLEASE NOTE: This script works if there is a run used as input with a dambreak.
+    ___________________________________________________________________________________________________________
 
-    Parameters
-    ----------
-    filepath : string
-        Path to dflowfm folder.
-    outpath : string
-        Output path.
-    dambreak : boolean
-        True or False if there is a dambreak.
-    shpfile : string
-        Path to shapefile.
-    dijkringnummer : integer
-        Number of the dijkring.
-
-    Returns
-    -------
-    All outputs can be found in output folder.
+    Parameters:
+        filepath : string
+            Path to dflowfm folder.
+        outpath : string
+            Output path.
+        dambreak : boolean
+            True or False if there is a dambreak.
+        shpfile : string
+            Path to shapefile.
+        dijkringnummer : integer
+            Number of the dijkring.
+    ___________________________________________________________________________________________________________
+    
+    Returns: 
+        All outputs can be found in output folder.
 
     """
     mapnc, hisnc, founc, diag, bres_coord_x, bres_coord_y = read_data(
