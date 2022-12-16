@@ -5,7 +5,6 @@
 ###############################################################################
 # If you want to change the contents of this file, you should probably change
 # the pyproject.toml file and then use poetry2conda again to update this file.
-# Alternatively, stop using (ana)conda.
 ###############################################################################
 name: hydrolib
 dependencies:
