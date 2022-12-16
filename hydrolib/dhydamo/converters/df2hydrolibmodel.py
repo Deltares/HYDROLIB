@@ -149,25 +149,21 @@ class Df2HydrolibModel:
         )
 
         # check if there locations specified where a default profile should be added
-        if self.hydamo.crosssections.default_locations is None:
+        if hasattr(self.hydamo.crosssections, "default_locations"):
+            default_locs = self.hydamo.crosssections.default_locations
+        else:
             default_locs = self.hydamo.branches.index[
                 ~self.hydamo.branches["code"].isin(branchids)
             ]
-        else:
-            default_locs = self.hydamo.crosssections.default_locations
-
-        missing = self.hydamo.branches.index[
-            ~self.hydamo.branches["code"].isin(branchids)
-        ]
 
         # If any are missing, check if a default cross section definition has been defined
-        if len(missing) > 0:
+        if len(default_locs) > 0:
             if self.hydamo.crosssections.default_definition is None:
                 raise ValueError(
                     "Not all branches have a cross section appointed to them. Add cross sections, or set a default cross section definition that can be added to the branches without a definition."
                 )
             logger.info(
-                f"Adding default cross section definition to branches with ids: {', '.join(list(missing))}"
+                f"Adding default cross section definition to branches with ids: {', '.join(list(default_locs))}"
             )
             for branchid in default_locs:
                 self.hydamo.crosssections.add_crosssection_location(

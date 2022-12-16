@@ -4,10 +4,10 @@ import numpy as np
 import pandas as pd
 from hydrolib.dhydamo.geometry import mesh
 from shapely.geometry import Point
-from hydrolib.core.io.bc.models import ForcingModel
+from hydrolib.core.io.dflowfm.bc.models import ForcingModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
-from hydrolib.core.io.mdu.models import FMModel
+from hydrolib.core.io.dflowfm.mdu.models import FMModel
 
 hydamo_data_path = (
     Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
@@ -76,7 +76,7 @@ def test_hydamo_object_from_gpkg():
     hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
 
     assert len(hydamo.weirs) == 25
-    assert hydamo.weirs.doorstroombreedte.mean() == 2.1718181818181814
+    assert np.round(hydamo.weirs.doorstroombreedte.mean(), 2) == 2.17
 
     # Read culverts
     hydamo.culverts.read_gpkg_layer(
@@ -149,7 +149,7 @@ def test_hydamo_object_from_gpkg():
     hydamo.laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=5000)
 
     assert len(hydamo.laterals) == 121
-    assert hydamo.laterals.afvoer.mean() == 0.0057784934603484816
+    assert np.round(hydamo.laterals.afvoer.mean(),4) == 0.0058
 
     return hydamo
 
@@ -372,8 +372,8 @@ def test_convert_boundararies():
     hydamo.external_forcings.convert.boundaries(
         hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network
     )
-    assert [i=='RVM_02' for i in hydamo.external_forcings.boundary_nodes.keys()][0]
-    assert len(hydamo.external_forcings.boundary_nodes.keys()) ==1 
+    assert [i == "RVM_02" for i in hydamo.external_forcings.boundary_nodes.keys()][0]
+    assert len(hydamo.external_forcings.boundary_nodes.keys()) == 1
 
 
 def test_add_boundaries():
@@ -387,9 +387,9 @@ def test_add_boundaries():
         branch_name_col="code",
         node_distance=20,
         max_dist_to_struc=None,
-        structures=None
+        structures=None,
     )
-    
+
     series = pd.Series(np.sin(np.linspace(2, 8, 100) * -1) + 1.0)
     series.index = [
         pd.Timestamp("2016-01-01 00:00:00") + pd.Timedelta(hours=i) for i in range(100)
@@ -402,7 +402,7 @@ def test_add_boundaries():
         series,
         fm.geometry.netfile.network,
     )
-    assert len(hydamo.external_forcings.boundary_nodes.keys())  == 1
+    assert len(hydamo.external_forcings.boundary_nodes.keys()) == 1
 
 
 def test_add_initialfields():
@@ -410,7 +410,9 @@ def test_add_initialfields():
 
     hydamo.external_forcings.set_initial_waterdepth(1.5)
 
-    assert hydamo.external_forcings.initial_waterdepth_polygons.waterdepth.values[0] == 1.5
+    assert (
+        hydamo.external_forcings.initial_waterdepth_polygons.waterdepth.values[0] == 1.5
+    )
 
 
 def test_write_laterals():

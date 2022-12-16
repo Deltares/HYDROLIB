@@ -8,8 +8,8 @@ from meshkernel.py_structures import DeleteMeshOption
 from shapely.affinity import translate
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box
 
-from hydrolib.core.io.mdu.models import FMModel
-from hydrolib.core.io.net.models import Branch
+from hydrolib.core.io.dflowfm.mdu.models import FMModel
+from hydrolib.core.io.dflowfm.net.models import Branch
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import common, mesh, viz
 from hydrolib.dhydamo.geometry.models import GeometryList

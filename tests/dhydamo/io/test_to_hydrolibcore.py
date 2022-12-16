@@ -5,15 +5,15 @@ import os
 
 # and from hydrolib-core
 from hydrolib.core.io.dimr.models import DIMR, FMComponent
-from hydrolib.core.io.inifield.models import IniFieldModel
-from hydrolib.core.io.onedfield.models import OneDFieldModel
-from hydrolib.core.io.structure.models import *
-from hydrolib.core.io.crosssection.models import *
-from hydrolib.core.io.ext.models import ExtModel
-from hydrolib.core.io.mdu.models import FMModel
-from hydrolib.core.io.bc.models import ForcingModel
-from hydrolib.core.io.friction.models import FrictionModel
-from hydrolib.core.io.obs.models import ObservationPointModel
+from hydrolib.core.io.dflowfm.inifield.models import IniFieldModel
+from hydrolib.core.io.dflowfm.onedfield.models import OneDFieldModel
+from hydrolib.core.io.dflowfm.structure.models import *
+from hydrolib.core.io.dflowfm.crosssection.models import *
+from hydrolib.core.io.dflowfm.ext.models import ExtModel
+from hydrolib.core.io.dflowfm.mdu.models import FMModel
+from hydrolib.core.io.dflowfm.bc.models import ForcingModel
+from hydrolib.core.io.dflowfm.friction.models import FrictionModel
+from hydrolib.core.io.dflowfm.obs.models import ObservationPointModel
 
 # Importing relevant classes from Hydrolib-dhydamo
 from hydrolib.dhydamo.core.hydamo import HyDAMO
@@ -34,14 +34,22 @@ def setup_model():
     fm.time.refdate = 20160601
     fm.time.tstop = 2 * 3600 * 24
 
-    os.chdir(r"D:\3640.20\HYDROLIB-dhydamo\hydrolib\notebooks")
-    data_path = Path("../tests/data").resolve()
+    data_path = Path("hydrolib/tests/data").resolve()
     assert data_path.exists()
     # path to write the models
-    output_path = Path("../tests/model").resolve()
+    output_path = Path("hydrolib/tests/model").resolve()
     assert output_path.exists()
 
     hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
+
+    hydamo.structures.convert.weirs(
+        hydamo.weirs,
+        hydamo.profile_group,
+        hydamo.profile_line,
+        hydamo.profile,
+        hydamo.opening,
+        hydamo.management_device,
+    )
 
     mesh.mesh1d_add_branches_from_gdf(
         fm.geometry.netfile.network,
@@ -79,7 +87,6 @@ def setup_model():
         name="default",
     )
     hydamo.crosssections.set_default_definition(definition=default, shift=10.0)
-
     hydamo.external_forcings.set_initial_waterdepth(1.5)
 
     # main filepath

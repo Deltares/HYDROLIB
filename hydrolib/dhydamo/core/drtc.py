@@ -171,7 +171,9 @@ class DRTCModel:
                     )
                 struc_id = weir.id.values[0]
             elif management.pompid is not None:
-                logger.info(f'Management for pump {management.pompid} is included in FM.')
+                logger.info(
+                    f"Management for pump {management.pompid} is included in FM."
+                )
             else:
                 raise ValueError(
                     "Only management_devices and pumps can be connected to a management object."
@@ -227,7 +229,9 @@ class DRTCModel:
                         data=data,
                     )
             else:
-                logger.warning(f'{management.typecontroller} is not a valid controller type - skipped.')
+                logger.warning(
+                    f"{management.typecontroller} is not a valid controller type - skipped."
+                )
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def add_time_controller(

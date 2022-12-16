@@ -1,6 +1,5 @@
 import sys
 
-sys.path.insert(0, r"D:\3640.20\HYDROLIB-dhydamo")
 import os
 from pathlib import Path
 from hydrolib.dhydamo.core.hydamo import HyDAMO
@@ -11,10 +10,9 @@ from tests.dhydamo.io import test_from_hydamo
 
 def test_setup_rr_model():
 
-    os.chdir(r"D:\3640.20\HYDROLIB-dhydamo\hydrolib\notebooks")
-    data_path = Path("../tests/data").resolve()
+    data_path = Path("hydrolib/tests/data").resolve()
     assert data_path.exists()
-    output_path = Path("../tests/model").resolve()
+    output_path = Path("hydrolib/tests/model").resolve()
     assert output_path.exists()
 
     drrmodel = DRRModel()
