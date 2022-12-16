@@ -155,7 +155,6 @@ def update_data_columns_attribute_from_query(
     return branches
 
 
-# FIXME BMA: For HydroMT we will rewrite this snap_branches to snap_lines and take set_branches out of it
 def process_branches(
     branches: gpd.GeoDataFrame,
     branch_nodes: gpd.GeoDataFrame,

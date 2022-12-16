@@ -400,7 +400,6 @@ class DFlowFMModel(MeshModel):
 
         return branches, branches_nodes
 
-    # FIXME Xiaohan: review channels, pay attention to crossections
     def setup_channels(
         self,
         channels_fn: str,
@@ -1238,7 +1237,7 @@ class DFlowFMModel(MeshModel):
             id_suffix="_generated",
             logger=self.logger,
         )
-        # FIXME Xiaohan: why do we need set_branches here?
+        # FIXME Xiaohan: why do we need set_branches here? Because of branches.gui --> add a high level write_gui files same level as write_mesh
         self.set_branches(branches)
 
         # add manhole attributes from defaults
@@ -1583,7 +1582,6 @@ class DFlowFMModel(MeshModel):
             self.logger.error("name must be specified when split_dataset = False")
 
         # Call super method
-        # FIXME review: self.region is used for setup_maps_from_raster; but in our case it is not the 2D region.
         variables = super().setup_maps_from_raster(
             raster_fn=raster_fn,
             variables=variables,
@@ -1816,7 +1814,7 @@ class DFlowFMModel(MeshModel):
                     v
                 ) in (
                     self._MAPS
-                ):  # FIXME review: frictioncoefficient cannot be mapped back to the correct roughness. Maybe for now support less roughness types.
+                ):  # FIXME review: frictioncoefficient cannot be mapped back to the correct roughness. Read back from mdu physics.unifFrictType
                     rm_dict[self._MAPS[v]["name"]] = v
                 for inidict in inilist:
                     _fn = inidict.datafile.filepath
@@ -2277,12 +2275,12 @@ class DFlowFMModel(MeshModel):
                 "'branchType' column absent from the new branches, could not update."
             )
         # FIXME Xiaohan: can this be combined into one argument?
-        if "manhole_up" in branches.columns:
-            self._branches = branches
-        else:
-            self.logger.error(
-                "'branchType' column absent from the new branches, could not update."
-            )
+        # if "manhole_up" in branches.columns:
+        #     self._branches = branches
+        # else:
+        #     self.logger.error(
+        #         "'branchType' column absent from the new branches, could not update."
+        #     )
 
         # Update channels/pipes in geoms
         _ = self.set_branches_component(name="river")
@@ -2326,7 +2324,7 @@ class DFlowFMModel(MeshModel):
             mesh1d_nodes = self.mesh1d_nodes.copy()
             mesh1d_nodes_open = mesh1d_nodes.loc[
                 mesh1d_nodes.branch_name.isin(self.opensystem.branchId.tolist())
-            ]  # FIXME: harmornize branch_name and branchId
+            ]
 
             # snap the new endnodes to existing mesh1d_nodes_open
             snapnodes = hydromt.gis_utils.nearest_merge(
@@ -2609,7 +2607,7 @@ class DFlowFMModel(MeshModel):
         """Quick accessor to boundaries geoms"""
         if (
             "boundaries" in self.geoms
-        ):  # FIXME review: how to read it back? when reading mesh? Or always generate (ie if branches are updated, boundaries also)
+        ):  # FIXME review: how to read it back? when reading mesh? Or always generate (ie if branches are updated, boundaries also) -> update when add_branch and rename boundaries1d
             gdf = self.geoms["boundaries"]
         else:
             gdf = self.get_boundaries()

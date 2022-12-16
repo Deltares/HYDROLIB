@@ -25,7 +25,7 @@ def invert_levels_from_dem(
     """
     Compute up- and downstream invert levels for pipe lines in gdf.
 
-    Invert levels are computed as DEM - depth - pipe diameter/height. # FIXME: by the definition specified here, it should be a postive value
+    Invert levels are computed as DEM - depth - pipe diameter/height.
 
     Parameters:
     -----------

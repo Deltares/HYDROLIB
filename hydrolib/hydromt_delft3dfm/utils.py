@@ -71,7 +71,7 @@ def read_branches_gui(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFr
     )
     df_gui["closed"] = df_gui[
         "branchType"
-    ]  # FIXME Xiaohan: This should be derived from crosssections
+    ]  # FIXME Xiaohan: This should be derived from crosssections -> not needed anymore for branches
     df_gui["closed"] = df_gui["closed"].replace(
         {
             "river": "no",
