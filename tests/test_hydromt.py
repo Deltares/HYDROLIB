@@ -19,6 +19,7 @@ _models = {
         "model": DFlowFMModel,
         "data": "artifact_data",
         "region": {"bbox": [12.4331, 46.4661, 12.5212, 46.5369]},
+        "snap_offset": 40,
     },
     "local": {
         "example": "dflowfm_local",
@@ -26,6 +27,7 @@ _models = {
         "model": DFlowFMModel,
         "data": join(TESTDATADIR, "test_data.yaml"),
         "region": {"geom": "data/local_data/1D_extent.geojson"},
+        "snap_offset": 25,
     },
 }
 
@@ -54,7 +56,7 @@ def test_model_build(tmpdir, model):
         root=root,
         mode="w",
         data_libs=[_model["data"]],
-        network_snap_offset=40,
+        network_snap_offset=_model["snap_offset"],
         openwater_computation_node_distance=40,
         logger=logger,
     )

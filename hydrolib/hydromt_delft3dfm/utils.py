@@ -22,7 +22,10 @@ from .workflows import helper
 __all__ = ["get_process_geodataframe"]
 
 
-def read_branches_gui(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFrame:
+def read_branches_gui(
+    gdf: gpd.GeoDataFrame,
+    fm_model: FMModel,
+) -> gpd.GeoDataFrame:
     """
     Read branches.gui and add the properties to branches geodataframe
 
@@ -68,31 +71,22 @@ def read_branches_gui(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFr
             0: "river",
             2: "pipe",
             1: "sewerconnection",
-        }  # FIXME Xiaohan: 0 is channel / maybe we do not sperate between rivers and channels in hydromt anymore?
-    )
-    df_gui["closed"] = df_gui[
-        "branchType"
-    ]  # FIXME Xiaohan: This should be derived from crosssections -> not needed anymore for branches
-    df_gui["closed"] = df_gui["closed"].replace(
-        {
-            "river": "no",
-            "channel": "no",
-            "pipe": "yes",
-            "tunnel": "yes",
-            "sewerconnection": "yes",
         }
     )
 
     # Merge the two df based on branchId
-    gdf_out = gdf.merge(df_gui, on="branchId")
+    df_gui = df_gui.drop_duplicates(subset="branchId")
+    gdf_out = gdf.merge(df_gui, on="branchId", how="left")
 
     return gdf_out
 
 
-def write_branches_gui(gdf: gpd.GeoDataFrame, savedir: str) -> str:
+def write_branches_gui(
+    gdf: gpd.GeoDataFrame,
+    savedir: str,
+) -> str:
     """
     write branches.gui file from branches geodataframe
-    #TODO: for now, the branches.gui file will not be properly read by GUI. Manual correction or remove this file should help.
 
     Parameters
     ----------
@@ -100,13 +94,15 @@ def write_branches_gui(gdf: gpd.GeoDataFrame, savedir: str) -> str:
         gdf containing the branches
     savedir: str
         path to the directory where to save the file.
+    manholes: geopandas.GeoDataFrame, optional
+        If exists add manholes attributes
 
     Returns
     -------
     branchgui_fn: str
         relative filepath to branches_gui file.
 
-    #TODO: branches.gui is written with a [hgeneral] section which is not recongnised by GUI. Improvement of the GUI is needed.
+    #TODO: branches.gui is written with a [general] section which is not recongnised by GUI. Improvement of the GUI is needed.
     #TODO: branches.gui has a column is custumised length written as bool, which is not recongnised by GUI. improvement of the hydrolib-core writer is needed.
     """
 
@@ -148,11 +144,10 @@ def read_crosssections(
 
     Returns
     -------
-    gdf_out: geopandas.GeoDataFrame  #FIXME XIaohan: I dont think it is needed.
-        gdf containing the branches update with the cross-sections params
     gdf_crs: geopandas.GeoDataFrame
         geodataframe copy of the cross-sections and data
     """
+
     def _list2Str(lst):
 
         if type(lst) is list:
@@ -163,7 +158,6 @@ def read_crosssections(
                 return " ".join(["{}".format(i) for i in lst])
         else:
             return lst
-
 
     # Start with crsdef to create the crosssections attributes
     crsdef = fm_model.geometry.crossdeffile
@@ -178,16 +172,18 @@ def read_crosssections(
     df_crsdef = df_crsdef.applymap(lambda x: _list2Str(x))
     # convert float to int
     int_columns = set(df_crsdef.columns).intersection(("xyzcount", "sectioncount"))
-    df_crsdef.loc[:,int_columns] = (
-        df_crsdef.loc[:,int_columns].fillna(-999)
+    df_crsdef.loc[:, int_columns] = (
+        df_crsdef.loc[:, int_columns]
+        .fillna(-999)
         .astype(int)
         .astype(object)
-        .where(df_crsdef.loc[:,int_columns].notnull())
+        .where(df_crsdef.loc[:, int_columns].notnull())
     )
     # Rename to prepare for crossection geom
     _gdf_crsdef = df_crsdef.rename(
         columns={c: f"crsdef_{c}" for c in df_crsdef.columns if c != "crs_id"}
     )
+    _gdf_crsdef = _gdf_crsdef.rename(columns={"crsdef_frictionid": "crsdef_frictionId"})
 
     # Continue with locs to get the locations and branches id
     crsloc = fm_model.geometry.crosslocfile
@@ -201,79 +197,87 @@ def read_crosssections(
     if isinstance(df_crsloc["locationtype"][0], Enum):
         df_crsloc["locationtype"] = df_crsloc["locationtype"].apply(lambda x: x.value)
     # get crsloc geometry
-    if df_crsloc.dropna(axis = 1).columns.isin(["x", "y"]).all():
-        df_crsloc["geometry"] = [Point(i.x,i.y) for i in df_crsloc[["x","y"]].itertuples()]
+    if df_crsloc.dropna(axis=1).columns.isin(["x", "y"]).all():
+        df_crsloc["geometry"] = [
+            Point(i.x, i.y) for i in df_crsloc[["x", "y"]].itertuples()
+        ]
     else:
         _gdf = gdf.set_index("branchId")
-        df_crsloc["geometry"] = [_gdf.loc[i.branchid, "geometry"].interpolate(i.chainage) for i in df_crsloc.itertuples()]
+        df_crsloc["geometry"] = [
+            _gdf.loc[i.branchid, "geometry"].interpolate(i.chainage)
+            for i in df_crsloc.itertuples()
+        ]
     # Rename to prepare for crossection geom
     _gdf_crsloc = df_crsloc.rename(
-        columns={c: f"crsloc_{c}" for c in df_crsloc.columns if c not in ["crs_id", "geometry"]}
+        columns={
+            c: f"crsloc_{c}"
+            for c in df_crsloc.columns
+            if c not in ["crs_id", "geometry"]
+        }
     )
 
     # Combine def attributes with locs for crossection geom
     gdf_crs = _gdf_crsloc.merge(_gdf_crsdef, on="crs_id")
     gdf_crs = gpd.GeoDataFrame(gdf_crs, crs=gdf.crs)
 
-    # # Add attributes of regular crossection shapes to branches (trapezoid cannot be added back due to being converted to zw)
-    # # FIXME review: maybe only add for pipes/tunnels
+    # # # Add attributes of regular crossection shapes to branches (trapezoid cannot be added back due to being converted to zw)
 
-    # combine def attributes with locs for branches geom
-    df_crs =  df_crsloc.merge(df_crsdef.drop(columns = ['branchid']), on="crs_id")
-    # Rename for branches
-    df_crs = df_crs.rename(
-        columns={"branchid": "branchId",
-                 "frictionid": "frictionId",
-                 "type": "shape"}
-    )
+    # # combine def attributes with locs for branches geom
+    # df_crs =  df_crsloc.merge(df_crsdef.drop(columns = ['branchid']), on="crs_id")
+    # # Rename for branches
+    # df_crs = df_crs.rename(
+    #     columns={"branchid": "branchId",
+    #              "frictionid": "frictionId",
+    #              "type": "shape"}
+    # )
 
-    gdf_out = gdf.copy()
-    # rectangle
-    rectangle_index = df_crs["shape"] == "rectangle"
-    if rectangle_index.any():
-        df_crs.loc[rectangle_index, "bedlev"] = df_crs.loc[rectangle_index, "shift"]
-        gdf_out = gdf_out.merge(
-            df_crs.loc[rectangle_index,
-                ["branchId", "shape", "width", "height", "bedlev", "frictionId"]
-            ].drop_duplicates(subset="branchId"),
-            on="branchId",
-            how="left",
-        )
+    # gdf_out = gdf.copy()
+    # # rectangle
+    # rectangle_index = df_crs["shape"] == "rectangle"
+    # if rectangle_index.any():
+    #     df_crs.loc[rectangle_index, "bedlev"] = df_crs.loc[rectangle_index, "shift"]
+    #     gdf_out = gdf_out.merge(
+    #         df_crs.loc[rectangle_index,
+    #             ["branchId", "shape", "width", "height", "bedlev", "frictionId"]
+    #         ].drop_duplicates(subset="branchId"),
+    #         on="branchId",
+    #         how="left",
+    #     )
 
-    # circle
-    circle_index = df_crs["shape"] == "circle"
-    if circle_index.any():
-        circle_index_up = (
-            df_crs[circle_index].apply(lambda x: x["chainage"] == 0, axis=1).index
-        )
-        circle_index_dn = (
-            df_crs[circle_index]
-            .apply(lambda x: x["chainage"] == x["geometry"].length, axis=1)
-            .index
-        )
-        df_crs.loc[circle_index_up, "invlev_up"] = df_crs.loc[circle_index_up, "shift"]
-        df_crs.loc[circle_index_dn, "invlev_dn"] = df_crs.loc[circle_index_dn, "shift"]
-    # Merge
-    gdf_out = gdf_out.merge(
-        df_crs.loc[
-            circle_index.index,
-            [
-                "branchId",
-                "shape",
-                "width",
-                "height",
-                "bedlev",
-                "diameter",
-                "invlev_up",
-                "invlev_dn",
-                "frictionId",
-            ],
-        ].drop_duplicates(subset="branchId"),
-        on="branchId",
-        how="left",
-    )
+    # # circle
+    # circle_index = df_crs["shape"] == "circle"
+    # if circle_index.any():
+    #     circle_index_up = (
+    #         df_crs[circle_index].apply(lambda x: x["chainage"] == 0, axis=1).index
+    #     )
+    #     circle_index_dn = (
+    #         df_crs[circle_index]
+    #         .apply(lambda x: x["chainage"] == x["geometry"].length, axis=1)
+    #         .index
+    #     )
+    #     df_crs.loc[circle_index_up, "invlev_up"] = df_crs.loc[circle_index_up, "shift"]
+    #     df_crs.loc[circle_index_dn, "invlev_dn"] = df_crs.loc[circle_index_dn, "shift"]
+    # # Merge
+    # gdf_out = gdf_out.merge(
+    #     df_crs.loc[
+    #         circle_index.index,
+    #         [
+    #             "branchId",
+    #             "shape",
+    #             "width",
+    #             "height",
+    #             "bedlev",
+    #             "diameter",
+    #             "invlev_up",
+    #             "invlev_dn",
+    #             "frictionId",
+    #         ],
+    #     ].drop_duplicates(subset="branchId"),
+    #     on="branchId",
+    #     how="left",
+    # )
 
-    return gdf_out, gdf_crs
+    return gdf_crs
 
 
 def write_crosssections(gdf: gpd.GeoDataFrame, savedir: str) -> Tuple[str, str]:
@@ -316,7 +320,7 @@ def write_crosssections(gdf: gpd.GeoDataFrame, savedir: str) -> Tuple[str, str]:
     gpd_crsloc = gpd_crsloc.rename(
         columns={c: c.removeprefix("crsloc_") for c in gpd_crsloc.columns}
     )
-    # FIXME Xiaohan: I dont think we need to put crossection back to the branches. But then again that means if the branch change, the crossection will also change
+
     # add x,y column --> hydrolib value_error: branchId and chainage or x and y should be provided
     # x,y would make reading back much faster than re-computing from branchid and chainage....
     # xs, ys = np.vectorize(lambda p: (p.xy[0][0], p.xy[1][0]))(gdf["geometry"])
@@ -325,9 +329,7 @@ def write_crosssections(gdf: gpd.GeoDataFrame, savedir: str) -> Tuple[str, str]:
 
     crsloc = CrossLocModel(crosssection=gpd_crsloc.to_dict("records"))
 
-    crsloc_fn = (
-        crsloc._filename() + ".ini"
-    )  # FIXME Xiaohan, why crsloc._ext() does not exist
+    crsloc_fn = crsloc._filename() + ".ini"
     crsloc.save(
         join(savedir, crsloc_fn),
         recurse=False,
@@ -344,16 +346,17 @@ def read_friction(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFrame:
     Parameters
     ----------
     gdf: geopandas.GeoDataFrame
-        gdf containing the branches
+        gdf containing the crosssections
     fm_model: hydrolib.core FMModel
         DflowFM model object from hydrolib
 
     Returns
     -------
     gdf_out: geopandas.GeoDataFrame
-        gdf containing the branches update with the friction params
+        gdf containing the crosssections updated with the friction params
     """
     fric_list = fm_model.geometry.frictfile
+    # TODO: check if read/write crosssections can automatically parse it?
 
     # Create dictionnaries with all attributes from fricfile
     # For now assume global only
@@ -368,30 +371,25 @@ def read_friction(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFrame:
                 fric_list[i].global_[j].frictiontype
             )
 
-    # if not "frictionId" in gdf:
-    #    gdf = read_crosssections(gdf, fm_model)
-
     # Create friction value and type by replacing frictionid values with dict
     gdf_out = gdf.copy()
-    gdf_out["frictionValue"] = gdf_out["frictionId"]
+    gdf_out["frictionValue"] = gdf_out["crsdef_frictionId"]
     gdf_out["frictionValue"] = gdf_out["frictionValue"].replace(fricval)
-    gdf_out["frictionType"] = gdf_out["frictionId"]
+    gdf_out["frictionType"] = gdf_out["crsdef_frictionId"]
     gdf_out["frictionType"] = gdf_out["frictionType"].replace(frictype)
-    # TODO: check, for splitted river branches, friction and cross-sections were not saved and cannot be read?
-    # FIXME Xiaohan: check above, could be related to the crossection fixes in the other branches.
-    gdf_out = gdf_out.dropna(subset="frictionId")
+    # gdf_out = gdf_out.dropna(subset="frictionId")
 
     return gdf_out
 
 
 def write_friction(gdf: gpd.GeoDataFrame, savedir: str) -> List[str]:
     """
-    write friction files from branches geodataframe
+    write friction files from crosssections geodataframe
 
     Parameters
     ----------
     gdf: geopandas.GeoDataFrame
-        gdf containing the branches
+        gdf containing the crosssections
     savedir: str
         path to the directory where to save the file.
 
@@ -400,7 +398,17 @@ def write_friction(gdf: gpd.GeoDataFrame, savedir: str) -> List[str]:
     friction_fns: List of str
         list of relative filepaths to friction files.
     """
-    frictions = gdf[["frictionId", "frictionValue", "frictionType"]]
+    frictions = gdf[["crsdef_frictionId", "frictionValue", "frictionType"]]
+    # Remove nan
+    frictions = frictions.rename(columns={"crsdef_frictionId": "frictionId"})
+    frictions = frictions.dropna(subset="frictionId")
+    # For xyz crosssections, column name is frictionids instead of frictionid
+    if "crsdef_frictionIds" in gdf:
+        # For now assume unique and not list
+        frictionsxyz = gdf[["crsdef_frictionIds", "frictionValue", "frictionType"]]
+        frictionsxyz = frictionsxyz.dropna(subset="crsdef_frictionIds")
+        frictionsxyz = frictionsxyz.rename(columns={"crsdef_frictionIds": "frictionId"})
+        frictions = pd.concat([frictions, frictionsxyz])
     frictions = frictions.drop_duplicates(subset="frictionId")
 
     friction_fns = []
@@ -418,27 +426,24 @@ def write_friction(gdf: gpd.GeoDataFrame, savedir: str) -> List[str]:
     return friction_fns
 
 
-def read_manholes(
-    gdf: gpd.GeoDataFrame, fm_model: FMModel
-) -> tuple((gpd.GeoDataFrame, gpd.GeoDataFrame)):
+def read_manholes(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFrame:
     """
-    Read manholes from hydrolib-core storagenodes and add to branches.
-    Also returns manholes geodataframe.
+    Read manholes from hydrolib-core storagenodes and network 1d nodes for locations.
+    Returns manholes geodataframe.
 
     Parameters
     ----------
     gdf: geopandas.GeoDataFrame
-        gdf containing the branches
+        gdf containing the network1d nodes
     fm_model: hydrolib.core FMModel
         DflowFM model object from hydrolib
 
     Returns
     -------
-    gdf_out: geopandas.GeoDataFrame
-        gdf containing the branches update with the manholes params
     gdf_manholes: geopandas.GeoDataFrame
-        geodataframe copy of the manholes and data
+        geodataframe of the manholes and data
     """
+    # TODO: use mesh1d instead of branches to get x, y coordinates
     manholes = fm_model.geometry.storagenodefile
     # Parse to dict and DataFrame
     manholes_dict = dict()
@@ -464,55 +469,11 @@ def read_manholes(
         }
     )
 
-    # FIXME Xiaohan: I dont think we need to add these back to the branches
-    # Add attributes to branches
-    df_man = df_manholes[["name", "bedLevel", "streetLevel"]]
-    df_man_up = df_man.rename(
-        columns={
-            "name": "manhole_up",
-            "streetLevel": "elevtn_up",
-            "bedLevel": "invlev_up",
-        }
+    gdf_manholes = gpd.GeoDataFrame(
+        df_manholes.merge(gdf, on="nodeId", how="left"), crs=gdf.crs
     )
-    df_man_dn = df_man.rename(
-        columns={
-            "name": "manhole_dn",
-            "streetLevel": "elevtn_dn",
-            "bedLevel": "invlev_dn",
-        }
-    )
-    gdf_out = gdf.merge(df_man_up, on="manhole_up", how="left")
-    gdf_out = gdf_out.merge(df_man_dn, on="manhole_dn", how="left")
 
-    # Add coordinates
-    up_coord = gdf_out["geometry"].apply(
-        lambda g: Point(g.coords[0]) if isinstance(g, LineString) else g
-    )
-    gdf_man_up = gdf_out[["manhole_up", "geometry"]].rename(
-        columns={"manhole_up": "name"}
-    )
-    gdf_man_up["geometry"] = up_coord
-    df_manholes = df_manholes.merge(gdf_man_up, on="name", how="left")
-    # Do also dowsntream else the most downstream manholes will be missed
-    dn_coord = gdf_out["geometry"].apply(
-        lambda g: Point(g.coords[-1]) if isinstance(g, LineString) else g
-    )
-    gdf_man_dn = gdf_out[["manhole_dn", "geometry"]].rename(
-        columns={"manhole_dn": "name"}
-    )
-    gdf_man_dn["geometry"] = dn_coord
-    df_manholes = df_manholes.merge(gdf_man_dn, on="name", how="left")
-    df_manholes["geometry"] = df_manholes["geometry_x"].where(
-        df_manholes["geometry_x"] != None, df_manholes["geometry_y"]
-    )
-    df_manholes = df_manholes.drop(
-        ["geometry_x", "geometry_y"], axis=1
-    ).drop_duplicates()
-
-    # Convert to geodataframe
-    gdf_manholes = gpd.GeoDataFrame(df_manholes, crs=gdf.crs)
-
-    return gdf_out, gdf_manholes
+    return gdf_manholes
 
 
 def write_manholes(gdf: gpd.GeoDataFrame, savedir: str) -> str:
@@ -533,9 +494,7 @@ def write_manholes(gdf: gpd.GeoDataFrame, savedir: str) -> str:
     """
     storagenodes = StorageNodeModel(storagenode=gdf.to_dict("records"))
 
-    storage_fn = (
-        storagenodes._filename() + ".ini"
-    )  # FIXME Xiaohan why there is not ._ext()
+    storage_fn = storagenodes._filename() + ".ini"
     storagenodes.save(
         join(savedir, storage_fn),
         recurse=False,

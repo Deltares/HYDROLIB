@@ -39,12 +39,20 @@ def invert_levels_from_dem(
         Depth of the pipes under the ground in meters. Should be a postive value. By default 2.0 meters
     """
     # Upstream
-    upnodes = gpd.GeoDataFrame({"geometry": [Point(l.coords[0]) for l in gdf.geometry]}, index=gdf.index, crs=gdf.crs)
+    upnodes = gpd.GeoDataFrame(
+        {"geometry": [Point(l.coords[0]) for l in gdf.geometry]},
+        index=gdf.index,
+        crs=gdf.crs,
+    )
 
     # reproject of dem is done in sample method
     gdf["elevtn_up"] = dem.raster.sample(upnodes).values
     # Downstream
-    dnnodes = gpd.GeoDataFrame({"geometry": [Point(l.coords[-1]) for l in gdf.geometry]}, index=gdf.index, crs=gdf.crs)
+    dnnodes = gpd.GeoDataFrame(
+        {"geometry": [Point(l.coords[-1]) for l in gdf.geometry]},
+        index=gdf.index,
+        crs=gdf.crs,
+    )
     gdf["elevtn_dn"] = dem.raster.sample(dnnodes).values
 
     def invert_levels_cross_sections(shape: str, attribute: str):

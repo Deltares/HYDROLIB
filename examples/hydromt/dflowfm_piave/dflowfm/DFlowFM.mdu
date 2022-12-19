@@ -21,7 +21,7 @@
     pillarFile                 =                                             # <*_pillar.pliz>, Polyline file containing four colums with x, y, diameter and Cd coefficient for bridge pillars.
     useCaching                 = 0                                           # Use caching for geometrical/network-related items (0: no, 1: yes) (section C.19).
     vertPlizFile               =                                             # <*_vlay.pliz>), = pliz with x, y, Z, first Z = nr of layers, second Z = laytyp.
-    frictFile                  = roughness_W-0p003.ini;roughness_M-0p023.ini # Location of the files with roughness data for 1D.
+    frictFile                  = roughness_M-0p023.ini;roughness_W-0p003.ini # Location of the files with roughness data for 1D.
     crossDefFile               = crsdef.ini                                  # Cross section definitions for all cross section shapes.
     crossLocFile               = crsloc.ini                                  # Location definitions of the cross sections on a 1D network.
     storageNodeFile            = nodeFile.ini                                # File containing the specification of storage nodes and/or manholes to add extra storage to 1D models.
