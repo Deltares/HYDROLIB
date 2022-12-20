@@ -1,0 +1,10 @@
+site_name: HydroLogic_Inundation_Toolbox
+
+theme:
+  name: "material"
+
+plugins:
+  - search
+
+nav:
+  - Home: "index.md"

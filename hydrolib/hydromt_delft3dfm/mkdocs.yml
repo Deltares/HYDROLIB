@@ -1,0 +1,21 @@
+site_name: hydromt_delft3dfm
+
+
+nav:
+  - Home: "index.md"
+  - Getting started: 
+    - "getting_started/index.md"
+    - Installation guide: "getting_started/installation_guide.md"
+    - Examples: "getting_started/examples.md"
+    - User's stories: "getting_started/users_stories.md"
+    - Frequently asked questions: "getting_started/frequently_asked_questions.md"
+  - User Guide: 
+    - "user_guide/index.md"
+    - Working with the Delft3D FM model: 
+      - "user_guide/working_with_the_delft3dfm_model/index.md"
+      - Model methods and components: "user_guide/working_with_the_delft3dfm_model/model_methods_and_components.md"
+      - Building a model: "user_guide/working_with_the_delft3dfm_model/building_a_model.md"
+      - Updating a model: "user_guide/working_with_the_delft3dfm_model/updating_a_model.md"
+  - API reference: "reference/api.md"
+  - Developments: developments/developments.md
+
