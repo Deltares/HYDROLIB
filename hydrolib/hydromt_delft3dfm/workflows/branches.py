@@ -157,7 +157,6 @@ def update_data_columns_attribute_from_query(
 
 def process_branches(
     branches: gpd.GeoDataFrame,
-    branch_nodes: gpd.GeoDataFrame,
     id_col: str = "branchId",
     snap_offset: float = 0.01,
     allow_intersection_snapping: bool = True,
@@ -170,8 +169,6 @@ def process_branches(
     ----------
     branches: gpd.GeoDataFrame
         The branches to process.
-    branch_nodes: gpd.GeoDataFrame
-        Branch nodes.
     id_col: str, optional
         Defalt to branchId.
     snap_offset : float, optional
@@ -293,7 +290,7 @@ def cleanup_branches(
         id_prefix = 100  # branches_ini["global"]["id_prefix"]
         id_suffix = 100  # branches_ini["global"]["id_suffix"]
         branches[id_col] = [
-            id_prefix + "_" + str(x) + "_" + id_suffix for x in range(len(branches))
+            f"{id_prefix}_{x}_{id_suffix}" for x in range(len(branches))
         ]
         logger.warning(
             f"id_col is not specified. Branch id columns are read/generated using default: {id_col}."
@@ -741,8 +738,6 @@ def snap_branch_ends(
     # determine which branches should be included
     if len(subsets) > 0:
         _endpoints = [[i for i in _endpoints if i[1] in subsets]]
-    else:
-        _endpoints = _endpoints
 
     # # group branch ends based on off set
     groups = {}

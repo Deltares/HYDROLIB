@@ -371,7 +371,6 @@ class DFlowFMModel(MeshModel):
         self.logger.info(f"Processing branches")
         branches, branches_nodes = workflows.process_branches(
             gdf_br,
-            branch_nodes=None,
             id_col="branchId",
             snap_offset=snap_offset,
             allow_intersection_snapping=allow_intersection_snapping,
