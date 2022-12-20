@@ -1752,7 +1752,8 @@ class DFlowFMModel(MeshModel):
             reproject_method=reproject_method,
             name=name,
             split_dataset=split_dataset,
-        )  # Updates the reclass_variables (Please check)
+            **kwargs,
+        )
 
         allowed_methods = [
             "triangulation",
@@ -1793,7 +1794,7 @@ class DFlowFMModel(MeshModel):
         self.read_config()
         self.read_mesh()
         self.read_maps()
-        self.read_geoms()
+        self.read_geoms()  # needs mesh so should be done after
         self.read_forcing()
 
     def write(self):  # complete model
@@ -1846,6 +1847,7 @@ class DFlowFMModel(MeshModel):
         """From config dict to Hydrolib MDU"""
         # Not sure if this is worth it compared to just calling write_config super method
         # advantage is the validator but the whole model is then read when initialising FMModel
+        self._assert_write_mode
 
         cf_dict = self._config.copy()
         # Need to switch to dflowfm folder for files to be found and properly added
@@ -2007,6 +2009,7 @@ class DFlowFMModel(MeshModel):
         For branches / boundaries etc... the reading of hydrolib-core objects happens in read_mesh
         There the geoms geojson copies are re-set based on dflowfm files content.
         """
+        self._assert_read_mode
         super().read_geoms(fn="geoms/region.geojson")
 
         # Read cross-sections and friction
@@ -2062,6 +2065,7 @@ class DFlowFMModel(MeshModel):
 
     def read_forcing(self) -> None:
         """Read forcing at <root/?/> and parse to dict of xr.DataArray"""
+        self._assert_read_mode
         # Read external forcing
         ext_model = self.dfmmodel.external_forcing.extforcefilenew
         if ext_model is not None:
@@ -2235,15 +2239,14 @@ class DFlowFMModel(MeshModel):
         # First tries in geoms
         if "region" in self.geoms:
             region = self.geoms["region"]
-        # Else derives from branches
+        # Else derives from mesh or branches
         else:
-            # if self.branches is not None:
-            #     bounds = self.branches.total_bounds
-            #     crs = self.branches.crs
-            # Else tries from mesh
             if self.mesh is not None:
                 bounds = self.mesh.ugrid.total_bounds
                 crs = self.mesh.ugrid.grid.crs
+            elif self.branches is not None:
+                bounds = self.branches.total_bounds
+                crs = self.branches.crs
             else:
                 # Finally raise error assuming model is empty
                 self.logger.error(
