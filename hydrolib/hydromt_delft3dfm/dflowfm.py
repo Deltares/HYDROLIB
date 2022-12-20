@@ -19,12 +19,8 @@ from hydromt.models import MeshModel
 from shapely.geometry import box, LineString
 from datetime import datetime, timedelta
 
-from hydrolib.core.io.dflowfm.mdu.models import FMModel
-from hydrolib.core.io.dflowfm.net.models import Network, Mesh1d
-from hydrolib.core.io.dflowfm.inifield.models import IniFieldModel
-
-# from hydrolib.core.io.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
-from hydrolib.core.io.dimr.models import DIMR, FMComponent, Start
+from hydrolib.core.dflowfm import FMModel, Mesh1d, IniFieldModel, Network
+from hydrolib.core.dimr import DIMR, FMComponent, Start
 
 from hydrolib.dhydamo.geometry import mesh
 

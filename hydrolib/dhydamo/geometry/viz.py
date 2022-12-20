@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
-from hydrolib.core.io.dflowfm.net.models import Network
+from hydrolib.core.dflowfm import Network
 
 
 def plot_network(

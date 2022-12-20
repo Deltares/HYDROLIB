@@ -9,13 +9,17 @@ import xarray as xr
 import numpy as np
 from shapely.geometry import Point, LineString
 
-from hydrolib.core.io.dflowfm.mdu.models import FMModel
-from hydrolib.core.io.dflowfm.friction.models import FrictionModel
-from hydrolib.core.io.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
-from hydrolib.core.io.dflowfm.storagenode.models import StorageNodeModel
-from hydrolib.core.io.dflowfm.ext.models import ExtModel, Boundary
-from hydrolib.core.io.dflowfm.bc.models import ForcingModel
-from hydrolib.core.io.dflowfm.gui.models import BranchModel
+from hydrolib.core.dflowfm import (
+    FMModel,
+    FrictionModel,
+    CrossDefModel,
+    CrossLocModel,
+    StorageNodeModel,
+    ExtModel,
+    Boundary,
+    ForcingModel,
+    BranchModel,
+)
 
 from .workflows import helper
 
