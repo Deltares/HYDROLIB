@@ -1783,6 +1783,17 @@ class DFlowFMModel(MeshModel):
                     self._MAPS[var]["averagingrelsize"] = relsize
 
     # ## I/O
+    # TODO: remove after hydromt 0.6.1 release 
+    @property
+    def _assert_write_mode(self):
+        if not self._write:
+            raise IOError("Model opened in read-only mode")
+    # TODO: remove after hydromt 0.6.1 release 
+    @property
+    def _assert_read_mode(self):
+        if not self._read:
+            raise IOError("Model opened in write-only mode")
+    
     def read(self):
         """Method to read the complete model schematization and configuration from file."""
         self.logger.info(f"Reading model data from {self.root}")
