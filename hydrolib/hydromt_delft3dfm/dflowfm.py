@@ -1889,8 +1889,8 @@ class DFlowFMModel(MeshModel):
                     _fn = inidict.datafile.filepath
                     # Bug: when initialising IniFieldModel hydrolib-core does not parse correclty the relative path
                     # For now re-update manually....
-                    if not isfile(_fn):
-                        _fn = join(self.root, "maps", _fn.name)
+                    # if not isfile(_fn): -> this does not work in linux... always update
+                    _fn = join(self.root, "maps", _fn.name)
                     inimap = hydromt.io.open_raster(_fn)
                     name = inidict.quantity
                     # Need to get frictiontype from config
