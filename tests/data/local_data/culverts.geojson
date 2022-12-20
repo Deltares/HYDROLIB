@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "culverts",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "STRUC_ID": "culvert_1", "NAME": "culvert_1", "BRANCH_ID": "branch_13", "STRUC_TYPE": "culvert", "FLOW_DIR": "positive", "INVLEV_UP": 2.56, "INVLEV_DN": 2.5, "LENGTH": 10.0, "DIAMETER": null, "WIDTH": 1.5, "HEIGHT": 1.5, "VALVE_ON": "FALSE", "MATERIAL": "concrete", "ROUGH_TYPE": null, "SHAPE": "rectangle", "VALVE_O_H": null, "IN_LOSS": null, "OUT_LOSS": null, "IS_MAIN": null, "ROUGH_VAL": null }, "geometry": { "type": "Point", "coordinates": [ 665186.754018069244921, 1525896.07843215460889 ] } }
+]
+}

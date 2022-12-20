@@ -4,7 +4,7 @@ import pytest
 from meshkernel.py_structures import DeleteMeshOption
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box
 
-from hydrolib.core.io.mdu.models import FMModel
+from hydrolib.core.dflowfm import FMModel
 from hydrolib.dhydamo.geometry import common, mesh, viz
 from hydrolib.dhydamo.geometry.models import GeometryList
 

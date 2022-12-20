@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"name": "bridges",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "STRUC_ID": "bridge_1", "NAME": "tower bridge", "BRANCH_ID": "branch_12", "STRUC_TYPE": "bridge", "FLOW_DIR": "positive", "LENGTH": 10.0, "DIAMETER": null, "WIDTH": 2.0, "HEIGHT": 1.55, "T_WIDTH": null, "BEDLEV": 2.34, "IN_LOSS": null, "OUT_LOSS": null, "MATERIAL": "concrete", "IS_MAIN": null, "SHAPE": "rectangle", "CLOSED": "no", "ROUGH_VAL": null, "ROUGH_TYPE": null }, "geometry": { "type": "Point", "coordinates": [ 665021.849053248995915, 1525588.928306785644963 ] } },
+{ "type": "Feature", "properties": { "STRUC_ID": "bridge_2", "NAME": "bridge_2", "BRANCH_ID": "branch_3", "STRUC_TYPE": "bridge", "FLOW_DIR": "both", "LENGTH": 5.0, "DIAMETER": null, "WIDTH": 5.0, "HEIGHT": 1.8, "T_WIDTH": null, "BEDLEV": 2.37, "IN_LOSS": 0.8, "OUT_LOSS": 0.82, "MATERIAL": "concrete", "IS_MAIN": null, "SHAPE": "rectangle", "CLOSED": "yes", "ROUGH_VAL": null, "ROUGH_TYPE": null }, "geometry": { "type": "Point", "coordinates": [ 665599.689329552114941, 1525859.454655284294859 ] } }
+]
+}

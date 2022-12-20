@@ -30,8 +30,8 @@ __all__ = [
     "write_shp",
     "parse_ini",
     "append_data_columns_based_on_ini_query",
-    "check_geodataframe",
     "split_lines",
+    "check_geodataframe",
     "check_gpd_attributes",
 ]
 
@@ -143,7 +143,7 @@ def parse_ini(ini_fn) -> dict:
     return config_
 
 
-## GeoDataFrame handling
+## GeoDataFrame handeling
 
 
 def slice_geodataframe(
@@ -340,7 +340,7 @@ def write_shp(data: gpd.GeoDataFrame, filename: str, columns: list = None):
             gpd.GeoDataFrame(data).to_file(filename, index=False)
 
 
-# data handeling
+# data handling
 
 
 def append_data_columns_based_on_ini_query(
@@ -436,7 +436,10 @@ def check_geodataframe(gdf: gpd.GeoDataFrame):
 ## geometry
 def cut_pieces(line, distances):
     """cut a line into pieces based on distances"""
-    distances.insert(0, 0)
+    if distances[0] != 0:
+        distances.insert(0, 0)
+    if distances[-1] == line.length:
+        distances.pop(-1)
     pieces = [line]
     for d in np.diff(np.sort(distances)):
         line = pieces.pop(-1)

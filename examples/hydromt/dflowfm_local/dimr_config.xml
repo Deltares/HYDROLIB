@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dimrConfig xmlns="http://schemas.deltares.nl/dimr" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schemas.deltares.nl/dimr http://content.oss.deltares.nl/schemas/dimr-1.3.xsd">
+  <documentation>
+    <fileVersion>1.3</fileVersion>
+    <createdBy>hydrolib-core 0.3.1</createdBy>
+    <creationDate>2022-12-15T13:45:42.653171</creationDate>
+  </documentation>
+  <control>
+    <start name="dflowfm"/>
+  </control>
+  <component name="dflowfm">
+    <library>dflowfm</library>
+    <workingDir>dflowfm</workingDir>
+    <inputFile>DFlowFM.mdu</inputFile>
+  </component>
+</dimrConfig>

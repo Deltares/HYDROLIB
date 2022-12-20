@@ -1,0 +1,22 @@
+{
+"type": "FeatureCollection",
+"name": "manholes",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "BEDLEV": 1.0, "AREA": 1.0, "STREETLEV": 3.0, "IS_MANHOLE": "TRUE", "DEPTH": null, "ID": "MH_2", "IS_MAIN": null, "STR_AREA": 500.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 664438.813829420600086, 1525829.800284768920392 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": 1.5, "AREA": 1.0, "STREETLEV": 3.0, "IS_MANHOLE": "TRUE", "DEPTH": null, "ID": "MH_1", "IS_MAIN": null, "STR_AREA": 500.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 664190.385799999814481, 1525924.032600000267848 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": null, "IS_MANHOLE": "TRUE", "DEPTH": null, "ID": "MH_4", "IS_MAIN": null, "STR_AREA": 500.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 664217.490140905487351, 1525583.23970616585575 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": null, "IS_MANHOLE": "TRUE", "DEPTH": null, "ID": "MH_5", "IS_MAIN": null, "STR_AREA": 400.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 663936.864700614358298, 1525261.152571672573686 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": null, "IS_MANHOLE": "TRUE", "DEPTH": null, "ID": "MH_6", "IS_MAIN": null, "STR_AREA": 400.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 663871.550461587961763, 1525175.738024139311165 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": null, "IS_MANHOLE": "TRUE", "DEPTH": 2.0, "ID": "MH_7", "IS_MAIN": null, "STR_AREA": 400.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 664048.325319660594687, 1525098.071112430887297 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": 3.0, "IS_MANHOLE": "TRUE", "DEPTH": null, "ID": "MH_8", "IS_MAIN": null, "STR_AREA": 500.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 664481.894200000097044, 1525830.303300000727177 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": null, "IS_MANHOLE": "TRUE", "DEPTH": 2.0, "ID": "MH_9", "IS_MAIN": null, "STR_AREA": 500.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 664702.726926030125469, 1525750.098550153663382 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": null, "IS_MANHOLE": "TRUE", "DEPTH": 2.0, "ID": "MH_10", "IS_MAIN": null, "STR_AREA": 500.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 664747.433496630517766, 1525729.649799561593682 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": null, "IS_MANHOLE": "TRUE", "DEPTH": 2.0, "ID": "MH_11", "IS_MAIN": null, "STR_AREA": 500.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 665219.643113493453711, 1525514.959856803994626 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": null, "IS_MANHOLE": "TRUE", "DEPTH": 2.0, "ID": "MH_12", "IS_MAIN": null, "STR_AREA": 500.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 665292.615320706507191, 1525470.849516379414126 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": null, "IS_MANHOLE": "TRUE", "DEPTH": 2.0, "ID": "MH_13", "IS_MAIN": null, "STR_AREA": 500.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 665277.574117646785453, 1525446.393194784643129 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": null, "IS_MANHOLE": "TRUE", "DEPTH": 2.0, "ID": "MH_14", "IS_MAIN": null, "STR_AREA": 500.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 664708.738620752468705, 1524483.144798168679699 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": null, "IS_MANHOLE": "TRUE", "DEPTH": 2.0, "ID": "MH_15", "IS_MAIN": null, "STR_AREA": 500.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 664849.475700000301003, 1525031.354499999433756 ] } },
+{ "type": "Feature", "properties": { "BEDLEV": null, "AREA": 1.0, "STREETLEV": null, "IS_MANHOLE": "TRUE", "DEPTH": null, "ID": "MH_16", "IS_MAIN": null, "STR_AREA": 500.0, "NAME": null }, "geometry": { "type": "Point", "coordinates": [ 665724.630373878288083, 1525343.362787432270125 ] } }
+]
+}

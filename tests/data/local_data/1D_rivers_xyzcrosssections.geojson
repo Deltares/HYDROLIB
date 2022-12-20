@@ -1,0 +1,11 @@
+{
+"type": "FeatureCollection",
+"name": "1D_rivers_xyz_crosssections",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "ORDER": 1, "X": null, "Y": null, "Z": 1.5, "CRS_ID": "CRS_CP_test", "layer": null, "path": null }, "geometry": { "type": "Point", "coordinates": [ 663467.053905815002508, 1525610.846236771903932, 0.0 ] } },
+{ "type": "Feature", "properties": { "ORDER": 2, "X": null, "Y": null, "Z": -10.0, "CRS_ID": "CRS_CP_test", "layer": null, "path": null }, "geometry": { "type": "Point", "coordinates": [ 663519.154118778300472, 1525571.77107704943046, 0.0 ] } },
+{ "type": "Feature", "properties": { "ORDER": 3, "X": null, "Y": null, "Z": -10.0, "CRS_ID": "CRS_CP_test", "layer": null, "path": null }, "geometry": { "type": "Point", "coordinates": [ 663661.127199103240855, 1525466.268145798705518, 0.0 ] } },
+{ "type": "Feature", "properties": { "ORDER": 4, "X": null, "Y": null, "Z": 1.5, "CRS_ID": "CRS_CP_test", "layer": null, "path": null }, "geometry": { "type": "Point", "coordinates": [ 663715.832422714680433, 1525421.982964779948816, 0.0 ] } }
+]
+}

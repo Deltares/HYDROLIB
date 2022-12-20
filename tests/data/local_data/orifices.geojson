@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "orifices",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "STRUC_ID": "orifice_1", "NAME": "orifice_example", "BRANCH_ID": "BRANCH_4", "STRUC_TYPE": "orifice", "FLOW_DIR": "both", "CREST_LEV": 2.5, "CREST_W": 7.5, "ORF_LEV": 4.0, "CORR_COEF": 0.7, "USE_VEL": "yes", "IS_MAIN": null }, "geometry": { "type": "Point", "coordinates": [ 665346.659376955241896, 1525982.895817694021389 ] } }
+]
+}

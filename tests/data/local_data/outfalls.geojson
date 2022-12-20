@@ -1,0 +1,15 @@
+{
+"type": "FeatureCollection",
+"name": "outfalls",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "OUTFALL_ID": "outfall_1", "NAME": "outfall_1", "PIPE_ID": "pipe_4", "CHAN_ID_UP": "branch_6", "CHAN_ID_DN": "branch_7", "IS_MAIN": null }, "geometry": { "type": "Point", "coordinates": [ 664429.038999999407679, 1526107.097999999299645 ] } },
+{ "type": "Feature", "properties": { "OUTFALL_ID": "outfall_2", "NAME": null, "PIPE_ID": "pipe_11", "CHAN_ID_UP": "branch_5", "CHAN_ID_DN": "branch_6", "IS_MAIN": null }, "geometry": { "type": "Point", "coordinates": [ 664474.13, 1526115.699999999254942 ] } },
+{ "type": "Feature", "properties": { "OUTFALL_ID": "outfall_3", "NAME": "outfall_3", "PIPE_ID": "pipe_17", "CHAN_ID_UP": "branch_2", "CHAN_ID_DN": "branch_3", "IS_MAIN": null }, "geometry": { "type": "Point", "coordinates": [ 665369.906399999978021, 1525431.441199999069795 ] } },
+{ "type": "Feature", "properties": { "OUTFALL_ID": "outfall_4", "NAME": "outfall_4", "PIPE_ID": "pipe_18", "CHAN_ID_UP": "branch_2", "CHAN_ID_DN": "branch_3", "IS_MAIN": null }, "geometry": { "type": "Point", "coordinates": [ 665369.906399999978021, 1525431.441199999069795 ] } },
+{ "type": "Feature", "properties": { "OUTFALL_ID": "outfall_5", "NAME": null, "PIPE_ID": "pipe_16", "CHAN_ID_UP": "branch_1", "CHAN_ID_DN": "branch_2", "IS_MAIN": null }, "geometry": { "type": "Point", "coordinates": [ 665356.868200001074001, 1525406.983500000322238 ] } },
+{ "type": "Feature", "properties": { "OUTFALL_ID": "outfall_6", "NAME": null, "PIPE_ID": "pipe_12", "CHAN_ID_UP": "branch_12", "CHAN_ID_DN": "branch_13", "IS_MAIN": null }, "geometry": { "type": "Point", "coordinates": [ 665030.18360000057146, 1525603.506899999454618 ] } },
+{ "type": "Feature", "properties": { "OUTFALL_ID": "outfall_7", "NAME": null, "PIPE_ID": "pipe_14", "CHAN_ID_UP": "branch_12", "CHAN_ID_DN": "branch_13", "IS_MAIN": null }, "geometry": { "type": "Point", "coordinates": [ 665030.18360000057146, 1525603.506899999454618 ] } },
+{ "type": "Feature", "properties": { "OUTFALL_ID": "outfall_8", "NAME": null, "PIPE_ID": "pipe_13", "CHAN_ID_UP": null, "CHAN_ID_DN": "branch_1", "IS_MAIN": null }, "geometry": { "type": "Point", "coordinates": [ 665115.70000000030268, 1524944.7899999988731 ] } }
+]
+}
