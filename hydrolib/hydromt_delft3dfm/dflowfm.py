@@ -1783,17 +1783,18 @@ class DFlowFMModel(MeshModel):
                     self._MAPS[var]["averagingrelsize"] = relsize
 
     # ## I/O
-    # TODO: remove after hydromt 0.6.1 release 
+    # TODO: remove after hydromt 0.6.1 release
     @property
     def _assert_write_mode(self):
         if not self._write:
             raise IOError("Model opened in read-only mode")
-    # TODO: remove after hydromt 0.6.1 release 
+
+    # TODO: remove after hydromt 0.6.1 release
     @property
     def _assert_read_mode(self):
         if not self._read:
             raise IOError("Model opened in write-only mode")
-    
+
     def read(self):
         """Method to read the complete model schematization and configuration from file."""
         self.logger.info(f"Reading model data from {self.root}")
@@ -1889,8 +1890,8 @@ class DFlowFMModel(MeshModel):
                     _fn = inidict.datafile.filepath
                     # Bug: when initialising IniFieldModel hydrolib-core does not parse correclty the relative path
                     # For now re-update manually....
-                    # if not isfile(_fn): -> this does not work in linux... always update
-                    _fn = join(self.root, "maps", _fn.name)
+                    if not isfile(_fn):
+                        _fn = join(self.root, "maps", _fn.name)
                     inimap = hydromt.io.open_raster(_fn)
                     name = inidict.quantity
                     # Need to get frictiontype from config

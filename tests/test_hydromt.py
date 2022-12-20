@@ -26,7 +26,7 @@ _models = {
         "ini": "dflowfm_build_local.ini",
         "model": DFlowFMModel,
         "data": join(TESTDATADIR, "test_data.yaml"),
-        "region": {"geom": "./data/local_data/1D_extent.geojson"},
+        "region": {"geom": f"{join(TESTDATADIR, 'local_data','1D_extent.geojson')}"},
         "snap_offset": 25,
     },
 }
