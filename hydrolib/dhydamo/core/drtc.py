@@ -1,12 +1,13 @@
 import logging
-import shutil
 import os
+import shutil
+import xml.etree.ElementTree as ET
+from datetime import datetime as dt
 from pathlib import Path
 from typing import Union
+
 import pandas as pd
 from pydantic import validate_arguments
-from datetime import datetime as dt
-import xml.etree.ElementTree as ET
 
 from hydrolib.core.io.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
@@ -278,13 +279,10 @@ class DRTCModel:
             filename (Union[Path, str]): filepath of the file to be written
         """
         configfile.write(filename)
-        xml = (
-            bytes(
-                '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n',
-                encoding="utf-8",
-            )
-            + ET.tostring(xmlroot)
-        )
+        xml = bytes(
+            '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n',
+            encoding="utf-8",
+        ) + ET.tostring(xmlroot)
         xml = xml.decode("utf-8")
         with open(filename, "w+") as f:
             f.write(xml)
@@ -352,7 +350,6 @@ class DRTCModel:
         self.all_controllers.update(self.pid_controllers)
 
         for ikey, key in enumerate(self.all_controllers.keys()):
-
             controller = self.all_controllers[key]
 
             a = ET.SubElement(myroot[1], gn_brackets + "rule")
@@ -364,7 +361,6 @@ class DRTCModel:
             myroot[1].text = "\n"
 
             if "settings" in controller.keys():
-
                 settings = controller["settings"]
 
                 # rule type (PID)
@@ -526,7 +522,6 @@ class DRTCModel:
 
         # weir dependable data
         for ikey, key in enumerate(self.all_controllers.keys()):
-
             controller = self.all_controllers[key]
 
             # te importeren data
@@ -651,7 +646,6 @@ class DRTCModel:
         myroot = configfile.getroot()
 
         for key in self.all_controllers.keys():
-
             controller = self.all_controllers[key]
 
             if "settings" not in controller.keys():

@@ -29,7 +29,6 @@ class HyDAMO:
     """
 
     def __init__(self, extent_file=None):
-
         self.network = Network(self)
 
         self.structures = Structures(self)
@@ -253,7 +252,6 @@ class HyDAMO:
 
 class Network:
     def __init__(self, hydamo):
-
         self.hydamo = hydamo
 
         # Mesh 1d offsets
@@ -761,7 +759,6 @@ class Network:
 
         # For each branch
         for i_branch, branch in enumerate(sorted_branches.itertuples()):
-
             # Get branch coordinates. Round to 6 decimals to make sure that, due to precision errors in coordinates,
             # already existing first and/or end nodes are not recognized
             points = shapely.wkt.loads(
@@ -990,7 +987,6 @@ class Network:
             self.offsets[branch.Index] = offsets
 
         if structures is not None:
-
             # Get structure data from dfs
             ids_offsets = structures[["branchid", "chainage"]]
             idx = structures["branchid"] != ""
@@ -1000,7 +996,6 @@ class Network:
 
             # For each branch
             for branch_id, group in ids_offsets.groupby("branchid"):
-
                 # Check if structures are located at the same offset
                 u, c = np.unique(group["chainage"], return_counts=True)
                 if any(c > 1):
@@ -1026,7 +1021,6 @@ class Network:
 
                 # If any structures
                 if len(limits) > 2:
-
                     # also check if the calculation point are close enough to the structures
                     if max_dist_to_struc is not None:
                         additional = []
@@ -1145,7 +1139,6 @@ class CrossSections:
         self.convert = fmconverter.CrossSectionsIO(self)
 
     def get_roughness_description(self, roughnesstype, value):
-
         if np.isnan(float(value)):
             raise ValueError("Roughness value should not be NaN.")
 
@@ -1368,7 +1361,6 @@ class CrossSections:
     def add_crosssection_location(
         self, branchid, chainage, definition, minz=np.nan, shift=0.0
     ):
-
         descr = f"{branchid}_{chainage:.1f}"
         # Add cross section location
         self.crosssection_loc[descr] = {
@@ -1437,7 +1429,6 @@ class CrossSections:
         branches: ExtendedGeoDataFrame,
         roughness_variant: RoughnessVariant = None,
     ) -> dict:
-
         """
         Function to convert hydamo cross sections 'dwarsprofiel' to
         dflowfm input.
@@ -1743,7 +1734,6 @@ class ExternalForcings:
             name = "wlevpoly{:04d}".format(len(self.initial_waterdepth_polygons) + 1)
         # Add to geodataframe
         if polygon == None:
-
             new_df = pd.DataFrame(
                 {
                     "waterdepth": depth,
@@ -2086,7 +2076,6 @@ class Structures:
         frictiontype: str = None,
         friction: float = None,
     ) -> None:
-
         if allowedflowdir is None:
             allowedflowdir = "both"
         dct = pd.DataFrame(
@@ -2130,7 +2119,6 @@ class Structures:
         frictiontype: str = None,
         frictionvalue: float = None,
     ) -> None:
-
         if allowedflowdir is None:
             allowedflowdir = "both"
         if valveonoff is None:
@@ -2200,7 +2188,6 @@ class Structures:
         startleveldeliveryside: list = None,
         stopleveldeliveryside: list = None,
     ) -> None:
-
         if numstages is None:
             numstages = 1
         if orientation is None:

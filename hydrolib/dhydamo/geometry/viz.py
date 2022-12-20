@@ -12,7 +12,6 @@ def plot_network(
     mesh2d_kwargs: dict = None,
     links1d2d_kwargs: dict = None,
 ) -> None:
-
     if ax is None:
         fig, ax = plt.subplots()
         autoscale = True

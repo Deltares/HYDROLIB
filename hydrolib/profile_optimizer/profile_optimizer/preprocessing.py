@@ -1,15 +1,16 @@
-import pandas as pd
-import geopandas as gpd
-import xarray as xr
-from shapely.geometry import LineString
-from shapely.errors import ShapelyDeprecationWarning
-from pathlib import Path
-import numpy as np
-import warnings
-from hydrolib.core.io.crosssection.models import CrossLocModel
-from sympy import solve
-from sympy import Symbol
 import math
+import warnings
+from pathlib import Path
+
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import xarray as xr
+from shapely.errors import ShapelyDeprecationWarning
+from shapely.geometry import LineString
+from sympy import Symbol, solve
+
+from hydrolib.core.io.crosssection.models import CrossLocModel
 
 
 def search_window(b_start_value, bandwidth_perc, iterations):
@@ -19,17 +20,28 @@ def search_window(b_start_value, bandwidth_perc, iterations):
     b_waardes_binnen_zoekruimte = np.linspace(min_bound_b, max_bound_b, iterations)
     return b_waardes_binnen_zoekruimte
 
+
 # Ideas:
 # Checks with material (sand/clay/peat/etc) if talud & velocity are okay (vademecum)
+
 
 def determine_v_with_manning(d, talud, b, slope, kmanning):
     """Solve the Manning equation to find the velocity given the input parameters"""
     A = calculate_area(b, d, talud)
-    R = A / (b + math.sqrt(d ** 2 + (d * talud) ** 2) * 2)
+    R = A / (b + math.sqrt(d**2 + (d * talud) ** 2) * 2)
     V = R ** (2 / 3) * kmanning * slope ** (1 / 2)
     return V
 
-def check_QVA(Q_target: float, d: float, talud: float, b: float, slope: float, kmanning: float, allowed_variation=0.05):
+
+def check_QVA(
+    Q_target: float,
+    d: float,
+    talud: float,
+    b: float,
+    slope: float,
+    kmanning: float,
+    allowed_variation=0.05,
+):
     """Given an initial b (bottom width), check if the required discharge fits the profile at the desired velocity
 
     Following steps are done:
@@ -57,7 +69,9 @@ def check_QVA(Q_target: float, d: float, talud: float, b: float, slope: float, k
     """
     if b < 0:
         b = 1
-        print("First guess for bottom width was negative. Trying to find a positive bottom width, starting at 1 m...")
+        print(
+            "First guess for bottom width was negative. Trying to find a positive bottom width, starting at 1 m..."
+        )
 
     V = determine_v_with_manning(d, talud, b, slope, kmanning)
     A = calculate_area(b, d, talud)
@@ -68,15 +82,15 @@ def check_QVA(Q_target: float, d: float, talud: float, b: float, slope: float, k
     while abs(deviation_from_target) > allowed_variation:
         counter += 1
         stepsize = 0.05  # %
-        if deviation_from_target < - allowed_variation:
-            b *= (1+stepsize)
+        if deviation_from_target < -allowed_variation:
+            b *= 1 + stepsize
             V = determine_v_with_manning(d, talud, b, slope, kmanning)
             A = calculate_area(b, d, talud)
             Q = V * A
             deviation_from_target = (Q - Q_target) / Q_target
             print(f"Adjustment {counter}: new width: {b:.2f}, V: {V:.4f}, Q: {Q:.4f}")
         elif deviation_from_target > allowed_variation:
-            b *= (1-stepsize)
+            b *= 1 - stepsize
             V = determine_v_with_manning(d, talud, b, slope, kmanning)
             A = calculate_area(b, d, talud)
             Q = V * A
@@ -84,8 +98,10 @@ def check_QVA(Q_target: float, d: float, talud: float, b: float, slope: float, k
             print(f"Adjustment {counter}: new width: {b:.2f}, V: {V:.4f}, Q: {Q:.4f}")
 
         if counter == 30:
-            print("Failed to find suitable initial bottom width in 30 tries, please check if your inputs are correct "
-                  "and use the returned bottom width with caution.")
+            print(
+                "Failed to find suitable initial bottom width in 30 tries, please check if your inputs are correct "
+                "and use the returned bottom width with caution."
+            )
             return b
     else:
         return b
@@ -104,19 +120,19 @@ def bottom_width(kmanning, slope, talud, depth, V_target):
     Returns:
         Bottom width
     """
-    R_23 = V_target / (kmanning * slope ** (1/2))
-    b = Symbol('b')
+    R_23 = V_target / (kmanning * slope ** (1 / 2))
+    b = Symbol("b")
     A = calculate_area(b, depth, talud)
-    P = b + (2 * math.sqrt(depth ** 2 + (depth * talud) ** 2))
-    eq = (A/P) ** (2/3) - R_23
+    P = b + (2 * math.sqrt(depth**2 + (depth * talud) ** 2))
+    eq = (A / P) ** (2 / 3) - R_23
     return solve(eq, b)
+
 
 def calculate_area(width, depth, talud):
     return (width * depth) + (depth * depth * talud)
-    
-    
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     u_gewenst = 0.22
     afvoer = 1.5
     waterdiepte = 0.80
@@ -124,10 +140,19 @@ if __name__ == '__main__':
     verhang = 0.5 / 1400
     strickler_ks = 10
 
-    import plotly.express as px
     import numpy as np
+    import plotly.express as px
+
     x_vals = np.linspace(-1, 5, 1000)
-    fig = px.line(x=x_vals, y=[determine_v_with_manning(waterdiepte, talud_profiel, b, verhang, strickler_ks) for b in x_vals])
+    fig = px.line(
+        x=x_vals,
+        y=[
+            determine_v_with_manning(
+                waterdiepte, talud_profiel, b, verhang, strickler_ks
+            )
+            for b in x_vals
+        ],
+    )
     # fig.write_html("C:/local/check_v_with_manning.html")
 
     width = bottom_width(strickler_ks, verhang, talud_profiel, waterdiepte, u_gewenst)
