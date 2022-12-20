@@ -299,6 +299,7 @@ class ExternalForcingsIO:
         bcdct = {}
 
         for bndcnd in boundary_conditions.itertuples():
+
             if "waterstand" in bndcnd.typerandvoorwaarde:
                 quantity = "waterlevelbnd"
             elif "debiet" in bndcnd.typerandvoorwaarde:
@@ -547,6 +548,7 @@ class StructuresIO:
 
         rweirs = weirs[index == 0]
         for weir in rweirs.itertuples():
+
             weir_opening = opening[opening.stuwid == weir.globalid]
             weir_mandev = management_device[
                 management_device.kunstwerkopeningid
@@ -597,6 +599,7 @@ class StructuresIO:
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
+
             # check if a separate name field is present
             if "naam" in uweirs:
                 name = uweir.naam
@@ -768,6 +771,7 @@ class StructuresIO:
         Parameters corrspond to the HyDAMO DAMO2.2 objects.
         """
         for culvert in culverts.itertuples():
+
             # Generate cross section definition name
             if culvert.vormkoker == "Rond" or culvert.vormkoker == "Ellipsvormig":
                 crosssection = {"shape": "circle", "diameter": culvert.hoogteopening}
@@ -892,6 +896,7 @@ class StructuresIO:
 
         # Add sturing to pumps
         for pump in pumps.itertuples():
+
             # Find sturing for pump
             sturingidx = (management.pompid == pump.globalid).values
 

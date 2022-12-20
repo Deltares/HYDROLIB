@@ -269,6 +269,7 @@ class Greenhouse:
     """
 
     def __init__(self, drrmodel):
+
         self.drrmodel = drrmodel
         self.gh_nodes = {}
 

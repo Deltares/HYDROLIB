@@ -160,6 +160,7 @@ class HisResults(object):
 
         structure_list = []
         for s_ix, structure_type in enumerate(structure_types):
+
             # Firstly, load structure names from stored netcdf data, if not provide as input
             if structure_names_lists is None:
                 structure_names = np.array(

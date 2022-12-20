@@ -153,6 +153,7 @@ class DFLowFMModelWriter:
         self.structures += structs
 
     def bridges_to_dhydro_loop(self):
+
         for bridge in self.dfmmodel.structures.bridges.itertuples():
             struc = Bridge(
                 id=bridge.id,
@@ -184,6 +185,7 @@ class DFLowFMModelWriter:
         self.structures += structs
 
     def culverts_to_dhydro_loop(self):
+
         for culvert in self.dfmmodel.structures.culverts.itertuples():
             struc = Culvert(
                 id=culvert.id,
@@ -218,6 +220,7 @@ class DFLowFMModelWriter:
         self.structures += structs
 
     def pumps_to_dhydro_loop(self):
+
         for pump in self.dfmmodel.structures.pumps.itertuples():
             struc = Pump(
                 id=pump.id,

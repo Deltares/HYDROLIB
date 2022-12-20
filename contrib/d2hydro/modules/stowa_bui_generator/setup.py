@@ -3,7 +3,7 @@ import pkg_resources  # part of setuptools
 from setuptools import setup
 from src.stowabui import __version__
 
-# %%
+#%%
 with open("README.md", encoding="utf8") as f:
     long_description = f.read()
 

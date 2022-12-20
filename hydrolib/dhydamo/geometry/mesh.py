@@ -110,6 +110,7 @@ def mesh2d_add_triangular(
 
     meshkernel = network._mesh2d.meshkernel
     for polygon in common.as_polygon_list(polygon):
+
         # Interpolate coordinates on polygon with edge_length distance
         if edge_length is not None:
             polygon = common.interp_polygon(polygon, dist=edge_length)
@@ -263,6 +264,7 @@ def links1d2d_add_links_1d_to_2d(
 
 
 def _filter_links_on_idx(network: Network, keep: np.ndarray) -> None:
+
     # Select the remaining links
     network._link1d2d.link1d2d = network._link1d2d.link1d2d[keep]
     network._link1d2d.link1d2d_contact_type = network._link1d2d.link1d2d_contact_type[

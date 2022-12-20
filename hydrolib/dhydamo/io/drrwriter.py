@@ -98,6 +98,7 @@ class DRRWriter:
         """
         filepath = os.path.join(self.output_dir, "3B_NOD.TP")
         with open(filepath, "w") as f:
+
             # Unpaved nodes
             if any(self.rrmodel.unpaved.unp_nodes):
                 for _, dct in self.rrmodel.unpaved.unp_nodes.items():
@@ -194,6 +195,7 @@ class DRRWriter:
 
         filepath = os.path.join(self.output_dir, "3B_LINK.TP")
         with open(filepath, "w") as f:
+
             cnt = 0
             if any(self.rrmodel.unpaved.unp_nodes):
                 for _, dct in self.rrmodel.unpaved.unp_nodes.items():
@@ -629,9 +631,9 @@ class DRRWriter:
                 float_format="%.3f",
                 mode="a",
             )
-        # %%
+        #%%
 
-        # %%%
+        #%%%
         # evaporation
         filepath = os.path.join(self.output_dir, "DEFAULT.EVP")
         if isinstance(self.rrmodel.external_forcings.evap, str):

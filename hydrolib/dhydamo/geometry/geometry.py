@@ -234,6 +234,7 @@ def orthogonal_line(line, offset, width=1.0):
 
 
 def extend_linestring(line, near_pt, length):
+
     # Get the nearest end
     nearest_end = (0, 1) if line.project(near_pt) < line.length / 2 else (-1, -2)
 
@@ -371,6 +372,7 @@ class RasterPart:
         return idx
 
     def get_mask(self, polygon):
+
         valid = geometry_to_mask(
             polygon, self.lowerleft, abs(self.f.transform.a), self.shape
         )
@@ -378,6 +380,7 @@ class RasterPart:
 
 
 def geometry_to_mask(polygons, lowerleft, cellsize, shape):
+
     # Initialize mask
     mask = np.zeros(shape)
 
@@ -394,6 +397,7 @@ def geometry_to_mask(polygons, lowerleft, cellsize, shape):
 
 
 def get_mask(linestring, lowerleft, cellsize, shape, outline=1):
+
     # Create array from coordinate sequence
     path = np.vstack(linestring.coords[:])
 
@@ -464,6 +468,7 @@ def raster_in_parts(f, ncols, nrows, facedata=None):
 
 
 def rasterize_cells(facedata, prt):
+
     # Initialize mask
     # Create mask
     maskIm = PIL.Image.new("I", (prt.shape[1], prt.shape[0]), 0)
@@ -473,6 +478,7 @@ def rasterize_cells(facedata, prt):
     cellsize = abs(prt.f.transform.a)
 
     for row in facedata.itertuples():
+
         # Create array from coordinate sequence
         path = row.crds.copy()
         # Convert to (0,0) and step size 1
@@ -531,10 +537,12 @@ def raster_stats_fine_cells(rasterpath, facedata, stats=["mean"]):
     first = True
     i = 0
     with rasterio.open(rasterpath, "r") as f:
+
         # Split file in parts based on shape
         parts = raster_in_parts(f, ncols=250, nrows=250, facedata=facedata)
 
         for prt in parts:
+
             # Get values from array
             arr = prt.read(1)
             valid = arr != f.nodata
@@ -599,6 +607,7 @@ def waterdepth_ahn(dempath, facedata, outpath, column):
         parts = raster_in_parts(f, ncols=250, nrows=250, facedata=facedata)
 
         for prt in parts:
+
             # Get values from array
             arr = prt.read(1)
             valid = arr != f.nodata

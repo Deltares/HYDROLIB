@@ -14,10 +14,12 @@ from hydrolib.dhydamo.geometry import geometry
 
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
+
     # normal properties
     _metadata = ["required_columns", "geotype"] + gpd.GeoDataFrame._metadata
 
     def __init__(self, geotype, required_columns=None, logger=logging, *args, **kwargs):
+
         # Add logger object to self
         # FIXME: logging below results in error
         # self.logger = logger
@@ -154,6 +156,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             logger.debug(f"No projected CRS is given in ini-file")
 
     def set_data(self, gdf, index_col=None, check_columns=True, check_geotype=True):
+
         if not self.empty:
             self.delete_all()
 
@@ -628,6 +631,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
 
 class ExtendedDataFrame(pd.DataFrame):
+
     _metadata = ["required_columns"] + pd.DataFrame._metadata
 
     def __init__(self, required_columns=None, *args, **kwargs):
@@ -651,6 +655,7 @@ class ExtendedDataFrame(pd.DataFrame):
             self.dropna(inplace=True)
 
     def set_data(self, df, index_col):
+
         if not self.empty:
             self.delete_all()
 
@@ -670,6 +675,7 @@ class ExtendedDataFrame(pd.DataFrame):
         self._check_columns()
 
     def add_data(self, df):
+
         if not np.in1d(df.columns, self.columns).all():
             raise KeyError(
                 "The new df contains columns that are not present in the current df."

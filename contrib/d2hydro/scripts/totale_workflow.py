@@ -11,5 +11,5 @@ stochastics_json = Path(
 )
 project = Project(filepath=r"../data/stochast").from_stochastics(stochastics_json)
 
-# %%
+#%%
 project = Project.from_manifest(Path(r"../data/stochast/manifest.json"))

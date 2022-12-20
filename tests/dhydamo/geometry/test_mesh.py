@@ -11,6 +11,7 @@ from hydrolib.dhydamo.geometry.models import GeometryList
 
 @pytest.mark.plots
 def test_create_2d_rectilinear():
+
     # Define polygon
     bbox = (1.0, -2.0, 3.0, 4.0)
 
@@ -52,6 +53,7 @@ def _get_circle_polygon(
 
 @pytest.mark.plots
 def test_create_2d_rectilinear_within_circle():
+
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
 
@@ -80,6 +82,7 @@ def test_create_2d_rectilinear_within_circle():
 @pytest.mark.xfail
 @pytest.mark.plots
 def test_create_2d_triangular_within_circle():
+
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
 
@@ -247,6 +250,7 @@ def test_create_2d_triangular_within_circle():
 
 @pytest.mark.plots
 def test_create_2d_rectangular_from_multipolygon():
+
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -295,6 +299,7 @@ def test_create_2d_rectangular_from_multipolygon():
 @pytest.mark.xfail
 @pytest.mark.plots
 def test_create_2d_triangular_from_multipolygon():
+
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -330,6 +335,7 @@ def test_create_2d_triangular_from_multipolygon():
 
 @pytest.mark.plots
 def test_2d_clip_outside_polygon():
+
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -359,6 +365,7 @@ def test_2d_clip_outside_polygon():
 
 @pytest.mark.plots
 def test_2d_clip_inside_multipolygon():
+
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -385,6 +392,7 @@ def test_2d_clip_inside_multipolygon():
 
 @pytest.mark.plots
 def test_1d_add_branch():
+
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -437,6 +445,7 @@ def _prepare_1d2d_mesh():
 
 @pytest.mark.plots
 def test_links1d2d_add_links_1d_to_2d():
+
     network, within, branchids = _prepare_1d2d_mesh()
 
     # Generate all links
@@ -476,6 +485,7 @@ def test_links1d2d_add_links_1d_to_2d():
 
 @pytest.mark.plots
 def test_links1d2d_add_links_2d_to_1d_embedded():
+
     network, within, branchids = _prepare_1d2d_mesh()
 
     # Generate all links
@@ -511,6 +521,7 @@ def test_links1d2d_add_links_2d_to_1d_embedded():
 
 @pytest.mark.plots
 def test_links1d2d_add_links_2d_to_1d_lateral():
+
     network, within, branchids = _prepare_1d2d_mesh()
 
     # Generate all links
