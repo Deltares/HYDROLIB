@@ -17,6 +17,7 @@ numpy = "^1.23"
 openpyxl = "^3"
 scipy = "^1.9"
 tqdm = "^4.64.1"
+rasterio = "^1.3.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
