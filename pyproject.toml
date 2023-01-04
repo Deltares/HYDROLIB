@@ -10,7 +10,7 @@ python = ">=3.8,<3.11"
 pandas = "^1.2"
 geopandas = "^0.10"
 xarray = "^0.17"
-hydrolib-core = "0.3.0"
+hydrolib-core = {git = "https://github.com/Deltares/hydrolib-core.git", rev = "main"}
 shapely = "^1.8"
 matplotlib = "^3.5.2"
 numpy = "^1.23"
