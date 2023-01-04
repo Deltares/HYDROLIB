@@ -4,16 +4,16 @@ sys.path.insert(0, r"D:\3640.20\HYDROLIB-dhydamo")
 import os
 
 # and from hydrolib-core
-from hydrolib.core.io.dimr.models import DIMR, FMComponent
-from hydrolib.core.io.dflowfm.inifield.models import IniFieldModel
-from hydrolib.core.io.dflowfm.onedfield.models import OneDFieldModel
-from hydrolib.core.io.dflowfm.structure.models import *
-from hydrolib.core.io.dflowfm.crosssection.models import *
-from hydrolib.core.io.dflowfm.ext.models import ExtModel
-from hydrolib.core.io.dflowfm.mdu.models import FMModel
-from hydrolib.core.io.dflowfm.bc.models import ForcingModel
-from hydrolib.core.io.dflowfm.friction.models import FrictionModel
-from hydrolib.core.io.dflowfm.obs.models import ObservationPointModel
+from hydrolib.core.dimr.models import DIMR, FMComponent
+from hydrolib.core.dflowfm.inifield.models import IniFieldModel
+from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
+from hydrolib.core.dflowfm.structure.models import *
+from hydrolib.core.dflowfm.crosssection.models import *
+from hydrolib.core.dflowfm.ext.models import ExtModel
+from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.core.dflowfm.bc.models import ForcingModel
+from hydrolib.core.dflowfm.friction.models import FrictionModel
+from hydrolib.core.dflowfm.obs.models import ObservationPointModel
 
 # Importing relevant classes from Hydrolib-dhydamo
 from hydrolib.dhydamo.core.hydamo import HyDAMO

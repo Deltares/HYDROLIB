@@ -8,16 +8,16 @@ from pydantic import validate_arguments
 from datetime import datetime as dt
 import xml.etree.ElementTree as ET
 
-from hydrolib.core.io.dflowfm.mdu.models import FMModel
+from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 # TODO: these classes are generated from XSD-files, but still to figure out how to use them
-# from hydrolib.core.io.rtc.rtcruntimeconfig.models import *
-# from hydrolib.core.io.rtc.rtctoolsconfig.models import *
-# from hydrolib.core.io.rtc.rtcdataconfig.models import *
-# from hydrolib.core.io.rtc.pi_timeseries.models import *
-# from hydrolib.core.io.rtc.pi_state.models import *
-# from hydrolib.core.io.rtc.rtcobjectiveconfig.models import *
+# from hydrolib.core.rtc.rtcruntimeconfig.models import *
+# from hydrolib.core.rtc.rtctoolsconfig.models import *
+# from hydrolib.core.rtc.rtcdataconfig.models import *
+# from hydrolib.core.rtc.pi_timeseries.models import *
+# from hydrolib.core.rtc.pi_state.models import *
+# from hydrolib.core.rtc.rtcobjectiveconfig.models import *
 
 logger = logging.getLogger(__name__)
 

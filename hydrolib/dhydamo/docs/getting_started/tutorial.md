@@ -31,16 +31,16 @@ sys.path.insert(0, "../../")
 
 # NOTE: core and dhydamo need to be in the same folder to be imported correctly
 # and from hydrolib-core
-from hydrolib.core.io.dimr.models import DIMR, FMComponent
-from hydrolib.core.io.inifield.models import IniFieldModel
-from hydrolib.core.io.onedfield.models import OneDFieldModel
-from hydrolib.core.io.structure.models import *
-from hydrolib.core.io.crosssection.models import *
-from hydrolib.core.io.ext.models import ExtModel
-from hydrolib.core.io.mdu.models import FMModel
-from hydrolib.core.io.bc.models import ForcingModel
-from hydrolib.core.io.friction.models import FrictionModel
-from hydrolib.core.io.obs.models import ObservationPointModel
+from hydrolib.core.dimr.models import DIMR, FMComponent
+from hydrolib.core.inifield.models import IniFieldModel
+from hydrolib.core.onedfield.models import OneDFieldModel
+from hydrolib.core.structure.models import *
+from hydrolib.core.crosssection.models import *
+from hydrolib.core.ext.models import ExtModel
+from hydrolib.core.mdu.models import FMModel
+from hydrolib.core.bc.models import ForcingModel
+from hydrolib.core.friction.models import FrictionModel
+from hydrolib.core.obs.models import ObservationPointModel
 
 # Importing relevant classes from Hydrolib-dhydamo
 from hydrolib.dhydamo.core.hydamo import HyDAMO
