@@ -1,28 +1,12 @@
 import logging
-import sys
-from ast import Or
-from calendar import c
 from enum import Enum
-from typing import List, Union
-from wsgiref import validate
-
-import geopandas as gpd
+from typing import Union
 import numpy as np
 import pandas as pd
-import rstr
-import shapely
 from pydantic import validate_arguments
-from scipy.spatial import KDTree
-from shapely.geometry import LineString, MultiPolygon, Point, Polygon
-from tqdm.auto import tqdm
+from shapely.geometry import Point
 
-from hydrolib.core.io.structure.models import *
-from hydrolib.dhydamo.geometry.geometry import find_nearest_branch
-from hydrolib.dhydamo.geometry.mesh import *
-
-# from hydrolib.core.io.crosssection.models import *
-# from hydrolib.core.io.ext.models import *
-# from hydrolib.core.io.net.models import *
+from hydrolib.dhydamo.geometry.mesh import Network
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
@@ -46,7 +30,7 @@ class CrossSectionsIO:
         """
 
         if crslocs is not None:
-            for crsloc_idx, crsloc in crslocs.iterrows():
+            for _, crsloc in crslocs.iterrows():
                 # add location
                 self.crosssections.add_crosssection_location(
                     branchid=crsloc["branch_id"],
@@ -57,7 +41,7 @@ class CrossSectionsIO:
 
         if crsdefs is not None:
             crsdefs = crsdefs.drop_duplicates(subset=["crosssectiondefinitionid"])
-            for crsdef_idx, crsdef in crsdefs.iterrows():
+            for _, crsdef in crsdefs.iterrows():
                 # Set roughness value on default if cross-section has non defined (e.g. culverts)
                 roughtype = (
                     crsdef["frictionid"].split("_")[0]
@@ -112,7 +96,6 @@ class CrossSectionsIO:
                     )
 
                 elif crsdef["type"] == "yz":
-                    # TODO BMA: add yz
                     raise NotImplementedError
 
                 else:
@@ -127,7 +110,7 @@ class CrossSectionsIO:
         profile_lines: ExtendedGeoDataFrame = None,
         param_profile: ExtendedDataFrame = None,
         param_profile_values: ExtendedDataFrame = None,
-        branches: ExtendedGeoDataFrame = None,
+        branches: Union[ExtendedGeoDataFrame, None] = None,
         roughness_variant: RoughnessVariant = None,
     ) -> None:
         """
@@ -139,14 +122,22 @@ class CrossSectionsIO:
         and standard are not given, branches can be without cross section. In that case
         a standard profile should be assigned
         """
-
+        dp_branches = None
+        dp_structures = None
         if profile_groups is not None:
             # check for profile_groups items with valid brugid or stuwid. They need to be droppped from profiles.
             groupidx = [
                 idx
                 for idx, group in profile_groups.iterrows()
-                if (len(group["brugid"]) > 10) | (len("stuwid"))
+                if ("brugid" in profile_groups.columns) and (group.brugid != "")
             ]
+
+            groupidx = groupidx + [
+                idx
+                for idx, group in profile_groups.iterrows()
+                if ("stuwid" in profile_groups.columns) & (group.stuwid != "")
+            ]
+
             # index of the lines that are associated to these groups
             lineidx = [
                 profile_lines[
@@ -167,16 +158,10 @@ class CrossSectionsIO:
             dp_branches = crosssections.copy(deep=True)
             dp_branches.drop(profidx, axis=0, inplace=True)
 
-        # # first, make a selection as to use only the dwarsprofielen/parametrised that are related to branches, not structures
-        # if crosssections is not None and not crosssections.empty:
-        #     if 'stuwid' not in crosssections:
-        #         crosssections['stuwid'] = str(-999.)
-        #     if 'brugid' not in crosssections:
-        #         crosssections['brugid'] = str(-999.)
-        #     dp_branches = ExtendedGeoDataFrame(geotype=LineString, columns = crosssections.required_columns)
-        #     dp_branches.set_data(gpd.GeoDataFrame([i for i in crosssections.itertuples() if (len(i.brugid)<10)&(len(i.stuwid)<10)]))
-        # else:
-        #     dp_branches = ExtendedGeoDataFrame(geotype=LineString)
+            dp_structures = crosssections.copy(deep=True)
+            dp_structures = dp_structures.loc[profidx, :]
+        else:
+            dp_branches = crosssections.copy(deep=True)
 
         # Assign cross-sections to branches
         nnocross = len(self.crosssections.get_branches_without_crosssection())
@@ -184,7 +169,7 @@ class CrossSectionsIO:
             f"Before adding the number of branches without cross section is: {nnocross}."
         )
 
-        if not dp_branches is None:
+        if dp_branches is not None:
             # 1. Collect cross sections from 'dwarsprofielen'
             yz_profiles = self.crosssections.crosssection_to_yzprofiles(
                 dp_branches,
@@ -266,10 +251,30 @@ class CrossSectionsIO:
                     shift=css["bottomlevel"],
                 )
 
-            nnocross = len(self.crosssections.get_branches_without_crosssection())
-            logger.info(
-                f"After adding 'normgeparametriseerd' the number of branches without cross section is: {nnocross}."
+        nnocross = len(self.crosssections.get_branches_without_crosssection())
+        logger.info(
+            f"After adding 'normgeparametriseerd' the number of branches without cross section is: {nnocross}."
+        )
+
+        if dp_structures is not None:
+
+            # 1. Collect cross sections from 'dwarsprofielen'
+            yz_profiles = self.crosssections.crosssection_to_yzprofiles(
+                dp_structures,
+                crosssection_roughness,
+                None,
+                roughness_variant=roughness_variant,
             )
+
+            for name, css in yz_profiles.items():
+                # Add definition
+                self.crosssections.add_yz_definition(
+                    yz=css["yz"],
+                    thalweg=css["thalweg"],
+                    name=name,
+                    roughnesstype=css["typeruwheid"],
+                    roughnessvalue=css["ruwheid"],
+                )
 
 
 class ExternalForcingsIO:
@@ -344,11 +349,6 @@ class ExternalForcingsIO:
 
         if rr_boundaries is None:
             rr_boundaries = []
-
-        # Check if network has been loaded
-        # network1d = self.external_forcings.dflowfmmodel.network.mesh1d
-        # if not network1d.meshgeomdim.numnode:
-        #     raise ValueError('1d network has not been generated or loaded. Do this before adding laterals.')
 
         # in case of 3d points, remove the 3rd dimension
         locations["geometry2"] = [
@@ -561,7 +561,10 @@ class StructuresIO:
             else:
                 name = weir.code
 
-            if weir_mandev.overlaatonderlaat.to_string(index=False) == "Overlaat":
+            if (
+                weir_mandev.overlaatonderlaat.to_string(index=False).lower()
+                == "overlaat"
+            ):
                 self.structures.add_rweir(
                     id=weir.code,
                     name=name,
@@ -574,7 +577,10 @@ class StructuresIO:
                     usevelocityheight=usevelocityheight,
                 )
 
-            elif weir_mandev.overlaatonderlaat.to_string(index=False) == "Onderlaat":
+            elif (
+                weir_mandev.overlaatonderlaat.to_string(index=False).lower()
+                == "onderlaat"
+            ):
                 if "maximaaldebiet" not in weir_mandev:
                     limitflow = "false"
                     maxq = 0.0
@@ -590,7 +596,8 @@ class StructuresIO:
                     corrcoeff=weir.afvoercoefficient,
                     allowedflowdir="both",
                     usevelocityheight=usevelocityheight,
-                    gateloweredgelevel=weir_mandev.hoogteopening.values[0],
+                    gateloweredgelevel=weir_opening.laagstedoorstroomhoogte.values[0]
+                    + weir_mandev.hoogteopening.values[0],
                     uselimitflowpos=limitflow,
                     limitflowpos=maxq,
                     uselimitflowneg=limitflow,
@@ -713,7 +720,6 @@ class StructuresIO:
             prof = profiles[profiles["globalid"] == line["globalid"].values[0]]
 
             if len(prof) > 0:
-                # bedlevel = np.min([c[2] for c in prof.geometry[0].coords[:]])
                 profile_id = prof.code.values[0]
             else:
                 # return an error it is still not found
@@ -723,6 +729,7 @@ class StructuresIO:
                 name = bridge.naam
             else:
                 name = bridge.code
+
             profile_id = prof.code.values[0]
             self.structures.add_bridge(
                 id=bridge.code,
@@ -843,8 +850,8 @@ class StructuresIO:
                 valveopeningheight=valveopeningheight,
                 relopening=relopening,
                 losscoeff=losscoeff,
-                frictiontype=culvert.typeruwheid,
-                frictionvalue=culvert.ruwheid,
+                bedfrictiontype=culvert.typeruwheid,
+                bedfriction=culvert.ruwheid,
             )
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))

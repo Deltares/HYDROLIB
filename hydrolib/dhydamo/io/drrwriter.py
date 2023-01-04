@@ -5,7 +5,6 @@ import logging
 import os
 import re
 import shutil
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -63,9 +62,7 @@ class DRRWriter:
 
         self.write_meteo()
 
-        self.write_coupling()
-
-        # Change mdu parameters
+        # Change d3b parameters
         for parameter, value in self.d3b_parameters.items():
             self.change_d3b_parameter(parameter, value)
 
@@ -79,7 +76,7 @@ class DRRWriter:
             Succesfull or not.
 
         """
-        srcRR = os.path.join(os.path.dirname(__file__), "..", "modeldata", "RR")
+        srcRR = os.path.join(os.path.dirname(__file__), "..", "resources", "RR")
         targetRR = os.path.join(self.output_dir)
         shutil.copytree(srcRR, targetRR)
         return True
@@ -414,7 +411,7 @@ class DRRWriter:
                             + dct["sp"]
                             + "' nm '"
                             + dct["sp"]
-                            + "' co 4 PDIN 1 1 '365;00:00:00' pdin ss 0\n"
+                            + "' co 4 PDIN 0 0 pdin ss 0\n"
                         )
                         f.write("TBLE\n")
                         for row in self.rrmodel.external_forcings.seepage[dct["sp"]][
@@ -697,107 +694,9 @@ class DRRWriter:
                 if not key.strip().lower() == parameter.lower():
                     continue
                 lines[i] = line.replace(
-                    "=" + oldvalue, f"={value}".ljust(len(oldvalue) + 1)
+                    "=" + oldvalue, f"={value}\n".ljust(len(oldvalue) + 1)
                 )
                 break
 
         with open(os.path.join(self.output_dir, "DELFT_3B.INI"), "w") as f:
             f.write("".join(lines))
-
-    def write_coupling(self):
-        """
-        Method to write the files required for coupling DFM and RR.
-        """
-        # run.bat
-        with open(os.path.join(self.output_dir, "../run.bat"), "w") as f:
-            f.write("@ echo off\n")
-            f.write("set OMP_NUM_THREADS=2\n")
-            f.write('call "' + self.run_dimrpad + '"\n')
-            f.write("pause\n")
-
-        # coupling XML
-        DFM_comp_name = "DFM"
-        RR_comp_name = "RR"
-        with open(os.path.join(self.output_dir, "../dimr_config.xml"), "w") as f:
-            f.write('<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n')
-            f.write(
-                '<dimrConfig xmlns="http://schemas.deltares.nl/dimr" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schemas.deltares.nl/dimr http://content.oss.deltares.nl/schemas/dimr-1.2.xsd">\n'
-            )
-            f.write("\t<documentation>\n")
-            f.write("\t\t<fileVersion>1.2</fileVersion>\n")
-            f.write(
-                "\t\t<createdBy>D-HyDAMO in delft3dfmpy v."
-                + self.version["number"]
-                + "</createdBy>\n"
-            )
-            f.write("\t\t<creationDate>" + self.version["date"] + "</creationDate>\n")
-            f.write("\t</documentation>\n\n")
-            f.write("\t<control>\n")
-            f.write("\t\t<parallel>\n")
-            f.write("\t\t\t<startGroup>\n")
-            tstr = f'0 {self.rrmodel.d3b_parameters["Timestepsize"]:.0f} {(pd.Timestamp(self.rrmodel.d3b_parameters["EndTime"])-pd.Timestamp(self.rrmodel.d3b_parameters["StartTime"])).total_seconds():.0f}'
-            f.write("\t\t\t\t<time>" + tstr + "</time>\n")
-            f.write('\t\t\t\t<coupler name="flow2rr" />\n')
-            f.write('\t\t\t\t<start name="' + RR_comp_name + '" />\n')
-            f.write('\t\t\t\t<coupler name="rr2flow" />\n')
-            f.write("\t\t\t</startGroup>\n")
-            f.write('\t\t\t<start name="' + DFM_comp_name + '" />\n')
-            f.write("\t\t</parallel>\n")
-            f.write("\t</control>\n\n")
-
-            f.write('\t<component name="' + DFM_comp_name + '">\n')
-            f.write("\t\t<library>dflowfm</library>\n")
-            f.write("\t\t<workingDir>fm</workingDir>\n")
-            f.write("\t\t<inputFile>" + self.name + ".mdu</inputFile>\n")
-            f.write("\t</component>\n")
-            f.write('\t<component name="' + RR_comp_name + '">\n')
-            f.write("\t\t<library>rr_dll</library>\n")
-            f.write("\t\t<workingDir>rr</workingDir>\n")
-            f.write("\t\t<inputFile>Sobek_3b.fnm</inputFile>\n")
-            f.write("\t</component>\n\n")
-
-            f.write('\t<coupler name="flow2rr">\n')
-            f.write("\t\t<sourceComponent>" + DFM_comp_name + "</sourceComponent>\n")
-            f.write("\t\t<targetComponent>" + RR_comp_name + "</targetComponent>\n")
-            for i in self.rrmodel.external_forcings.boundary_nodes.items():
-                f.write("\t\t\t<item>\n")
-                f.write(
-                    "\t\t\t\t<sourceName>laterals/"
-                    + str(i[0])
-                    + "/water_level</sourceName>\n"
-                )
-                f.write(
-                    "\t\t\t\t<targetName>catchments/"
-                    + str(i[0])
-                    + "/water_level</targetName>\n"
-                )
-                f.write("\t\t\t</item>\n")
-            f.write("\t\t<logger>\n")
-            f.write("\t\t\t<workingDir>.</workingDir>\n")
-            f.write("\t\t\t<outputFile>dflowfm_to_rr.nc</outputFile>\n")
-            f.write("\t\t</logger>\n")
-            f.write("\t</coupler>\n\n")
-
-            f.write('\t<coupler name="rr2flow">\n')
-            f.write("\t\t<sourceComponent>" + RR_comp_name + "</sourceComponent>\n")
-            f.write("\t\t<targetComponent>" + DFM_comp_name + "</targetComponent>\n")
-            for i in self.rrmodel.external_forcings.boundary_nodes.items():
-                f.write("\t\t\t<item>\n")
-                f.write(
-                    "\t\t\t\t<sourceName>catchments/"
-                    + str(i[0])
-                    + "/water_discharge</sourceName>\n"
-                )
-                f.write(
-                    "\t\t\t\t<targetName>laterals/"
-                    + str(i[0])
-                    + "/water_discharge</targetName>\n"
-                )
-                f.write("\t\t\t</item>\n")
-
-            f.write("\t\t<logger>\n")
-            f.write("\t\t\t<workingDir>.</workingDir>\n")
-            f.write("\t\t\t<outputFile>rr_to_dflowfm.nc</outputFile>\n")
-            f.write("\t\t</logger>\n")
-            f.write("\t</coupler>\n")
-            f.write("</dimrConfig>\n")

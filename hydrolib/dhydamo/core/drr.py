@@ -1,20 +1,15 @@
-import itertools
 import logging
 import os
+from pathlib import Path
+from typing import Union
 
-import geopandas as gpd
 import imod
-import numpy as np
 import pandas as pd
 import rasterio
-import tqdm
 from pydantic import validate_arguments
 from rasterio.transform import from_origin
-from scipy.spatial import KDTree
-from shapely.geometry import LineString, Point, Polygon
 
 from hydrolib.dhydamo.io import drrreader
-from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +36,7 @@ class DRRModel:
         self.dimr_path = ""
 
     @validate_arguments
-    def read_raster(self, file: str, static: bool = False) -> tuple:
+    def read_raster(self, file: Union[str, Path], static: bool = False) -> tuple:
         """
         Method to read a raster. All rasterio types are accepted, plus IDF: in that case the iMod-package is used to read the IDF raster (IDF is cusomary for MODFLOW/SIMGRO models.)
 
@@ -57,9 +52,13 @@ class DRRModel:
         rasterio grid and an affine object.
 
         """
+        if isinstance(file, str):
+            file = Path(file)
+
         if not static:
             time = pd.Timestamp(os.path.split(file)[1].split("_")[1].split(".")[0])
-        if str(file).lower().endswith("idf"):
+
+        if file.suffix.lower() == ".idf":
             dataset = imod.idf.open(file)
             header = imod.idf.header(file, pattern=None)
             grid = dataset[0, 0, :, :].values
@@ -70,6 +69,7 @@ class DRRModel:
             dataset = rasterio.open(file)
             affine = dataset.transform
             grid = dataset.read(1)
+
         if static:
             return grid, affine
         else:

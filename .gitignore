@@ -137,5 +137,16 @@ hydrolib/dhydamo/debug.py
 .vscode/settings.json
 .idea/
 .DS_Store
+
+# Core, using two different hydrolib repos (core, dhydamo)
+# with that are saved in different directories is difficult 
+# with importing. The easiest solution is copying core to 
+# dhydamo (or vice versa). Remove it here
+hydrolib/core/*
+
+# Notebook test output
+hydrolib/tests/model/*
+hydrolib/notebooks/dimr_config.xml
+
 coverage-reports
 xunit-reports
