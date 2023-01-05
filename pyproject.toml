@@ -20,6 +20,7 @@ tqdm = "^4.64.1"
 rasterio = "^1.3.4"
 llvmlite = "^0.39.1"
 imod = "^0.11.5"
+gdal = { file = "GDAL-3.4.3-cp39-cp39-win_amd64.whl" }
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
