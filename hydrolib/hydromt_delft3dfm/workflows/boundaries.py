@@ -130,9 +130,14 @@ def select_boundary_type(
                     boundaries_branch_type["where"] == boundary_locs, :
                 ]
         if boundary_type == "discharge":
-            boundaries_branch_type = boundaries_branch_type.loc[
-                boundaries_branch_type["where"] == "upstream", :
-            ]
+            if boundary_locs != "upstream":
+                logger.warning(
+                    f"Applying boundary type {boundary_type} selected for {branch_type} boundaries might cause instabilities."
+                )
+            if boundary_locs != "both":
+                boundaries_branch_type = boundaries_branch_type.loc[
+                    boundaries_branch_type["where"] == boundary_locs, :
+                ]
         else:
             logger.error(
                 f"Wrong boundary type {boundary_type} selected for {branch_type} boundaries."
@@ -289,14 +294,13 @@ def compute_boundary_values(
             # Check if any nodata value, else use default boundary_value
             if np.isnan(bc_values).sum() > 0:
                 nodata_ids.append(f'{int(boundaries["_index"].iloc[i])}')
+                # send warning about boundary condtitions data set to default values
+                logger.warning(
+                    f"Nodata found for {boundary_type} boundaries values for nodes {nodata_ids}. Default values of {boundary_value} {boundary_unit} used instead for these nodes."
+                )
             else:
                 id = boundaries["nodeId"].iloc[i]
                 da_out.loc[id, :] = bc_values
-        # send warning about boundary condtitions data set to default values
-        logger.warning(
-            f"Nodata found for {boundary_type} boundaries values for nodes {nodata_ids}. Default values of {boundary_value} {boundary_unit} used instead for these nodes."
-        )
-
     else:
         logger.info(
             f"Using constant value {boundary_value} {boundary_unit} for all {boundary_type} boundaries."

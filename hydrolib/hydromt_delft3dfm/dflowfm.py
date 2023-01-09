@@ -1393,7 +1393,7 @@ class DFlowFMModel(MeshModel):
         The values can either be a constant using ``boundary_value`` (default) or timeseries read from ``boundaries_geodataset_fn``.
 
         Use ``boundaries_geodataset_fn`` to set the boundary values from a dataset of point location
-        timeseries. Only locations within the model region + 10m are selected. They are snapped to the model
+        timeseries. Only locations within the model region are selected. They are snapped to the model
         boundary locations within a max distance defined in ``snap_offset``. If ``boundaries_geodataset_fn``
         has missing values, the constant ``boundary_value`` will be used.
 
