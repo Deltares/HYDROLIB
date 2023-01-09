@@ -2889,3 +2889,17 @@ class DFlowFMModel(MeshModel):
         if self._mesh:
             mesh2d = self._mesh.ugrid.grid.mesh
             self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
+
+    @property
+    def link1d2d(self):
+        """
+        Returns the link1d2d (hydrolib-core Link1d2d object) representing the 1d2d link.
+        """
+        return self.dfmmodel.geometry.netfile.network._link1d2d
+
+    @property
+    def network(self):
+        """
+        Returns the network (hydrolib-core Network object) representing the entire network file.
+        """
+        return self.dfmmodel.geometry.netfile.network
