@@ -1,0 +1,64 @@
+grip_roads:
+  data_type: GeoDataFrame
+  path: C:\Users\li_xn\.hydromt_data\artifact_data\v0.0.7\grip_roads.gpkg
+  driver: vector
+  crs: 4326
+  meta:
+    category: road
+    paper_doi: 10.1088/1748-9326/aabd42
+    paper_ref: Meijer et al, 2018
+    source_license: CC0-1.0
+    source_url: https://www.globio.info/download-grip-dataset
+    source_version: v4
+merit_hydro:
+  data_type: RasterDataset
+  path: C:\Users\li_xn\.hydromt_data\artifact_data\v0.0.7\merit_hydro\{variable}.tif
+  driver: raster
+  crs: 4326
+  meta:
+    category: topography
+    paper_doi: 10.1029/2019WR024873
+    paper_ref: Yamazaki et al. (2019)
+    source_license: CC-BY-NC 4.0 or ODbL 1.0
+    source_url: http://hydro.iis.u-tokyo.ac.jp/~yamadai/MERIT_Hydro
+    source_version: 1.0
+pipes_defaults:
+  data_type: DataFrame
+  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\hydrolib\hydromt_delft3dfm\data\pipes\pipes_defaults.csv
+  driver: csv
+rivers_lin2019_v1:
+  data_type: GeoDataFrame
+  path: C:\Users\li_xn\.hydromt_data\artifact_data\v0.0.7\rivers_lin2019_v1.gpkg
+  driver: vector
+  meta:
+    category: hydrography
+    paper_doi: 10.5281/zenodo.3552776
+    paper_ref: Lin et al. (2019)
+    source_license: CC-BY-NC 4.0
+    source_url: https://zenodo.org/record/3552776#.YVbOrppByUk
+    source_version: 1
+vito:
+  data_type: RasterDataset
+  path: C:\Users\li_xn\.hydromt_data\artifact_data\v0.0.7\vito.tif
+  driver: raster
+  crs: 4326
+  meta:
+    category: landuse & landcover
+    paper_doi: 10.5281/zenodo.3939038
+    paper_ref: Buchhorn et al (2020)
+    source_url: https://land.copernicus.eu/global/products/lc
+    source_version: v2.0.2
+vito_mapping:
+  data_type: DataFrame
+  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\hydrolib\hydromt_delft3dfm\data\landuse\vito_mapping.csv
+  driver: csv
+  kwargs:
+    index_col: 0
+  nodata:
+    landuse: 0
+    roughness_manning: -999.0
+    infiltcap: -999.0
+  meta:
+    category: landuse
+    source_info: landuse parameters based on vito classification (https://land.copernicus.eu/global/products/lc)
+    source_version: 1.0

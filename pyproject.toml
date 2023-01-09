@@ -9,15 +9,16 @@ license = "LGPL"
 python = ">=3.8,<3.11"
 pandas = "^1.2"
 geopandas = "^0.10"
-xarray = "^0.17"
+xarray = ">=2022.03.0,<2023.01.0"
 hydrolib-core = "0.3.1"
 shapely = "^1.8"
 matplotlib = "^3.5.2"
-hydromt = "0.6.0"
+hydromt = "^0.6.0"
 numpy = "^1.23"
 openpyxl = "^3"
 pyflwdir = "^0.5.3"
 scipy = "^1.9"
+xugrid = ">=0.1.7"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
@@ -84,12 +85,13 @@ pandas = { channel = "conda-forge" }
 geopandas = { channel = "conda-forge" }
 xarray = { channel = "conda-forge" }
 hydrolib-core = { channel = "pip" }
+xugrid = { channel = "conda-forge" }
 shapely = { channel = "conda-forge" }
 matplotlib = { channel = "conda-forge" }
-hydromt = { channel = "pip" }
+hydromt = { channel = "conda-forge" }
 numpy = { channel = "conda-forge" }
 openpyxl = { channel = "conda-forge" }
-pyflwdir = { channel = "pip" }
+pyflwdir = { channel = "conda-forge" }
 scipy = { channel = "conda-forge" }
 
 [tool.poetry.plugins."hydromt.models"]

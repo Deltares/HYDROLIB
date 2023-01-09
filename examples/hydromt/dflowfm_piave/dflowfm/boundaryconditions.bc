@@ -1,0 +1,42 @@
+# written by HYDROLIB-core 0.3.1
+
+[General]
+fileVersion = 1.01
+fileType    = boundConds
+
+[Forcing]
+name     = 1383191.056228_5854440.811426
+function = constant
+offset   = 0.0
+factor   = 1.0
+quantity = waterlevelbnd
+unit     = m
+-2.0
+
+[Forcing]
+name     = 1394694.070276_5867648.108302
+function = constant
+offset   = 0.0
+factor   = 1.0
+quantity = waterlevelbnd
+unit     = m
+-2.0
+
+[Forcing]
+name     = 1386066.809740_5868052.726493
+function = constant
+offset   = 0.0
+factor   = 1.0
+quantity = waterlevelbnd
+unit     = m
+-2.0
+
+[Forcing]
+name     = 1391540.018037_5858077.577220
+function = constant
+offset   = 0.0
+factor   = 1.0
+quantity = waterlevelbnd
+unit     = m
+-2.0
+

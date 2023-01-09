@@ -125,6 +125,7 @@ def generate_manholes_on_branches(
         [(Point(l.coords[0]), li) for li, l in channels["geometry"].iteritems()]
         + [(Point(l.coords[-1]), li) for li, l in channels["geometry"].iteritems()],
         columns=["geometry", channels.index.name],
+        crs=branches.crs,
     )
 
     nodes_channels = gpd.GeoDataFrame(_nodes_channels, crs=branches.crs)

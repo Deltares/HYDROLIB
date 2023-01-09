@@ -1,0 +1,11 @@
+site_name: Profileoptimizer
+
+theme:
+  name: "material"
+
+plugins:
+  - search
+
+nav:
+  - Home: "README.md"
+  - API reference: "api.md"

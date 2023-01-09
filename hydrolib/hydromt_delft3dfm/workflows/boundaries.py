@@ -236,7 +236,7 @@ def compute_boundary_values(
         if freq == "D":
             logger.error(
                 "time unit days is not supported by the current GUI version: 2022.04"
-            )  # FIXME: require update in the future
+            )
         if len(
             pd.date_range(da_bnd.time[0].values, da_bnd.time[-1].values, freq=freq)
         ) != len(da_bnd.time):

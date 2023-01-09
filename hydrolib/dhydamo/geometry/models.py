@@ -11,7 +11,7 @@ from shapely.geometry import (
     Polygon,
 )
 
-from hydrolib.core.io.net.models import split_by
+from hydrolib.core.dflowfm.net.models import split_by
 
 
 class GeometryList(GeometryListMK):
@@ -139,6 +139,7 @@ class GeometryList(GeometryListMK):
             return MultiPoint(points)
         else:
             return points[0]
+
 
     def to_geometry(self):
         geometries = [

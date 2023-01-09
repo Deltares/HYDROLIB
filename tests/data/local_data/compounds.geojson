@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "compounds",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "STRUC_ID": "compound_1", "NAME": "compound_1", "BRANCH_ID": "branch_7", "STRUC_TYPE": "compound", "STRUC_NUM": 2, "STRUC_ID1": "PMP_1", "STRUC_ID2": "GATE_1", "STRUC_ID3": null, "STRUC_ID4": null, "STRUC_ID5": null, "STRUC_ID6": null, "IS_MAIN": null }, "geometry": { "type": "Point", "coordinates": [ 664137.740000000223517, 1526141.099999999627471 ] } }
+]
+}
