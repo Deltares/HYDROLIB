@@ -9,7 +9,7 @@ from shapely.geometry import (
 )
 import numpy as np
 from typing import Union, List
-from hydrolib.core.io.dflowfm.net.models import split_by
+from hydrolib.core.dflowfm.net.models import split_by
 
 
 class GeometryList(GeometryListMK):

@@ -4,10 +4,10 @@ import numpy as np
 import pandas as pd
 from hydrolib.dhydamo.geometry import mesh
 from shapely.geometry import Point
-from hydrolib.core.io.dflowfm.bc.models import ForcingModel
+from hydrolib.core.dflowfm.bc.models import ForcingModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
-from hydrolib.core.io.dflowfm.mdu.models import FMModel
+from hydrolib.core.dflowfm.mdu.models import FMModel
 
 hydamo_data_path = (
     Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"

@@ -2,7 +2,7 @@ import logging
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from hydrolib.core.io.dflowfm.structure.models import (
+from hydrolib.core.dflowfm.structure.models import (
     Weir,
     UniversalWeir,
     Orifice,
@@ -10,24 +10,24 @@ from hydrolib.core.io.dflowfm.structure.models import (
     Pump,
     Culvert,
 )
-from hydrolib.core.io.dflowfm.crosssection.models import (
+from hydrolib.core.dflowfm.crosssection.models import (
     CircleCrsDef,
     RectangleCrsDef,
     YZCrsDef,
     CrossSection,
 )
-from hydrolib.core.io.dflowfm.ext.models import Boundary, Lateral
-from hydrolib.core.io.dflowfm.bc.models import (
+from hydrolib.core.dflowfm.ext.models import Boundary, Lateral
+from hydrolib.core.dflowfm.bc.models import (
     ForcingModel,
     TimeSeries,
     Constant,
     QuantityUnitPair,
 )
-from hydrolib.core.io.dflowfm.friction.models import FrictGlobal
-from hydrolib.core.io.dflowfm.obs.models import ObservationPoint
-from hydrolib.core.io.dflowfm.storagenode.models import StorageNode
-from hydrolib.core.io.dflowfm.inifield.models import InitialField
-from hydrolib.core.io.dflowfm.onedfield.models import OneDFieldGlobal
+from hydrolib.core.dflowfm.friction.models import FrictGlobal
+from hydrolib.core.dflowfm.obs.models import ObservationPoint
+from hydrolib.core.dflowfm.storagenode.models import StorageNode
+from hydrolib.core.dflowfm.inifield.models import InitialField
+from hydrolib.core.dflowfm.onedfield.models import OneDFieldGlobal
 
 
 logger = logging.getLogger(__name__)
