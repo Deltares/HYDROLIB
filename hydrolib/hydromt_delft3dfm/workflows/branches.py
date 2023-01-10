@@ -221,6 +221,7 @@ def cleanup_branches(
     """Clean up the branches by:
     * Removing null geomtry
     * Exploding branches with multiline strings
+    * simply line geometry by removing Z coordinates
     * Removing branches with duplicated geometry
     * Removing branches that are shorter than 0.1 meters
     * Renaming branches with duplicate IDs
@@ -254,7 +255,11 @@ def cleanup_branches(
     for branch_index, branch in branches.iterrows():
         if branch.geometry.type != "LineString":
             branches.at[branch_index, "geometry"] = LineString(
-                [p for l in branch.geometry for p in l.coords]
+                [p[:2] for l in branch.geometry for p in l.coords] #simply line geometry by removing Z coodinates
+            )
+        elif len(branch.geometry.coords[:][0]) >2:
+            branches.at[branch_index, "geometry"] = LineString(
+                [p[:2] for p in branch.geometry .coords]  # simply line geometry by removing Z coodinates
             )
             n += 1
     logger.debug(f"Exploding {n} branches which have multipline geometry.")
@@ -738,6 +743,8 @@ def snap_branch_ends(
     # determine which branches should be included
     if len(subsets) > 0:
         _endpoints = [[i for i in _endpoints if i[1] in subsets]]
+    else:
+        _endpoints = _endpoints
 
     # # group branch ends based on off set
     groups = {}
