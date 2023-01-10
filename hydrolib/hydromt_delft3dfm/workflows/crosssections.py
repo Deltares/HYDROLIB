@@ -160,7 +160,7 @@ def set_branch_crosssections(
         # Downstream
         ids = [f"{i}_dn" for i in branches.index]
         crosssections_dn = gpd.GeoDataFrame(
-            {"geometry": [Point(l.coords[0]) for l in branches.geometry]},
+            {"geometry": [Point(l.coords[-1]) for l in branches.geometry]},
             index=ids,
             crs=branches.crs,
         )
