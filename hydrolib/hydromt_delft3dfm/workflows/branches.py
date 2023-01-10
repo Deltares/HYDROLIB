@@ -36,7 +36,7 @@ def update_data_columns_attributes(
 ):
     """
     Add or update columns in the branches geodataframe based on column and values in attributes
-    (excluding 1st col branchType used for query).
+    (excluding 1st col branchtype used for query).
 
     If brtype is set, only update the attributes of the specified type of branches.
 
@@ -46,7 +46,7 @@ def update_data_columns_attributes(
         Branches.
     attribute : int or pd.DataFrame
         Values of the attribute. Either int of float for fixed value for all or a pd.DataFrame with values per
-        "branchType", "shape" and "width" (column names of the DataFrame).
+        "branchtype", "shape" and "width" (column names of the DataFrame).
     attribute_name : str
         Name of the new attribute column in branches.
 
@@ -57,11 +57,11 @@ def update_data_columns_attributes(
     """
     # If brtype is specified, only update attributes for this brtype
     if brtype:
-        attributes = attributes[attributes["branchType"] == brtype]
+        attributes = attributes[attributes["branchtype"] == brtype]
     # Update attributes
     for i in range(len(attributes.index)):
         row = attributes.iloc[i, :]
-        branch = row.loc["branchType"]
+        branch = row.loc["branchtype"]
         for colname in row.index[1:]:
             # If attribute is not at all in branches, add a new column
             if colname not in branches.columns:
@@ -69,7 +69,7 @@ def update_data_columns_attributes(
             # Then fill in empty or NaN values with defaults
             branches.loc[
                 np.logical_and(
-                    branches[colname].isna(), branches["branchType"] == branch
+                    branches[colname].isna(), branches["branchtype"] == branch
                 ),
                 colname,
             ] = row.loc[colname]
@@ -84,7 +84,7 @@ def update_data_columns_attribute_from_query(
     logger=logger,
 ):
     """
-    Update an attribute column of branches based on query on "branchType", "shape" and "width"/"diameter"
+    Update an attribute column of branches based on query on "branchtype", "shape" and "width"/"diameter"
     values specified in attribute DataFrame.
 
     Parameters
@@ -93,7 +93,7 @@ def update_data_columns_attribute_from_query(
         Branches.
     attribute : pd.DataFrame
         pd.DataFrame with specific attribute values per
-        "branchType", "shape" and "width"/"diameter" (column names of the DataFrame).
+        "branchtype", "shape" and "width"/"diameter" (column names of the DataFrame).
     attribute_name : str
         Name of the new attribute column in branches.
 
@@ -111,7 +111,7 @@ def update_data_columns_attribute_from_query(
             if np.isnan(row.width):
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
-                        branches.branchType != row.branchType,
+                        branches.branchtype != row.branchtype,
                         branches["shape"] != row.shape,  # shape is reserved
                     ),
                     getattr(row, attribute_name),
@@ -119,7 +119,7 @@ def update_data_columns_attribute_from_query(
             else:
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
-                        branches.branchType != row.branchType,
+                        branches.branchtype != row.branchtype,
                         branches["shape"] != row.shape,  # shape is reserved
                         branches.width != row.width,
                     ),
@@ -129,7 +129,7 @@ def update_data_columns_attribute_from_query(
             if np.isnan(row.diameter):
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
-                        branches.branchType != row.branchType,
+                        branches.branchtype != row.branchtype,
                         branches["shape"] != row.shape,  # shape is reserved
                     ),
                     getattr(row, attribute_name),
@@ -137,7 +137,7 @@ def update_data_columns_attribute_from_query(
             else:
                 branches[attribute_name] = branches[attribute_name].where(
                     np.logical_and(
-                        branches.branchType != row.branchType,
+                        branches.branchtype != row.branchtype,
                         branches["shape"] != row.shape,  # shape is reserved
                         branches.diameter != row.diameter,
                     ),
@@ -146,7 +146,7 @@ def update_data_columns_attribute_from_query(
         else:
             branches[attribute_name] = branches[attribute_name].where(
                 np.logical_and(
-                    branches.branchType != row.branchType,
+                    branches.branchtype != row.branchtype,
                     branches["shape"] != row.shape,  # shape is reserved
                 ),
                 getattr(row, attribute_name),
@@ -157,7 +157,7 @@ def update_data_columns_attribute_from_query(
 
 def process_branches(
     branches: gpd.GeoDataFrame,
-    id_col: str = "branchId",
+    id_col: str = "branchid",
     snap_offset: float = 0.01,
     allow_intersection_snapping: bool = True,
     smooth_branches: bool = False,
@@ -170,7 +170,7 @@ def process_branches(
     branches: gpd.GeoDataFrame
         The branches to process.
     id_col: str, optional
-        Defalt to branchId.
+        Defalt to branchid.
     snap_offset : float, optional
         Maximum distance in meters between end points. If the distance is larger, they are not snapped. Defaults to 0.01.
     allow_intersection_snapping : bool, optional
@@ -213,7 +213,7 @@ def process_branches(
 
 def cleanup_branches(
     branches: gpd.GeoDataFrame,
-    id_col: str = "branchId",
+    id_col: str = "branchid",
     snap_offset: float = 0.01,
     allow_intersection_snapping: bool = True,
     logger=logger,
@@ -935,8 +935,8 @@ def snap_newbranches_to_branches_at_snapnodes(
         Geodataframe of branches splitted at snapnodes to allow connection with the new_branches_snapped.
     """
 
-    new_branches.index = new_branches.branchId
-    branches.index = branches.branchId
+    new_branches.index = new_branches.branchid
+    branches.index = branches.branchid
 
     # for each snapped endnodes
     new_branches_snapped = new_branches.copy()
@@ -944,7 +944,7 @@ def snap_newbranches_to_branches_at_snapnodes(
 
     # modify new branches
     for snapnode in snapnodes.itertuples():
-        new_branch = new_branches.loc[snapnode.branchId]
+        new_branch = new_branches.loc[snapnode.branchid]
         snapped_line = LineString(
             [
                 snapnode.geometry_right
@@ -953,7 +953,7 @@ def snap_newbranches_to_branches_at_snapnodes(
                 for xy in new_branch.geometry.coords[:]
             ]
         )
-        new_branches_snapped.at[snapnode.branchId, "geometry"] = snapped_line
+        new_branches_snapped.at[snapnode.branchid, "geometry"] = snapped_line
 
     # modify old branches
     for branch_name in set(snapnodes.branch_name):
@@ -963,8 +963,8 @@ def snap_newbranches_to_branches_at_snapnodes(
         ].branch_chainage.to_list()
         snapped_line = MultiLineString(cut_pieces(branch.geometry, distances))
         branches_snapped.at[branch_name, "geometry"] = snapped_line
-        branches_snapped.at[branch_name, "branchOrder"] = (
-            max(branches_snapped.branchOrder) + 1
+        branches_snapped.at[branch_name, "branchorder"] = (
+            max(branches_snapped.branchorder) + 1
         )  # allow interpolation on the snapped branch
 
     # explode multilinestring after snapping

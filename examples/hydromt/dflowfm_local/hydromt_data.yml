@@ -10,22 +10,28 @@
   path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\1D_rivers.geojson
   driver: vector
   crs: 32647
-  rename: &id001
-    BRANCH_ID: branchId
-    BR_TYPE: branchType
+  rename:
+    BR_TYPE: branchtype
+    TYPE: shape
+    WIDTH_UP: width
+    HEIGHT_UP: height
+    INVLEV_UP: invlev_up
+    INVLEV_DN: inlev_dn
 1D_rivers:
   data_type: GeoDataFrame
   path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\1D_rivers.geojson
   driver: vector
   crs: 32647
-  rename: *id001
+  rename:
+    BRANCH_ID: branchid
+    BR_TYPE: branchtype
 1D_rivers_pointcrosssections:
   data_type: GeoDataFrame
   path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\1D_rivers_pointcrosssections.geojson
   driver: vector
   crs: 32647
   rename:
-    id: crsId
+    id: crsid
     TYPE: shape
     WIDTH: width
     HEIGHT: height
@@ -37,7 +43,7 @@
   crs: 32647
   rename:
     ORDER: order
-    CRS_ID: crsId
+    CRS_ID: crsid
     Z: z
 1d_manholes:
   data_type: GeoDataFrame
@@ -45,9 +51,11 @@
   driver: vector
   crs: 32647
   rename:
-    ID: manholeId
+    ID: manholeid
     AREA: area
-    STR_AREA: streetArea
+    BEDLEV: bedlevel
+    STR_AREA: streetarea
+    STREETLEV: streetlevel
 dem:
   data_type: RasterDataset
   path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\dem.tif

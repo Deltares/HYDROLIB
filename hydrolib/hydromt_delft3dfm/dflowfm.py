@@ -246,7 +246,7 @@ class DFlowFMModel(MeshModel):
          br_fn : str, gpd.GeoDataFrame
              Either data source in data catalogue or Path for branches file or branches gpd.GeoDataFrame directly.
          defaults_fn : str Path
-             Either data source in data catalogue or path to a csv file containing all defaults values per "branchType" or defaults pd.DataFRame directly.
+             Either data source in data catalogue or path to a csv file containing all defaults values per "branchtype" or defaults pd.DataFRame directly.
          br_type : str
              branches type. Either "river", "channel", "pipe".
          friction_type : str
@@ -270,7 +270,7 @@ class DFlowFMModel(MeshModel):
          allowed_columns: list, optional
              List of columns to filter in branches GeoDataFrame
          filter: str, optional
-             Keyword in branchType column of br_fn used to filter lines. If None all lines in br_fn are used (default).
+             Keyword in branchtype column of br_fn used to filter lines. If None all lines in br_fn are used (default).
 
 
          See also
@@ -287,8 +287,8 @@ class DFlowFMModel(MeshModel):
         else:
             gdf_br = br_fn
         # Filter features based on filter
-        if filter is not None and "branchType" in gdf_br.columns:
-            gdf_br = gdf_br[gdf_br["branchType"].str.lower() == filter.lower()]
+        if filter is not None and "branchtype" in gdf_br.columns:
+            gdf_br = gdf_br[gdf_br["branchtype"].str.lower() == filter.lower()]
         # Check if features in region
         if len(gdf_br) == 0:
             self.logger.warning(f"No 1D {type} locations found within domain")
@@ -309,22 +309,22 @@ class DFlowFMModel(MeshModel):
             self.logger.info(f"{br_type} default settings read from {defaults_fn}.")
 
         # 2. Add defaults
-        # Add branchType and branchId attributes if does not exist
-        if "branchType" not in gdf_br.columns:
-            gdf_br["branchType"] = pd.Series(
+        # Add branchtype and branchid attributes if does not exist
+        if "branchtype" not in gdf_br.columns:
+            gdf_br["branchtype"] = pd.Series(
                 data=np.repeat(br_type, len(gdf_br)), index=gdf_br.index, dtype=str
             )
-        if "branchId" not in gdf_br.columns:
+        if "branchid" not in gdf_br.columns:
             data = [
                 f"{br_type}_{i}"
                 for i in np.arange(
                     len(self.branches) + 1, len(self.branches) + len(gdf_br) + 1
                 )
             ]  # avoid duplicated ids being generated
-            gdf_br["branchId"] = pd.Series(data, index=gdf_br.index, dtype=str)
+            gdf_br["branchid"] = pd.Series(data, index=gdf_br.index, dtype=str)
 
         # assign id
-        id_col = "branchId"
+        id_col = "branchid"
         gdf_br.index = gdf_br[id_col]
         gdf_br.index.name = id_col
 
@@ -336,8 +336,8 @@ class DFlowFMModel(MeshModel):
         if spacing is not None:
             defaults["spacing"] = spacing
         # Add friction to defaults
-        defaults["frictionType"] = friction_type
-        defaults["frictionValue"] = friction_value
+        defaults["frictiontype"] = friction_type
+        defaults["frictionvalue"] = friction_value
         # Add crosssections to defaults
         if crosssections_shape == "circle":
             if isinstance(crosssections_value, float):
@@ -371,7 +371,7 @@ class DFlowFMModel(MeshModel):
         self.logger.info(f"Processing branches")
         branches, branches_nodes = workflows.process_branches(
             gdf_br,
-            id_col="branchId",
+            id_col="branchid",
             snap_offset=snap_offset,
             allow_intersection_snapping=allow_intersection_snapping,
             smooth_branches=smooth_branches,
@@ -386,10 +386,10 @@ class DFlowFMModel(MeshModel):
         branches_nodes = branches_nodes.to_crs(self.crs)
 
         # 5. Add friction id
-        branches["frictionId"] = [
+        branches["frictionid"] = [
             f"{ftype}_{fvalue}"
             for ftype, fvalue in zip(
-                branches["frictionType"], branches["frictionValue"]
+                branches["frictiontype"], branches["frictionvalue"]
             )
         ]
 
@@ -420,12 +420,13 @@ class DFlowFMModel(MeshModel):
         channels_fn : str
             Name of data source for channelsparameters, see data/data_sources.yml.
             Note only the lines that are intersects with the region polygon will be used.
-            * Optional variables: [branchId, branchType, branchOrder, material, friction_type, friction_value]
+            * Optional variables: [branchid, branchtype, branchorder, material, friction_type, friction_value]
+
         channels_defaults_fn : str, optional
-            Path to a csv file containing all defaults values per 'branchType'.
+            Path to a csv file containing all defaults values per 'branchtype'.
             Default is None.
         channel_filter: str, optional
-            Keyword in branchType column of channels_fn used to filter river lines. If None all lines in channels_fn are used (default).
+            Keyword in branchtype column of channels_fn used to filter river lines. If None all lines in channels_fn are used (default).
         friction_type : str, optional
             Type of friction to use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
             By default "Manning".
@@ -435,9 +436,9 @@ class DFlowFMModel(MeshModel):
         crosssections_fn : str or Path, optional
             Name of data source for crosssections, see data/data_sources.yml.
             If ``crosssections_type`` = "xyzpoints"
-            * Required variables: [crsId, order, z]
+            * Required variables: [crsid, order, z]
             If ``crosssections_type`` = "points"
-            * Required variables: [crsId, order, z]
+            * Required variables: [crsid, order, z]
             By default None, crosssections will be set from branches
         crosssections_type : str, optional
             Type of crosssections read from crosssections_fn. One of ["xyzpoints"].
@@ -458,9 +459,9 @@ class DFlowFMModel(MeshModel):
         # filter for allowed columns
         _allowed_columns = [
             "geometry",
-            "branchId",
-            "branchType",
-            "branchOrder",
+            "branchid",
+            "branchtype",
+            "branchorder",
             "material",
             "shape",
             "diameter",
@@ -579,7 +580,7 @@ class DFlowFMModel(MeshModel):
             * Required variable for direct river depth burning: ['rivdph'] (only in combination with rivdph_method='geom')
             * Variables used for river depth estimates: ['qbankfull', 'rivwth']
         rivers_defaults_fn : str Path
-            Path to a csv file containing all defaults values per 'branchType'.
+            Path to a csv file containing all defaults values per 'branchtype'.
         rivdph_method : {'gvf', 'manning', 'powlaw'}
             River depth estimate method, by default 'gvf'
         rivwth_method : {'geom', 'mask'}
@@ -696,9 +697,9 @@ class DFlowFMModel(MeshModel):
         # filter for allowed columns
         _allowed_columns = [
             "geometry",
-            "branchId",
-            "branchType",
-            "branchOrder",
+            "branchid",
+            "branchtype",
+            "branchorder",
             "material",
             "shape",
             "diameter",
@@ -764,8 +765,8 @@ class DFlowFMModel(MeshModel):
         1D rivers must contain valid geometry, friction and crosssections.
 
         The river geometry is read from ``rivers_fn``. If defaults attributes
-        [branchOrder, spacing, material, shape, width, t_width, height, bedlev, closed] are not present in ``rivers_fn``,
-        they are added from defaults values in ``rivers_defaults_fn``. For branchId and branchType, they are created on the fly
+        [branchorder, spacing, material, shape, width, t_width, height, bedlev, closed] are not present in ``rivers_fn``,
+        they are added from defaults values in ``rivers_defaults_fn``. For branchid and branchtype, they are created on the fly
         if not available in rivers_fn ("river" for Type and "river_{i}" for Id).
 
         Friction attributes are either taken from ``rivers_fn`` or filled in using ``friction_type`` and
@@ -787,12 +788,12 @@ class DFlowFMModel(MeshModel):
         rivers_fn : str
             Name of data source for rivers parameters, see data/data_sources.yml.
             Note only the lines that are intersects with the region polygon will be used.
-            * Optional variables: [branchId, branchType, branchOrder, material, friction_type, friction_value]
+            * Optional variables: [branchid, branchtype, branchorder, material, friction_type, friction_value]
         rivers_defaults_fn : str Path
-            Path to a csv file containing all defaults values per 'branchType'.
+            Path to a csv file containing all defaults values per 'branchtype'.
             By default None.
         river_filter: str, optional
-            Keyword in branchType column of rivers_fn used to filter river lines. If None all lines in rivers_fn are used (default).
+            Keyword in branchtype column of rivers_fn used to filter river lines. If None all lines in rivers_fn are used (default).
         friction_type : str, optional
             Type of friction to use. One of ["Manning", "Chezy", "wallLawNikuradse", "WhiteColebrook", "StricklerNikuradse", "Strickler", "deBosBijkerk"].
             By default "Manning".
@@ -802,9 +803,9 @@ class DFlowFMModel(MeshModel):
         crosssections_fn : str, Path, or a list of str or Path, optional
             Name of data source for crosssections, see data/data_sources.yml.
             If ``crosssections_type`` = "xyz"
-            * Required variables: [crsId, order, z]
+            * Required variables: [crsid, order, z]
             If ``crosssections_type`` = "point"
-            * Required variables: [crsId, shape, shift]
+            * Required variables: [crsid, shape, shift]
             By default None, crosssections will be set from branches
         crosssections_type : str, or a list of str, optional
             Type of crosssections read from crosssections_fn. One of ["xyz", "point"].
@@ -825,9 +826,9 @@ class DFlowFMModel(MeshModel):
         # filter for allowed columns
         _allowed_columns = [
             "geometry",
-            "branchId",
-            "branchType",
-            "branchOrder",
+            "branchid",
+            "branchtype",
+            "branchorder",
             "material",
             "shape",
             "width",
@@ -908,12 +909,12 @@ class DFlowFMModel(MeshModel):
         1D pipes must contain valid geometry, friction and crosssections.
 
         The pipe geometry is read from ``pipes_fn``.
-        if branchType is present in ``pipes_fn``, it is possible to filter pipe geometry using an additional filter specificed in``pipe_filter``.
-        If defaults attributes ["branchOrder"] are not present in ``pipes_fn``, they are added from defaults values in ``pipes_defaults_fn``.
-        For branchId and branchType, if they are not present in ``pipes_fn``, they are created on the fly ("pipe" for branchType and "pipe_{i}" for branchId).
+        if branchtype is present in ``pipes_fn``, it is possible to filter pipe geometry using an additional filter specificed in``pipe_filter``.
+        If defaults attributes ["branchorder"] are not present in ``pipes_fn``, they are added from defaults values in ``pipes_defaults_fn``.
+        For branchid and branchtype, if they are not present in ``pipes_fn``, they are created on the fly ("pipe" for branchtype and "pipe_{i}" for branchid).
         The pipe geometry can be processed using splitting based on ``spacing``.
 
-        Friction attributes ["frictionType", "frictionValue"] are either taken from ``pipes_fn`` or filled in using ``friction_type`` and
+        Friction attributes ["frictiontype", "frictionvalue"] are either taken from ``pipes_fn`` or filled in using ``friction_type`` and
         ``friction_value`` arguments.
         Note for now only branch friction or global friction is supported.
 
@@ -931,12 +932,13 @@ class DFlowFMModel(MeshModel):
         pipes_fn : str
             Name of data source for pipes parameters, see data/data_sources.yml.
             Note only the lines that are within the region polygon will be used.
-            * Optional variables: [branchId, branchType, branchOrder, spacing, frictionType, frictionValue, shape, diameter, width, height, closed, invlev_up, invlev_dn]
+            * Optional variables: [branchid, branchtype, branchorder, spacing, frictiontype, frictionvalue, shape, diameter, width, height, closed, invlev_up, invlev_dn]
+
             #TODO: material table is used for friction which is not implemented
         pipes_defaults_fn : str Path
-            Path to a csv file containing all defaults values per "branchType"'".
+            Path to a csv file containing all defaults values per "branchtype"'".
         pipe_filter: str, optional
-            Keyword in branchType column of pipes_fn used to filter pipe lines. If None all lines in pipes_fn are used (default).
+            Keyword in branchtype column of pipes_fn used to filter pipe lines. If None all lines in pipes_fn are used (default).
         spacing: float, optional
             Spacing value in meters to split the long pipelines lines into shorter pipes. By default inf - no splitting is applied.
         friction_type : str, optional
@@ -975,13 +977,13 @@ class DFlowFMModel(MeshModel):
         # filter for allowed columns
         _allowed_columns = [
             "geometry",
-            "branchId",
-            "branchType",
-            "branchOrder",
+            "branchid",
+            "branchtype",
+            "branchorder",
             "material",
             "spacing",
-            "frictionType",
-            "frictionValue",
+            "frictiontype",
+            "frictionvalue",
             "shape",  # circle or rectangle
             "diameter",  # circle
             "width",  # rectangle
@@ -1042,7 +1044,7 @@ class DFlowFMModel(MeshModel):
             )
             df_inv = pd.DataFrame(
                 data={
-                    "branchType": ["pipe"],
+                    "branchtype": ["pipe"],
                     "invlev_up": [pipes_invlev],
                     "invlev_dn": [pipes_invlev],
                 }
@@ -1099,7 +1101,7 @@ class DFlowFMModel(MeshModel):
         ----------
         branches : gpd.GeoDataFrame
             geodataframe of the branches to apply crosssections.
-            * Required variables: [branchId, branchType, branchOrder]
+            * Required variables: [branchid, branchtype, branchorder]
             If ``crosssections_type`` = "branch"
                 if shape = 'circle': 'diameter'
                 if shape = 'rectangle': 'width', 'height', 'closed'
@@ -1110,10 +1112,10 @@ class DFlowFMModel(MeshModel):
             Note that for point crossections, only ones within the snap_network_offset will be used.
             If ``crosssections_type`` = "xyz"
             Note that only points within the region + 1000m buffer will be read.
-            * Required variables: crsId, order, z
+            * Required variables: crsid, order, z
             * Optional variables:
             If ``crosssections_type`` = "point"
-            * Required variables: crsId, shape, shift
+            * Required variables: crsid, shape, shift
             * Optional variables:
                 if shape = 'rectangle': 'width', 'height', 'closed'
                 if shape = 'trapezoid': 'width', 't_width', 'height', 'closed'
@@ -1162,16 +1164,16 @@ class DFlowFMModel(MeshModel):
                 )
                 return None
             valid_attributes = workflows.helper.check_gpd_attributes(
-                gdf_cs, required_columns=["crsId", "order", "z"]
+                gdf_cs, required_columns=["crsid", "order", "z"]
             )
             if not valid_attributes:
                 self.logger.error(
-                    f"Required attributes [crsId, order, z] in xyz crosssections do not exist"
+                    f"Required attributes [crsid, order, z] in xyz crosssections do not exist"
                 )
                 return None
 
             # assign id
-            id_col = "crsId"
+            id_col = "crsid"
             gdf_cs.index = gdf_cs[id_col]
             gdf_cs.index.name = id_col
 
@@ -1198,16 +1200,16 @@ class DFlowFMModel(MeshModel):
                 )
                 return None
             valid_attributes = workflows.helper.check_gpd_attributes(
-                gdf_cs, required_columns=["crsId", "shape", "shift"]
+                gdf_cs, required_columns=["crsid", "shape", "shift"]
             )
             if not valid_attributes:
                 self.logger.error(
-                    f"Required attributes [crsId, shape, shift] in point crosssections do not exist"
+                    f"Required attributes [crsid, shape, shift] in point crosssections do not exist"
                 )
                 return None
 
             # assign id
-            id_col = "crsId"
+            id_col = "crsid"
             gdf_cs.index = gdf_cs[id_col]
             gdf_cs.index.name = id_col
 
@@ -1243,9 +1245,9 @@ class DFlowFMModel(MeshModel):
         Only locations within the model region are selected. They are snapped to the model
         network nodes locations within a max distance defined in ``snap_offset``.
 
-        Manhole attributes ["area", "streetStorageArea", "storageType", "streetLevel"] are either taken from ``manholes_fn`` or filled in using defaults in ``manhole_defaults_fn``.
-        Manhole attribute ["bedLevel"] is always generated from invert levels of the pipe/tunnel network plus a shift defined in ``bedlevel_shift``. This is needed for numerical stability.
-        Manhole attribute ["streetLevel"]  can also be overwriten with values dervied from "dem_fn".
+        Manhole attributes ["area", "streetstoragearea", "storagetype", "streetlevel"] are either taken from ``manholes_fn`` or filled in using defaults in ``manhole_defaults_fn``.
+        Manhole attribute ["bedlevel"] is always generated from invert levels of the pipe/tunnel network plus a shift defined in ``bedlevel_shift``. This is needed for numerical stability.
+        Manhole attribute ["streetlevel"]  can also be overwriten with values dervied from "dem_fn".
         #TODO probably needs another parameter to apply different sampling method for the manholes, e.g. min within 2 m radius.
 
         Adds/Updates model layers:
@@ -1256,14 +1258,12 @@ class DFlowFMModel(MeshModel):
         manholes_fn: str Path, optional
             Path or data source name for manholes see data/data_sources.yml.
             Note only the points that are within the region polygon will be used.
-
-            * Optional variables: ["area", "streetStorageArea", "storageType", "streetLevel"]
+            * Optional variables: ["area", "streetstoragearea", "storagetype", "streetlevel"]
         manholes_defaults_fn : str Path, optional
-            Path to a csv file containing all defaults values per "branchType".
+            Path to a csv file containing all defaults values per "branchtype".
             Use multiple rows to apply defaults per ["shape", "diameter"/"width"] pairs.
             By default `hydrolib.hydromt_delft3dfm.data.manholes.manholes_defaults.csv` is used.
-
-            * Allowed variables: ["area", "streetLevel", "streeStorageArea", "storageType"]
+            * Allowed variables: ["area", "streetlevel", "streeStorageArea", "storagetype"]
         dem_fn: str, optional
             Name of data source for dem data. Used to derive default invert levels values (DEM - pipes_depth - pipes diameter/height).
             * Required variables: [elevtn]
@@ -1278,14 +1278,14 @@ class DFlowFMModel(MeshModel):
             "geometry",
             "id",  # storage node id, considered identical to manhole id when using single compartment manholes
             "name",
-            "manholeId",
-            "nodeId",
+            "manholeid",
+            "nodeid",
             "area",
-            "bedLevel",
-            "streetLevel",
-            "streetStorageArea",
-            "storageType",
-            "useTable",
+            "bedlevel",
+            "streetlevel",
+            "streetstoragearea",
+            "storagetype",
+            "usetable",
         ]
 
         # generate manhole locations and bedlevels
@@ -1298,10 +1298,10 @@ class DFlowFMModel(MeshModel):
             id_suffix="_generated",
             logger=self.logger,
         )
-        # FIXME Xiaohan: why do we need set_branches here? Because of branches.gui --> add a high level write_gui files same level as write_mesh
+        # set manhole ids to branches for branches.gui
         self.set_branches(branches)
 
-        # add manhole attributes from defaults
+        # add missing manhole attributes from defaults
         if manhole_defaults_fn is None or not manhole_defaults_fn.is_file():
             self.logger.warning(
                 f"manhole_defaults_fn ({manhole_defaults_fn}) does not exist. Fall back choice to defaults. "
@@ -1334,9 +1334,11 @@ class DFlowFMModel(MeshModel):
             )
             # replace generated manhole using user manholes
             self.logger.debug(f"overwriting generated manholes using user manholes.")
-            manholes = hydromt.gis_utils.nearest_merge(
+            manholes_merged = hydromt.gis_utils.nearest_merge(
                 manholes, gdf_manhole, max_dist=snap_offset, overwrite=True
             )
+            # add missing from generated to user manholes
+            manholes = manholes_merged.fillna(manholes)
 
         # generate manhole streetlevels from dem
         if dem_fn is not None:
@@ -1345,27 +1347,27 @@ class DFlowFMModel(MeshModel):
                 dem_fn, geom=self.region, variables=["elevtn"]
             )
             # reproject of dem is done in sample method
-            manholes["_streetLevel_dem"] = dem.raster.sample(manholes).values
-            manholes["_streetLevel_dem"].fillna(manholes["streetLevel"], inplace=True)
-            manholes["streetLevel"] = manholes["_streetLevel_dem"]
+            manholes["_streetlevel_dem"] = dem.raster.sample(manholes).values
+            manholes["_streetlevel_dem"].fillna(manholes["streetlevel"], inplace=True)
+            manholes["streetlevel"] = manholes["_streetlevel_dem"]
             self.logger.debug(
-                f'street level mean is {np.mean(manholes["streetLevel"])}'
+                f'street level mean is {np.mean(manholes["streetlevel"])}'
             )
 
         # internal administration
-        # drop duplicated manholeId
-        self.logger.debug(f"dropping duplicated manholeId")
-        manholes.drop_duplicates(subset="manholeId")
-        # add nodeId to manholes
+        # drop duplicated manholeid
+        self.logger.debug(f"dropping duplicated manholeid")
+        manholes.drop_duplicates(subset="manholeid")
+        # add nodeid to manholes
         manholes = hydromt.gis_utils.nearest_merge(
             manholes, self.network1d_nodes, max_dist=0.1, overwrite=False
         )
         # add additional required columns
         manholes["id"] = manholes[
-            "nodeId"
-        ]  # id of the storage nodes id, identical to manholeId when single compartment manholes are used
-        manholes["name"] = manholes["manholeId"]
-        manholes["useTable"] = False
+            "nodeid"
+        ]  # id of the storage nodes id, identical to manholeid when single compartment manholes are used
+        manholes["name"] = manholes["manholeid"]
+        manholes["usetable"] = False
 
         # validate
         if manholes[_allowed_columns].isna().any().any():
@@ -2085,7 +2087,7 @@ class DFlowFMModel(MeshModel):
                 df = df_ext[df_ext.quantity == name]
                 # Get the corresponding nodes gdf
                 node_geoms = self.network1d_nodes[
-                    np.isin(self.network1d_nodes["nodeId"], df.nodeid.values)
+                    np.isin(self.network1d_nodes["nodeid"], df.nodeid.values)
                 ]
                 da_out = utils.read_1dboundary(df, quantity=name, nodes=node_geoms)
                 # Add to forcing
@@ -2162,10 +2164,10 @@ class DFlowFMModel(MeshModel):
                 geometry=[LineString(mesh1d.branches[i].geometry) for i in branch_id],
                 crs=crs,
             )
-            branches["branchId"] = branch_id
-            branches["branchOrder"] = mesh1d.network1d_branch_order
+            branches["branchid"] = branch_id
+            branches["branchorder"] = mesh1d.network1d_branch_order
 
-            # Add branchType, properties from branches.gui file
+            # Add branchtype, properties from branches.gui file
             self.logger.info("Reading branches GUI file")
             branches = utils.read_branches_gui(branches, self.dfmmodel)
 
@@ -2345,7 +2347,7 @@ class DFlowFMModel(MeshModel):
     def branches(self):
         """
         Returns the branches (gpd.GeoDataFrame object) representing the 1D network.
-        Contains several "branchType" for : channel, river, pipe, tunnel.
+        Contains several "branchtype" for : channel, river, pipe, tunnel.
         """
         if self._branches is None and self._read:
             self.read_mesh()
@@ -2355,12 +2357,12 @@ class DFlowFMModel(MeshModel):
 
     def set_branches(self, branches: gpd.GeoDataFrame):
         """Updates the branches object as well as the linked geoms."""
-        # Check if "branchType" col in new branches
-        if "branchType" in branches.columns:
+        # Check if "branchtype" col in new branches
+        if "branchtype" in branches.columns:
             self._branches = branches
         else:
             self.logger.error(
-                "'branchType' column absent from the new branches, could not update."
+                "'branchtype' column absent from the new branches, could not update."
             )
 
         # Update channels/pipes in geoms
@@ -2410,7 +2412,7 @@ class DFlowFMModel(MeshModel):
             # get possible connection points (allow connection only at mesh nodes) from existing open system
             mesh1d_nodes = self.mesh1d_nodes.copy()
             mesh1d_nodes_open = mesh1d_nodes.loc[
-                mesh1d_nodes.branch_name.isin(self.opensystem.branchId.tolist())
+                mesh1d_nodes.branch_name.isin(self.opensystem.branchid.tolist())
             ]
 
             # snap the new endnodes to existing mesh1d_nodes_open
@@ -2447,7 +2449,7 @@ class DFlowFMModel(MeshModel):
         self.set_branches(branches)
 
     def set_branches_component(self, name: str):
-        gdf_comp = self.branches[self.branches["branchType"] == name]
+        gdf_comp = self.branches[self.branches["branchtype"] == name]
         if gdf_comp.index.size > 0:
             self.set_geoms(gdf_comp, name=f"{name}s")
         return gdf_comp
@@ -2479,7 +2481,7 @@ class DFlowFMModel(MeshModel):
     @property
     def opensystem(self):
         if len(self.branches) > 0:
-            gdf = self.branches[self.branches["branchType"].isin(["river", "channel"])]
+            gdf = self.branches[self.branches["branchtype"].isin(["river", "channel"])]
         else:
             gdf = gpd.GeoDataFrame()
         return gdf
@@ -2487,7 +2489,7 @@ class DFlowFMModel(MeshModel):
     @property
     def closedsystem(self):
         if len(self.branches) > 0:
-            gdf = self.branches[self.branches["branchType"].isin(["pipe", "tunnel"])]
+            gdf = self.branches[self.branches["branchtype"].isin(["pipe", "tunnel"])]
         else:
             gdf = gpd.GeoDataFrame()
         return gdf
@@ -2534,8 +2536,8 @@ class DFlowFMModel(MeshModel):
             self._dfmmodel.geometry.netfile.network,
             opensystem.geometry.to_list(),
             node_distance=node_distance,
-            branch_names=opensystem.branchId.to_list(),
-            branch_orders=opensystem.branchOrder.to_list(),
+            branch_names=opensystem.branchid.to_list(),
+            branch_orders=opensystem.branchorder.to_list(),
         )
 
         # add closed system mesh1d
@@ -2545,8 +2547,8 @@ class DFlowFMModel(MeshModel):
             self._dfmmodel.geometry.netfile.network,
             closedsystem.geometry.to_list(),
             node_distance=node_distance,
-            branch_names=closedsystem.branchId.to_list(),
-            branch_orders=closedsystem.branchOrder.to_list(),
+            branch_names=closedsystem.branchid.to_list(),
+            branch_orders=closedsystem.branchorder.to_list(),
         )
 
         # set mesh1d
@@ -2753,7 +2755,7 @@ class DFlowFMModel(MeshModel):
         )
         _network1d_nodes = gpd.GeoDataFrame(
             data={
-                "nodeId": self.dfmmodel.geometry.netfile.network._mesh1d.network1d_node_id,
+                "nodeid": self.dfmmodel.geometry.netfile.network._mesh1d.network1d_node_id,
                 "geometry": _network1d_nodes,
             }
         )

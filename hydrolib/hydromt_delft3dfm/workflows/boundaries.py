@@ -122,7 +122,7 @@ def select_boundary_type(
         A data frame containing the boundary location per branch type and boundary type.
     """
 
-    boundaries_branch_type = boundaries.loc[boundaries["branchType"] == branch_type, :]
+    boundaries_branch_type = boundaries.loc[boundaries["branchtype"] == branch_type, :]
     if branch_type == "river":
         if boundary_type == "waterlevel":
             if boundary_locs != "both":
@@ -171,7 +171,7 @@ def validate_boundaries(boundaries: gpd.GeoDataFrame, branch_type: str = "river"
             # TODO extended
             if bnd["where"] == "downstream" and bnd["boundary_type"] == "discharge":
                 logger.warning(
-                    f'Boundary type violates modeller suggestions: using downstream discharge boundary at branch {bnd["branchId"]}'
+                    f'Boundary type violates modeller suggestions: using downstream discharge boundary at branch {bnd["branchid"]}'
                 )
 
     if branch_type == "pipe":  # TODO add other close system branch_type
@@ -179,7 +179,7 @@ def validate_boundaries(boundaries: gpd.GeoDataFrame, branch_type: str = "river"
             # TODO extended
             if bnd["where"] == "upstream":
                 logger.warning(
-                    f'Boundary type violates modeller suggestions: using upstream boundary at branch {bnd["branchId"]}'
+                    f'Boundary type violates modeller suggestions: using upstream boundary at branch {bnd["branchid"]}'
                 )
 
 
@@ -200,7 +200,7 @@ def compute_boundary_values(
     boundaries : gpd.GeoDataFrame
         Point locations of the 1D boundaries to which to add data.
 
-        * Required variables: ['nodeId']
+        * Required variables: ['nodeid']
     da_bnd : xr.DataArray, optional
         xr.DataArray containing the boundary timeseries values. If None, uses a constant values for all boundaries.
 
@@ -252,7 +252,7 @@ def compute_boundary_values(
             ),
             dims=["index", "time"],
             coords=dict(
-                index=boundaries["nodeId"],
+                index=boundaries["nodeid"],
                 time=bd_times,
                 x=("index", boundaries.geometry.x.values),
                 y=("index", boundaries.geometry.y.values),
@@ -276,7 +276,7 @@ def compute_boundary_values(
         )  # _index will be float
         # remove boundaries without bc values in da_bnd
         boundaries = boundaries[~pd.isnull(boundaries["_index"])]
-        nodata_ids = boundaries["nodeId"][
+        nodata_ids = boundaries["nodeid"][
             ~pd.isnull(boundaries["_index"])
         ].values.tolist()
         for i in range(len(boundaries)):
@@ -285,7 +285,7 @@ def compute_boundary_values(
             if np.isnan(bc_values).sum() > 0:
                 nodata_ids.append(f'{int(boundaries["_index"].iloc[i])}')
             else:
-                id = boundaries["nodeId"].iloc[i]
+                id = boundaries["nodeid"].iloc[i]
                 da_out.loc[id, :] = bc_values
         # send warning about boundary condtitions data set to default values
         logger.warning(
@@ -301,7 +301,7 @@ def compute_boundary_values(
             data=np.full((len(boundaries.index)), boundary_value, dtype=np.float32),
             dims=["index"],
             coords=dict(
-                index=boundaries["nodeId"],
+                index=boundaries["nodeid"],
                 x=("index", boundaries.geometry.x.values),
                 y=("index", boundaries.geometry.y.values),
             ),
