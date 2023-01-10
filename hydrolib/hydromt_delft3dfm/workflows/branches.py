@@ -743,8 +743,6 @@ def snap_branch_ends(
     # determine which branches should be included
     if len(subsets) > 0:
         _endpoints = [[i for i in _endpoints if i[1] in subsets]]
-    else:
-        _endpoints = _endpoints
 
     # # group branch ends based on off set
     groups = {}
