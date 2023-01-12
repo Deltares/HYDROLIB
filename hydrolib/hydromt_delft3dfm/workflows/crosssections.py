@@ -281,22 +281,30 @@ def set_xyz_crosssections(
     crsdefs = pd.DataFrame(
         {
             "crsdef_id": crosssections.index.to_list(),
-            "crsdef_type": "xyz",
+            # "crsdef_type": "yz",
             "crsdef_branchId": crosssections.branch_id.to_list(),
-            "crsdef_xyzCount": crosssections.x.map(len).to_list(),
-            "crsdef_xCoordinates": [
-                " ".join(["{:.1f}".format(i) for i in l])
-                for l in crosssections.x.to_list()
-            ],
-            "crsdef_yCoordinates": [
-                " ".join(["{:.1f}".format(i) for i in l])
-                for l in crosssections.y.to_list()
-            ],
+            # "crsdef_xyzCount": crosssections.x.map(len).to_list(),
+            # "crsdef_xCoordinates": [
+            #     " ".join(["{:.1f}".format(i) for i in l])
+            #     for l in crosssections.x.to_list()
+            # ],
+            # "crsdef_yCoordinates": [
+            #     " ".join(["{:.1f}".format(i) for i in l])
+            #     for l in crosssections.y.to_list()
+            # ],
             "crsdef_zCoordinates": [
                 " ".join(["{:.1f}".format(i) for i in l])
                 for l in crosssections.z.to_list()
             ],
-            # 'crsdef_xylength': ' '.join(['{:.1f}'.format(i) for i in crosssections.l.to_list()[0]]),
+            # -------
+            # use yz crossection because GUI had issues importing xyz crossections
+            # due to GUI has an unknown way of computing frictionpositions,
+            # which is different from the script.
+            # While leaving out fricitonpositions (as indicated by the manual, gives an error in GUI)
+            "crsdef_type": "yz",
+            "crsdef_yzCount": crosssections.x.map(len).to_list(),
+            'crsdef_yCoordinates': ' '.join(['{:.2f}'.format(i) for i in crosssections.l.to_list()[0]]),
+            # -------
             # lower case key means temp keys (not written to file)
             "crsdef_frictionIds": branches.loc[
                 crosssections.branch_id.to_list(), "frictionId"
@@ -308,7 +316,7 @@ def set_xyz_crosssections(
                 crosssections.branch_id.to_list(), "frictionValue"
             ],
             "crsdef_frictionPositions": [
-                "0 {:.4f}".format(l) for l in crosssections.geometry.length.to_list()
+                "0 {:.2f}".format(l) for l in crosssections.geometry.length.to_list()
             ],
         }
     )

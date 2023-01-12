@@ -875,6 +875,12 @@ class DFlowFMModel(MeshModel):
             self.logger.debug(f"Adding crosssections vector to geoms.")
             self.set_crosssections(crosssections)
 
+            # for crossection type yz or xyz, always use branchOrder = -1, because no interpolation can be applied.
+            # TODO: change to lower case is needed
+            _overwrite_branchorder = self.crosssections[self.crosssections["crsdef_type"].str.contains("yz")]["crsdef_branchId"].tolist()
+            if len(_overwrite_branchorder) > 0:
+                rivers.loc[rivers["branchId"].isin(_overwrite_branchorder), "branchOrder"] = -1
+
         # setup geoms
         self.logger.debug(f"Adding rivers and river_nodes vector to geoms.")
         self.set_geoms(rivers, "rivers")
