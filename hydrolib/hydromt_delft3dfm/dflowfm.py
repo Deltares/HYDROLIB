@@ -1591,6 +1591,71 @@ class DFlowFMModel(MeshModel):
         # update res
         self._res = res
 
+    def setup_mesh2d_refine(self,
+                            polygon_fn: Optional[str] = None,
+                            sample_fn: Optional[str] = None,
+                            steps: Optional[int] = None,
+                            ):
+        """Refine the 2d mesh within the geometry given in `polygon_fn` with refinement steps speficied in `steps`.
+
+        Note that due to only mesh within the geometry extent will be refined.
+        If the geometry extent is too small, the refinement won't take effect.
+
+        # TODO: mesh2d_refine_based_on_samples
+
+        Adds/Updates model layers:
+
+        * **2D mesh** geom: By any changes in 2D grid
+        * **1D2D links** geom: By any changes in 2D grid
+
+        Parameters
+        ----------
+        polygon_fn : str Path, optional
+            Path to a polygon or MultiPolygon used to refine the 2D mesh
+        sample_fn  : str Path, optional
+            Path to a sample file used to refine the 2D mesh
+        steps : int, optional
+            Number of steps in the refinement. By default 1, i.e. no refinement is applied.
+
+        Raises
+        ------
+        NotImplementedError
+            If sample_fn is used to refine the 2d mesh.
+
+        See Also
+        ----------
+            mesh.mesh2d_refine
+        """
+
+        if self.mesh2d is None:
+            logger.warning("2d mesh unrefined.")
+            return
+
+        if polygon_fn is not None and steps is not None:
+            self.logger.info(f"reading geoemtry from file {polygon_fn}. ")
+            # read
+            gdf = self.data_catalog.get_geodataframe(
+                polygon_fn, geom=self.region, buffer=0, predicate="contains"
+            )
+            # reproject
+            if gdf.crs != self.crs:
+                gdf = gdf.to_crs(self.crs)
+            # refine
+            _old_size = len(self.mesh2d.mesh2d_face_x)
+            mesh.mesh2d_refine(self.network, gdf.geometry.unary_union, steps)
+            _new_size = len(self.mesh2d.mesh2d_face_x)
+            # log
+            if _new_size != _old_size:
+                logger.info(f"2d mesh refined within polygon. Number of faces before: {_old_size} and after: {_new_size}")
+            else:
+                logger.warning("2d mesh unrefined.")
+            # update res # FIXME: might not be the best solution
+            self._res = self._res/2**steps
+        elif sample_fn is not None:
+            raise NotImplementedError("2d mesh refine based on samples not implemented.")
+        else:
+            logger.warning("2d mesh unrefined.")
+
     def setup_maps_from_raster(
         self,
         raster_fn: str,
@@ -2780,3 +2845,10 @@ class DFlowFMModel(MeshModel):
         if self._mesh:
             mesh2d = self._mesh.ugrid.grid.mesh
             self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
+
+    @property
+    def network(self):
+        """
+        Returns the network (hydrolib-core Network object) representing the entire network file.
+        """
+        return self.dfmmodel.geometry.netfile.network
