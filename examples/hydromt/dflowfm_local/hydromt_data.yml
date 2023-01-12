@@ -48,6 +48,11 @@
     ID: manholeId
     AREA: area
     STR_AREA: streetArea
+citycenter:
+  data_type: GeoDataFrame
+  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\citycenter.geojson
+  driver: vector
+  crs: 32647
 dem:
   data_type: RasterDataset
   path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\dem.tif

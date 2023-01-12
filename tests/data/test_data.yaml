@@ -49,6 +49,11 @@
   crs: 32647
   kwargs:
     fn_data: local_data/boundaries_series.csv
+citycenter:
+  data_type: GeoDataFrame
+  driver: vector
+  path: local_data/citycenter.geojson
+  crs: 32647
 dem:
   path: local_data/dem.tif
   data_type: RasterDataset
