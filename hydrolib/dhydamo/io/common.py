@@ -1,7 +1,8 @@
 import logging
-import os
 import re
 from copy import deepcopy
+from pathlib import Path
+from typing import Union
 
 import geopandas as gpd
 import numpy as np
@@ -10,16 +11,16 @@ from osgeo import ogr
 from shapely import wkb
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
-from hydrolib.dhydamo.geometry import geometry
+from hydrolib.dhydamo.geometry import spatial
+
+logger = logging.getLogger()
 
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
-
     # normal properties
     _metadata = ["required_columns", "geotype"] + gpd.GeoDataFrame._metadata
 
     def __init__(self, geotype, required_columns=None, logger=logging, *args, **kwargs):
-
         # Add logger object to self
         # FIXME: logging below results in error
         # self.logger = logger
@@ -79,17 +80,16 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
     def read_shp(
         self,
-        path,
-        index_col=None,
-        column_mapping=None,
-        check_columns=True,
+        path: Union[str, Path],
+        index_col: str = None,
+        column_mapping: dict = None,
+        check_columns: bool = True,
         proj_crs=None,
-        clip=None,
-        check_geotype=True,
-        id_col="code",
-        filter_cols=False,
+        clip: Union[Polygon, MultiPolygon] = None,
+        check_geotype: bool = True,
+        id_col: str = "code",
+        filter_cols: bool = False,
         filter_rows=None,
-        logger=logging,
     ):
         """
         Import function, extended with type checks. Does not destroy reference to object.
@@ -156,7 +156,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             logger.debug(f"No projected CRS is given in ini-file")
 
     def set_data(self, gdf, index_col=None, check_columns=True, check_geotype=True):
-
         if not self.empty:
             self.delete_all()
 
@@ -165,7 +164,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             self._check_columns(gdf)
 
         # Copy content
-        for col, values in gdf.iteritems():
+        for col, values in gdf.items():
             self[col] = values.values
 
         if index_col is None:
@@ -209,9 +208,12 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                 )
             )
 
-    def show_gpkg(self, gpkg_path):
-        if not os.path.exists(gpkg_path):
+    def show_gpkg(self, gpkg_path: Union[str, Path]):
+        if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
+
+        if isinstance(gpkg_path, Path):
+            gpkg_path = str(gpkg_path)
 
         ogr.UseExceptions()
         gpkg = ogr.Open(gpkg_path)
@@ -237,19 +239,22 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
     def read_gpkg_layer(
         self,
-        gpkg_path,
-        layer_name=None,
-        index_col=None,
-        groupby_column=None,
-        order_column=None,
-        id_col="code",
-        column_mapping={},
-        check_columns=True,
-        check_geotype=True,
-        clip=None,
+        gpkg_path: Union[str, Path],
+        layer_name: str,
+        index_col: str = None,
+        groupby_column: str = None,
+        order_column: str = None,
+        id_col: str = "code",
+        column_mapping: dict = None,
+        check_columns: bool = True,
+        check_geotype: bool = True,
+        clip: Union[Polygon, MultiPolygon] = None,
     ):
-        if not os.path.exists(gpkg_path):
+        if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
+
+        if isinstance(gpkg_path, Path):
+            gpkg_path = str(gpkg_path)
 
         ogr.UseExceptions()
         gpkg = ogr.Open(gpkg_path)
@@ -279,7 +284,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         geometries = []
         new_feats = []
         for i, f in enumerate(features):
-            geometry = wkb.loads(georefs[i].ExportToWkb())
+            geometry = wkb.loads(bytes(list(georefs[i].ExportToWkb())))
             if (geometry.type == "MultiPolygon") | (geometry.type == "MultiPoint"):
                 new_geoms = list(geometry)
                 geometries.extend(new_geoms)
@@ -367,7 +372,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # Create geodataframe
         gdf = gpd.GeoDataFrame(fields, columns=columns, geometry=geometries)
-        gdf.rename(columns=column_mapping, inplace=True)
+        if column_mapping is not None:
+            gdf.rename(columns=column_mapping, inplace=True)
 
         # add a letter to 'exploded' multipolygons
         if "Polygon" in geometry.type:
@@ -388,19 +394,19 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         )
 
         if clip is not None:
-            self.clip(clip)
+            self.clip(geometry=clip)
 
     def read_gml(
         self,
-        gml_path,
-        index_col=None,
-        groupby_column=None,
-        order_column=None,
-        id_col="code",
-        column_mapping={},
-        check_columns=True,
-        check_geotype=True,
-        clip=None,
+        gml_path: Union[str, Path],
+        index_col: str = None,
+        groupby_column: str = None,
+        order_column: str = None,
+        id_col: str = "code",
+        column_mapping: dict = None,
+        check_columns: bool = True,
+        check_geotype: bool = True,
+        clip: Union[Polygon, MultiPolygon] = None,
     ):
         """
         Read GML file to GeoDataFrame.
@@ -421,10 +427,12 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             Optional, columns to specify the order of the grouped points
         mask_file : str
             File containing the mask to clip points.
-        """
-
-        if not os.path.exists(gml_path):
+        """,
+        if not Path(gml_path).exists():
             raise OSError(f'File not found: "{gml_path}"')
+
+        if isinstance(gml_path, Path):
+            gml_path = str(gml_path)
 
         ogr.UseExceptions()
         gml = ogr.Open(gml_path)
@@ -536,7 +544,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # Create geodataframe
         gdf = gpd.GeoDataFrame(fields, columns=columns, geometry=geometries)
-        gdf.rename(columns=column_mapping, inplace=True)
+        if column_mapping is not None:
+            gdf.rename(columns=column_mapping, inplace=True)
 
         # add a letter to 'exploded' multipolygons
         # sfx = ['_'+str(i) for i in range(100)]
@@ -558,7 +567,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if clip is not None:
             self.clip(clip)
 
-    def clip(self, geometry):
+    def clip(self, geometry: Union[Polygon, MultiPolygon]):
         """
         Clip geometry
         """
@@ -625,13 +634,12 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
     def snap_to_branch(self, branches, snap_method, maxdist=5):
         """Snap the geometries to the branch"""
-        geometry.find_nearest_branch(
+        spatial.find_nearest_branch(
             branches=branches, geometries=self, method=snap_method, maxdist=maxdist
         )
 
 
 class ExtendedDataFrame(pd.DataFrame):
-
     _metadata = ["required_columns"] + pd.DataFrame._metadata
 
     def __init__(self, required_columns=None, *args, **kwargs):
@@ -655,12 +663,11 @@ class ExtendedDataFrame(pd.DataFrame):
             self.dropna(inplace=True)
 
     def set_data(self, df, index_col):
-
         if not self.empty:
             self.delete_all()
 
         # Copy content
-        for col, values in df.iteritems():
+        for col, values in df.items():
             self[col] = values.values
 
         if index_col is None:
@@ -675,7 +682,6 @@ class ExtendedDataFrame(pd.DataFrame):
         self._check_columns()
 
     def add_data(self, df):
-
         if not np.in1d(df.columns, self.columns).all():
             raise KeyError(
                 "The new df contains columns that are not present in the current df."
@@ -706,7 +712,9 @@ class ExtendedDataFrame(pd.DataFrame):
                     )
                 )
 
-    def read_gml(self, gml_path, index_col=None):
+    def read_gml(
+        self, gml_path: Union[str, Path], column_mapping: dict = None, index_col=None
+    ):
         """
         Read GML file to GeoDataFrame.
 
@@ -724,8 +732,11 @@ class ExtendedDataFrame(pd.DataFrame):
             Optional, column to be set as index
         """
 
-        if not os.path.exists(gml_path):
+        if not Path(gml_path).exists():
             raise OSError(f'File not found: "{gml_path}"')
+
+        if isinstance(gml_path, Path):
+            gml_path = str(gml_path)
 
         ogr.UseExceptions()
         gml = ogr.Open(gml_path)
@@ -751,7 +762,11 @@ class ExtendedDataFrame(pd.DataFrame):
         self.set_data(gmldf, index_col=index_col)
 
     def read_gpkg_layer(
-        self, gpkg_path, layer_name=None, column_mapping={}, index_col=None
+        self,
+        gpkg_path: Union[str, Path],
+        layer_name: str = None,
+        column_mapping: dict = None,
+        index_col: str = None,
     ):
         """
         Read GML file to GeoDataFrame.
@@ -772,8 +787,11 @@ class ExtendedDataFrame(pd.DataFrame):
             Optional, column to be set as index
         """
 
-        if not os.path.exists(gpkg_path):
+        if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
+
+        if isinstance(gpkg_path, Path):
+            gpkg_path = str(gpkg_path)
 
         ogr.UseExceptions()
         gpkg = ogr.Open(gpkg_path)
@@ -794,7 +812,8 @@ class ExtendedDataFrame(pd.DataFrame):
 
         # Create geodataframe
         df = pd.DataFrame(fields, columns=columns)
-        df.rename(columns=column_mapping, inplace=True)
+        if column_mapping is not None:
+            df.rename(columns=column_mapping, inplace=True)
 
         # Add data to class GeoDataFrame
         self.set_data(df, index_col=index_col)

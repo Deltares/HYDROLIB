@@ -8,7 +8,7 @@ from pydantic import validate_arguments
 from datetime import datetime as dt
 import xml.etree.ElementTree as ET
 
-from hydrolib.core.io.mdu.models import FMModel
+from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 # TODO: these classes are generated from XSD-files, but still to figure out how to use them
@@ -100,6 +100,7 @@ class DRTCModel:
         savedict["dataconfig_export"] = []
         savedict["toolsconfig"] = []
         savedict["timeseries"] = []
+        savedict["state"] = []
         savedict["dimr_config"] = []
         for file in files:
             tree = ET.parse(xml_folder / file)
@@ -118,6 +119,9 @@ class DRTCModel:
                     savedict["toolsconfig"].append(ET.tostring(root[i][0]).decode())
             elif file == "timeseries_import.xml":
                 savedict["timeseries"].append(ET.tostring(root[0]).decode())
+            elif file == "state_import.xml":
+                for i in range(0, len(root[0])):
+                    savedict["state"].append(ET.tostring(root[0][i]).decode())
             elif file == "dimr_config.xml":
                 savedict["dimr_config"].append(root)
         return savedict
@@ -168,17 +172,32 @@ class DRTCModel:
                 struc_id = weir.id.values[0]
             elif management.pompid is not None:
                 logger.info(
-                    f"{management.pompid} is a regular pump - controllers for pump capacities are not yet implemented."
+                    f"Management for pump {management.pompid} is included in FM."
                 )
-                continue
             else:
                 raise ValueError(
                     "Only management_devices and pumps can be connected to a management object."
                 )
             if management.stuurvariabele == "bovenkant afsluitmiddel":
                 steering_variable = "Crest level (s)"
+            elif management.stuurvariabele == "hoogte opening":
+                steering_variable = "Opening height"
+            elif management.stuurvariabele == "pompdebiet":
+                steering_variable = "Capacity (p)"
+            else:
+                raise ValueError(
+                    f"Invalid value for steering variable of {struc_id}: {management.stuurvariabele}."
+                )
+
             if management.doelvariabele == "waterstand":
                 target_variable = "Water level (op)"
+            elif management.doelvariabele == "debiet":
+                target_variable = "Discharge (op)"
+            else:
+                raise ValueError(
+                    f"Invalid value for target variable of {struc_id}: {management.doelvariabele}."
+                )
+
             #  if the ID is not specified separately, use the global settings
             if management.id not in pid_settings:
                 settings = pid_settings["global"]
@@ -203,15 +222,15 @@ class DRTCModel:
                         "No time series were provided for time controllers"
                     )
                 else:
-                    data = timeseries.loc[:, management.id]
+                    data = timeseries.loc[:, struc_id]
                     self.add_time_controller(
                         structure_id=struc_id,
                         steering_variable=steering_variable,
                         data=data,
                     )
             else:
-                raise ValueError(
-                    "Only PID and time controllers are implemented at this moment."
+                logger.warning(
+                    f"{management.typecontroller} is not a valid controller type - skipped."
                 )
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -294,6 +313,7 @@ class DRTCModel:
         self.write_runtimeconfig()
         self.write_toolsconfig()
         self.write_dataconfig()
+        self.write_state_import()
         self.write_timeseries_import()
 
     # def write_runtimeconfig_2(self):
@@ -672,7 +692,7 @@ class DRTCModel:
                 c.text = "instantaneous"
                 c.tail = "\n"
                 d = ET.SubElement(b, gn_brackets + "locationId")
-                d.text = f"[TimeRule]Control Group {key}/Time Rule"
+                d.text = f"[TimeRule]Control group {key}/Time Rule"
                 d.tail = "\n"
                 e = ET.SubElement(b, gn_brackets + "parameterId")
                 e.text = "TimeSeries"
@@ -706,3 +726,44 @@ class DRTCModel:
                     k.tail = "\n"
 
         self.finish_file(myroot, configfile, self.output_path / "timeseries_import.xml")
+
+    def write_state_import(self) -> None:
+        """Function to write state_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
+        generalname = "http://www.openda.org"
+        xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
+        gn_brackets = "{" + generalname + "}"
+
+        # registering namespaces
+        ET.register_namespace("", generalname)
+        ET.register_namespace("xsi", xsi_name)
+
+        # Parsing xml file
+        configfile = ET.parse(self.template_dir / "state_import_empty.xml")
+        myroot = configfile.getroot()
+
+        a0 = ET.SubElement(myroot, gn_brackets + "treeVector")
+        a0.text = ""
+        a0.tail = "\n   "
+
+        for key in self.all_controllers.keys():
+
+            controller = self.all_controllers[key]
+
+            # te importeren data
+            a = ET.SubElement(a0, gn_brackets + "treeVectorLeaf")
+            a.attrib = {"id": "Output/" + key + "/" + controller["steering_variable"]}
+            a.text = ""
+            a.tail = "\n   "
+            b = ET.SubElement(a, gn_brackets + "vector")
+            if "settings" in controller:
+                b.text = str(controller["setpoint"])
+            else:
+                b.text = str(controller["data"].values[0])
+            b.tail = "\n "
+
+        # the parsed complex controllers should be inserted at the right place
+        if self.complex_controllers is not None:
+            for ctl in self.complex_controllers["state"]:
+                myroot[0].append(ET.fromstring(ctl))
+
+        self.finish_file(myroot, configfile, self.output_path / "state_import.xml")

@@ -18,6 +18,10 @@ dependencies:
   - conda-forge::pandas>=1.5.2,<2.0.0
   - conda-forge::geopandas>=0.12.2,<0.13.0
   - conda-forge::xarray>=2022.12.0,<2023.0.0
+  - conda-forge::imod>0.11.0
+  - conda-forge::jupyter
+  - conda-forge::rasterstats
+  - conda-forge::rstr
   - pip
   - pip:
     - hydrolib-core==0.3.0

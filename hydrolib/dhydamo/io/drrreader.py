@@ -1,16 +1,13 @@
 import logging
 import os
 import warnings
-from msilib.schema import _Validation_records
-from typing import List, Union
+from pathlib import Path
+from typing import Union
 
-import geopandas as gpd
 import numpy as np
 import pandas as pd
 from pydantic import validate_arguments
 from rasterstats import zonal_stats
-from scipy.spatial import KDTree
-from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from tqdm.auto import tqdm
 
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
@@ -26,9 +23,9 @@ class UnpavedIO:
     def unpaved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: str,
-        surface_level: str,
-        soiltype: str,
+        landuse: Union[str, Path],
+        surface_level: Union[str, Path],
+        soiltype: Union[str, Path],
         surface_storage,  #:Union[Stricttr, float, int],
         infiltration_capacity,  #:Union[str, float, int],
         initial_gwd,  #:Union[str, float, int],
@@ -254,8 +251,8 @@ class PavedIO:
     def paved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: str,
-        surface_level: str,
+        landuse: Union[Path, str],
+        surface_level: Union[Path, str],
         street_storage,  #:Union[str, float, int],
         sewer_storage,  #:Union[str, float, int],
         pump_capacity,  #:Union[str, float, int],
@@ -515,7 +512,18 @@ class PavedIO:
                             pav_area = str(pixels[14.0] * px_area)
                         else:
                             pav_area = 0.0
-
+                else:
+                    pixels = zonal_stats(
+                                cat.geometry,
+                                lu_rast,
+                                affine=lu_affine,
+                                categorical=True,
+                                all_touched=all_touched,
+                            )[0]
+                    if 14.0 in pixels:
+                        pav_area = str(pixels[14.0] * px_area)
+                    else:
+                        pav_area = 0.0
             else:
                 pav_area = (
                     str(lu_counts[num][14.0] * px_area)
@@ -571,8 +579,8 @@ class GreenhouseIO:
     def greenhouse_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: str,
-        surface_level: str,
+        landuse: Union[Path, str],
+        surface_level: Union[Path, str],
         roof_storage,  #:Union[str, float, int],
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,
@@ -673,7 +681,7 @@ class OpenwaterIO:
     def openwater_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: str,
+        landuse: Union[Path, str],
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,
     ) -> None:
@@ -738,7 +746,7 @@ class ExternalForcingsIO:
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def seepage_from_input(
-        self, catchments: ExtendedGeoDataFrame, seepage_folder: str
+        self, catchments: ExtendedGeoDataFrame, seepage_folder: Union[Path, str]
     ) -> None:
         """Perform zonal statistics to derive seepage time series per catchment. Time steps are derived from the data
 
@@ -776,8 +784,8 @@ class ExternalForcingsIO:
     def precip_from_input(
         self,
         areas: ExtendedGeoDataFrame,
-        precip_folder: str = None,
-        precip_file: str = None,
+        precip_folder: Union[Path, str] = None,
+        precip_file: Union[Path, str] = None,
     ) -> None:
         """Create time series of precipitation for every meteo_area, based on zonal statistics from rasters.
 
@@ -810,14 +818,14 @@ class ExternalForcingsIO:
             result.index = times
             [self.external_forcings.add_precip(*prec) for prec in result.iteritems()]
         else:
-            self.external_forcings.precip = precip_file
+            self.external_forcings.precip = str(precip_file)
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def evap_from_input(
         self,
         areas: ExtendedGeoDataFrame,
-        evap_folder: str = None,
-        evap_file: str = None,
+        evap_folder: Union[Path, str] = None,
+        evap_file: Union[Path, str] = None,
     ) -> None:
         """Create time series of evaporation for every meteo_area, based on zonal statistics from rasters.
 
@@ -853,7 +861,7 @@ class ExternalForcingsIO:
             result.index = times
             [self.external_forcings.add_evap(*evap) for evap in result.iteritems()]
         else:
-            self.external_forcings.evap = evap_file
+            self.external_forcings.evap = str(evap_file)
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def boundary_from_input(
