@@ -1,3 +1,6 @@
+import sys
+
+sys.path.append(".")
 from hydrolib.post import __version__
 
 

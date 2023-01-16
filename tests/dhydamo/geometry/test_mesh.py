@@ -8,6 +8,7 @@ from meshkernel.py_structures import DeleteMeshOption
 from shapely.affinity import translate
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box
 
+sys.path.append(".")
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.core.dflowfm.net.models import Branch
 from hydrolib.dhydamo.core.hydamo import HyDAMO
@@ -676,9 +677,9 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
         fill_value=fill_value,
     )
 
-    assert np.round(np.float32(
-        getattr(network._mesh2d, f"mesh2d_{where}_z").sum()),2
-    ) == np.round(np.float32(outcome),2)
+    assert np.round(
+        np.float32(getattr(network._mesh2d, f"mesh2d_{where}_z").sum()), 2
+    ) == np.round(np.float32(outcome), 2)
 
 
 def test_mesh1d_add_branches_from_gdf():
