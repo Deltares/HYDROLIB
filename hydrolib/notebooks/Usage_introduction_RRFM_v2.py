@@ -22,7 +22,7 @@ sys.path.insert(0, ".")
 
 # and from hydrolib-core
 from hydrolib.core.dimr.models import DIMR, FMComponent
-from hydrolib.core.dflowfm.inifield.models import IniFieldModel
+from hydrolib.core.dflowfm.inifield.models import IniFieldModel, DiskOnlyFileModel
 from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
 from hydrolib.core.dflowfm.structure.models import StructureModel
 from hydrolib.core.dflowfm.crosssection.models import CrossLocModel, CrossDefModel
@@ -577,10 +577,18 @@ extmodel.lateral = models.laterals_ext
 fm.external_forcing.extforcefilenew = extmodel
 
 fm.geometry.inifieldfile = IniFieldModel(initial=models.inifields)
-# for ifield, onedfield in enumerate(models.onedfieldmodels):
-#     fm.geometry.inifieldfile.initial[ifield].datafile = OneDFieldModel(
-#         global_= onedfield
-#     )
+
+for ifield, onedfield in enumerate(models.onedfieldmodels):
+    # eventually this is the way, but it has not been implemented yet in Hydrolib core
+    # fm.geometry.inifieldfile.initial[ifield].datafile = OneDFieldModel(global_=onedfield)
+
+    # this is a workaround to do the same
+    onedfield_filepath = output_path / "fm" / "initialwaterdepth.ini"
+    onedfieldmodel = OneDFieldModel(global_=onedfield)
+    onedfieldmodel.save(filepath=onedfield_filepath)
+    fm.geometry.inifieldfile.initial[ifield].datafile = DiskOnlyFileModel(
+        filepath=onedfield_filepath
+    )
 
 dimr = DIMR()
 dimr.component.append(
@@ -594,7 +602,7 @@ dimr.component.append(
 )
 dimr.save(recurse=True)
 
-shutil.copy(data_path / "initialWaterDepth.ini", output_path / "fm")
+# shutil.copy(data_path / "initialWaterDepth.ini", output_path / "fm")
 
 if RR:
     rr_writer = DRRWriter(
