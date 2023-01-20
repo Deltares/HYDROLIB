@@ -129,6 +129,18 @@ def test_add_to_filestructure():
 
     fm.geometry.inifieldfile = IniFieldModel(initial=models.inifields)
 
+    for ifield, onedfield in enumerate(models.onedfieldmodels):
+        # eventually this is the way, but it has not been implemented yet in Hydrolib core
+        # fm.geometry.inifieldfile.initial[ifield].datafile = OneDFieldModel(global_=onedfield)
+
+        # this is a workaround to do the same
+        onedfield_filepath = output_path / "fm" / "initialwaterdepth.ini"
+        onedfieldmodel = OneDFieldModel(global_=onedfield)
+        onedfieldmodel.save(filepath=onedfield_filepath)
+        fm.geometry.inifieldfile.initial[ifield].datafile = DiskOnlyFileModel(
+            filepath=onedfield_filepath
+        )
+
     assert hasattr(fm, "geometry")
     assert hasattr(fm.geometry, "inifieldfile")
     # this does not work yet
