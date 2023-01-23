@@ -44,8 +44,9 @@ from hydrolib.dhydamo.geometry.viz import plot_network
 data_path = Path("hydrolib/tests/data").resolve()
 assert data_path.exists()
 # path to write the models
-output_path = Path("hydrolib/tests/model").resolve()
+output_path = Path("hydrolib/tests/model").resolve().mkdir(parentes=True, exist_ok=True)
 assert output_path.exists()
+
 
 gpkg_file = str(data_path / "Example_model.gpkg")
 # initialize a hydamo object
