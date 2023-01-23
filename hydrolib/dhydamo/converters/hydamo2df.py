@@ -43,16 +43,16 @@ class CrossSectionsIO:
             crsdefs = crsdefs.drop_duplicates(subset=["crosssectiondefinitionid"])
             for _, crsdef in crsdefs.iterrows():
                 # Set roughness value on default if cross-section has non defined (e.g. culverts)
-                roughtype = (
-                    crsdef["frictionid"].split("_")[0]
-                    if isinstance(crsdef["frictionid"], str)
-                    else "Chezy"
-                )
-                roughval = (
-                    float(crsdef["frictionid"].split("_")[-1])
-                    if isinstance(crsdef["frictionid"], str)
-                    else 45
-                )
+                if isinstance(crsdef["frictionid"], str):
+                    roughtype = crsdef["frictionid"].split("_")[0]
+                else:
+                    "Chezy"
+
+                if isinstance(crsdef["frictionid"], str):
+                    roughval = float(crsdef["frictionid"].split("_")[-1])
+                else:
+                    45
+
                 # add definition
                 if crsdef["type"] == "circle":
                     self.crosssections.add_circle_definition(
@@ -70,7 +70,6 @@ class CrossSectionsIO:
                         roughnessvalue=roughval,
                         name=crsdef["crosssectiondefinitionid"],
                     )
-
                 elif crsdef["type"] == "trapezium":
                     self.crosssections.add_trapezium_definition(
                         slope=(crsdef["t_width"] - crsdef["width"])
@@ -83,7 +82,6 @@ class CrossSectionsIO:
                         roughnessvalue=roughval,
                         name=crsdef["crosssectiondefinitionid"],
                     )
-
                 elif crsdef["type"] == "zw":
                     self.crosssections.add_zw_definition(
                         numLevels=crsdef["numlevels"],
@@ -535,7 +533,7 @@ class StructuresIO:
         """
 
         index = np.zeros((len(weirs.code)))
-        if (profile_groups is not None)&("stuwid" in profile_groups):            
+        if (profile_groups is not None) & ("stuwid" in profile_groups):
             index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
 
         rweirs = weirs[index == 0]
@@ -604,7 +602,7 @@ class StructuresIO:
                 name = uweir.code
 
             prof = np.empty(0)
-            if (profiles is not None) & ("stuwid" in profile_groups):                
+            if (profiles is not None) & ("stuwid" in profile_groups):
                 group = profile_groups[profile_groups["stuwid"] == uweir.globalid]
                 line = profile_lines[
                     profile_lines["profielgroepid"] == group["globalid"].values[0]
