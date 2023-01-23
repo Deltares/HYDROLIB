@@ -46,12 +46,12 @@ class CrossSectionsIO:
                 if isinstance(crsdef["frictionid"], str):
                     roughtype = crsdef["frictionid"].split("_")[0]
                 else:
-                    "Chezy"
+                    roughtype = "Chezy"
 
                 if isinstance(crsdef["frictionid"], str):
                     roughval = float(crsdef["frictionid"].split("_")[-1])
                 else:
-                    45
+                    roughval = 45
 
                 # add definition
                 if crsdef["type"] == "circle":
