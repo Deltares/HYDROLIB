@@ -32,6 +32,7 @@ data_path = Path("hydrolib/tests/data").resolve()
 assert data_path.exists()
 # path to write the models
 output_path = Path("hydrolib/tests/model").resolve()
+output_path.mkdir(parents=True, exist_ok=True)
 assert output_path.exists()
 
 
