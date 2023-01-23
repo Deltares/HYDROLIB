@@ -204,13 +204,7 @@ class HyDAMO:
         self.management = ExtendedDataFrame(
             required_columns=["code", "globalid", "pompid", "doelvariabele"]
         )
-
-        # self.afsluitmiddel = ExtendedDataFrame(required_columns=[
-        #     'code',
-        #     'soortafsluitmiddelcode',
-        #     'codegerelateerdobject'
-        # ])
-
+      
         # Hydraulische randvoorwaarden
         self.boundary_conditions = ExtendedGeoDataFrame(
             geotype=Point, required_columns=["code", "typerandvoorwaarde", "geometry"]
@@ -748,7 +742,6 @@ class CrossSections:
         self.convert = CrossSectionsIO(self)
 
     def get_roughness_description(self, roughnesstype, value):
-
         if np.isnan(float(value)):
             raise ValueError("Roughness value should not be NaN.")
 
@@ -964,7 +957,6 @@ class CrossSections:
     def add_crosssection_location(
         self, branchid, chainage, definition, minz=np.nan, shift=0.0
     ):
-
         descr = f"{branchid}_{chainage:.1f}"
         # Add cross section location
         self.crosssection_loc[descr] = {
@@ -1041,7 +1033,6 @@ class CrossSections:
         branches: Union[ExtendedGeoDataFrame, None],
         roughness_variant: RoughnessVariant = None,
     ) -> dict:
-
         """
         Function to convert hydamo cross sections 'dwarsprofiel' to
         dflowfm input.
@@ -1158,7 +1149,7 @@ class CrossSections:
             if pd.isnull(
                 values[values.soortparameter == "bodemhoogte benedenstrooms"].waarde
             ).values[0]:
-                print(
+                logger.warning(
                     "bodemhoogte benedenstrooms not available for profile {}.".format(
                         param.globalid
                     )
@@ -1166,13 +1157,13 @@ class CrossSections:
             if pd.isnull(values[values.soortparameter == "bodembreedte"].waarde).values[
                 0
             ]:
-                print(
+                logger.warning(
                     "bodembreedte not available for profile {}.".format(param.globalid)
                 )
             if pd.isnull(
                 values[values.soortparameter == "bodemhoogte bovenstrooms"].waarde
             ).values[0]:
-                print(
+                logger.warning(
                     "bodemhoogte bovenstrooms not available for profile {}.".format(
                         param.globalid
                     )
@@ -1347,7 +1338,6 @@ class ExternalForcings:
             name = "wlevpoly{:04d}".format(len(self.initial_waterdepth_polygons) + 1)
         # Add to geodataframe
         if polygon == None:
-
             new_df = pd.DataFrame(
                 {
                     "waterdepth": depth,
@@ -1440,7 +1430,6 @@ class ExternalForcings:
         get_nearest = KDTree(nodes1d[:, 0:2])
         distance, idx_nearest = get_nearest.query(pt)
         nodeid = f"{float(nodes1d[idx_nearest,0]):12.6f}_{float(nodes1d[idx_nearest,1]):12.6f}"
-        # nodeid = nodes1d[idx_nearest, 2]
 
         # Convert time to minutes
         if isinstance(series, pd.Series):
@@ -1555,7 +1544,7 @@ class Structures:
 
     def check_branchid_chainage(self, branchid, chainage):
         # Check if the ID exists
-        if not branchid in self.hydamo.branches["code"]:
+        if branchid not in self.hydamo.branches["code"]:
             raise ValueError(
                 f"branchid {branchid} not present. Give an existing branch."
             )
@@ -1618,7 +1607,7 @@ class Structures:
         crestlevel: float = None,
         crestwidth: float = None,
         corrcoeff: float = None,
-        usevelocityheight: str = "true",  # TODO: String?
+        usevelocityheight: str = "true",
         allowedflowdir: str = "both",
         gateloweredgelevel: float = None,
         uselimitflowpos: bool = None,
@@ -1664,7 +1653,7 @@ class Structures:
         crestwidth: float = None,
         dischargecoeff: float = None,
         usevelocityheight: str = "true",
-        allowedflowdir: str = "both",  # TODO: String?
+        allowedflowdir: str = "both",
         numlevels: float = None,
         yvalues: str = None,
         zvalues: str = None,
@@ -1710,7 +1699,6 @@ class Structures:
         frictiontype: str = None,
         friction: float = None,
     ) -> None:
-
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
 
@@ -1758,7 +1746,6 @@ class Structures:
         bedfrictiontype: str = None,
         bedfriction: float = None,
     ) -> None:
-
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
 
@@ -1824,7 +1811,6 @@ class Structures:
         startleveldeliveryside: list = None,
         stopleveldeliveryside: list = None,
     ) -> None:
-
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
 

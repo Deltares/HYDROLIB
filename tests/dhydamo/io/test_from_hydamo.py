@@ -192,7 +192,6 @@ def test_convert_structures():
 
 def test_convert_crosssections():
     # initiate a hydamo object
-    hydamo = test_hydamo_object_from_gpkg()
     hydamo = test_convert_structures()
 
     hydamo.crosssections.convert.profiles(

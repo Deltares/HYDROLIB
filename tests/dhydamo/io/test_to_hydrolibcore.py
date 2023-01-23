@@ -5,10 +5,10 @@ import os
 
 # and from hydrolib-core
 from hydrolib.core.dimr.models import DIMR, FMComponent
-from hydrolib.core.dflowfm.inifield.models import IniFieldModel
+from hydrolib.core.dflowfm.inifield.models import IniFieldModel, DiskOnlyFileModel
 from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
-from hydrolib.core.dflowfm.structure.models import *
-from hydrolib.core.dflowfm.crosssection.models import *
+from hydrolib.core.dflowfm.structure.models import StructureModel
+from hydrolib.core.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
 from hydrolib.core.dflowfm.ext.models import ExtModel
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.core.dflowfm.bc.models import ForcingModel
@@ -23,9 +23,16 @@ from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.io.drrwriter import DRRWriter
 from hydrolib.dhydamo.geometry.viz import plot_network
-
+from pathlib import Path
 
 from tests.dhydamo.io import test_from_hydamo
+
+# path where the input data is located
+data_path = Path("hydrolib/tests/data").resolve()
+assert data_path.exists()
+# path to write the models
+output_path = Path("hydrolib/tests/model").resolve()
+assert output_path.exists()
 
 
 def setup_model():
@@ -33,12 +40,6 @@ def setup_model():
     # Set start and stop time
     fm.time.refdate = 20160601
     fm.time.tstop = 2 * 3600 * 24
-
-    data_path = Path("hydrolib/tests/data").resolve()
-    assert data_path.exists()
-    # path to write the models
-    output_path = Path("hydrolib/tests/model").resolve()
-    assert output_path.exists()
 
     hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
 
@@ -107,8 +108,6 @@ def test_add_to_filestructure():
     hydamo, fm = setup_model()
 
     models = Df2HydrolibModel(hydamo)
-    output_path = Path("hydrolib/tests/model").resolve()
-    assert output_path.exists()
 
     fm.geometry.structurefile = [StructureModel(structure=models.structures)]
     fm.geometry.crosslocfile = CrossLocModel(crosssection=models.crosslocs)
@@ -151,9 +150,6 @@ def test_add_to_filestructure():
 
 def test_write_model():
     fm = test_add_to_filestructure()
-
-    output_path = Path("hydrolib/tests/model").resolve()
-    assert output_path.exists()
 
     dimr = DIMR()
     dimr.component.append(

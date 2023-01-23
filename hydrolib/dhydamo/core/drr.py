@@ -53,20 +53,22 @@ class DRRModel:
 
         """
         if isinstance(file, str):
-            file = Path(file)
+            filename = Path(file)
+        else:
+            filename = file
 
         if not static:
             time = pd.Timestamp(os.path.split(file)[1].split("_")[1].split(".")[0])
 
-        if file.suffix.lower() == ".idf":
-            dataset = imod.idf.open(file)
-            header = imod.idf.header(file, pattern=None)
+        if filename.suffix.lower() == ".idf":
+            dataset = imod.idf.open(filename)
+            header = imod.idf.header(filename, pattern=None)
             grid = dataset[0, 0, :, :].values
             affine = from_origin(
                 header["xmin"], header["ymax"], header["dx"], header["dx"]
             )
         else:
-            dataset = rasterio.open(file)
+            dataset = rasterio.open(filename)
             affine = dataset.transform
             grid = dataset.read(1)
 
@@ -269,7 +271,6 @@ class Greenhouse:
     """
 
     def __init__(self, drrmodel):
-
         self.drrmodel = drrmodel
         self.gh_nodes = {}
 

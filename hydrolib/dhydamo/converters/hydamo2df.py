@@ -95,9 +95,6 @@ class CrossSectionsIO:
                         name=crsdef["crosssectiondefinitionid"],
                     )
 
-                elif crsdef["type"] == "yz":
-                    raise NotImplementedError
-
                 else:
                     raise NotImplementedError
 
@@ -165,7 +162,7 @@ class CrossSectionsIO:
 
         # Assign cross-sections to branches
         nnocross = len(self.crosssections.get_branches_without_crosssection())
-        logger.info(
+        print(
             f"Before adding the number of branches without cross section is: {nnocross}."
         )
 
@@ -199,7 +196,7 @@ class CrossSectionsIO:
         ]
 
         nnocross = len(no_crosssection)
-        logger.info(
+        print(
             f"After adding 'dwarsprofielen' the number of branches without cross section is: {nnocross}."
         )
         if nnocross == 0:
@@ -252,12 +249,11 @@ class CrossSectionsIO:
                 )
 
         nnocross = len(self.crosssections.get_branches_without_crosssection())
-        logger.info(
+        print(
             f"After adding 'normgeparametriseerd' the number of branches without cross section is: {nnocross}."
         )
 
         if dp_structures is not None:
-
             # 1. Collect cross sections from 'dwarsprofielen'
             yz_profiles = self.crosssections.crosssection_to_yzprofiles(
                 dp_structures,
@@ -304,7 +300,6 @@ class ExternalForcingsIO:
         bcdct = {}
 
         for bndcnd in boundary_conditions.itertuples():
-
             if "waterstand" in bndcnd.typerandvoorwaarde:
                 quantity = "waterlevelbnd"
             elif "debiet" in bndcnd.typerandvoorwaarde:
@@ -359,12 +354,10 @@ class ExternalForcingsIO:
         locations.rename(columns={"geometry2": "geometry"}, inplace=True)
 
         latdct = {}
+
         # Get time series and add to dictionary
         # for nidx, lateral in zip(nearest_idx, locations.itertuples()):
         for lateral in locations.itertuples():
-            # crd = nodes1d[nearest_idx]
-            # nid = f'{nodes1d[nidx][0]:g}_{nodes1d[nidx][1]:g}'
-
             # Check if a time is provided for the lateral
             if lateral.code in rr_boundaries:
                 # Add to dictionary
@@ -542,13 +535,11 @@ class StructuresIO:
         """
 
         index = np.zeros((len(weirs.code)))
-        if profile_groups is not None:
-            if "stuwid" in profile_groups:
-                index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
+        if (profile_groups is not None)&("stuwid" in profile_groups):            
+            index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
 
         rweirs = weirs[index == 0]
         for weir in rweirs.itertuples():
-
             weir_opening = opening[opening.stuwid == weir.globalid]
             weir_mandev = management_device[
                 management_device.kunstwerkopeningid
@@ -606,7 +597,6 @@ class StructuresIO:
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
-
             # check if a separate name field is present
             if "naam" in uweirs:
                 name = uweir.naam
@@ -614,21 +604,20 @@ class StructuresIO:
                 name = uweir.code
 
             prof = np.empty(0)
-            if profiles is not None:
-                if "stuwid" in profile_groups:
-                    group = profile_groups[profile_groups["stuwid"] == uweir.globalid]
-                    line = profile_lines[
-                        profile_lines["profielgroepid"] == group["globalid"].values[0]
+            if (profiles is not None) & ("stuwid" in profile_groups):                
+                group = profile_groups[profile_groups["stuwid"] == uweir.globalid]
+                line = profile_lines[
+                    profile_lines["profielgroepid"] == group["globalid"].values[0]
+                ]
+                prof = profiles[profiles["globalid"] == line["globalid"].values[0]]
+                if not prof.empty:
+                    counts = len(prof.geometry.iloc[0].coords[:])
+                    xyz = np.vstack(prof.geometry.iloc[0].coords[:])
+                    length = np.r_[
+                        0,
+                        np.cumsum(np.hypot(np.diff(xyz[:, 0]), np.diff(xyz[:, 1]))),
                     ]
-                    prof = profiles[profiles["globalid"] == line["globalid"].values[0]]
-                    if not prof.empty:
-                        counts = len(prof.geometry.iloc[0].coords[:])
-                        xyz = np.vstack(prof.geometry.iloc[0].coords[:])
-                        length = np.r_[
-                            0,
-                            np.cumsum(np.hypot(np.diff(xyz[:, 0]), np.diff(xyz[:, 1]))),
-                        ]
-                        yzvalues = np.c_[length, xyz[:, -1] - np.min(xyz[:, -1])]
+                    yzvalues = np.c_[length, xyz[:, -1] - np.min(xyz[:, -1])]
 
             if len(prof) == 0:
                 # return an error it is still not found
@@ -719,10 +708,7 @@ class StructuresIO:
             ]
             prof = profiles[profiles["globalid"] == line["globalid"].values[0]]
 
-            if len(prof) > 0:
-                profile_id = prof.code.values[0]
-            else:
-                # return an error it is still not found
+            if len(prof) == 0:
                 raise ValueError(f"{bridge.code} is not found in any cross-section.")
 
             if "naam" in bridges:
@@ -778,7 +764,6 @@ class StructuresIO:
         Parameters corrspond to the HyDAMO DAMO2.2 objects.
         """
         for culvert in culverts.itertuples():
-
             # Generate cross section definition name
             if culvert.vormkoker == "Rond" or culvert.vormkoker == "Ellipsvormig":
                 crosssection = {"shape": "circle", "diameter": culvert.hoogteopening}
@@ -817,6 +802,7 @@ class StructuresIO:
                     if i["soortregelmiddel"] == "terugslagklep":
                         allowedflowdir = "positive"
                     elif i["soortregelmiddel"] == "schuif":
+                        allowedflowdir = "positive"
                         valveonoff = 1
                         valveopeningheight = float(i["hoogteopening"])
                         numlosscoeff = 1
@@ -844,7 +830,7 @@ class StructuresIO:
                 inletlosscoeff=culvert.intreeverlies,
                 outletlosscoeff=culvert.uittreeverlies,
                 crosssection=crosssection,
-                allowedflowdir="both",
+                allowedflowdir=allowedflowdir,
                 valveonoff=valveonoff,
                 numlosscoeff=numlosscoeff,
                 valveopeningheight=valveopeningheight,
@@ -903,7 +889,6 @@ class StructuresIO:
 
         # Add sturing to pumps
         for pump in pumps.itertuples():
-
             # Find sturing for pump
             sturingidx = (management.pompid == pump.globalid).values
 

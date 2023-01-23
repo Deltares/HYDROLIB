@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from shapely.geometry import Point, Polygon
 import matplotlib.pyplot as plt
 import warnings
+import logging
 from shapely.errors import ShapelyDeprecationWarning
 
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
@@ -44,9 +45,16 @@ from hydrolib.dhydamo.geometry.viz import plot_network
 data_path = Path("hydrolib/tests/data").resolve()
 assert data_path.exists()
 # path to write the models
-output_path = Path("hydrolib/tests/model").resolve().mkdir(parentes=True, exist_ok=True)
+output_path = Path("hydrolib/tests/model").resolve()
+output_path.mkdir(parents=True, exist_ok=True)
 assert output_path.exists()
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.FileHandler("dhydamo.log", 'w'))
+
+print(f"D-HyDAMO started. Logging is written to {output_path}/dhydamo.log")
+print("D-HyDAMO started.")
 
 gpkg_file = str(data_path / "Example_model.gpkg")
 # initialize a hydamo object
@@ -553,10 +561,6 @@ hydamo.dict_to_dataframe(hydamo.external_forcings.lateral_nodes).tail()
 
 # main filepath
 fm.filepath = Path(output_path) / "fm" / "demo.mdu"
-# we first need to set the forcing model, because it is referred to in the ext model components
-
-# forcingmodel.filepath = Path(output_path) / "fm" / "boundaryconditions.bc"
-
 
 models = Df2HydrolibModel(hydamo)
 

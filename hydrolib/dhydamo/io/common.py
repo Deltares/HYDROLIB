@@ -20,10 +20,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
     _metadata = ["required_columns", "geotype"] + gpd.GeoDataFrame._metadata
 
     def __init__(self, geotype, required_columns=None, logger=logging, *args, **kwargs):
-        # Add logger object to self
-        # FIXME: logging below results in error
-        # self.logger = logger
-
         # Check type
         if required_columns is None:
             required_columns = []
@@ -40,15 +36,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         self.required_columns = required_columns[:]
         self.geotype = geotype
-
-    # def drop(self,edf, item, index_col=None,axis=None):
-    #     #edf = ExtendedGeoDataFrame(geotype=LineString)
-    #     temp = gpd.GeoDataFrame()
-    #     for field in self.iteritems():
-    #         temp[field[0]] = field[1]
-    #     temp.drop(item,axis=axis, inplace=True)
-    #     edf.set_data(temp, index_col=index_col, check_columns=True)
-    #     return edf
 
     def copy(self, deep=True):
         """
@@ -130,7 +117,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                         f"{i}_{n}"
                         for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
                     ]
-                    logger.info("%s is MultiPolygon; split into single parts." % ftc)
+                    print("%s is MultiPolygon; split into single parts." % ftc)
 
         # Check number of entries
         if gdf.empty:
@@ -221,10 +208,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         )
         for laynum, layer_name in enumerate(layerlist):
             layer = gpd.read_file(gpkg_path, layer=layer_name)
-            # lay_name = layer.GetName()
-            # lay_names.append(lay_name)
-            # layerDefinition = layer.GetLayerDefn()
-            nfields = len(layer.columns)  # layerDefinition.GetFieldCount()
+            nfields = len(layer.columns)
             nfeatures = layer.shape[0]
             geom_type = layer.geom_type.iloc[0]
             if geom_type is None:
@@ -255,41 +239,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         layer = gpd.read_file(gpkg_path, layer=layer_name)
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
-        # nfields = len(columns)
-
-        # Get column names for features
-        # columns = [
-        #     layerDefinition.GetFieldDefn(i).GetName().lower() for i in range(nfields)
-        # ]
-
-        # Collect features
-        # if 'profiellijnid' in columns:
-        #     features = [f for f in layer]
-        # else:
-        # features = [f for f in layer]
-
-        # # Get geometries
-        # georefs = [f.GetGeometryRef() for f in features]
-        # for i, geo in enumerate(georefs):
-        #     if geo is None:
-        #         print("Skipping invalid geometry.")
-        #         del georefs[i]
-        #         del features[i]
-
-        # geometries = []
-        # for i, (_, f) in enumerate(layer.iterrows()):
-        #     geometry = f.geometry
-        #     if (geometry.type == "MultiPolygon") | (geometry.type == "MultiPoint"):
-        #         new_geoms = list(geometry)
-        #         geometries.extend(new_geoms)
-        #         new_features = [f] * len(new_geoms)
-        #         new_feats.extend(new_features)
-        #     else:
-        #         geometries.append(geometry)
-        #         new_feats.append(f)
-
-        # features = new_feats
-        # geometries = [wkb.loads(geo.ExportToWkb()) for geo in georefs]
 
         # Get group by columns
         if groupby_column is not None:
@@ -303,11 +252,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
             # Get the values from the column that is grouped
             columnid = columns.index(groupby_column)
-            groupbyvalues = layer[
-                groupby_column
-            ]  # [f.GetField(columnid) for f in features]
-            # volgid = columns.index(order_column)
-            order = layer[order_column]  # [f.GetField(volgid) for f in features]
+            groupbyvalues = layer[groupby_column]
+
+            order = layer[order_column]
 
             # Create empty dict for lines
             branches, counts = np.unique(groupbyvalues, return_counts=True)
@@ -359,19 +306,12 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             ]
             fields = layer.iloc[idx, :]
 
-            # fields = [
-            #     list(map(f.GetField, range(nfields)))
-            #     for i, volgnr, f in zip(order, startnrs, features)
-            #     if i == volgnr
-            # ]
-
             # Get geometries in correct order for featuresF
             geometries = [lines[row[columnid]] for _, row in fields.iterrows()]
 
         else:
             fields = layer
             geometries = layer.geometry
-        #     fields = [list(map(f.GetField, range(nfields))) for f in features]
 
         # Create geodataframe
         gdf = gpd.GeoDataFrame(fields, columns=columns, geometry=geometries)
@@ -582,7 +522,7 @@ class ExtendedDataFrame(pd.DataFrame):
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
         layer.drop("geometry", axis=1, inplace=True)
-        df = pd.DataFrame()
+
         df = layer
         if column_mapping is not None:
             df.rename(columns=column_mapping, inplace=True)
