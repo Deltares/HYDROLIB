@@ -49,13 +49,6 @@ output_path = Path("hydrolib/tests/model").resolve()
 output_path.mkdir(parents=True, exist_ok=True)
 assert output_path.exists()
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-logger.addHandler(logging.FileHandler("dhydamo.log", 'w'))
-
-print(f"D-HyDAMO started. Logging is written to {output_path}/dhydamo.log")
-print("D-HyDAMO started.")
-
 gpkg_file = str(data_path / "Example_model.gpkg")
 # initialize a hydamo object
 hydamo = HyDAMO(extent_file=data_path / "OLO_stroomgebied_incl.maas.shp")
@@ -309,7 +302,8 @@ for i in hydamo.branches.naam.unique():
         ):
             hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "order"] = int(j)
             j = j + 1
-
+# Retentiebekken Rosmolen has a name, and therefore an ordernumber, but cannot be interpolated. Set the order to 0, so it gets a default profile.
+hydamo.branches.loc["W_1386_0", "order"] = 0.0
 interpolation = []
 for i in hydamo.branches.order.unique():
     if i > 0:

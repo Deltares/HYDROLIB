@@ -25,7 +25,9 @@ class DIMRWriter:
         """
         if dimr_path is None:
             self.run_dimr = r"C:\Program Files\Deltares\D-HYDRO Suite 2022.04 1D2D\plugins\DeltaShell.Dimr\kernels\x64\dimr\scripts\run_dimr.bat"
-
+        else:
+            self.run_dimr = dimr_path
+            
         if output_path is None:
             self.output_path = Path(os.path.abspath("."))
         else:
