@@ -1,8 +1,12 @@
 [tool.poetry]
 name = "hydrolib"
 version = "0.1.1"
-description = "Python wrappers around D-HYDRO Suite."
+description = "HYDROLIB tools for hydrodynamic and hydrological modelling workflows"
 authors = ["Deltares"]
+maintainers = [
+    "Arthur van Dam <arthur.vandam@deltares.nl>",
+    "Ruud Hurkmans <r.hurkmans@hkv.nl>",
+    ]
 license = "LGPL"
 
 [tool.poetry.dependencies]
