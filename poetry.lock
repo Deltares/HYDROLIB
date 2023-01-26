@@ -1201,14 +1201,14 @@ dev = ["flake8", "markdown", "twine", "wheel"]
 
 [[package]]
 name = "hydrolib-core"
-version = "0.4.0"
+version = "0.4.1"
 description = "Python wrappers around D-HYDRO Suite."
 category = "main"
 optional = false
 python-versions = ">=3.8,<4.0"
 files = [
-    {file = "hydrolib_core-0.4.0-py3-none-any.whl", hash = "sha256:1860fbc366d3567cf8161a6f6ebda70256947ed4a8a3566481e7b138b0cc17f0"},
-    {file = "hydrolib_core-0.4.0.tar.gz", hash = "sha256:b8eda70c531c0e20a44be6662fcadaf9e5c4ad5cb19119b172039e3da91ae086"},
+    {file = "hydrolib_core-0.4.1-py3-none-any.whl", hash = "sha256:3adf727f9f4ef83386bf25f1a2c82ac0b5e54fee46d37ffe5142fcbdf608f7cc"},
+    {file = "hydrolib_core-0.4.1.tar.gz", hash = "sha256:6798268cdb6bac879a3ccae79416f32dce8829dc2eb0491eb6c17752bdf2e9c5"},
 ]
 
 [package.dependencies]
@@ -4446,4 +4446,4 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.11"
-content-hash = "724047ff01f03621c57da361ca20a83eb4e3a9e8462753b12f4e087abd4ef2dc"
+content-hash = "fceb8310d9b10c84ed08da3ef565b154df8d96b310469b37731c42467c2135ca"

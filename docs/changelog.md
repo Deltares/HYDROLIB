@@ -1,4 +1,10 @@
-## 0.1.0 (2023-01-26)
+## 0.1.2 (2023-01-26)
+
+### Refactor
+
+- HYDROLIB now depends on hydrolib-core 0.4.1, with the new import structure.
+
+## 0.1.1 (2023-01-26)
 
 ### Feat
 
