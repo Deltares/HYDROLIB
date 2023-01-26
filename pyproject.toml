@@ -14,7 +14,7 @@ python = ">=3.8,<3.11"
 pandas = "^1.2"
 geopandas = "^0.10"
 xarray = "^0.17"
-hydrolib-core = {git = "https://github.com/Deltares/hydrolib-core.git", rev = "439/fix_error_in_add_nodes_to_segments"}
+hydrolib-core = "^0.4"
 shapely = "^1.8"
 matplotlib = "^3.5.2"
 numpy = "1.21"
