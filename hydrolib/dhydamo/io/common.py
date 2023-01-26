@@ -1,29 +1,25 @@
 import logging
-import os
 import re
 from copy import deepcopy
-
+from pathlib import Path
+from typing import Union
+import fiona
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from osgeo import ogr
 from shapely import wkb
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
-from hydrolib.dhydamo.geometry import geometry
+from hydrolib.dhydamo.geometry import spatial
+
+logger = logging.getLogger()
 
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
-
     # normal properties
     _metadata = ["required_columns", "geotype"] + gpd.GeoDataFrame._metadata
 
     def __init__(self, geotype, required_columns=None, logger=logging, *args, **kwargs):
-
-        # Add logger object to self
-        # FIXME: logging below results in error
-        # self.logger = logger
-
         # Check type
         if required_columns is None:
             required_columns = []
@@ -40,15 +36,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         self.required_columns = required_columns[:]
         self.geotype = geotype
-
-    # def drop(self,edf, item, index_col=None,axis=None):
-    #     #edf = ExtendedGeoDataFrame(geotype=LineString)
-    #     temp = gpd.GeoDataFrame()
-    #     for field in self.iteritems():
-    #         temp[field[0]] = field[1]
-    #     temp.drop(item,axis=axis, inplace=True)
-    #     edf.set_data(temp, index_col=index_col, check_columns=True)
-    #     return edf
 
     def copy(self, deep=True):
         """
@@ -79,17 +66,16 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
     def read_shp(
         self,
-        path,
-        index_col=None,
-        column_mapping=None,
-        check_columns=True,
+        path: Union[str, Path],
+        index_col: str = None,
+        column_mapping: dict = None,
+        check_columns: bool = True,
         proj_crs=None,
-        clip=None,
-        check_geotype=True,
-        id_col="code",
-        filter_cols=False,
+        clip: Union[Polygon, MultiPolygon] = None,
+        check_geotype: bool = True,
+        id_col: str = "code",
+        filter_cols: bool = False,
         filter_rows=None,
-        logger=logging,
     ):
         """
         Import function, extended with type checks. Does not destroy reference to object.
@@ -131,7 +117,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                         f"{i}_{n}"
                         for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
                     ]
-                    logger.info("%s is MultiPolygon; split into single parts." % ftc)
+                    print("%s is MultiPolygon; split into single parts." % ftc)
 
         # Check number of entries
         if gdf.empty:
@@ -156,7 +142,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             logger.debug(f"No projected CRS is given in ini-file")
 
     def set_data(self, gdf, index_col=None, check_columns=True, check_geotype=True):
-
         if not self.empty:
             self.delete_all()
 
@@ -165,7 +150,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             self._check_columns(gdf)
 
         # Copy content
-        for col, values in gdf.iteritems():
+        for col, values in gdf.items():
             self[col] = values.values
 
         if index_col is None:
@@ -209,88 +194,51 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                 )
             )
 
-    def show_gpkg(self, gpkg_path):
-        if not os.path.exists(gpkg_path):
+    def show_gpkg(self, gpkg_path: Union[str, Path]):
+        if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
 
-        ogr.UseExceptions()
-        gpkg = ogr.Open(gpkg_path)
-        print(
-            f"Content of gpkg-file {gpkg_path}, containing {gpkg.GetLayerCount()} layers:"
-        )
+        if isinstance(gpkg_path, Path):
+            gpkg_path = str(gpkg_path)
+
+        layerlist = fiona.listlayers(gpkg_path)
+        print(f"Content of gpkg-file {gpkg_path}, containing {len(layerlist)} layers:")
         print(
             f"\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS"
         )
-        lay_names = []
-        for laynum in range(gpkg.GetLayerCount()):
-            layer = gpkg.GetLayer(laynum)
-            lay_name = layer.GetName()
-            lay_names.append(lay_name)
-            layerDefinition = layer.GetLayerDefn()
-            nfields = layerDefinition.GetFieldCount()
-            nfeatures = layer.GetFeatureCount()
-            geom_type = ogr.GeometryTypeToName(layer.GetGeomType())
+        for laynum, layer_name in enumerate(layerlist):
+            layer = gpd.read_file(gpkg_path, layer=layer_name)
+            nfields = len(layer.columns)
+            nfeatures = layer.shape[0]
+            geom_type = layer.geom_type.iloc[0]
+            if geom_type is None:
+                geom_type = "None"
             print(
-                f"\t{laynum:5d}\t|\t{lay_name:30s}\t|\t{geom_type:12s}\t|\t{nfeatures:10d}\t|\t{nfields:10d}"
+                f"\t{laynum:5d}\t|\t{layer_name:30s}\t|\t{geom_type:12s}\t|\t{nfeatures:10d}\t|\t{nfields:10d}"
             )
-        # return lay_names
 
     def read_gpkg_layer(
         self,
-        gpkg_path,
-        layer_name=None,
-        index_col=None,
-        groupby_column=None,
-        order_column=None,
-        id_col="code",
-        column_mapping={},
-        check_columns=True,
-        check_geotype=True,
-        clip=None,
+        gpkg_path: Union[str, Path],
+        layer_name: str,
+        index_col: str = None,
+        groupby_column: str = None,
+        order_column: str = None,
+        id_col: str = "code",
+        column_mapping: dict = None,
+        check_columns: bool = True,
+        check_geotype: bool = True,
+        clip: Union[Polygon, MultiPolygon] = None,
     ):
-        if not os.path.exists(gpkg_path):
+        if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
 
-        ogr.UseExceptions()
-        gpkg = ogr.Open(gpkg_path)
-        layer = gpkg.GetLayerByName(layer_name)
-        layerDefinition = layer.GetLayerDefn()
-        nfields = layerDefinition.GetFieldCount()
+        if isinstance(gpkg_path, Path):
+            gpkg_path = str(gpkg_path)
 
-        # Get column names for features
-        columns = [
-            layerDefinition.GetFieldDefn(i).GetName().lower() for i in range(nfields)
-        ]
-
-        # Collect features
-        # if 'profiellijnid' in columns:
-        #     features = [f for f in layer]
-        # else:
-        features = [f for f in layer]
-
-        # Get geometries
-        georefs = [f.GetGeometryRef() for f in features]
-        for i, geo in enumerate(georefs):
-            if geo is None:
-                print("Skipping invalid geometry.")
-                del georefs[i]
-                del features[i]
-
-        geometries = []
-        new_feats = []
-        for i, f in enumerate(features):
-            geometry = wkb.loads(georefs[i].ExportToWkb())
-            if (geometry.type == "MultiPolygon") | (geometry.type == "MultiPoint"):
-                new_geoms = list(geometry)
-                geometries.extend(new_geoms)
-                new_features = [f] * len(new_geoms)
-                new_feats.extend(new_features)
-            else:
-                geometries.append(geometry)
-                new_feats.append(f)
-
-        features = new_feats
-        # geometries = [wkb.loads(geo.ExportToWkb()) for geo in georefs]
+        layer = gpd.read_file(gpkg_path, layer=layer_name)
+        columns = [col.lower() for col in layer.columns]
+        layer.columns = columns
 
         # Get group by columns
         if groupby_column is not None:
@@ -299,21 +247,21 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                 raise ValueError("Groupby column not found in feature list.")
 
             # Check if the geometry is as expected
-            if not isinstance(geometries[0], Point):
+            if not isinstance(layer.geometry.iloc[0], Point):
                 raise ValueError("Can only group Points to LineString")
 
             # Get the values from the column that is grouped
             columnid = columns.index(groupby_column)
-            groupbyvalues = [f.GetField(columnid) for f in features]
-            volgid = columns.index(order_column)
-            order = [f.GetField(volgid) for f in features]
+            groupbyvalues = layer[groupby_column]
+
+            order = layer[order_column]
 
             # Create empty dict for lines
             branches, counts = np.unique(groupbyvalues, return_counts=True)
             lines = {branch: [0] * count for branch, count in zip(branches, counts)}
 
             # Since the order does not always start at 1, find the starting number per group
-            startnr = {branch: len(features) + 1 for branch in branches}
+            startnr = {branch: layer.shape[0] + 1 for branch in branches}
             for branch, volgnr in zip(groupbyvalues, order):
                 startnr[branch] = min(volgnr, startnr[branch])
 
@@ -331,7 +279,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
             # Assign points
             for point, volgnr, branch, volgnr_rel in zip(
-                geometries, order, groupbyvalues, order_rel
+                layer.geometry, order, groupbyvalues, order_rel
             ):
                 # lines[branch][volgnr - startnr[branch]] = point
                 lines[branch][volgnr_rel] = point
@@ -353,24 +301,27 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
             # Read fields at first occurence
             startnrs = [startnr[branch] for branch in groupbyvalues]
-            fields = [
-                list(map(f.GetField, range(nfields)))
-                for i, volgnr, f in zip(order, startnrs, features)
-                if i == volgnr
+            idx = [
+                nr for nr, (i, volgnr) in enumerate(zip(order, startnrs)) if i == volgnr
             ]
+            fields = layer.iloc[idx, :]
 
             # Get geometries in correct order for featuresF
-            geometries = [lines[row[columnid]] for row in fields]
+            geometries = [lines[row[columnid]] for _, row in fields.iterrows()]
 
         else:
-            fields = [list(map(f.GetField, range(nfields))) for f in features]
+            fields = layer
+            geometries = layer.geometry
 
         # Create geodataframe
         gdf = gpd.GeoDataFrame(fields, columns=columns, geometry=geometries)
-        gdf.rename(columns=column_mapping, inplace=True)
+
+        if column_mapping is not None:
+            gdf.rename(columns=column_mapping, inplace=True)
 
         # add a letter to 'exploded' multipolygons
-        if "Polygon" in geometry.type:
+        if "MultiPolygon" in list(gdf.geometry.type):
+            gdf = gdf.explode()
             for ftc in gdf[id_col].unique():
                 if len(gdf[gdf[id_col] == ftc]) > 1:
                     gdf.loc[gdf[id_col] == ftc, id_col] = [
@@ -388,177 +339,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         )
 
         if clip is not None:
-            self.clip(clip)
+            self.clip(geometry=clip)
 
-    def read_gml(
-        self,
-        gml_path,
-        index_col=None,
-        groupby_column=None,
-        order_column=None,
-        id_col="code",
-        column_mapping={},
-        check_columns=True,
-        check_geotype=True,
-        clip=None,
-    ):
-        """
-        Read GML file to GeoDataFrame.
-
-        This function has the option to group Points into LineStrings. To do so,
-        specify the groupby column (which the set has in common) and the order_column,
-        the column which indicates the order of the grouping.
-
-        A mask file can be specified to clip the selection.
-
-        Parameters
-        ----------
-        gml_path : str
-            Path to the GML file
-        groupby_column : str
-            Optional, column to group points by
-        order_column : str
-            Optional, columns to specify the order of the grouped points
-        mask_file : str
-            File containing the mask to clip points.
-        """
-
-        if not os.path.exists(gml_path):
-            raise OSError(f'File not found: "{gml_path}"')
-
-        ogr.UseExceptions()
-        gml = ogr.Open(gml_path)
-        layer = gml.GetLayer()
-        layerDefinition = layer.GetLayerDefn()
-        nfields = layerDefinition.GetFieldCount()
-
-        # Get column names for features
-        columns = [layerDefinition.GetFieldDefn(i).GetName() for i in range(nfields)]
-
-        # Collect features
-        features = [f for f in layer]
-
-        # Get geometries
-        georefs = [f.GetGeometryRef() for f in features]
-        for i, geo in enumerate(georefs):
-            if geo is None:
-                print("Skipping invalid geometry.")
-                del georefs[i]
-                del features[i]
-
-        geometries = []
-        new_feats = []
-        for i, f in enumerate(features):
-            geometry = wkb.loads(georefs[i].ExportToWkb())
-            if geometry.type == "MultiPolygon":
-                new_geoms = list(geometry)
-                geometries.extend(new_geoms)
-                new_features = [f] * len(new_geoms)
-                new_feats.extend(new_features)
-            else:
-                geometries.append(geometry)
-                new_feats.append(f)
-        features = new_feats
-        # geometries = [wkb.loads(geo.ExportToWkb()) for geo in georefs]
-
-        # Get group by columns
-        if groupby_column is not None:
-            # Check if the group by column is found
-            if groupby_column not in columns:
-                raise ValueError("Groupby column not found in feature list.")
-
-            # Check if the geometry is as expected
-            if not isinstance(geometries[0], Point):
-                raise ValueError("Can only group Points to LineString")
-
-            # Get the values from the column that is grouped
-            columnid = columns.index(groupby_column)
-            groupbyvalues = [f.GetField(columnid) for f in features]
-            volgid = columns.index(order_column)
-            order = [f.GetField(volgid) for f in features]
-
-            # Create empty dict for lines
-            branches, counts = np.unique(groupbyvalues, return_counts=True)
-            lines = {branch: [0] * count for branch, count in zip(branches, counts)}
-
-            # Since the order does not always start at 1, find the starting number per group
-            startnr = {branch: len(features) + 1 for branch in branches}
-            for branch, volgnr in zip(groupbyvalues, order):
-                startnr[branch] = min(volgnr, startnr[branch])
-
-            # Determine relative order of points in profile (required if the point numbering is not subsequent)
-            order_rel = []
-            for branch, volgnr in zip(groupbyvalues, order):
-                lst_volgnr = [x[1] for x in zip(groupbyvalues, order) if x[0] == branch]
-                lst_volgnr.sort()
-                for i, x in enumerate(lst_volgnr):
-                    if volgnr == x:
-                        order_rel.append(i)
-
-            # Filter branches with too few points
-            singlepoint = counts < 2
-
-            # Assign points
-            for point, volgnr, branch, volgnr_rel in zip(
-                geometries, order, groupbyvalues, order_rel
-            ):
-                # lines[branch][volgnr - startnr[branch]] = point
-                lines[branch][volgnr_rel] = point
-
-            # Group geometries to lines
-            for branch in branches[~singlepoint]:
-                if any(isinstance(pt, int) for pt in lines[branch]):
-                    print(
-                        f'Points are not properly assigned for branch "{branch}". Check the GML.'
-                    )
-                    lines[branch] = [
-                        pt for pt in lines[branch] if not isinstance(pt, int)
-                    ]
-                lines[branch] = LineString(lines[branch])
-
-            # Set order for branches with single point to 0, so features are not loaded
-            for branch in branches[singlepoint]:
-                order[groupbyvalues.index(branch)] = 0
-
-            # Read fields at first occurence
-            startnrs = [startnr[branch] for branch in groupbyvalues]
-            fields = [
-                list(map(f.GetField, range(nfields)))
-                for i, volgnr, f in zip(order, startnrs, features)
-                if i == volgnr
-            ]
-
-            # Get geometries in correct order for featuresF
-            geometries = [lines[row[columnid]] for row in fields]
-
-        else:
-            fields = [list(map(f.GetField, range(nfields))) for f in features]
-
-        # Create geodataframe
-        gdf = gpd.GeoDataFrame(fields, columns=columns, geometry=geometries)
-        gdf.rename(columns=column_mapping, inplace=True)
-
-        # add a letter to 'exploded' multipolygons
-        # sfx = ['_'+str(i) for i in range(100)]
-        for ftc in gdf[id_col].unique():
-            if len(gdf[gdf[id_col] == ftc]) > 1:
-                gdf.loc[gdf[id_col] == ftc, id_col] = [
-                    f"{i}_{n}" for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
-                ]
-                print(f"{ftc} is MultiPolygon; split into single parts.")
-
-        # Add data to class GeoDataFrame
-        self.set_data(
-            gdf,
-            index_col=index_col,
-            check_columns=check_columns,
-            check_geotype=check_geotype,
-        )
-
-        if clip is not None:
-            self.clip(clip)
-
-    def clip(self, geometry):
+    def clip(self, geometry: Union[Polygon, MultiPolygon]):
         """
         Clip geometry
         """
@@ -625,13 +408,12 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
     def snap_to_branch(self, branches, snap_method, maxdist=5):
         """Snap the geometries to the branch"""
-        geometry.find_nearest_branch(
+        spatial.find_nearest_branch(
             branches=branches, geometries=self, method=snap_method, maxdist=maxdist
         )
 
 
 class ExtendedDataFrame(pd.DataFrame):
-
     _metadata = ["required_columns"] + pd.DataFrame._metadata
 
     def __init__(self, required_columns=None, *args, **kwargs):
@@ -655,12 +437,11 @@ class ExtendedDataFrame(pd.DataFrame):
             self.dropna(inplace=True)
 
     def set_data(self, df, index_col):
-
         if not self.empty:
             self.delete_all()
 
         # Copy content
-        for col, values in df.iteritems():
+        for col, values in df.items():
             self[col] = values.values
 
         if index_col is None:
@@ -675,7 +456,6 @@ class ExtendedDataFrame(pd.DataFrame):
         self._check_columns()
 
     def add_data(self, df):
-
         if not np.in1d(df.columns, self.columns).all():
             raise KeyError(
                 "The new df contains columns that are not present in the current df."
@@ -706,52 +486,12 @@ class ExtendedDataFrame(pd.DataFrame):
                     )
                 )
 
-    def read_gml(self, gml_path, index_col=None):
-        """
-        Read GML file to GeoDataFrame.
-
-        This function has the option to group Points into LineStrings. To do so,
-        specify the groupby column (which the set has in common) and the order_column,
-        the column which indicates the order of the grouping.
-
-        A mask file can be specified to clip the selection.
-
-        Parameters
-        ----------
-        gml_path : str
-            Path to the GML file
-        index_col : str
-            Optional, column to be set as index
-        """
-
-        if not os.path.exists(gml_path):
-            raise OSError(f'File not found: "{gml_path}"')
-
-        ogr.UseExceptions()
-        gml = ogr.Open(gml_path)
-        layer = gml.GetLayer()
-        layer_definition = layer.GetLayerDefn()
-        nfields = layer_definition.GetFieldCount()
-
-        # Get column names for features
-        columns = [layer_definition.GetFieldDefn(i).GetName() for i in range(nfields)]
-
-        # Collect features
-        features = [f for f in layer]
-
-        # Read fields
-        fields = [list(map(f.GetField, range(nfields))) for f in features]
-
-        # Create geodataframe
-        gmldf = pd.DataFrame(fields, columns=columns)
-        if column_mapping is not None:
-            gmldf.rename(columns=column_mapping, inplace=True)
-
-        # Add data to class GeoDataFrame
-        self.set_data(gmldf, index_col=index_col)
-
     def read_gpkg_layer(
-        self, gpkg_path, layer_name=None, column_mapping={}, index_col=None
+        self,
+        gpkg_path: Union[str, Path],
+        layer_name: str = None,
+        column_mapping: dict = None,
+        index_col: str = None,
     ):
         """
         Read GML file to GeoDataFrame.
@@ -772,29 +512,20 @@ class ExtendedDataFrame(pd.DataFrame):
             Optional, column to be set as index
         """
 
-        if not os.path.exists(gpkg_path):
+        if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
 
-        ogr.UseExceptions()
-        gpkg = ogr.Open(gpkg_path)
-        layer = gpkg.GetLayerByName(layer_name)
-        layer_definition = layer.GetLayerDefn()
-        nfields = layer_definition.GetFieldCount()
+        if isinstance(gpkg_path, Path):
+            gpkg_path = str(gpkg_path)
 
-        # Get column names for features
-        columns = [
-            layer_definition.GetFieldDefn(i).GetName().lower() for i in range(nfields)
-        ]
+        layer = gpd.read_file(gpkg_path, layer=layer_name)
+        columns = [col.lower() for col in layer.columns]
+        layer.columns = columns
+        layer.drop("geometry", axis=1, inplace=True)
 
-        # Collect features
-        features = [f for f in layer]
-
-        # Read fields
-        fields = [list(map(f.GetField, range(nfields))) for f in features]
-
-        # Create geodataframe
-        df = pd.DataFrame(fields, columns=columns)
-        df.rename(columns=column_mapping, inplace=True)
+        df = layer
+        if column_mapping is not None:
+            df.rename(columns=column_mapping, inplace=True)
 
         # Add data to class GeoDataFrame
         self.set_data(df, index_col=index_col)

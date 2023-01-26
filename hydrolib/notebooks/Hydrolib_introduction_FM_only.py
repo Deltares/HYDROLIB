@@ -7,12 +7,8 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import shutup
 from shapely.geometry import Point
 
-# shutup.please()
-
-sys.path.insert(1, r"D:\3640.20\HYDROLIB-dhydamo")
 from hydrolib.core.io.bc.models import ForcingModel
 from hydrolib.core.io.crosssection.models import *
 from hydrolib.core.io.dimr.models import DIMR, FMComponent, RRComponent
@@ -23,7 +19,9 @@ from hydrolib.core.io.mdu.models import FMModel  # , RainfallRunoffModel
 from hydrolib.core.io.obs.models import ObservationPointModel
 from hydrolib.core.io.onedfield.models import OneDFieldModel
 from hydrolib.core.io.structure.models import *
-from hydrolib.dhydamo.core.drr import DRRModel
+
+sys.path.append('../')
+# from dhydamo.core.drr import DRRModel
 
 # Importing relevant classes from delft3dfmpy
 from hydrolib.dhydamo.core.hydamo import HyDAMO
