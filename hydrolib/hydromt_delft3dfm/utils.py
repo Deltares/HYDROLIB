@@ -17,6 +17,7 @@ from hydrolib.core.dflowfm import (
     StorageNodeModel,
     ExtModel,
     Boundary,
+    Meteo,
     ForcingModel,
     BranchModel,
 )
@@ -607,6 +608,84 @@ def write_1dboundary(forcing: Dict, savedir: str) -> Tuple:
         ext_model.boundary.append(
             Boundary(**{**extdict[i], "forcingFile": forcing_model})
         )
+    # Save ext and forcing files
+    ext_model.save(join(savedir, ext_fn), recurse=True)
+
+    return forcing_fn, ext_fn
+
+
+def write_external_forcing(forcing: Dict, savedir: str) -> Tuple:
+    """ "
+    write ext file from forcing dict
+
+    Parameters
+    ----------
+    forcing: dict of xarray DataArray
+        Dict of boundary DataArray for each variable
+    savedir: str
+        path to the directory where to save the file.
+
+    Returns
+    -------
+    forcing_fn: str
+        relative path to external forcing file.
+    ext_fn: str
+        relative path to external forcing file.
+    """
+    bnddict = list()
+    latdict = list()
+    metdict = list()
+    bcdict = list()
+    # Loop over forcing dict
+    for name, da in forcing.items():
+        for i in da.index.values:
+            bc = da.attrs.copy()
+            # Boundary
+            ext = dict()
+            ext["quantity"] = bc["quantity"]
+            if ext["quantity"] in ["discharge", "waterlevel"]: # FIXME: how to distinguish bnd and lat? checked how this is done in dili
+                ext["nodeId"] = i
+                bnddict.append(ext)
+            elif ext["quantity"] in ["rainfall", "rainfall_rate"]:
+                ext["forcingFileType"] = "bcAscii"
+                metdict.append(ext)
+            # Forcing
+            bc["name"] = i
+            if bc["function"] == "constant":
+                # one quantityunitpair
+                bc["quantityunitpair"] = [{"quantity": da.name, "unit": bc["units"]}]
+                # only one value column (no times)
+                bc["datablock"] = [[da.sel(index=i).values.item()]]
+            else:
+                # two quantityunitpair
+                bc["quantityunitpair"] = [
+                    {"quantity": "time", "unit": bc["time_unit"]},
+                    {"quantity": da.name, "unit": bc["units"]},
+                ]
+                bc.pop("time_unit")
+                # time/value datablock
+                bc["datablock"] = [
+                    [t, x] for t, x in zip(da.time.values, da.sel(index=i).values)
+                ]
+            bc.pop("quantity")
+            bc.pop("units")
+            bcdict.append(bc)
+
+    forcing_model = ForcingModel(forcing=bcdict)
+    forcing_fn = forcing_model._filename() + ".bc"
+    forcing_model.filepath = forcing_fn
+
+    ext_model = ExtModel()
+    ext_fn = ext_model._filename() + ".ext"
+    for i in range(len(bnddict)):
+        ext_model.boundary.append(
+            Boundary(**{**bnddict[i], "forcingFile": forcing_model})
+        )
+    for i in range(len(metdict)):
+        ext_model.meteo.append(
+            Meteo(**{**metdict[i], "forcingFile": forcing_model})
+        )
+
     # Save ext and forcing files
     ext_model.save(join(savedir, ext_fn), recurse=True)
 

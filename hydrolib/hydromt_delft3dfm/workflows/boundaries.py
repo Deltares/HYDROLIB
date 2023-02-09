@@ -24,6 +24,7 @@ __all__ = [
     "select_boundary_type",
     "validate_boundaries",
     "compute_boundary_values",
+    "compute_meteo_forcings"
 ]
 
 
@@ -130,9 +131,14 @@ def select_boundary_type(
                     boundaries_branch_type["where"] == boundary_locs, :
                 ]
         if boundary_type == "discharge":
-            boundaries_branch_type = boundaries_branch_type.loc[
-                boundaries_branch_type["where"] == "upstream", :
-            ]
+            if boundary_locs != "upstream":
+                logger.warning(
+                    f"Applying boundary type {boundary_type} selected for {branch_type} boundaries might cause instabilities."
+                )
+            if boundary_locs != "both":
+                boundaries_branch_type = boundaries_branch_type.loc[
+                    boundaries_branch_type["where"] == boundary_locs, :
+                ]
         else:
             logger.error(
                 f"Wrong boundary type {boundary_type} selected for {branch_type} boundaries."
@@ -233,10 +239,12 @@ def compute_boundary_values(
         _TIMESTR = {"D": "days", "H": "hours", "T": "minutes", "S": "seconds"}
         dt = pd.to_timedelta((da_bnd.time[1].values - da_bnd.time[0].values))
         freq = dt.resolution_string
+        multiplier = 1
         if freq == "D":
-            logger.error(
+            logger.warning(
                 "time unit days is not supported by the current GUI version: 2022.04"
-            )
+            ) # converting to hours as temporary solution # FIXME: day is converted to hours temporarily
+            multiplier = 24
         if len(
             pd.date_range(da_bnd.time[0].values, da_bnd.time[-1].values, freq=freq)
         ) != len(da_bnd.time):
@@ -244,6 +252,9 @@ def compute_boundary_values(
         freq_name = _TIMESTR[freq]
         freq_step = getattr(dt.components, freq_name)
         bd_times = np.array([(i * freq_step) for i in range(len(da_bnd.time))])
+        if multiplier == 24:
+            bd_times = np.array([(i * freq_step * multiplier) for i in range(len(da_bnd.time))])
+            freq_name = "hours"
 
         # instantiate xr.DataArray for bnd data
         da_out = xr.DataArray(
@@ -266,7 +277,7 @@ def compute_boundary_values(
             ),
         )
         da_out.name = f"{boundary_type}bnd"
-
+        da_out.dropna(dim = 'time')
         # snap user boundary to potential boundary locations
         boundaries = hydromt.gis_utils.nearest_merge(
             boundaries,
@@ -284,14 +295,13 @@ def compute_boundary_values(
             # Check if any nodata value, else use default boundary_value
             if np.isnan(bc_values).sum() > 0:
                 nodata_ids.append(f'{int(boundaries["_index"].iloc[i])}')
+                # send warning about boundary condtitions data set to default values
+                logger.warning(
+                    f"Nodata found for {boundary_type} boundaries values for nodes {nodata_ids}. Default values of {boundary_value} {boundary_unit} used instead for these nodes."
+                )
             else:
                 id = boundaries["nodeId"].iloc[i]
                 da_out.loc[id, :] = bc_values
-        # send warning about boundary condtitions data set to default values
-        logger.warning(
-            f"Nodata found for {boundary_type} boundaries values for nodes {nodata_ids}. Default values of {boundary_value} {boundary_unit} used instead for these nodes."
-        )
-
     else:
         logger.info(
             f"Using constant value {boundary_value} {boundary_unit} for all {boundary_type} boundaries."
@@ -373,3 +383,105 @@ def df_to_bc(
             f.write(f"\t0 0\n")
             for i, di in enumerate(d.values):
                 f.write(f"\t{i} {di}\n")
+
+
+def compute_meteo_forcings(da_meteo: xr.DataArray = None,
+                         df_meteo: pd.DataFrame = None,
+                         gdf_meteomask: gpd.GeoDataFrame = None,
+                         meteo_value : float = 0.0,
+                         meteo_type : str = "rainfall_rate",
+                         meteo_unit: str = "mm/day",
+                         meteo_location: tuple = None,
+                         logger = logger,):
+    """
+    Compute meteo forcings
+
+    Parameters
+    ----------
+    da_meteo : xr.DataArray, optional
+        xr.DataArray containing the meteo timeseries values. If None, uses ``df_meteo``.
+
+        * Required variables if netcdf: [``meteo_type``]
+    df_meteo : pd.DataFrame, optional
+        pd.DataFrame containing the meteo timeseries values. If None, uses ``meteo_value``.
+
+        * Required variables: ["global"]
+    meteo_value : float, optional
+        Constant value to use for global meteo if ``df_meteo`` is None and to
+        fill in missing data in ``da_meteo`` and ``df_meteo``. By default 0.0 mm/day.
+    meteo_type : {'rainfall', 'rainfall_rate'}
+        Type of meteo to use. By default, "rainfall_rate".
+    meteo_unit : {'mm', 'mm/day'}
+        Unit corresponding to [meteo_type].
+        If ``meteo_type`` = "rainfall"
+            Allowed unit is [mm]
+        if ''meteo_type`` = "rainfall_rate":
+            Allowed unit is [mm/day]
+        By default mm/day.
+    meteo_location : tuple
+        Global location for meteo timeseries
+    logger
+        Logger to log messages.
+
+    Returns
+    -------
+    da_meteo : xr.DataArray
+        xr.DataArray containing the meteo timeseries values. If None, uses ``df_meteo``.
+
+        * Required variables if netcdf: [``meteo_type``]
+    """
+
+    # Timeseries boundary values
+    if da_meteo is not None:
+        raise NotImplementedError(f"Preparing time series on meteo stations.")
+    else:
+        logger.info(
+            f"Preparing global (spatially uniform) timeseries."
+        )
+        # get data freq in seconds
+        _TIMESTR = {"D": "days", "H": "hours", "T": "minutes", "S": "seconds"}
+        dt = (df_meteo.time[1] - df_meteo.time[0])
+        freq = dt.resolution_string
+        multiplier = 1
+        if freq == "D":
+            logger.warning(
+                "time unit days is not supported by the current GUI version: 2022.04"
+            )  # converting to hours as temporary solution # FIXME: day is converted to hours temporarily
+            multiplier = 24
+        if len(
+                pd.date_range(df_meteo.iloc[0,:].time, df_meteo.iloc[-1,:].time, freq=freq)
+        ) != len(df_meteo.time):
+            logger.error("does not support non-equidistant time-series.")
+        freq_name = _TIMESTR[freq]
+        freq_step = getattr(dt.components, freq_name)
+        meteo_times = np.array([(i * freq_step) for i in range(len(df_meteo.time))])
+        if multiplier == 24:
+            meteo_times = np.array([(i * freq_step * multiplier) for i in range(len(df_meteo.time))])
+            freq_name = "hours"
+        # instantiate xr.DataArray for global time series
+        da_out = xr.DataArray(
+            data=np.full(
+                (1, len(df_meteo)), df_meteo["global"].values, dtype=np.float32
+            ),
+            dims=["index", "time"],
+            coords=dict(
+                index=["global"],
+                time= meteo_times,
+                x=("index", meteo_location[0].values),
+                y=("index", meteo_location[1].values),
+            ),
+            attrs=dict(
+                function="TimeSeries",
+                timeInterpolation="Linear",
+                quantity=f"{meteo_type}",
+                units=f"{meteo_unit}",
+                time_unit=f"{freq_name} since {pd.to_datetime(df_meteo.time[0])}",
+                # support only yyyy-mm-dd HH:MM:SS
+            ),
+        )
+        # fill in na using default
+        da_out = da_out.fillna(meteo_value)
+        da_out.name = f"{meteo_type}"
+        da_out.dropna(dim='time')
+
+    return da_out
