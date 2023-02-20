@@ -1712,14 +1712,10 @@ class DFlowFMModel(MeshModel):
         else:
             da_meteo = None
             if meteo_timeseries_fn is not None:
-                df_meteo = pd.read_csv( # get_dataframe from data adaptor does not parse dates correctly
-                    self.data_catalog[meteo_timeseries_fn].path,
-                    index_col = ["time"],
-                    parse_dates = True,
-                    infer_datetime_format = True,
-                    usecols = ["time", "global"],
-                    )
-                df_meteo = df_meteo[df_meteo.index.slice_indexer(tstart, tstop)]
+                df_meteo = self.data_catalog.get_dataframe(
+                    meteo_timeseries_fn,
+                    varibles = ["global"],
+                    time_tuple=(tstart, tstop))
                 df_meteo["time"] = df_meteo.index
                 # error if time mismatch
                 if np.logical_and(
