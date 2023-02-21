@@ -674,7 +674,6 @@ def write_external_forcing(forcing: Dict, savedir: str) -> Tuple:
     forcing_model = ForcingModel(forcing=bcdict)
     forcing_fn = forcing_model._filename() + ".bc"
     forcing_model.filepath = forcing_fn
-    forcing_model.save(join(savedir, forcing_fn))
 
     ext_model = ExtModel()
     ext_fn = ext_model._filename() + ".ext"
@@ -688,6 +687,7 @@ def write_external_forcing(forcing: Dict, savedir: str) -> Tuple:
         )
 
     # Save ext and forcing files
-    ext_model.save(join(savedir, ext_fn))
+    ext_model.save(join(savedir, ext_fn), recurse=True)
+    forcing_model.save(join(savedir, forcing_fn), recurse=True)
 
     return forcing_fn, ext_fn

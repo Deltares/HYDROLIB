@@ -1716,7 +1716,6 @@ class DFlowFMModel(MeshModel):
                     meteo_timeseries_fn,
                     varibles = ["global"],
                     time_tuple=(tstart, tstop))
-                df_meteo["time"] = df_meteo.index
                 # error if time mismatch
                 if np.logical_and(
                         pd.to_datetime(df_meteo.index.values[0]) == pd.to_datetime(tstart),
@@ -1724,9 +1723,14 @@ class DFlowFMModel(MeshModel):
                 ):
                     pass
                 else:
-                    self.logger.error(
-                        f"forcing has different start and end time. Please check the forcing file. support yyyy-mm-dd HH:MM:SS. "
-                    )
+                    if pd.to_datetime(df_meteo.index.values[0]) != pd.to_datetime(tstart):
+                        df_meteo = pd.concat([pd.DataFrame(data = {"global":[np.nan]}, index = [pd.to_datetime(tstart)]),
+                                             df_meteo]).resample(df_meteo.index[1] - df_meteo.index[0]).asfreq()
+                    if pd.to_datetime(df_meteo.index.values[-1]) != pd.to_datetime(tstop):
+                        df_meteo = pd.concat([df_meteo,
+                                              pd.DataFrame(data={"global": [np.nan]}, index=[pd.to_datetime(tstop)])]
+                                             ).resample(df_meteo.index[1] - df_meteo.index[0]).asfreq()
+                df_meteo["time"] = df_meteo.index
                 # TODO: error if type and unit mismatch
 
             else:

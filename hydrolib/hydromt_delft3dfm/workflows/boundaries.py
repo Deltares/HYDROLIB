@@ -246,7 +246,7 @@ def compute_boundary_values(
             ) # converting to hours as temporary solution # FIXME: day is converted to hours temporarily
             multiplier = 24
         if len(
-            pd.date_range(da_bnd.time[0].values, da_bnd.time[-1].values, freq=freq)
+            pd.date_range(da_bnd.time[0].values, da_bnd.time[-1].values, freq=dt)
         ) != len(da_bnd.time):
             logger.error("does not support non-equidistant time-series.")
         freq_name = _TIMESTR[freq]
@@ -449,7 +449,7 @@ def compute_meteo_forcings(da_meteo: xr.DataArray = None,
             )  # converting to hours as temporary solution # FIXME: day is converted to hours temporarily
             multiplier = 24
         if len(
-                pd.date_range(df_meteo.iloc[0,:].time, df_meteo.iloc[-1,:].time, freq=freq)
+                pd.date_range(df_meteo.iloc[0,:].time, df_meteo.iloc[-1,:].time, freq=dt)
         ) != len(df_meteo.time):
             logger.error("does not support non-equidistant time-series.")
         freq_name = _TIMESTR[freq]
