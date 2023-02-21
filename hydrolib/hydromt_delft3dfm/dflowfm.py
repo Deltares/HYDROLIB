@@ -2461,12 +2461,13 @@ class DFlowFMModel(MeshModel):
         if not isdir(dirname(_fn)):
             os.makedirs(dirname(_fn))
         ds_out = xr.Dataset()
-        for grid in self._mesh.ugrid.grids:
-            ds_out = ds_out.merge(grid.to_dataset())
-        if grid.crs is not None:
-            # save crs to spatial_ref coordinate
-            ds_out = ds_out.rio.write_crs(grid.crs)
-        ds_out.to_netcdf(_fn, mode="w")
+        if self._mesh:
+            for grid in self._mesh.ugrid.grids:
+                ds_out = ds_out.merge(grid.to_dataset())
+            if grid.crs is not None:
+                # save crs to spatial_ref coordinate
+                ds_out = ds_out.rio.write_crs(grid.crs)
+            ds_out.to_netcdf(_fn, mode="w")
 
         # hydrolib-core convention (meshkernel)
         mesh_filename = "fm_net.nc"
