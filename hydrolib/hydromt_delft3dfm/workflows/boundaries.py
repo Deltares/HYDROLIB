@@ -319,12 +319,11 @@ def compute_boundary_values(
     return da_out
 
 
-
 def compute_2dboundary_values(
     boundaries: gpd.GeoDataFrame = None,
     df_bnd: pd.DataFrame = None,
     da_bnd: xr.DataArray = None,
-    boundary_value: float = 0.,
+    boundary_value: float = 0.0,
     boundary_type: str = "waterlevel",
     boundary_unit: str = "m",
     logger=logger,
@@ -366,14 +365,14 @@ def compute_2dboundary_values(
 
     # Timeseries boundary values
     if da_bnd is not None:
-        NotImplementedError("Spatial-varying timeseries boundary are not yet implemented.")
-    else:
-        logger.info(
-            f"Preparing spatial-uniform boundaries."
+        NotImplementedError(
+            "Spatial-varying timeseries boundary are not yet implemented."
         )
+    else:
+        logger.info(f"Preparing spatial-uniform boundaries.")
         # get data freq in seconds
         _TIMESTR = {"D": "days", "H": "hours", "T": "minutes", "S": "seconds"}
-        dt = (df_bnd.time[1] - df_bnd.time[0])
+        dt = df_bnd.time[1] - df_bnd.time[0]
         freq = dt.resolution_string
         multiplier = 1
         if freq == "D":
@@ -382,14 +381,16 @@ def compute_2dboundary_values(
             )  # converting to hours as temporary solution # FIXME: day is supported in version 2023.02, general question: where to indicate gui version?
             multiplier = 24
         if len(
-                pd.date_range(df_bnd.iloc[0, :].time, df_bnd.iloc[-1, :].time, freq=dt)
+            pd.date_range(df_bnd.iloc[0, :].time, df_bnd.iloc[-1, :].time, freq=dt)
         ) != len(df_bnd.time):
             logger.error("does not support non-equidistant time-series.")
         freq_name = _TIMESTR[freq]
         freq_step = getattr(dt.components, freq_name)
         bnd_times = np.array([(i * freq_step) for i in range(len(df_bnd.time))])
         if multiplier == 24:
-            bnd_times = np.array([(i * freq_step * multiplier) for i in range(len(df_bnd.time))])
+            bnd_times = np.array(
+                [(i * freq_step * multiplier) for i in range(len(df_bnd.time))]
+            )
             freq_name = "hours"
 
         # note there is only one boundary due to preprocessing pof unary_union in setup
@@ -398,17 +399,24 @@ def compute_2dboundary_values(
             bnd_id = _bnd["boundary_id"]
 
             # convert line to points
-            support_points = pd.DataFrame(np.array([[x,y] for x,y in _bnd.geometry.coords[:]]), columns = ["x", "y"])
+            support_points = pd.DataFrame(
+                np.array([[x, y] for x, y in _bnd.geometry.coords[:]]),
+                columns=["x", "y"],
+            )
             support_points["_id"] = support_points.index + 1
             support_points["id"] = support_points["_id"].astype(str)
             support_points["id"] = support_points["id"].str.zfill(4)
-            support_points["name"] = support_points.astype(str).apply(lambda x: f"{bnd_id}_{x.id}", axis=1)
+            support_points["name"] = support_points.astype(str).apply(
+                lambda x: f"{bnd_id}_{x.id}", axis=1
+            )
 
             # instantiate xr.DataArray for bnd data with boundary_value directly
             da_out = xr.DataArray(
-                data=np.full((len(support_points["name"]), len(bnd_times)),
-                             np.tile(df_bnd['global'].values, (len(support_points["name"]), 1)),
-                             dtype=np.float32),
+                data=np.full(
+                    (len(support_points["name"]), len(bnd_times)),
+                    np.tile(df_bnd["global"].values, (len(support_points["name"]), 1)),
+                    dtype=np.float32,
+                ),
                 dims=["index", "time"],
                 coords=dict(
                     index=support_points["name"],
@@ -430,6 +438,7 @@ def compute_2dboundary_values(
             da_out = da_out.fillna(boundary_value)
             da_out.name = f"{bnd_id}"
     return da_out
+
 
 def gpd_to_pli(gdf: gpd.GeoDataFrame, output_dir: Path):
     """function to convert geopandas GeoDataFrame (gdf) into pli files at 'output_dir' directory.

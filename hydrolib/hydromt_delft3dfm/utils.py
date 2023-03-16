@@ -1,27 +1,26 @@
 import os
-from pathlib import Path
-from os.path import join
-from typing import Dict, Union, Tuple, List
 from enum import Enum
+from os.path import join
+from pathlib import Path
+from typing import Dict, List, Tuple, Union
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import xarray as xr
-import numpy as np
-from shapely.geometry import Point, LineString
-
+from shapely.geometry import LineString, Point
 
 from hydrolib.core.dflowfm import (
-    FMModel,
-    FrictionModel,
+    Boundary,
+    BranchModel,
     CrossDefModel,
     CrossLocModel,
-    StorageNodeModel,
     ExtModel,
-    Boundary,
+    FMModel,
     ForcingModel,
-    BranchModel,
+    FrictionModel,
     PolyFile,
+    StorageNodeModel,
 )
 
 from .workflows import helper
@@ -568,7 +567,9 @@ def write_1dboundary(forcing: Dict, savedir: str = None, ext_fn: str = None) -> 
     """
 
     # filter for 1d boundary only
-    forcing = {key: forcing[key] for key in forcing.keys() if key.startswith("boundary1d")}
+    forcing = {
+        key: forcing[key] for key in forcing.keys() if key.startswith("boundary1d")
+    }
     if len(forcing) == 0:
         return
 
@@ -619,13 +620,14 @@ def write_1dboundary(forcing: Dict, savedir: str = None, ext_fn: str = None) -> 
     # write external forcing file
     if ext_fn is not None:
         # write to external forcing file
-        write_ext(extdicts, savedir, ext_fn=ext_fn, block_name="boundary", mode="append")
+        write_ext(
+            extdicts, savedir, ext_fn=ext_fn, block_name="boundary", mode="append"
+        )
 
     return forcing_fn, ext_fn
 
-def read_2dboundary(
-    df: pd.DataFrame, workdir:Path = Path.cwd()
-) -> xr.DataArray:
+
+def read_2dboundary(df: pd.DataFrame, workdir: Path = Path.cwd()) -> xr.DataArray:
     """
     Read a 2d boundary forcing location and values, and parse to xarray
 
@@ -649,7 +651,7 @@ def read_2dboundary(
     locationfile = PolyFile(workdir.joinpath(df.locationfile.filepath))
     boundary_name = locationfile.objects[0].metadata.name
     boundary_points = pd.DataFrame([f.__dict__ for f in locationfile.objects[0].points])
-    bc["locationfile"] =  df.locationfile.filepath.name
+    bc["locationfile"] = df.locationfile.filepath.name
     # Assume one forcing file (hydromt writer) and read
     forcing = df.forcingfile
     df_forcing = pd.DataFrame([f.__dict__ for f in forcing.forcing])
@@ -717,7 +719,9 @@ def write_2dboundary(forcing: Dict, savedir: str, ext_fn: str = None) -> list[di
     """
 
     # filter for 2d boundary
-    forcing = {key: forcing[key] for key in forcing.keys() if key.startswith("boundary2d")}
+    forcing = {
+        key: forcing[key] for key in forcing.keys() if key.startswith("boundary2d")
+    }
     if len(forcing) == 0:
         return
 
@@ -730,16 +734,22 @@ def write_2dboundary(forcing: Dict, savedir: str, ext_fn: str = None) -> list[di
         ext["quantity"] = da.attrs["quantity"]
         ext["locationfile"] = da.attrs["locationfile"]
         # pli location
-        _points = [{"x":x, "y":y, "data": []} for x,y in zip(da.x.values, da.y.values)]
-        pli_object = {"metadata": {"name": da.name, "n_rows": len(da.x), "n_columns": 2 },
-                      "points":_points}
+        _points = [
+            {"x": x, "y": y, "data": []} for x, y in zip(da.x.values, da.y.values)
+        ]
+        pli_object = {
+            "metadata": {"name": da.name, "n_rows": len(da.x), "n_columns": 2},
+            "points": _points,
+        }
         # Forcing (one instance per index id - support point- for 2d boundary)
         for i in da.index.values:
             bc = da.attrs.copy()
             bc["name"] = i
             if bc["function"] == "constant":
                 # one quantityunitpair
-                bc["quantityunitpair"] = [{"quantity":  bc["quantity"], "unit": bc["units"]}]
+                bc["quantityunitpair"] = [
+                    {"quantity": bc["quantity"], "unit": bc["units"]}
+                ]
                 # only one value column (no times)
                 bc["datablock"] = [[da.sel(index=i).values.item()]]
             else:
@@ -775,10 +785,19 @@ def write_2dboundary(forcing: Dict, savedir: str, ext_fn: str = None) -> list[di
         # write external forcing file
         if ext_fn is not None:
             # write to external forcing file
-            write_ext(extdicts, savedir, ext_fn = ext_fn, block_name = "boundary", mode = "append")
+            write_ext(
+                extdicts, savedir, ext_fn=ext_fn, block_name="boundary", mode="append"
+            )
     return extdicts
 
-def write_ext(extdicts: Dict, savedir:Path, ext_fn: str = None, block_name:str = "boundary", mode = "append") -> str:
+
+def write_ext(
+    extdicts: Dict,
+    savedir: Path,
+    ext_fn: str = None,
+    block_name: str = "boundary",
+    mode="append",
+) -> str:
     """
     write external forcing file (.ext) from dictionary.
 
@@ -800,6 +819,7 @@ def write_ext(extdicts: Dict, savedir:Path, ext_fn: str = None, block_name:str =
 
     # FIXME: requires change of working directory for the validator to work properly
     import os
+
     cwd = os.getcwd()
     os.chdir(savedir)
 
@@ -810,12 +830,9 @@ def write_ext(extdicts: Dict, savedir:Path, ext_fn: str = None, block_name:str =
     else:
         ext_model = ExtModel()
 
-
     for i in range(len(extdicts)):
         if block_name == "boundary":
-            ext_model.boundary.append(
-                Boundary(**{**extdicts[i]})
-            )
+            ext_model.boundary.append(Boundary(**{**extdicts[i]}))
         elif block_name == "lateral":
             raise NotImplementedError("laterals are not yet supported.")
         elif block_name == "meteo":

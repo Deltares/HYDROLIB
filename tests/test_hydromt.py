@@ -1,13 +1,14 @@
 """Test for hydromt plugin model class DFlowFMModel"""
 
-import pytest
-from os.path import join, dirname, abspath
-import numpy as np
 import pdb
-from hydrolib.hydromt_delft3dfm import DFlowFMModel
+from os.path import abspath, dirname, join
+
+import numpy as np
+import pytest
 from hydromt.cli.cli_utils import parse_config
 from hydromt.log import setuplog
 
+from hydrolib.hydromt_delft3dfm import DFlowFMModel
 
 TESTDATADIR = join(dirname(abspath(__file__)), "data")
 EXAMPLEDIR = join(dirname(abspath(__file__)), "..", "examples", "hydromt")

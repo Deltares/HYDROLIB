@@ -2,11 +2,11 @@
 
 import logging
 import os
-from os.path import basename, isfile, join, dirname, isdir
+from datetime import datetime, timedelta
+from os.path import basename, dirname, isdir, isfile, join
 from pathlib import Path
 from turtle import st
-from typing import Union, Optional, List, Tuple, Dict, Any
-
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import geopandas as gpd
 import hydromt
@@ -14,20 +14,15 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import xugrid as xu
-from pyproj import CRS
 from hydromt.models import MeshModel
-from shapely.geometry import box, LineString
-from datetime import datetime, timedelta
+from pyproj import CRS
+from shapely.geometry import LineString, box
 
-from hydrolib.core.dflowfm import FMModel, Mesh1d, IniFieldModel, Network
+from hydrolib.core.dflowfm import FMModel, IniFieldModel, Mesh1d, Network
 from hydrolib.core.dimr import DIMR, FMComponent, Start
-
 from hydrolib.dhydamo.geometry import mesh
 
-
-from . import DATADIR
-from . import workflows
-from . import utils
+from . import DATADIR, utils, workflows
 
 __all__ = ["DFlowFMModel"]
 logger = logging.getLogger(__name__)
@@ -1498,7 +1493,9 @@ class DFlowFMModel(MeshModel):
         )
 
         # 4. set boundaries
-        self.set_forcing(da_out, name=f"boundary1d_{da_out.name}_{branch_type}") #FIXME: this format cannot be read back due to lack of branch type info from model files
+        self.set_forcing(
+            da_out, name=f"boundary1d_{da_out.name}_{branch_type}"
+        )  # FIXME: this format cannot be read back due to lack of branch type info from model files
 
     def setup_mesh2d(
         self,
@@ -1784,7 +1781,7 @@ class DFlowFMModel(MeshModel):
 
     def setup_2dboundary(
         self,
-        boundaries_fn:str = None,
+        boundaries_fn: str = None,
         boundaries_timeseries_fn: str = None,
         boundaries_geodataset_fn: str = None,
         boundary_value: float = 0.0,
@@ -1855,12 +1852,18 @@ class DFlowFMModel(MeshModel):
         """
         self.logger.info(f"Preparing 2D boundaries.")
 
-        if boundary_type == "waterlevel": assert boundary_unit in ["m"]
-        if boundary_type == "discharge": assert boundary_unit in ["m3/s"]
+        if boundary_type == "waterlevel":
+            assert boundary_unit in ["m"]
+        if boundary_type == "discharge":
+            assert boundary_unit in ["m3/s"]
 
         _mesh_region = self._mesh.ugrid.to_geodataframe().unary_union
-        _boundary_region = _mesh_region.buffer(3*self.res).difference(_mesh_region) # region where 2d boundary is allowed
-        _boundary_region = gpd.GeoDataFrame({'geometry':[_boundary_region]}, crs = self.crs)
+        _boundary_region = _mesh_region.buffer(3 * self.res).difference(
+            _mesh_region
+        )  # region where 2d boundary is allowed
+        _boundary_region = gpd.GeoDataFrame(
+            {"geometry": [_boundary_region]}, crs=self.crs
+        )
 
         refdate, tstart, tstop = self.get_model_time()  # time slice
 
@@ -1869,27 +1872,39 @@ class DFlowFMModel(MeshModel):
             gdf_bnd = self.data_catalog.get_geodataframe(
                 boundaries_fn,
                 geom=_boundary_region,
-                crs = self.crs,
-                predicate='contains',
+                crs=self.crs,
+                predicate="contains",
             )
             # preprocess
             gdf_bnd = gdf_bnd.explode()
             # set index
             if "boundary_id" not in gdf_bnd:
-                gdf_bnd["boundary_id"] = [f"2dboundary_{i}" for i in range(len(gdf_bnd))]
+                gdf_bnd["boundary_id"] = [
+                    f"2dboundary_{i}" for i in range(len(gdf_bnd))
+                ]
         else:
             gdf_bnd = None
         # 2. read timeseries boundaries
         if boundaries_timeseries_fn is not None:
-            raise NotImplementedError("Does not support reading timeseries boundaries yet.")
+            raise NotImplementedError(
+                "Does not support reading timeseries boundaries yet."
+            )
         else:
-            df_bnd = pd.DataFrame({"time":
-                                       pd.date_range(start=pd.to_datetime(tstart), end = pd.to_datetime(tstop), freq='D'),
-                                   "global":
-                                       np.nan})
+            df_bnd = pd.DataFrame(
+                {
+                    "time": pd.date_range(
+                        start=pd.to_datetime(tstart),
+                        end=pd.to_datetime(tstop),
+                        freq="D",
+                    ),
+                    "global": np.nan,
+                }
+            )
         # 3. read spatially varying timeseries boundaries
         if boundaries_geodataset_fn is not None:
-            raise NotImplementedError("Does not support reading geodataset boundaries yet.")
+            raise NotImplementedError(
+                "Does not support reading geodataset boundaries yet."
+            )
         else:
             da_bnd = None
 
@@ -1906,7 +1921,6 @@ class DFlowFMModel(MeshModel):
 
         # 5. set boundaries
         self.set_forcing(da_out, name=f"boundary2d_{da_out.name}")
-
 
     # ## I/O
     # TODO: remove after hydromt 0.6.1 release
@@ -2136,7 +2150,7 @@ class DFlowFMModel(MeshModel):
         # save filepath in the config
         self.set_config("geometry.inifieldfile", inifield_model_filename)
 
-    def read_geoms(self) -> None: #FIXME: gives an error when only 2D model.
+    def read_geoms(self) -> None:  # FIXME: gives an error when only 2D model.
         """
         Read model geometries files at <root>/<geoms> and add to geoms property.
 
@@ -2197,7 +2211,9 @@ class DFlowFMModel(MeshModel):
             )
             self.set_config("geometry.storagenodefile", storage_fn)
 
-    def read_forcing(self) -> None: #FIXME reading of forcing should include boundary, lateral and meteo
+    def read_forcing(
+        self,
+    ) -> None:  # FIXME reading of forcing should include boundary, lateral and meteo
         """Read forcing at <root/?/> and parse to dict of xr.DataArray"""
         self._assert_read_mode
         # Read external forcing
@@ -2206,7 +2222,7 @@ class DFlowFMModel(MeshModel):
             # read boundary blocks #FIXME: there might be better options
             df_ext = pd.DataFrame([f.__dict__ for f in ext_model.boundary])
             # 1d boundary
-            df_ext_1d = df_ext.loc[~df_ext.nodeid.isna(),:]
+            df_ext_1d = df_ext.loc[~df_ext.nodeid.isna(), :]
             if len(df_ext_1d) > 0:
                 # Forcing data arrays to prepare for each quantity
                 forcing_names = np.unique(df_ext_1d.quantity).tolist()
@@ -2224,8 +2240,10 @@ class DFlowFMModel(MeshModel):
             # 2d boundary
             df_ext_2d = df_ext.loc[df_ext.nodeid.isna(), :]
             if len(df_ext_2d) > 0:
-                for _,df in df_ext_2d.iterrows():
-                    da_out = utils.read_2dboundary(df, workdir = self.dfmmodel.filepath.parent)
+                for _, df in df_ext_2d.iterrows():
+                    da_out = utils.read_2dboundary(
+                        df, workdir=self.dfmmodel.filepath.parent
+                    )
                     # Add to forcing
                     self.set_forcing(da_out)
 
