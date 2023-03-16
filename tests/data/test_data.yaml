@@ -49,6 +49,13 @@
   crs: 32647
   kwargs:
     fn_data: local_data/boundaries_series.csv
+2D_boundary:
+  data_type: GeoDataFrame
+  driver: vector
+  path: local_data/2d_boundary.geojson
+  crs: 32647
+  meta:
+    notes: created by buffer the extent by aqrt(2) * res
 dem:
   path: local_data/dem.tif
   data_type: RasterDataset

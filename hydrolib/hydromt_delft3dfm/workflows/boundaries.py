@@ -24,6 +24,7 @@ __all__ = [
     "select_boundary_type",
     "validate_boundaries",
     "compute_boundary_values",
+    "compute_2dboundary_values",
 ]
 
 
@@ -317,6 +318,118 @@ def compute_boundary_values(
 
     return da_out
 
+
+
+def compute_2dboundary_values(
+    boundaries: gpd.GeoDataFrame = None,
+    df_bnd: pd.DataFrame = None,
+    da_bnd: xr.DataArray = None,
+    boundary_value: float = 0.,
+    boundary_type: str = "waterlevel",
+    boundary_unit: str = "m",
+    logger=logger,
+):
+    """
+    Compute 2d boundary timeseries. Line geometry will be converted into supporting points.
+    Note that All quantities are specified per support point, except for discharges which are specified per polyline.
+
+    Parameters
+    ----------
+    boundaries : gpd.GeoDataFrame, optional
+        line geometry type of locations of the 2D boundaries to which to add data.
+        Must be combined with ``df_bnd``.
+
+        * Required variables: ['boundary_id']
+    df_bnd : pd.DataFrame, optional
+        pd.DataFrame containing the boundary timeseries values. Allow a single timeseries that applies globally.
+        Must be combined with ``boundaries``
+
+        * Required variables: [``global``]
+    da_bnd : xr.DataArray, optional
+        xr.DataArray containing the boundary timeseries values at supporting points.
+
+        * Required variables if netcdf: [``boundary_type``]
+    boundary_value : float, optional
+        Constant value to fill in missing data. By default 0 m.
+    boundary_type : {'waterlevel', 'discharge'}
+        Type of boundary to use. By default "waterlevel".
+    boundary_unit : {'m', 'm3/s'}
+        Unit corresponding to [boundary_type].
+        If ``boundary_type`` = "waterlevel"
+            Allowed unit is [m]
+        if ''boundary_type`` = "discharge":
+            Allowed unit is [m3/s]
+        By default m.
+    logger :
+        Logger to log messages.
+    """
+
+    # Timeseries boundary values
+    if da_bnd is not None:
+        NotImplementedError("Spatial-varying timeseries boundary are not yet implemented.")
+    else:
+        logger.info(
+            f"Preparing spatial-uniform boundaries."
+        )
+        # get data freq in seconds
+        _TIMESTR = {"D": "days", "H": "hours", "T": "minutes", "S": "seconds"}
+        dt = (df_bnd.time[1] - df_bnd.time[0])
+        freq = dt.resolution_string
+        multiplier = 1
+        if freq == "D":
+            logger.warning(
+                "time unit days is not supported by the current GUI version: 2022.04"
+            )  # converting to hours as temporary solution # FIXME: day is supported in version 2023.02, general question: where to indicate gui version?
+            multiplier = 24
+        if len(
+                pd.date_range(df_bnd.iloc[0, :].time, df_bnd.iloc[-1, :].time, freq=dt)
+        ) != len(df_bnd.time):
+            logger.error("does not support non-equidistant time-series.")
+        freq_name = _TIMESTR[freq]
+        freq_step = getattr(dt.components, freq_name)
+        bnd_times = np.array([(i * freq_step) for i in range(len(df_bnd.time))])
+        if multiplier == 24:
+            bnd_times = np.array([(i * freq_step * multiplier) for i in range(len(df_bnd.time))])
+            freq_name = "hours"
+
+        # note there is only one boundary due to preprocessing pof unary_union in setup
+        for _index, _bnd in boundaries.iterrows():
+
+            bnd_id = _bnd["boundary_id"]
+
+            # convert line to points
+            support_points = pd.DataFrame(np.array([[x,y] for x,y in _bnd.geometry.coords[:]]), columns = ["x", "y"])
+            support_points["_id"] = support_points.index + 1
+            support_points["id"] = support_points["_id"].astype(str)
+            support_points["id"] = support_points["id"].str.zfill(4)
+            support_points["name"] = support_points.astype(str).apply(lambda x: f"{bnd_id}_{x.id}", axis=1)
+
+            # instantiate xr.DataArray for bnd data with boundary_value directly
+            da_out = xr.DataArray(
+                data=np.full((len(support_points["name"]), len(bnd_times)),
+                             np.tile(df_bnd['global'].values, (len(support_points["name"]), 1)),
+                             dtype=np.float32),
+                dims=["index", "time"],
+                coords=dict(
+                    index=support_points["name"],
+                    time=bnd_times,
+                    x=("index", support_points.x.values),
+                    y=("index", support_points.y.values),
+                ),
+                attrs=dict(
+                    locationfile=bnd_id + ".pli",
+                    function="TimeSeries",
+                    timeInterpolation="Linear",
+                    quantity=f"{boundary_type}",
+                    units=f"{boundary_unit}",
+                    time_unit=f"{freq_name} since {pd.to_datetime(df_bnd.time[0])}",
+                    # support only yyyy-mm-dd HH:MM:SS
+                ),
+            )
+            # fill in na using default
+            da_out = da_out.fillna(boundary_value)
+            da_out.name = f"{bnd_id}"
+    return da_out
 
 def gpd_to_pli(gdf: gpd.GeoDataFrame, output_dir: Path):
     """function to convert geopandas GeoDataFrame (gdf) into pli files at 'output_dir' directory.
