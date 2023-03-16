@@ -1787,7 +1787,7 @@ class DFlowFMModel(MeshModel):
         boundary_value: float = 0.0,
         boundary_type: str = "waterlevel",
         boundary_unit: str = "m",
-        tolerance:float = 3.0,
+        tolerance: float = 3.0,
     ):
         """
         Prepares the 2D boundaries from line geometry.
@@ -1881,7 +1881,9 @@ class DFlowFMModel(MeshModel):
                 predicate="contains",
             )
             if len(gdf_bnd) == 0:
-                self.logger.error("Boundaries are not found. Check if the boundary are outside of recognisable boundary region (cell size * tolerance to the mesh). ")
+                self.logger.error(
+                    "Boundaries are not found. Check if the boundary are outside of recognisable boundary region (cell size * tolerance to the mesh). "
+                )
             # preprocess
             gdf_bnd = gdf_bnd.explode()
             # set index
