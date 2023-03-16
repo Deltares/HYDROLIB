@@ -1787,6 +1787,7 @@ class DFlowFMModel(MeshModel):
         boundary_value: float = 0.0,
         boundary_type: str = "waterlevel",
         boundary_unit: str = "m",
+        tolerance:float = 3.0,
     ):
         """
         Prepares the 2D boundaries from line geometry.
@@ -1803,7 +1804,7 @@ class DFlowFMModel(MeshModel):
         tstart and tstop entries.
 
         Note that:
-        (1) Only line geometry that are contained within the region of 0-3 grid cell sizes outside of the mesh2d will be kept.
+        (1) Only line geometry that are contained within the distance of ``tolenrance`` to grid cells are allowed.
         (2) Because of the above, this function must be called before the mesh refinement.
         (3) when using constant boundary, the output forcing will be written to time series with constant values.
 
@@ -1843,6 +1844,10 @@ class DFlowFMModel(MeshModel):
             if ''boundary_type`` = "discharge":
                Allowed unit is [m3/s]
             By default m.
+        tolerance: float, optional
+            Search tolerance factor between boundary polyline and grid cells.
+            Unit: in cell size units (i.e., not meters)
+            By default, 3.0
 
         Raises:
         -------
@@ -1858,7 +1863,7 @@ class DFlowFMModel(MeshModel):
             assert boundary_unit in ["m3/s"]
 
         _mesh_region = self._mesh.ugrid.to_geodataframe().unary_union
-        _boundary_region = _mesh_region.buffer(3 * self.res).difference(
+        _boundary_region = _mesh_region.buffer(tolerance * self.res).difference(
             _mesh_region
         )  # region where 2d boundary is allowed
         _boundary_region = gpd.GeoDataFrame(
@@ -1875,6 +1880,8 @@ class DFlowFMModel(MeshModel):
                 crs=self.crs,
                 predicate="contains",
             )
+            if len(gdf_bnd) == 0:
+                self.logger.error("Boundaries are not found. Check if the boundary are outside of recognisable boundary region (cell size * tolerance to the mesh). ")
             # preprocess
             gdf_bnd = gdf_bnd.explode()
             # set index
@@ -1922,6 +1929,9 @@ class DFlowFMModel(MeshModel):
         # 5. set boundaries
         self.set_forcing(da_out, name=f"boundary2d_{da_out.name}")
 
+        # adjust parameters
+        self.set_config("geometry.openboundarytolerance", tolerance)
+
     # ## I/O
     # TODO: remove after hydromt 0.6.1 release
     @property
@@ -1942,7 +1952,7 @@ class DFlowFMModel(MeshModel):
         self.read_config()
         self.read_mesh()
         self.read_maps()
-        self.read_geoms()  # needs mesh so should be done after
+        # self.read_geoms()  # needs mesh so should be done after
         self.read_forcing()
 
     def write(self):  # complete model

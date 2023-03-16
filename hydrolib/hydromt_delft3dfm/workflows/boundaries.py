@@ -361,12 +361,21 @@ def compute_2dboundary_values(
         By default m.
     logger :
         Logger to log messages.
+
+    Raises
+    ------
+    NotImplementedError
+    ValueError
     """
 
     # Timeseries boundary values
     if da_bnd is not None:
-        NotImplementedError(
+        raise NotImplementedError(
             "Spatial-varying timeseries boundary are not yet implemented."
+        )
+    elif boundaries is None or len(boundaries) == 0:
+        raise ValueError(
+            "No boundary to compute."
         )
     else:
         logger.info(f"Preparing spatial-uniform boundaries.")
