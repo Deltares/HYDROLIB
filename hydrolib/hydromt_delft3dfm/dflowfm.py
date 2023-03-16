@@ -1979,6 +1979,12 @@ class DFlowFMModel(MeshModel):
                         self.set_config(
                             "physics.UniFrictType", self._MAPS[name]["frictype"]
                         )
+                    # update config if infiltration
+                    if name == "infiltcap":
+                        self.set_config(
+                            "grw.infiltrationmodel", 2
+                        )
+
             elif isinstance(ds, xr.Dataset):
                 for v in ds.data_vars:
                     if v in self._MAPS:
@@ -1987,6 +1993,11 @@ class DFlowFMModel(MeshModel):
                         if "frictype" in self._MAPS[name]:
                             self.set_config(
                                 "physics.UniFrictType", self._MAPS[name]["frictype"]
+                            )
+                        # update config if infiltration
+                        if name == "infiltcap":
+                            self.set_config(
+                                "grw.infiltrationmodel", 2
                             )
 
         # Assign initial fields to model and write
