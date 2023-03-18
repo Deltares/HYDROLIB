@@ -261,7 +261,7 @@ def compute_boundary_values(
             attrs=dict(
                 function="TimeSeries",
                 timeInterpolation="Linear",
-                quantity=f"{boundary_type}",
+                quantity=f"{boundary_type}bnd",
                 units=f"{boundary_unit}",
                 time_unit=f"{freq_name} since {pd.to_datetime(da_bnd.time[0].values)}",  # support only yyyy-mm-dd HH:MM:SS
             ),
@@ -310,7 +310,7 @@ def compute_boundary_values(
                 function="constant",
                 offset=0.0,
                 factor=1.0,
-                quantity=f"{boundary_type}",
+                quantity=f"{boundary_type}bnd",
                 units=f"{boundary_unit}",
             ),
         )
@@ -435,7 +435,7 @@ def compute_2dboundary_values(
                     locationfile=bnd_id + ".pli",
                     function="TimeSeries",
                     timeInterpolation="Linear",
-                    quantity=f"{boundary_type}",
+                    quantity=f"{boundary_type}bnd",
                     units=f"{boundary_unit}",
                     time_unit=f"{freq_name} since {pd.to_datetime(df_bnd.time[0])}",
                     # support only yyyy-mm-dd HH:MM:SS
