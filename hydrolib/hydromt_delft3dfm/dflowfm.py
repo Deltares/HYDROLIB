@@ -1700,6 +1700,278 @@ class DFlowFMModel(MeshModel):
 
     # TODO: Create link1d2d mesh in xu Ugrid
 
+
+    def setup_meteo(
+        self,
+        meteo_geodataset_fn: str = None,
+        meteo_timeseries_fn: str = None,
+        meteo_value: float = 0.,
+        meteo_type: str = "rainfall_rate",
+        meteo_unit: str = "mm/day",
+        geom_fn: str = None,
+    ):
+        """
+        Prepares the spatial or global Meteorological forcings to 2d grid using timeseries or a constant.
+        Possible to apply only within a masked area.
+        # FIXME: Only support global precipitation for now.
+
+        The values can either be a constant using ``meteo_value`` (default) or spatial varying timeseries read from ``meteo_geodataset_fn``,
+        or global timeseries read from ``meteo_timeseries_fn``. When ``geom_fn`` is specified,
+        meteo applies only within the geom (NotImplemented).
+
+        Use ``meteo_geodataset_fn`` to set the meteo values from a dataset of point locations, i.e. stations,
+        timeseries. Only locations within the model region + 10m are selected.
+        When this option is used, interpolation method of nearest neighbour (nearestNB) will be auomatically set.
+
+        Use ``meteo_timeseries_fn`` to set the meteo values from global timeseries.
+
+        Use `meteo_value`` to set a global constant meteo value.
+        If ``meteo_geodataset_fn`` has missing values, the constant ``meteo_value`` will be used, e.g. 0.
+
+        The dataset/timeseries are clipped to the model time based on the model config
+        tstart and tstop entries.
+
+        Adds/Updates model layers:
+            * **meteo_{meteo_type}** forcing: DataArray
+
+        Parameters
+        ----------
+        meteo_geodataset_fn : str, Path
+            Path or data source name for geospatial point timeseries file.
+            This can either be a netcdf file with geospatial coordinates
+            or a combined point location file with a timeseries data csv file
+            which can be setup through the data_catalog yml file.
+
+            * Required variables if netcdf: ['rainfall', 'rainfall_rate'] depending on ``boundary_type``
+            * Required coordinates if netcdf: ['time', 'index', 'y', 'x']
+
+            * Required variables if a combined point location file: ['index'] with type int
+            * Required index types if a time series data csv file: int
+
+            NOTE: Require equidistant time series
+            NOTE: Do not support Gridded meteo data in netCDF yet (See User Manual Section 13.2.1)
+        meteo_timeseries_fn: str, Path
+            Path to a global timeseries csv file with time index in first column.
+
+            * Required variables : ['time', 'global']
+
+            NOTE: Require equidistant time series; Allow only one global time series
+        meteo_value : float, optional
+            Constant value to use for if both ``meteo_geodataset_fn`` and ``meteo_timeseries_fn`` are None and to
+            fill in missing data. By default, 0 ``meteo_unit``.
+            NOTE: a daily time series will be created in case of the constant value is used.
+        meteo_type : str, optional
+            Type of meteo tu use. One of ["rainfall", "rainfall_rate"].
+            By default "rainfall_rate".
+        meteo_unit : str, optional.
+            Unit meteo_type to [meteo_type].
+            If ``boundary_type`` = "rainfall"
+                Allowed unit is [mm]
+            if ''meteo_type`` = "rainfall_rate":
+               Allowed unit is [mm/day]
+            By default mm/day.
+        geom_fn(NotImplemented): str Path, optional
+            Path to a polygon used to specify region within which meteo forcing is applied.
+
+        Raises
+        ------
+        NotImplementedError:
+            geom_fn is currently not implemented.
+            TODO: apply it as a attribute in meteo_forcing data array
+        """
+
+        self.logger.info(f"Preparing {meteo_type} meteo forcing.")
+
+        if geom_fn is not None:
+            raise NotImplementedError
+        else:
+            gdf_meteomask = None # polygon mask
+
+        if meteo_type == "rainfall_rate": assert meteo_unit.split("/")[-1] in ["hour", "day"]
+        if meteo_type == "rainfall": assert meteo_unit in ["mm"]
+
+        refdate, tstart, tstop = self.get_model_time()  # time slice
+        meteo_location = (self.region.centroid.x, self.region.centroid.y) # global station location
+
+        # 1. apply spatial varying meteo
+        if meteo_geodataset_fn is not None:
+            da_meteo = self.data_catalog.get_geodataset(
+                meteo_geodataset_fn,
+                geom=self.region,
+                variables=[meteo_type],
+                time_tuple=(tstart, tstop),
+                crs=self.crs.to_epsg(),  # assume model crs if none defined
+            ).rename(meteo_type)
+            # error if time mismatch
+            if np.logical_and(
+                pd.to_datetime(da_meteo.time.values[0]) == pd.to_datetime(tstart),
+                pd.to_datetime(da_meteo.time.values[-1]) == pd.to_datetime(tstop),
+            ):
+                pass
+            else:
+                self.logger.error(
+                    f"forcing has different start and end time. Please check the forcing file. support yyyy-mm-dd HH:MM:SS. "
+                )
+            # TODO: error if type and unit mismatch
+            # reproject if needed and convert to location
+            if da_meteo.vector.crs != self.crs:
+                da_meteo.vector.to_crs(self.crs)
+
+        # 2. apply global meteo
+        else:
+            da_meteo = None
+            if meteo_timeseries_fn is not None:
+                df_meteo = self.data_catalog.get_dataframe(
+                    meteo_timeseries_fn,
+                    varibles = ["global"],
+                    time_tuple=(tstart, tstop))
+                # error if time mismatch
+                if np.logical_and(
+                        pd.to_datetime(df_meteo.index.values[0]) == pd.to_datetime(tstart),
+                        pd.to_datetime(df_meteo.index.values[-1]) == pd.to_datetime(tstop),
+                ):
+                    pass
+                else:
+                    if pd.to_datetime(df_meteo.index.values[0]) != pd.to_datetime(tstart):
+                        df_meteo = pd.concat([pd.DataFrame(data = {"global":[np.nan]}, index = [pd.to_datetime(tstart)]),
+                                             df_meteo]).resample(df_meteo.index[1] - df_meteo.index[0]).asfreq()
+                    if pd.to_datetime(df_meteo.index.values[-1]) != pd.to_datetime(tstop):
+                        df_meteo = pd.concat([df_meteo,
+                                              pd.DataFrame(data={"global": [np.nan]}, index=[pd.to_datetime(tstop)])]
+                                             ).resample(df_meteo.index[1] - df_meteo.index[0]).asfreq()
+                df_meteo["time"] = df_meteo.index
+                # TODO: error if type and unit mismatch
+
+            else:
+                df_meteo = pd.DataFrame({"time":
+                                             pd.date_range(start=pd.to_datetime(tstart), end = pd.to_datetime(tstop), freq='D'),
+                                         "global":
+                                             np.nan})
+
+        # 3. Derive DataArray with meteo values
+        da_out = workflows.compute_meteo_forcings(
+            da_meteo=da_meteo,
+            df_meteo = df_meteo,
+            meteo_value=meteo_value,
+            meteo_type=meteo_type,
+            meteo_unit=meteo_unit,
+            meteo_location=meteo_location,
+            gdf_meteomask = gdf_meteomask,
+            logger=self.logger,
+        )
+
+        # 4. set meteo forcing
+        self.set_forcing(da_out, name=f"meteo_{da_out.name}")
+
+    def setup_link1d2d(
+            self,
+            link_direction: Optional[str] = "1d_to_2d",
+            link_type: Optional[str] = "embedded",
+            polygon_fn: Optional[str] = None,
+            branch_type: Optional[str] = None,
+            max_length: Union[float, None] = np.inf,
+            dist_factor: Union[float, None] = 2.0,
+            **kwargs,
+    ):
+        """Generate 1d2d links that link mesh1d and mesh2d according UGRID conventions.
+
+        1d2d links are added to allow water exchange between 1d and 2d for a 1d2d model.
+        They can only be added if both mesh1d and mesh2d are present. By default, 1d_to_2d links are generated for the entire mesh1d except boundary locations.
+        When ''polygon_fn'' is specified, only links within the polygon will be added.
+        When ''branch_type'' is specified, only 1d branches matching the specified type will be used for generating 1d2d link.
+        # TODO: This option should also allows more customised setup for pipes and tunnels: 1d2d links will also be generated at boundary locations.
+
+        Parameters
+        ----------
+        link_direction : str, optional
+            Direction of the links: ["1d_to_2d", "2d_to_1d"].
+            Default to 1d_to_2d.
+        link_type : str, optional
+            Type of the links to be generated: ["embedded", "lateral"]. only used when ''link_direction'' = '2d_to_1d'.
+            Default to None.
+        polygon_fn: str Path, optional
+             Source name of raster data in data_catalog.
+             Default to None.
+        branch_type: str, Optional
+             Type of branch to be used for 1d: ["river","pipe","channel", "tunnel"].
+             When ''branch_type'' = "pipe" or "tunnel" are specified, 1d2d links will also be generated at boundary locations.
+             Default to None. Add 1d2d links for the all branches at non-boundary locations.
+        max_length : Union[float, None], optional
+             Max allowed edge length for generated links.
+             Only used when ''link_direction'' = '2d_to_1d'  and ''link_type'' = 'lateral'.
+             Defaults to infinity.
+        dist_factor : Union[float, None], optional:
+             Factor to determine which links are kept.
+             Only used when ''link_direction'' = '2d_to_1d'  and ''link_type'' = 'lateral'.
+             Defaults to 2.0. Links with an intersection distance larger than 2 times the center to edge distance of the cell, are removed.
+
+         See Also
+         ----------
+         mesh.links1d2d_add_links_1d_to_2d
+         mesh.links1d2d_add_links_2d_to_1d_embedded
+         mesh.links1d2d_add_links_2d_to_1d_lateral
+        """
+
+        # check existing network
+        if self.mesh1d.is_empty() or self.mesh2d.is_empty():
+            self.logger.error(
+                "cannot setup link1d2d: either mesh1d or mesh2d or both do not exist"
+            )
+
+        if not self.link1d2d.is_empty():
+            self.logger.warning("adding to existing link1d2d: link1d2d already exists")
+            # FIXME: question - how to seperate if the user wants to update the entire 1d2d links object or simply wants to add another set of links?
+            # TODO: would be nice in hydrolib to allow clear of subset of 1d2d links for specific branches
+
+        # check input
+        if polygon_fn is not None:
+            within = self.data_catalog.get_geodataframe(polygon_fn).gemetry
+            self.logger.info(f"adding 1d2d links only within polygon {polygon_fn}")
+        else:
+            within = None
+
+        if branch_type is not None:
+            branchids = self.branches[
+                self.branches.branchType == branch_type
+                ].branchId.to_list()  # use selective branches
+            self.logger.info(f"adding 1d2d links for {branch_type} branches.")
+        else:
+            branchids = None  # use all branches
+            self.logger.warning(f"adding 1d2d links for all branches at non boundary locations.")
+
+        # setup 1d2d links
+        if link_direction == "1d_to_2d":
+            self.logger.info("setting up 1d_to_2d links.")
+            # recompute max_length based on the diagnal distance of the max mesh area
+            max_length = np.sqrt(self._mesh.ugrid.to_geodataframe().area.max()) * np.sqrt(2)
+            mesh.links1d2d_add_links_1d_to_2d(
+                self.network, branchids=branchids, within=within, max_length=max_length)
+
+        elif link_direction == "2d_to_1d":
+            if link_type == "embedded":
+                self.logger.info("setting up 2d_to_1d embedded links.")
+
+                mesh.links1d2d_add_links_2d_to_1d_embedded(
+                    self.network, branchids=branchids, within=within
+                )
+            elif link_type == "lateral":
+
+                self.logger.info("setting up 2d_to_1d lateral links.")
+                mesh.links1d2d_add_links_2d_to_1d_lateral(
+                    self.network,
+                    branchids=branchids,
+                    within=within,
+                    max_length=max_length,
+                    dist_factor=dist_factor,
+                )
+            else:
+                self.logger.error(f"link_type {link_type} is not recognised.")
+
+        else:
+            self.logger.error(f"link_direction {link_direction} is not recognised.")
+
+    # TODO: Create link1d2d mesh in xu Ugrid
+
     def setup_maps_from_raster(
         self,
         raster_fn: str,
@@ -1818,7 +2090,8 @@ class DFlowFMModel(MeshModel):
             Source name of raster data in data_catalog. Should be a DataArray. Else use **kwargs to select
             variables/time_tuple in hydromt.data_catalog.get_rasterdataset method
         reclass_table_fn: str
-            Source name of mapping table of raster_fn in data_catalog.
+            Source name of mapping table of raster_fn in data_catalog. Make sure the data type is consistant for a ``reclass_variables`` including nodata.
+            For example, for roughness, it is common that the data type is float, then use no data value as -999.0.
         reclass_variables: list
             List of mapping_variables from raster_mapping_fn table to add to mesh. Index column should match values
             in raster_fn.
@@ -2395,6 +2668,7 @@ class DFlowFMModel(MeshModel):
             # populate external forcing file
             utils.write_1dboundary(self.forcing, savedir, ext_fn=ext_fn)
             utils.write_2dboundary(self.forcing, savedir, ext_fn=ext_fn)
+            utils.write_meteo(self.forcing, savedir, ext_fn=ext_fn)
             self.set_config("external_forcing.extforcefilenew", ext_fn)
 
     def read_mesh(self):

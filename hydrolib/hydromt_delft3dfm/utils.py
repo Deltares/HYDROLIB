@@ -11,12 +11,13 @@ import xarray as xr
 from shapely.geometry import LineString, Point
 
 from hydrolib.core.dflowfm import (
-    Boundary,
+    FMModel,
     BranchModel,
     CrossDefModel,
     CrossLocModel,
     ExtModel,
-    FMModel,
+    Boundary,
+    Meteo,
     ForcingModel,
     FrictionModel,
     PolyFile,
@@ -38,6 +39,8 @@ __all__ = [
     "write_1dboundary",
     "read_2dboundary",
     "write_2dboundary",
+    "read_meteo",
+    "write_meteo",
 ]
 
 
@@ -565,6 +568,12 @@ def write_1dboundary(forcing: Dict, savedir: str = None, ext_fn: str = None) -> 
     ext_fn: str or Path, optional
         Path of the external forcing file (.ext) in which this function will append to.
     """
+    # filter for 1d boundary
+    forcing = {
+        key: forcing[key] for key in forcing.keys() if key.startswith("boundary1d")
+    }
+    if len(forcing) == 0:
+        return
 
     extdict = list()
     bcdict = list()
@@ -703,8 +712,8 @@ def read_2dboundary(df: pd.DataFrame, workdir: Path = Path.cwd()) -> xr.DataArra
 def write_2dboundary(forcing: Dict, savedir: str, ext_fn: str = None) -> list[dict]:
     """
     write 2 boundary forcings from forcing dict.
-    Note! only forcing file (.bc) and forcing locations (.pli) are written in this function.
-    Use utils.write_ext() for writing external forcing (.ext) file.
+    Note! forcing file (.bc) and forcing locations (.pli) are written in this function.
+    Use external forcing (.ext) file will be extended.
 
     Parameters
     ----------
@@ -788,8 +797,86 @@ def write_2dboundary(forcing: Dict, savedir: str, ext_fn: str = None) -> list[di
             write_ext(
                 extdicts, savedir, ext_fn=ext_fn, block_name="boundary", mode="append"
             )
-    return extdicts
+    return forcing_fn, ext_fn
 
+def read_meteo():
+    # TODO: NotImplemented
+    pass
+
+def write_meteo(forcing: Dict, savedir: str, ext_fn: str = None) -> list[dict]:
+    """
+    write 2d meteo forcing from forcing dict.
+    Note! only forcing file (.bc) is written in this function.
+    Use utils.write_ext() for writing external forcing (.ext) file.
+
+    Parameters
+    ----------
+    forcing: dict of xarray DataArray
+        Dict of boundary DataArray.
+        Only forcing that startswith "meteo" will be recognised.
+    savedir: str, optional
+        path to the directory where to save the file.
+    ext_fn: str or Path, optional
+        Path of the external forcing file (.ext) in which this function will append to.
+
+    """
+
+    # filter for 2d meteo
+    forcing = {
+        key: forcing[key] for key in forcing.keys() if key.startswith("meteo")
+    }
+    if len(forcing) == 0:
+        return
+
+
+    extdicts = list()
+    bcdict = list()
+    # Loop over forcing dict
+    for name, da in forcing.items():
+        for i in da.index.values:
+            bc = da.attrs.copy()
+            # Meteo
+            ext = dict()
+            ext["quantity"] = bc["quantity"]
+            ext["forcingFileType"] = "bcAscii" #FIXME: hardcoded, decide whether use bcAscii or netcdf in setup
+            # Forcing
+            bc["name"] = i
+            if bc["function"] == "constant":
+                # one quantityunitpair
+                bc["quantityunitpair"] = [{"quantity": da.name, "unit": bc["units"]}]
+                # only one value column (no times)
+                bc["datablock"] = [[da.sel(index=i).values.item()]]
+            else:
+                # two quantityunitpair
+                bc["quantityunitpair"] = [
+                    {"quantity": "time", "unit": bc["time_unit"]},
+                    {"quantity": da.name, "unit": bc["units"]},
+                ]
+                bc.pop("time_unit")
+                # time/value datablock
+                bc["datablock"] = [
+                    [t, x] for t, x in zip(da.time.values, da.sel(index=i).values)
+                ]
+            bc.pop("quantity")
+            bc.pop("units")
+            bcdict.append(bc)
+
+    forcing_model = ForcingModel(forcing=bcdict)
+    forcing_fn = f'meteo_{forcing_model._filename()}.bc'
+    forcing_model.save(join(savedir, forcing_fn), recurse=True)
+
+    # add forcingfile to ext
+    ext["forcingfile"] = forcing_fn
+    extdicts.append(ext)
+
+    # write external forcing file
+    if ext_fn is not None:
+        # write to external forcing file
+        write_ext(
+            extdicts, savedir, ext_fn=ext_fn, block_name="meteo", mode="append"
+        )
+
+    return forcing_fn, ext_fn
 
 def write_ext(
     extdicts: Dict,
@@ -836,7 +923,7 @@ def write_ext(
         elif block_name == "lateral":
             raise NotImplementedError("laterals are not yet supported.")
         elif block_name == "meteo":
-            raise NotImplementedError("laterals are not yet supported.")
+            ext_model.meteo.append(Meteo(**{**extdicts[i]}))
         else:
             pass
 
@@ -847,3 +934,4 @@ def write_ext(
     os.chdir(cwd)
 
     return ext_fn
+
