@@ -472,7 +472,7 @@ def compute_meteo_forcings(da_meteo: xr.DataArray = None,
             ),
             attrs=dict(
                 function="TimeSeries",
-                timeInterpolation="Linear",
+                timeInterpolation="Block-From",
                 quantity=f"{meteo_type}",
                 units=f"{meteo_unit}",
                 time_unit=f"{freq_name} since {pd.to_datetime(df_meteo.time[0])}",
