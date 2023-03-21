@@ -1591,6 +1591,115 @@ class DFlowFMModel(MeshModel):
         # update res
         self._res = res
 
+    def setup_link1d2d(
+            self,
+            link_direction: Optional[str] = "1d_to_2d",
+            link_type: Optional[str] = "embedded",
+            polygon_fn: Optional[str] = None,
+            branch_type: Optional[str] = None,
+            max_length: Union[float, None] = np.inf,
+            dist_factor: Union[float, None] = 2.0,
+            **kwargs,
+    ):
+        """Generate 1d2d links that link mesh1d and mesh2d according UGRID conventions.
+
+        1d2d links are added to allow water exchange between 1d and 2d for a 1d2d model.
+        They can only be added if both mesh1d and mesh2d are present. By default, 1d_to_2d links are generated for the entire mesh1d except boundary locations.
+        When ''polygon_fn'' is specified, only links within the polygon will be added.
+        When ''branch_type'' is specified, only 1d branches matching the specified type will be used for generating 1d2d link.
+        # TODO: This option should also allows more customised setup for pipes and tunnels: 1d2d links will also be generated at boundary locations.
+
+        Parameters
+        ----------
+        link_direction : str, optional
+            Direction of the links: ["1d_to_2d", "2d_to_1d"].
+            Default to 1d_to_2d.
+        link_type : str, optional
+            Type of the links to be generated: ["embedded", "lateral"]. only used when ''link_direction'' = '2d_to_1d'.
+            Default to None.
+        polygon_fn: str Path, optional
+             Source name of raster data in data_catalog.
+             Default to None.
+        branch_type: str, Optional
+             Type of branch to be used for 1d: ["river","pipe","channel", "tunnel"].
+             When ''branch_type'' = "pipe" or "tunnel" are specified, 1d2d links will also be generated at boundary locations.
+             Default to None. Add 1d2d links for the all branches at non-boundary locations.
+        max_length : Union[float, None], optional
+             Max allowed edge length for generated links.
+             Only used when ''link_direction'' = '2d_to_1d'  and ''link_type'' = 'lateral'.
+             Defaults to infinity.
+        dist_factor : Union[float, None], optional:
+             Factor to determine which links are kept.
+             Only used when ''link_direction'' = '2d_to_1d'  and ''link_type'' = 'lateral'.
+             Defaults to 2.0. Links with an intersection distance larger than 2 times the center to edge distance of the cell, are removed.
+
+         See Also
+         ----------
+         mesh.links1d2d_add_links_1d_to_2d
+         mesh.links1d2d_add_links_2d_to_1d_embedded
+         mesh.links1d2d_add_links_2d_to_1d_lateral
+        """
+
+        # check existing network
+        if self.mesh1d.is_empty() or self.mesh2d.is_empty():
+            self.logger.error(
+                "cannot setup link1d2d: either mesh1d or mesh2d or both do not exist"
+            )
+
+        if not self.link1d2d.is_empty():
+            self.logger.warning("adding to existing link1d2d: link1d2d already exists")
+            # FIXME: question - how to seperate if the user wants to update the entire 1d2d links object or simply wants to add another set of links?
+            # TODO: would be nice in hydrolib to allow clear of subset of 1d2d links for specific branches
+
+        # check input
+        if polygon_fn is not None:
+            within = self.data_catalog.get_geodataframe(polygon_fn).gemetry
+            self.logger.info(f"adding 1d2d links only within polygon {polygon_fn}")
+        else:
+            within = None
+
+        if branch_type is not None:
+            branchids = self.branches[
+                self.branches.branchType == branch_type
+                ].branchId.to_list()  # use selective branches
+            self.logger.info(f"adding 1d2d links for {branch_type} branches.")
+        else:
+            branchids = None  # use all branches
+            self.logger.warning(f"adding 1d2d links for all branches at non boundary locations.")
+
+        # setup 1d2d links
+        if link_direction == "1d_to_2d":
+            self.logger.info("setting up 1d_to_2d links.")
+            # recompute max_length based on the diagnal distance of the max mesh area
+            max_length = np.sqrt(self._mesh.ugrid.to_geodataframe().area.max()) * np.sqrt(2)
+            mesh.links1d2d_add_links_1d_to_2d(
+                self.network, branchids=branchids, within=within, max_length=max_length)
+
+        elif link_direction == "2d_to_1d":
+            if link_type == "embedded":
+                self.logger.info("setting up 2d_to_1d embedded links.")
+
+                mesh.links1d2d_add_links_2d_to_1d_embedded(
+                    self.network, branchids=branchids, within=within
+                )
+            elif link_type == "lateral":
+
+                self.logger.info("setting up 2d_to_1d lateral links.")
+                mesh.links1d2d_add_links_2d_to_1d_lateral(
+                    self.network,
+                    branchids=branchids,
+                    within=within,
+                    max_length=max_length,
+                    dist_factor=dist_factor,
+                )
+            else:
+                self.logger.error(f"link_type {link_type} is not recognised.")
+
+        else:
+            self.logger.error(f"link_direction {link_direction} is not recognised.")
+
+    # TODO: Create link1d2d mesh in xu Ugrid
+
     def setup_maps_from_raster(
         self,
         raster_fn: str,
@@ -2791,3 +2900,17 @@ class DFlowFMModel(MeshModel):
         if self._mesh:
             mesh2d = self._mesh.ugrid.grid.mesh
             self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
+
+    @property
+    def link1d2d(self):
+        """
+        Returns the link1d2d (hydrolib-core Link1d2d object) representing the 1d2d link.
+        """
+        return self.dfmmodel.geometry.netfile.network._link1d2d
+
+    @property
+    def network(self):
+        """
+        Returns the network (hydrolib-core Network object) representing the entire network file.
+        """
+        return self.dfmmodel.geometry.netfile.network
