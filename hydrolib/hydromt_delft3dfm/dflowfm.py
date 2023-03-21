@@ -2191,17 +2191,18 @@ class DFlowFMModel(MeshModel):
         # write mesh
         # hydromt convention
         # super().write_mesh(fn="mesh/fm_net.nc")
-        fn = "mesh/fm_net.nc"
-        _fn = join(self.root, fn)
-        if not isdir(dirname(_fn)):
-            os.makedirs(dirname(_fn))
-        ds_out = xr.Dataset()
-        for grid in self._mesh.ugrid.grids:
-            ds_out = ds_out.merge(grid.to_dataset())
-        if grid.crs is not None:
-            # save crs to spatial_ref coordinate
-            ds_out = ds_out.rio.write_crs(grid.crs)
-        ds_out.to_netcdf(_fn, mode="w")
+        if self._mesh is not None:
+            fn = "mesh/fm_net.nc"
+            _fn = join(self.root, fn)
+            if not isdir(dirname(_fn)):
+                os.makedirs(dirname(_fn))
+            ds_out = xr.Dataset()
+            for grid in self._mesh.ugrid.grids:
+                ds_out = ds_out.merge(grid.to_dataset())
+            if grid.crs is not None:
+                # save crs to spatial_ref coordinate
+                ds_out = ds_out.rio.write_crs(grid.crs)
+            ds_out.to_netcdf(_fn, mode="w")
 
         # hydrolib-core convention (meshkernel)
         mesh_filename = "fm_net.nc"
