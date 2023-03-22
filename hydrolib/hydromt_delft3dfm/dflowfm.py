@@ -2666,8 +2666,11 @@ class DFlowFMModel(MeshModel):
             ext_fn = "bnd.ext"
             Path(join(savedir, ext_fn)).unlink(missing_ok=True)
             # populate external forcing file
+            self.logger.info("Writting 1d boundary files.")
             utils.write_1dboundary(self.forcing, savedir, ext_fn=ext_fn)
+            self.logger.info("Writting 2d boundary files.")
             utils.write_2dboundary(self.forcing, savedir, ext_fn=ext_fn)
+            self.logger.info("Writting 2d meteo files.")
             utils.write_meteo(self.forcing, savedir, ext_fn=ext_fn)
             self.set_config("external_forcing.extforcefilenew", ext_fn)
 
