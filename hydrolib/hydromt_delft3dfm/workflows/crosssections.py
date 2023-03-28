@@ -596,6 +596,13 @@ def _set_rectangle_crs(crosssections: gpd.GeoDataFrame):
 def _set_trapezoid_crs(crosssections: gpd.GeoDataFrame):
     """trapezoid need to be converted into zw type"""
 
+    # check for non-valid trapezoid crs
+    if (crosssections["width"] <= 0).any() or (crosssections["t_width"] <= 0).any() or (
+            crosssections["height"] <= 0).any():
+        logger.error("Invalid DataFrame: Found non-positive values in the 'width', 't_width', or 'height' columns.")
+    else:
+        pass
+
     crsdefs = []
     crslocs = []
     for c in crosssections.itertuples():
