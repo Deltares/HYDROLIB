@@ -493,10 +493,6 @@ def set_point_crosssections(
                 "crossection shape not supported. For now only support rectangle, trapezoid, zw and yz"
             )
 
-    # drop nan crossections
-    crosssections_ = crosssections_.dropna()
-    logger.debug("dropping nans in crosssections.")
-
     # setup thaiweg for GUI
     crosssections_["crsdef_thalweg"] = 0.0
 
