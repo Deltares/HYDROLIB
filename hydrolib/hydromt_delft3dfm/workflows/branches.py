@@ -812,6 +812,7 @@ def possibly_intersecting(
 
 
 # TODO copied from dhydamo geometry.py, update when available in main
+# NOTE add option to write distance to nearest branch
 def find_nearest_branch(
     branches: gpd.GeoDataFrame,
     geometries: gpd.GeoDataFrame,
@@ -899,6 +900,7 @@ def find_nearest_branch(
             if dist.min() < maxdist:
                 branchidxmin = dist.idxmin()
                 geometries.at[geometry.Index, "branch_id"] = dist.idxmin()
+                geometries.at[geometry.Index, "branch_distance"] = dist.min()
                 if isinstance(geometry.geometry, Point):
                     geo = geometry.geometry
                 else:
