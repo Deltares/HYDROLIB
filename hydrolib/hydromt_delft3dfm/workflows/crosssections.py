@@ -393,13 +393,15 @@ def set_point_crosssections(
             f"Crosssection with id: {list(set(_old_ids) - set(_new_ids))} are dropped: unable to find closest branch. "
         )
 
-    # drop duplicated branch_id and branch_offset, keep the one with minimum branch_distance
-    if crosssections[["branch_id", "branch_offset"]].duplicated().any():
+    # get a temporary id based on the convention of branch_id and branch_offset(precision 2 decimals)
+    crosssections["temp_id"] = crosssections.apply(lambda x:f"{x.branch_id}_{x.branch_offset:.2f}", axis = 1)
+    # drop duplicated temp_id, keep the one with minimum branch_distance
+    if crosssections["temp_id"].duplicated().any():
         logger.warning(f"Duplicate crosssections found, removing duplicates")
         # Sort DataFrame by branch_distance in ascending order
         crosssections_sorted = crosssections.sort_values('branch_distance')
         # Remove duplicates based on the branch_id, branch_offset column, keeping the first occurrence (with minimum branch_distance)
-        crosssections = crosssections_sorted.drop_duplicates(subset=["branch_id", "branch_offset"], keep='first')
+        crosssections = crosssections_sorted.drop_duplicates(subset=["temp_id"], keep='first')
 
     crosssections_ = pd.DataFrame()
     # loop through the shapes
@@ -625,12 +627,17 @@ def _set_trapezoid_crs(crosssections: gpd.GeoDataFrame):
             }
         )
 
+    # remove duplicate
+    crslocs_df = pd.DataFrame.from_records(crslocs).drop_duplicates(subset=["crsloc_id", "crsloc_definitionId", "crsloc_shift"]) # a crsloc is unique by id, definitionId and shift
+    crsdefs_df = pd.DataFrame.from_records(crsdefs).drop_duplicates(subset=["crsdef_id"]) # a crsdef is unique by id
+
+    # merge
     crosssections_ = pd.merge(
-        pd.DataFrame.from_records(crslocs),
-        pd.DataFrame.from_records(crsdefs),
-        how="left",
-        left_on=["crsloc_branchId", "crsloc_definitionId"],
-        right_on=["crsdef_branchId", "crsdef_id"],
+        crslocs_df,
+        crsdefs_df,
+        how="inner",
+        left_on=["crsloc_definitionId"],
+        right_on=["crsdef_id"],
     )
     return crosssections_
 
