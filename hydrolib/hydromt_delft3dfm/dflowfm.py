@@ -1221,6 +1221,15 @@ class DFlowFMModel(MeshModel):
                 f"Method {crosssections_type} is not implemented."
             )
 
+        # check if all branches have crosssections, if not add defaults from branches
+        if branches["branchId"].isin(gdf_cs["crsloc_branchId"]).all():
+            self.logger.info(f"All branches have crosssections")
+        else:
+            self.logger.warning(f"Not all branches have crosssections, filling in from branches")
+            missing_branches = branches.loc[~branches["branchId"].isin(gdf_cs["crsloc_branchId"])]
+            missing_gdf_cs = workflows.set_branch_crosssections(missing_branches, midpoint=True)
+            gdf_cs = gdf_cs.append(missing_gdf_cs)
+
         return gdf_cs
 
     def setup_manholes(
