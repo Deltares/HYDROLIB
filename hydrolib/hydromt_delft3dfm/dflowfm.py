@@ -286,6 +286,7 @@ class DFlowFMModel(MeshModel):
         # Filter features based on filter
         if filter is not None and "branchType" in gdf_br.columns:
             gdf_br = gdf_br[gdf_br["branchType"].str.lower() == filter.lower()]
+            self.logger.info(f"Set {filter} locations filtered from {br_fn} as {br_type} .")
         # Check if features in region
         if len(gdf_br) == 0:
             self.logger.warning(f"No 1D {type} locations found within domain")
@@ -307,8 +308,8 @@ class DFlowFMModel(MeshModel):
 
         # 2. Add defaults
         # Add branchType and branchId attributes if does not exist
-        if "branchType" not in gdf_br.columns:
-            gdf_br["branchType"] = pd.Series(
+        # overwrite branchType if exist
+        gdf_br["branchType"] = pd.Series(
                 data=np.repeat(br_type, len(gdf_br)), index=gdf_br.index, dtype=str
             )
         if "branchId" not in gdf_br.columns:
@@ -1402,7 +1403,7 @@ class DFlowFMModel(MeshModel):
         The values can either be a constant using ``boundary_value`` (default) or timeseries read from ``boundaries_geodataset_fn``.
 
         Use ``boundaries_geodataset_fn`` to set the boundary values from a dataset of point location
-        timeseries. Only locations within the model region + 10m are selected. They are snapped to the model
+        timeseries. Only locations within the possible model boundary locations + snap_offset are used. They are snapped to the model
         boundary locations within a max distance defined in ``snap_offset``. If ``boundaries_geodataset_fn``
         has missing values, the constant ``boundary_value`` will be used.
 
@@ -1469,7 +1470,7 @@ class DFlowFMModel(MeshModel):
         if boundaries_geodataset_fn is not None:
             da_bnd = self.data_catalog.get_geodataset(
                 boundaries_geodataset_fn,
-                geom=self.region,
+                geom=boundaries.buffer(snap_offset), # only select data close to the boundary of the model region
                 variables=[boundary_type],
                 time_tuple=(tstart, tstop),
                 crs=self.crs.to_epsg(),  # assume model crs if none defined
@@ -2675,11 +2676,8 @@ class DFlowFMModel(MeshModel):
             ext_fn = "bnd.ext"
             Path(join(savedir, ext_fn)).unlink(missing_ok=True)
             # populate external forcing file
-            self.logger.info("Writting 1d boundary files.")
             utils.write_1dboundary(self.forcing, savedir, ext_fn=ext_fn)
-            self.logger.info("Writting 2d boundary files.")
             utils.write_2dboundary(self.forcing, savedir, ext_fn=ext_fn)
-            self.logger.info("Writting 2d meteo files.")
             utils.write_meteo(self.forcing, savedir, ext_fn=ext_fn)
             self.set_config("external_forcing.extforcefilenew", ext_fn)
 

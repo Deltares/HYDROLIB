@@ -131,7 +131,7 @@ def select_boundary_type(
                 boundaries_branch_type = boundaries_branch_type.loc[
                     boundaries_branch_type["where"] == boundary_locs, :
                 ]
-        if boundary_type == "discharge":
+        elif boundary_type == "discharge":
             if boundary_locs != "upstream":
                 logger.warning(
                     f"Applying boundary type {boundary_type} selected for {branch_type} boundaries might cause instabilities."
@@ -234,8 +234,16 @@ def compute_boundary_values(
     # Timeseries boundary values
     if da_bnd is not None:
         logger.info(f"Preparing 1D {boundary_type} boundaries from timeseries.")
+
+        # snap user boundary to potential boundary locations to get nodeId
         gdf_bnd = da_bnd.vector.to_gdf()
-        gdf_bnd["_index"] = gdf_bnd.index
+        gdf_bnd = hydromt.gis_utils.nearest_merge(
+            gdf_bnd,
+            boundaries,
+            max_dist=snap_offset,
+            overwrite=True,
+        )
+
         # get boundary data freq in seconds
         _TIMESTR = {"D": "days", "H": "hours", "T": "minutes", "S": "seconds"}
         dt = pd.to_timedelta((da_bnd.time[1].values - da_bnd.time[0].values))
@@ -259,15 +267,13 @@ def compute_boundary_values(
 
         # instantiate xr.DataArray for bnd data
         da_out = xr.DataArray(
-            data=np.full(
-                (len(boundaries.index), len(bd_times)), boundary_value, dtype=np.float32
-            ),
+            data=da_bnd.data,
             dims=["index", "time"],
             coords=dict(
-                index=boundaries["nodeId"],
+                index=gdf_bnd["nodeId"],
                 time=bd_times,
-                x=("index", boundaries.geometry.x.values),
-                y=("index", boundaries.geometry.y.values),
+                x=("index", gdf_bnd.geometry.x.values),
+                y=("index", gdf_bnd.geometry.y.values),
             ),
             attrs=dict(
                 function="TimeSeries",
@@ -277,32 +283,15 @@ def compute_boundary_values(
                 time_unit=f"{freq_name} since {pd.to_datetime(da_bnd.time[0].values)}",  # support only yyyy-mm-dd HH:MM:SS
             ),
         )
+
+        # fill in na using default
+        da_out = da_out.fillna(boundary_value)
+
+        # drop na in time
+        da_out.dropna(dim='time')
+
+        # add name
         da_out.name = f"{boundary_type}bnd"
-        da_out.dropna(dim = 'time')
-        # snap user boundary to potential boundary locations
-        boundaries = hydromt.gis_utils.nearest_merge(
-            boundaries,
-            gdf_bnd,
-            max_dist=snap_offset,
-            overwrite=True,
-        )  # _index will be float
-        # remove boundaries without bc values in da_bnd
-        boundaries = boundaries[~pd.isnull(boundaries["_index"])]
-        nodata_ids = boundaries["nodeId"][
-            ~pd.isnull(boundaries["_index"])
-        ].values.tolist()
-        for i in range(len(boundaries)):
-            bc_values = da_bnd.sel(index=int(boundaries["_index"].iloc[i])).values
-            # Check if any nodata value, else use default boundary_value
-            if np.isnan(bc_values).sum() > 0:
-                nodata_ids.append(f'{int(boundaries["_index"].iloc[i])}')
-                # send warning about boundary condtitions data set to default values
-                logger.warning(
-                    f"Nodata found for {boundary_type} boundaries values for nodes {nodata_ids}. Default values of {boundary_value} {boundary_unit} used instead for these nodes."
-                )
-            else:
-                id = boundaries["nodeId"].iloc[i]
-                da_out.loc[id, :] = bc_values
     else:
         logger.info(
             f"Using constant value {boundary_value} {boundary_unit} for all {boundary_type} boundaries."
