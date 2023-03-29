@@ -1872,6 +1872,9 @@ class DFlowFMModel(MeshModel):
 
         # 4. set meteo forcing
         self.set_forcing(da_out, name=f"meteo_{da_out.name}")
+        
+        # 5. set meteo in mdu
+        self.set_config("external_forcing.rainfall", 1)
 
     def setup_link1d2d(
             self,
