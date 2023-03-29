@@ -614,7 +614,6 @@ def write_1dboundary(forcing: Dict, savedir: str = None, ext_fn: str = None) -> 
             ForcingModel(forcing=[bc for bc in bcdict if bc["name"] == '481349.951956_8041528.002583' ])
         except:
             raise ValueError(f"Error in boundary forcing {bc['name']}")
-            print(bc)
 
     forcing_model = ForcingModel(forcing=bcdict)
     forcing_fn = f'boundaryconditions1d_{ext["quantity"]}.bc'
