@@ -873,6 +873,12 @@ class DFlowFMModel(MeshModel):
             self.logger.debug(f"Adding crosssections vector to geoms.")
             self.set_crosssections(crosssections)
 
+            # for crossection type yz or xyz, always use branchOrder = -1, because no interpolation can be applied.
+            # TODO: change to lower case is needed
+            _overwrite_branchorder = self.crosssections[self.crosssections["crsdef_type"].str.contains("yz")]["crsdef_branchId"].tolist()
+            if len(_overwrite_branchorder) > 0:
+                rivers.loc[rivers["branchId"].isin(_overwrite_branchorder), "branchOrder"] = -1
+
         # setup geoms
         self.logger.debug(f"Adding rivers and river_nodes vector to geoms.")
         self.set_geoms(rivers, "rivers")
@@ -1772,7 +1778,7 @@ class DFlowFMModel(MeshModel):
             NOTE: a daily time series will be created in case of the constant value is used.
         meteo_type : str, optional
             Type of meteo tu use. One of ["rainfall", "rainfall_rate"].
-            By default "rainfall_rate".
+            By default "rainfall_rate". Note that Delft3DFM 1D2D Suite 2022.04 supports only "rainfall_rate".
         meteo_unit : str, optional.
             Unit meteo_type to [meteo_type].
             If ``boundary_type`` = "rainfall"
@@ -2351,7 +2357,7 @@ class DFlowFMModel(MeshModel):
         self.read_config()
         self.read_mesh()
         self.read_maps()
-        # self.read_geoms()  # needs mesh so should be done after
+        self.read_geoms()  # needs mesh so should be done after
         self.read_forcing()
 
     def write(self):  # complete model
