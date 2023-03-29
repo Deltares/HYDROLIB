@@ -2181,7 +2181,9 @@ class DFlowFMModel(MeshModel):
                             + 0.05,
                             2,
                         )
-                        self._MAPS[var]["averagingrelsize"] = relsize
+                    else:
+                        relsize = 1.01
+                    self._MAPS[var]["averagingrelsize"] = relsize
 
     def setup_2dboundary(
         self,
