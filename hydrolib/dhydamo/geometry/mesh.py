@@ -1,7 +1,7 @@
 import logging
 from typing import List, Union
 from enum import Enum
-
+from pathlib import Path
 import numpy as np
 from shapely.geometry import (
     LineString,
@@ -15,6 +15,7 @@ from shapely.geometry import (
 from shapely.prepared import prep
 
 from hydrolib.core.dflowfm.net.models import Branch, Network
+from hydrolib.core.dflowfm.net.reader import UgridReader
 from hydrolib.dhydamo.geometry import common, rasterstats, spatial
 from hydrolib.dhydamo.geometry.models import GeometryList
 
@@ -113,6 +114,11 @@ def mesh2d_add_rectilinear(
         network._mesh2d._process(existing_mesh2d)
 
 
+def mesh2d_from_netcdf(network: Network, path: Union[Path, str]) -> None:
+    reader = UgridReader(path)
+    reader.read_mesh2d(network._mesh2d)
+
+
 def mesh2d_add_triangular(
     network: Network, polygon: Union[Polygon, MultiPolygon], edge_length: float = None
 ) -> None:
@@ -130,7 +136,6 @@ def mesh2d_add_triangular(
 
     meshkernel = network._mesh2d.meshkernel
     for polygon in common.as_polygon_list(polygon):
-
         # Interpolate coordinates on polygon with edge_length distance
         if edge_length is not None:
             polygon = common.interp_polygon(polygon, dist=edge_length)
@@ -255,20 +260,20 @@ def mesh1d_add_branches_from_gdf(
     # If structures are given, collect offsets per branch
     if structures is not None:
         # Get structure data from dfs
-        ids_offsets = structures[["branchid", "chainage"]].copy()
+        ids_offsets = structures[["branchid", "chainage", "id"]].copy()
         idx = structures["branchid"] != ""
         if idx.any():
             logger.warning("Some structures are not linked to a branch.")
         ids_offsets = ids_offsets.loc[idx, :]
 
         # For each branch
-        for branchid, group in ids_offsets.groupby("branchid")["chainage"]:
+        for branchid, group in ids_offsets.groupby("branchid")["chainage", "id"]:
             # Check if structures are located at the same offset
-            u, c = np.unique(group, return_counts=True)
+            u, c = np.unique(group.chainage, return_counts=True)
             if any(c > 1):
                 logger.warning(
                     "Structures {} have the same location.".format(
-                        group.loc[np.isin(group, u[c > 1])].index.tolist()
+                        ", ".join(group.loc[np.isin(group, u[c > 1]), "id"].tolist())
                     )
                 )
             # Add to dictionary
@@ -278,7 +283,6 @@ def mesh1d_add_branches_from_gdf(
     for branchname, geometry in zip(
         branches[branch_name_col].tolist(), branches["geometry"].tolist()
     ):
-
         # Create branch
         branch = Branch(geometry=np.array(geometry.coords[:]))
         # Generate nodes on branch
@@ -385,9 +389,11 @@ def links1d2d_add_links_1d_to_2d(
     )
     _filter_links_on_idx(network, keep)
 
+    # subtract 1 from both columns of the indices as this is added my meshkernel in the writing process
+    # network._link1d2d.link1d2d[:, 1] = network._link1d2d.link1d2d[:, 1] - 1
+
 
 def _filter_links_on_idx(network: Network, keep: np.ndarray) -> None:
-
     # Select the remaining links
     network._link1d2d.link1d2d = network._link1d2d.link1d2d[keep]
     network._link1d2d.link1d2d_contact_type = network._link1d2d.link1d2d_contact_type[
@@ -640,6 +646,52 @@ def links1d2d_remove_within(
     _filter_links_on_idx(network, keep)
 
 
+def links1d2d_remove_1d_endpoints(network: Network) -> None:
+    """Method to remove 1d2d links from end points of the 1d mesh. The GUI
+    will interpret every endpoint as a boundary conditions, which does not
+    allow a 1d 2d link at the same node. To avoid problems with this, use
+    this method.
+    """
+    # Can only be done after links have been generated
+    if not list(network._mesh1d.network1d_node_id) or not list(
+        network._mesh2d.mesh2d_face_nodes
+    ):
+        return None
+
+    # Create an array with 2d facecenters and 1d nodes, that form the links
+    nodes1d = np.stack(
+        [network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1
+    )[network._link1d2d.link1d2d[:, 0]]
+
+    faces2d = np.stack(
+        [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
+    )[network._link1d2d.link1d2d[:, 1]]
+
+    # Select 1d nodes that are only present in a single edge
+    edge_nodes = network._mesh1d.network1d_edge_nodes
+    edgeid, counts = np.unique(edge_nodes, return_counts=True)
+    to_remove = edgeid[counts == 1]
+
+    keep = np.ones(len(network._link1d2d.link1d2d), dtype=bool)
+    for i in to_remove:
+        network_node = (
+            network._mesh1d.network1d_node_x[i],
+            network._mesh1d.network1d_node_y[i],
+        )
+        if np.isin(network_node, nodes1d)[0]:
+            index = np.argwhere(np.isin(nodes1d, network_node)).ravel()[0]
+            keep[index] = False
+
+    _filter_links_on_idx(network, keep)
+    # # Create GeometryList MultiPoint object
+    # mpgl_faces2d = GeometryList(*faces2d.T.copy())
+    # mpgl_nodes1d = GeometryList(*nodes1d.T.copy())
+    # idx = np.zeros(len(network._link1d2d.link1d2d), dtype=bool)
+
+    # # Remove these links
+    # keep = ~to_remove
+
+
 def mesh2d_altitude_from_raster(
     network,
     rasterpath,
@@ -698,7 +750,6 @@ def mesh2d_altitude_from_raster(
         zvalues = df[stat].values
 
     elif where == RasterStatPosition.NODE:
-
         logger.info(
             "Generating voronoi polygons around cell centers for determining raster statistics."
         )
@@ -711,7 +762,6 @@ def mesh2d_altitude_from_raster(
 
     isnan = np.isnan(zvalues)
     if isnan.any():
-
         # If interpolation or fill_option, but all are NaN, raise error.
         if isnan.all() and fill_option in [FillOption.NEAREST, FillOption.INTERPOLATE]:
             raise ValueError(

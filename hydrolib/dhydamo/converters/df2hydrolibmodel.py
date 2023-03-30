@@ -9,6 +9,7 @@ from hydrolib.core.dflowfm.structure.models import (
     Bridge,
     Pump,
     Culvert,
+    Compound,
 )
 from hydrolib.core.dflowfm.crosssection.models import (
     CircleCrsDef,
@@ -65,6 +66,7 @@ class Df2HydrolibModel:
         self.bridges_to_dhydro()
         self.culverts_to_dhydro()
         self.pumps_to_dhydro()
+        self.compounds_to_dhydro()
         self.crosssection_locations_to_dhydro()
         self.crosssection_definitions_to_dhydro()
         self.friction_definitions_to_dhydro()
@@ -82,6 +84,15 @@ class Df2HydrolibModel:
                 [setattr(item.comments, field[0], "") for field in item.comments]
         else:
             [setattr(lst.comments, field[0], "") for field in lst.comments]
+
+    def compounds_to_dhydro(self):
+        """Convert compound structures to Compound-model"""
+        structs = [
+            Compound(**struc)
+            for struc in self.hydamo.structures.compounds_df.to_dict("records")
+        ]
+        self._clear_comments(structs)
+        self.structures += structs
 
     def regular_weirs_to_dhydro(self):
         """Convert regular weirs to Weir-model"""

@@ -324,6 +324,7 @@ class ExternalForcingsIO:
     def laterals(
         self,
         locations: ExtendedGeoDataFrame,
+        overflows: ExtendedGeoDataFrame = None,
         lateral_discharges=None,
         rr_boundaries: dict = None,
     ) -> None:
@@ -352,6 +353,8 @@ class ExternalForcingsIO:
         locations.rename(columns={"geometry2": "geometry"}, inplace=True)
 
         latdct = {}
+        if overflows is not None:
+            locations = locations.append(overflows)
 
         # Get time series and add to dictionary
         # for nidx, lateral in zip(nearest_idx, locations.itertuples()):
@@ -368,7 +371,7 @@ class ExternalForcingsIO:
             else:
                 if lateral_discharges is None:
                     logger.warning(
-                        f"No lateral_discharges provied. {lateral.code} expects them. Skipping."
+                        f"No lateral_discharges provided. {lateral.code} expects them. Skipping."
                     )
                     continue
                 else:
@@ -969,6 +972,194 @@ class StructuresIO:
                 startleveldeliveryside=pump.startleveldeliveryside,
                 stopleveldeliveryside=pump.stopleveldeliveryside,
             )
+
+    def move_structure(struc, struc_dict, branch, offset):
+        """
+        Function the move a structure if needed for a compound event.
+
+        Parameters
+        ----------
+        struc : string
+            current sub-structure id
+        struc_dict : dict
+            dict with all structures of a certain type
+        branch : string
+            branch id of the first structure in the compound
+        offset : float
+            chainage of the first structure in the compound
+
+        Returns
+        -------
+        Dict with shifted coordinates.
+
+        """
+        branch2 = struc_dict[struc]["branchid"]
+        if branch2 != branch:
+            logger.warning(
+                f"Structures of not on the same branche. Moving structure {struc} to branch {branch}."
+            )
+        struc_dict[struc]["branchid"] = branch
+        struc_dict[struc]["chainage"] = offset
+        return struc_dict
+
+    def compound_structures(self, idlist, structurelist):
+        # probably the coordinates should all be set to those of the first structure (still to do)
+        # self.compounds_df = ExtendedDataFrame(
+        #     required_columns=["code", "structurelist"]
+        # )
+        # self.compounds_df.set_data(
+        #     pd.DataFrame(
+        #         np.zeros((len(idlist), 3)),
+        #         columns=["code", "numstructures", "structurelist"],
+        #         dtype="str",
+        #     ),
+        #     index_col="code",
+        # )
+        # self.compounds_df.index = idlist
+        # for ii, compound in enumerate(self.compounds_df.itertuples()):
+        for c_i, c_id in enumerate(idlist):
+            # self.compounds_df.at[compound.Index, "code"] = idlist[ii]
+            # self.compounds_df.at[compound.Index, "numstructures"] = len(
+            #     structurelist[ii]
+            # )
+
+            # check the substructure coordinates. If they do not coincide, move subsequent structures to the coordinates of the first
+            for s_i, struc in enumerate(structurelist[c_i]):
+                if s_i == 0:
+                    # find out what type the first structure it is and get its coordinates
+                    if struc in list(self.structures.pumps_df.id):
+                        branch = self.structures.pumps_df[
+                            self.structures.pumps_df.id == struc
+                        ].branchid.values[0]
+                        offset = self.structures.pumps_df[
+                            self.structures.pumps_df.id == struc
+                        ].chainage.values[0]
+                    elif struc in list(self.structures.rweirs_df.id):
+                        branch = self.structures.rweirs_df[
+                            self.structures.rweirs_df.id == struc
+                        ].branchid.values[0]
+                        offset = self.structures.rweirs_df[
+                            self.structures.rweirs_df.id == struc
+                        ].chainage.values[0]
+                    elif struc in list(self.structures.uweirs_df.id):
+                        branch = self.structures.uweirs_df[
+                            self.structures.uweirs_df.id == struc
+                        ].branchid.values[0]
+                        offset = self.structures.uweirs_df[
+                            self.structures.uweirs_df.id == struc
+                        ].chainage.values[0]
+                    elif struc in list(self.structures.culverts_df.id):
+                        branch = self.structures.culverts_df[
+                            self.structures.culverts_df.id == struc
+                        ].branchid.values[0]
+                        offset = self.structures.culverts_df[
+                            self.structures.culverts_df.id == struc
+                        ].chainage.values[0]
+                    elif struc in list(self.structures.bridges_df.id):
+                        branch = self.structures.bridges_df[
+                            self.structures.bridges_df.id == struc
+                        ].branchid.values[0]
+                        offset = self.structures.bridges_df[
+                            self.structures.pumpbridges_dfs_df.id == struc
+                        ].chainage.values[0]
+                    elif struc in list(self.structures.orifices_df.id):
+                        branch = self.structures.orifices_df[
+                            self.structures.orifices_df.id == struc
+                        ].branchid.values[0]
+                        offset = self.structures.orifices_df[
+                            self.structures.orifices_df.id == struc
+                        ].chainage.values[0]
+                    else:
+                        raise IndexError(
+                            "Structure id not found. Make sure all other structures have been added to the model."
+                        )
+                else:
+                    # move a subsequent structure to the location of the first
+                    if struc in list(self.structures.pumps_df.id):
+                        self.structures.pumps_df.loc[
+                            self.structures.pumps_df[
+                                self.structures.pumps_df.id == struc
+                            ].index,
+                            "branchid",
+                        ] = branch
+                        self.structures.pumps_df.loc[
+                            self.structures.pumps_df[
+                                self.structures.pumps_df.id == struc
+                            ].index,
+                            "chainage",
+                        ] = offset
+
+                    if struc in list(self.structures.rweirs_df.id):
+                        self.structures.rweirs_df.loc[
+                            self.structures.rweirs_df[
+                                self.structures.rweirs_df.id == struc
+                            ].index,
+                            "branchid",
+                        ] = branch
+                        self.structures.rweirs_df.loc[
+                            self.structures.rweirs_df[
+                                self.structures.rweirs_df.id == struc
+                            ].index,
+                            "chainage",
+                        ] = offset
+
+                    if struc in list(self.structures.uweirs_df.id):
+                        self.structures.uweirs_df.loc[
+                            self.structures.uweirs_df[
+                                self.structures.uweirs_df.id == struc
+                            ].index,
+                            "branchid",
+                        ] = branch
+                        self.structures.uweirs_df.loc[
+                            self.structures.uweirs_df[
+                                self.structures.uweirs_df.id == struc
+                            ].index,
+                            "chainage",
+                        ] = offset
+                    if struc in list(self.structures.culverts_df.id):
+                        self.structures.culverts_df.loc[
+                            self.structures.culverts_df[
+                                self.structures.culverts_df.id == struc
+                            ].index,
+                            "branchid",
+                        ] = branch
+                        self.structures.culverts_df.loc[
+                            self.structures.culverts_df[
+                                self.structures.culverts_df.id == struc
+                            ].index,
+                            "chainage",
+                        ] = offset
+                    if struc in list(self.structures.bridges_df.id):
+                        self.structures.bridges_df.loc[
+                            self.structures.bridges_df[
+                                self.structures.bridges_df.id == struc
+                            ].index,
+                            "branchid",
+                        ] = branch
+                        self.structures.bridges_df.loc[
+                            self.structures.bridges_df[
+                                self.structures.bridges_df.id == struc
+                            ].index,
+                            "chainage",
+                        ] = offset
+                    if struc in list(self.structures.orifices_df.id):
+                        self.structures.orifices_df.loc[
+                            self.structures.orifices_df[
+                                self.structures.orifices_df.id == struc
+                            ].index,
+                            "branchid",
+                        ] = branch
+                        self.structures.orifices_df.loc[
+                            self.structures.orifices_df[
+                                self.structures.orifices_df.id == struc
+                            ].index,
+                            "chainage",
+                        ] = offset
+
+            self.structures.add_compound(id=c_id, structureids=structurelist[c_i])
+            # self.structures.compounds_df.at[compound.Index, "structurelist"] = ";".join(
+            #     [f"{s}" for s in structurelist[ii]]
+            # )
 
 
 class StorageNodesIO:

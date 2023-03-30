@@ -54,8 +54,8 @@ gpkg_file = str(data_path / "Example_model.gpkg")
 hydamo = HyDAMO(extent_file=data_path / "OLO_stroomgebied_incl.maas.shp")
 
 TwoD = True
-RTC = True
-RR = True
+RTC = False
+RR = False
 
 # show content
 hydamo.branches.show_gpkg(gpkg_file)
@@ -154,32 +154,39 @@ hydamo.structures.convert.pumps(
 )
 
 
-hydamo.structures.add_orifice(
-    id="otest",
-    name="otest",
+hydamo.structures.add_rweir(
+    id="rwtest",
+    name="rwtest",
     branchid="W_1386_0",
-    chainage=5.0,
+    chainage=2.0,
     crestlevel=18.0,
     crestwidth=3.0,
     corrcoeff=1.0,
-    gateloweredgelevel=18.5,
-    uselimitflowpos=False,
-    limitflowpos=0.0,
-    uselimitflowneg=False,
-    limitflowneg=0.0,
 )
 
-# hydamo.structures.add_uweir(
-#     id="uwtest",
-#     name="uwtest",
-#     branchid="W_1386_0",
-#     chainage=6.0,
-#     dischargecoeff=0.9,
-#     crestlevel=18.0,
-#     numlevels=3,
-#     yvalues="0 0.5 1.0",
-#     zvalues="19.0 18.0 19.0",
-# )
+hydamo.structures.add_orifice(
+    id="orifice_test",
+    branchid="W_242213_0",
+    chainage=43.0,
+    crestlevel=18.00,
+    gateloweredgelevel=18.5,
+    crestwidth=7.5,
+    corrcoeff=1.0,
+)
+hydamo.structures.add_uweir(
+    id="uweir_test",
+    branchid="W_242213_0",
+    chainage=43.0,
+    crestlevel=18.00,
+    crestwidth=7.5,
+    dischargecoeff=1.0,
+)
+
+cmpnd_ids = ["cmpnd_1"]
+cmpnd_list = [["rwtest", "orifice_test"]]
+hydamo.structures.convert.compound_structures(cmpnd_ids, cmpnd_list)
+
+# $print(hydamo.structures.compounds_df)
 # hydamo.structures.add_bridge(
 #     id="btest",
 #     name="btest",
@@ -240,7 +247,7 @@ mesh.mesh1d_add_branches_from_gdf(
     fm.geometry.netfile.network,
     branches=hydamo.branches,
     branch_name_col="code",
-    node_distance=20,
+    node_distance=50,
     max_dist_to_struc=None,
     structures=structures,
 )
@@ -266,7 +273,8 @@ if TwoD:
     )
 
     # add 1d2d links
-    mesh.links1d2d_add_links_1d_to_2d(fm.geometry.netfile.network)
+    # mesh.links1d2d_add_links_1d_to_2d(fm.geometry.netfile.network)
+    mesh.links1d2d_add_links_2d_to_1d_embedded(fm.geometry.netfile.network)
 
 
 hydamo.crosssections.convert.profiles(

@@ -27,7 +27,7 @@ class DIMRWriter:
             self.run_dimr = r"C:\Program Files\Deltares\D-HYDRO Suite 2022.04 1D2D\plugins\DeltaShell.Dimr\kernels\x64\dimr\scripts\run_dimr.bat"
         else:
             self.run_dimr = dimr_path
-            
+
         if output_path is None:
             self.output_path = Path(os.path.abspath("."))
         else:
@@ -73,6 +73,7 @@ class DIMRWriter:
 
         # Parsing xml file
         configfile = ET.parse(self.template_dir / "dimr_config.xml")
+
         myroot = configfile.getroot()
         myroot[1][1].text = "fm"
         myroot[1][2].text = fm.filepath.name
