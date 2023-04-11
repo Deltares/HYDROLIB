@@ -11,6 +11,7 @@ channels:
   - conda-forge
 dependencies:
   - python=3.10.*
+  - shapely = 1.8.5
   - gdal=3.6.1
   - hydromt = 0.6.0
   - xugrid = 0.2.1
