@@ -82,8 +82,7 @@ class HyDAMO:
             geotype=LineString,
             required_columns=[
                 "code",
-                "geometry",
-                "typeruwheid",
+                "geometry"
             ],
         )
 
