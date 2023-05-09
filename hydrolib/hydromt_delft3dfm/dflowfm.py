@@ -300,7 +300,7 @@ class DFlowFMModel(MeshModel):
                 defaults_fn = Path(self._DATADIR).joinpath(
                     f"{br_type}s", f"{br_type}s_defaults.csv"
                 )
-            defaults = self.data_catalog.get_dataframe(defaults_fn)
+            defaults = self.data_catalog.get_dataframe(defaults_fn, time_tuple=())
             self.logger.info(f"{br_type} default settings read from {defaults_fn}.")
 
         # 2. Add defaults
@@ -1783,29 +1783,26 @@ class DFlowFMModel(MeshModel):
         self,
         boundaries_fn: str = None,
         boundaries_timeseries_fn: str = None,
-        boundaries_geodataset_fn: str = None,
         boundary_value: float = 0.0,
         boundary_type: str = "waterlevel",
         boundary_unit: str = "m",
         tolerance: float = 3.0,
     ):
         """
-        Prepares the 2D boundaries from line geometry.
+        Prepares the 2D boundaries from line geometries.
 
         The values can either be a spatially-uniform constant using ``boundaries_fn`` and ``boundary_value`` (default),
-        or spatially-uniform timeseries read from ``boundaries_timeseries_fn`` (TODO: Not Implemented, check the example for meteo)
-        or spatially-varying timeseries read from ``boundaries_geodataset_fn`` (TODO: Not Implemented, check if hydromt support line geometry time series)
+        or spatially-varying timeseries using ``boundaries_fn`` and  ``boundaries_timeseries_fn``
         The ``boundary_type`` can either be "waterlevel" or "discharge".
 
-        If ``boundaries_timeseries_fn``  or ``boundaries_geodataset_fn`` has missing values,
-        the constant ``boundary_value`` will be used.
+        If ``boundaries_timeseries_fn`` has missing values, the constant ``boundary_value`` will be used.
 
         The dataset/timeseries are clipped to the model region (see below note), and model time based on the model config
         tstart and tstop entries.
 
         Note that:
         (1) Only line geometry that are contained within the distance of ``tolenrance`` to grid cells are allowed.
-        (2) Because of the above, this function must be called before the mesh refinement.
+        (2) Because of the above, this function must be called before the mesh refinement. #FIXME: check this after deciding on mesh refinement being a workflow or function
         (3) when using constant boundary, the output forcing will be written to time series with constant values.
 
         Adds/Updates model layers:
@@ -1815,21 +1812,11 @@ class DFlowFMModel(MeshModel):
         ----------
         boundaries_fn: str Path
             Path or data source name for line geometry file.
-            * Required variables if a combined time series data csv file: ['index'] with type int
+            * Required variables if a combined time series data csv file: ["boundary_id"] with type int
         boundaries_timeseries_fn: str, Path
             Path to tabulated timeseries csv file with time index in first column
-            and location index with type int in the first row,
-            see :py:meth:`hydromt.open_timeseries_from_table`, for details.
-            NOTE: Require equidistant time series
-        boundaries_geodataset_fn : str, Path
-            Path or data source name for geospatial point timeseries file.
-            This can either be a netcdf file with geospatial coordinates
-            or a combined point location file with a timeseries data csv file
-            which can be setup through the data_catalog yml file, see hydromt User Manual (https://deltares.github.io/hydromt/latest/_examples/prep_data_catalog.html#GeoDataset-from-vector-files)
-            * Required variables if netcdf: ['discharge', 'waterlevel'] depending on ``boundary_type``
-            * Required coordinates if netcdf: ['time', 'index', 'y', 'x']
-            * Required variables if a combined point location file: ['index'] with type int
-            * Required index types if a time series data csv file: int
+            and location index with type int in the first row, matching "boundary_id" in ``boundaries_fn`.
+            see :py:meth:`hydromt.get_dataframe`, for details.
             NOTE: Require equidistant time series
         boundary_value : float, optional
             Constant value to use for all boundaries, and to
@@ -1849,10 +1836,11 @@ class DFlowFMModel(MeshModel):
             Unit: in cell size units (i.e., not meters)
             By default, 3.0
 
-        Raises:
-        -------
-        NotImplementedError:
-            The use of boundaries_timeseries_fn and boundaries_geodataset_fn is not yet implemented.
+        Raises
+        ------
+        AssertionError
+            If "boundary_unit" is not in the allowed units or
+            if "boundary_id" in "boundaries_fn" does not match the columns of ``boundaries_timeseries_fm``.
 
         """
         self.logger.info(f"Preparing 2D boundaries.")
@@ -1872,7 +1860,7 @@ class DFlowFMModel(MeshModel):
 
         refdate, tstart, tstop = self.get_model_time()  # time slice
 
-        # 1. read constant boundaries
+        # 1. read boundary geometries
         if boundaries_fn is not None:
             gdf_bnd = self.data_catalog.get_geodataframe(
                 boundaries_fn,
@@ -1891,37 +1879,37 @@ class DFlowFMModel(MeshModel):
                 gdf_bnd["boundary_id"] = [
                     f"2dboundary_{i}" for i in range(len(gdf_bnd))
                 ]
+            else:
+                gdf_bnd["boundary_id"] = gdf_bnd["boundary_id"].astype(str)
         else:
             gdf_bnd = None
         # 2. read timeseries boundaries
         if boundaries_timeseries_fn is not None:
-            raise NotImplementedError(
-                "Does not support reading timeseries boundaries yet."
-            )
+            self.logger.info("reading timeseries boundaries")
+            df_bnd = self.data_catalog.get_dataframe(boundaries_timeseries_fn,
+                                                     time_tuple=(tstart, tstop)) # could not use open_geodataset due to line geometry
+            if gdf_bnd is not None:
+                # check if all boundary_id are in df_bnd
+                assert all(
+                    [
+                        bnd in df_bnd.columns
+                        for bnd in gdf_bnd["boundary_id"].unique()
+                    ]
+                ), "Not all boundary_id are in df_bnd"
         else:
-            df_bnd = pd.DataFrame(
-                {
-                    "time": pd.date_range(
+            # default timeseries
+            d_bnd = {bnd_id: np.nan for bnd_id in gdf_bnd["boundary_id"].unique()}
+            d_bnd.update({"time": pd.date_range(
                         start=pd.to_datetime(tstart),
                         end=pd.to_datetime(tstop),
                         freq="D",
-                    ),
-                    "global": np.nan,
-                }
-            )
-        # 3. read spatially varying timeseries boundaries
-        if boundaries_geodataset_fn is not None:
-            raise NotImplementedError(
-                "Does not support reading geodataset boundaries yet."
-            )
-        else:
-            da_bnd = None
+                    )})
+            df_bnd = pd.DataFrame(d_bnd).set_index("time")
 
         # 4. Derive DataArray with boundary values at boundary locations in boundaries_branch_type
-        da_out = workflows.compute_2dboundary_values(
+        da_out_dict = workflows.compute_2dboundary_values(
             boundaries=gdf_bnd,
-            da_bnd=da_bnd,
-            df_bnd=df_bnd,
+            df_bnd=df_bnd.reset_index(),
             boundary_value=boundary_value,
             boundary_type=boundary_type,
             boundary_unit=boundary_unit,
@@ -1929,7 +1917,8 @@ class DFlowFMModel(MeshModel):
         )
 
         # 5. set boundaries
-        self.set_forcing(da_out, name=f"boundary2d_{da_out.name}")
+        for da_out_name,da_out in da_out_dict.items():
+            self.set_forcing(da_out, name=f"boundary2d_{da_out_name}")
 
         # adjust parameters
         self.set_config("geometry.openboundarytolerance", tolerance)

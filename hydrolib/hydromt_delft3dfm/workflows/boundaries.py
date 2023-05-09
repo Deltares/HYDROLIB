@@ -322,7 +322,6 @@ def compute_boundary_values(
 def compute_2dboundary_values(
     boundaries: gpd.GeoDataFrame = None,
     df_bnd: pd.DataFrame = None,
-    da_bnd: xr.DataArray = None,
     boundary_value: float = 0.0,
     boundary_type: str = "waterlevel",
     boundary_unit: str = "m",
@@ -338,16 +337,12 @@ def compute_2dboundary_values(
         line geometry type of locations of the 2D boundaries to which to add data.
         Must be combined with ``df_bnd``.
 
-        * Required variables: ['boundary_id']
+        * Required variables: ["boundary_id"]
     df_bnd : pd.DataFrame, optional
-        pd.DataFrame containing the boundary timeseries values. Allow a single timeseries that applies globally.
-        Must be combined with ``boundaries``
+        pd.DataFrame containing the boundary timeseries values.
+        Must be combined with ``boundaries``. Columns must match the "boundary_id" in ``boundaries``.
 
-        * Required variables: [``global``]
-    da_bnd : xr.DataArray, optional
-        xr.DataArray containing the boundary timeseries values at supporting points.
-
-        * Required variables if netcdf: [``boundary_type``]
+        * Required variables: ["time"]
     boundary_value : float, optional
         Constant value to fill in missing data. By default 0 m.
     boundary_type : {'waterlevel', 'discharge'}
@@ -364,19 +359,15 @@ def compute_2dboundary_values(
 
     Raises
     ------
-    NotImplementedError
-    ValueError
+    ValueError:
+        if no boundary to compute.
     """
 
     # Timeseries boundary values
-    if da_bnd is not None:
-        raise NotImplementedError(
-            "Spatial-varying timeseries boundary are not yet implemented."
-        )
-    elif boundaries is None or len(boundaries) == 0:
+    if boundaries is None or len(boundaries) == 0:
         raise ValueError("No boundary to compute.")
     else:
-        logger.info(f"Preparing spatial-uniform boundaries.")
+        # prepare boundary data
         # get data freq in seconds
         _TIMESTR = {"D": "days", "H": "hours", "T": "minutes", "S": "seconds"}
         dt = df_bnd.time[1] - df_bnd.time[0]
@@ -400,7 +391,8 @@ def compute_2dboundary_values(
             )
             freq_name = "hours"
 
-        # note there is only one boundary due to preprocessing pof unary_union in setup
+        # for each boundary apply boundary data
+        da_out_dict = {}
         for _index, _bnd in boundaries.iterrows():
 
             bnd_id = _bnd["boundary_id"]
@@ -421,7 +413,7 @@ def compute_2dboundary_values(
             da_out = xr.DataArray(
                 data=np.full(
                     (len(support_points["name"]), len(bnd_times)),
-                    np.tile(df_bnd["global"].values, (len(support_points["name"]), 1)),
+                    np.tile(df_bnd[bnd_id].values, (len(support_points["name"]), 1)),
                     dtype=np.float32,
                 ),
                 dims=["index", "time"],
@@ -444,7 +436,9 @@ def compute_2dboundary_values(
             # fill in na using default
             da_out = da_out.fillna(boundary_value)
             da_out.name = f"{bnd_id}"
-    return da_out
+            da_out_dict.update({f"{bnd_id}": da_out})
+
+    return da_out_dict
 
 
 def gpd_to_pli(gdf: gpd.GeoDataFrame, output_dir: Path):
