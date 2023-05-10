@@ -371,11 +371,11 @@ class DIMRWriter:
                 item.tail = "\n"
 
                 source = ET.SubElement(item, gn_brackets + "sourceName")
-                source.text = f"catchments/{i}/water_level"
+                source.text = f"catchments/{i}/water_discharge"
                 source.tail = "\n"
 
                 target = ET.SubElement(item, gn_brackets + "targetName")
-                target.text = f"laterals/{i}/water_level"
+                target.text = f"laterals/{i}/water_discharge"
                 target.tail = "\n"
 
             logrrfm = ET.SubElement(couplerrrfm, gn_brackets + "logger")

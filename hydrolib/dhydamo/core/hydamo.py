@@ -201,7 +201,7 @@ class HyDAMO:
             required_columns=["code", "globalid", "gemaalid", "maximalecapaciteit"]
         )
         self.management = ExtendedDataFrame(
-            required_columns=["code", "globalid", "pompid", "doelvariabele"]
+            required_columns=["code", "globalid"]
         )
 
         # Hydraulische randvoorwaarden

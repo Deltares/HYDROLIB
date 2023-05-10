@@ -124,13 +124,13 @@ class CrossSectionsIO:
             groupidx = [
                 idx
                 for idx, group in profile_groups.iterrows()
-                if ("brugid" in profile_groups.columns) and (group.brugid != "")
+                if ("brugid" in profile_groups.columns) and (group.brugid is not None)
             ]
 
             groupidx = groupidx + [
                 idx
                 for idx, group in profile_groups.iterrows()
-                if ("stuwid" in profile_groups.columns) & (group.stuwid != "")
+                if ("stuwid" in profile_groups.columns) & (group.stuwid is not None)
             ]
 
             # index of the lines that are associated to these groups
@@ -610,7 +610,7 @@ class StructuresIO:
                 line = profile_lines[
                     profile_lines["profielgroepid"] == group["globalid"].values[0]
                 ]
-                prof = profiles[profiles["globalid"] == line["globalid"].values[0]]
+                prof = profiles[profiles["profiellijnid"] == line["globalid"].values[0]]
                 if not prof.empty:
                     counts = len(prof.geometry.iloc[0].coords[:])
                     xyz = np.vstack(prof.geometry.iloc[0].coords[:])
@@ -707,7 +707,7 @@ class StructuresIO:
             line = profile_lines[
                 profile_lines["profielgroepid"] == group["globalid"].values[0]
             ]
-            prof = profiles[profiles["globalid"] == line["globalid"].values[0]]
+            prof = profiles[profiles["profiellijnid"] == line["globalid"].values[0]]
 
             if len(prof) == 0:
                 raise ValueError(f"{bridge.code} is not found in any cross-section.")
@@ -922,13 +922,13 @@ class StructuresIO:
             # Get the control by index
             pump_control = management.iloc[np.where(sturingidx)[0][0]]
 
-            if (
-                pump_control.doelvariabele != 1
-                and pump_control.doelvariabele != "waterstand"
-            ):
-                raise NotImplementedError(
-                    "Sturing not implemented for anything else than water level (1)."
-                )
+            # if (
+            #     pump_control.doelvariabele != 1
+            #     and pump_control.doelvariabele != "waterstand"
+            # ):
+            #     raise NotImplementedError(
+            #         "Sturing not implemented for anything else than water level (1)."
+            #     )
 
             # Add levels for suction side
             startlevelsuctionside = [pump_control["bovengrens"]]

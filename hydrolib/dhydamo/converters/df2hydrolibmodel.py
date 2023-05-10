@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 class Df2HydrolibModel:
-    def __init__(self, hydamo):
+    def __init__(self, hydamo, assign_default_profiles=False):
         self.hydamo = hydamo
         self.structures = []
         self.crossdefs = []
@@ -50,6 +50,7 @@ class Df2HydrolibModel:
         self.inifields = []
         self.onedfields = []
 
+        self.assign_default_profiles = assign_default_profiles
         self.forcingmodel = ForcingModel()
         self.forcingmodel.filepath = "boundaryconditions.bc"
         self.forcingmodel.forcing = []
@@ -167,10 +168,10 @@ class Df2HydrolibModel:
             ]
 
         # If any are missing, check if a default cross section definition has been defined
-        if len(default_locs) > 0:
+        if (len(default_locs) > 0) & (self.assign_default_profiles):
             if self.hydamo.crosssections.default_definition is None:
-                raise ValueError(
-                    "Not all branches have a cross section appointed to them. Add cross sections, or set a default cross section definition that can be added to the branches without a definition."
+                 print(
+                    "Not all branches have a cross section appointed to them. We assume D-Hydro can interpolate over these branches, otherwise errors will occur."
                 )
             logger.info(
                 f"Adding default cross section definition to branches with ids: {', '.join(list(default_locs))}"
@@ -277,9 +278,13 @@ class Df2HydrolibModel:
                         name=key,
                         function="timeseries",
                         timeinterpolation="linear",
-                        quantity="lateral_discharge",
-                        unit="m3/s",
-                        datablock=[lateral["time"], lateral["value"]],
+                        quantityunitpair=[
+                            QuantityUnitPair(quantity="time", unit=lateral["time_unit"]),
+                            QuantityUnitPair(
+                                quantity="lateral_discharge", unit="m3/s"
+                            ),
+                        ],
+                        datablock=list(map(list, zip(lateral["time"], lateral["value"]))),
                     )
                     self.laterals_bc.append(lat_bc)
                 elif isinstance(lateral["discharge"], float):
@@ -324,14 +329,15 @@ class Df2HydrolibModel:
 
     def observation_points_to_dhydro(self):
         """Convert dataframe of observationpoints to ObserationPoint-objects"""
-        obspoints = [
-            ObservationPoint(**obs)
-            for obs in self.hydamo.observationpoints.observation_points.to_dict(
-                "records"
-            )
-        ]
-        self._clear_comments(obspoints)
-        self.obspoints += obspoints
+        if hasattr(self.hydamo.observationpoints, 'observation_points'):
+            obspoints = [
+                ObservationPoint(**obs)
+                for obs in self.hydamo.observationpoints.observation_points.to_dict(
+                    "records"
+                )
+            ]
+            self._clear_comments(obspoints)
+            self.obspoints += obspoints
 
     def inifields_to_dhydro(self):
         """Convert initial conditions to InitialField objects"""
