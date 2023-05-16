@@ -209,7 +209,8 @@ def set_branch_crosssections(
     crosssections_["crsdef_thalweg"] = 0.0
 
     # support both string and boolean for closed column
-    crosssections_["crsdef_closed"].replace({"yes": 1, "no": 0}, inplace=True)
+    if "crsdef_closed" in crosssections_:
+        crosssections_["crsdef_closed"].replace({"yes": 1, "no": 0}, inplace=True)
 
     crosssections_ = gpd.GeoDataFrame(crosssections_, crs=branches.crs)
 

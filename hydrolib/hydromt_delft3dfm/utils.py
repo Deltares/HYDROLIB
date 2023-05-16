@@ -362,10 +362,19 @@ def write_friction(gdf: gpd.GeoDataFrame, savedir: str) -> List[str]:
     friction_fns: List of str
         list of relative filepaths to friction files.
     """
-    frictions = gdf[["crsdef_frictionId", "frictionValue", "frictionType"]]
-    # Remove nan
-    frictions = frictions.rename(columns={"crsdef_frictionId": "frictionId"})
-    frictions = frictions.dropna(subset="frictionId")
+    friction_keys = [
+        "crsdef_frictionId",
+        "frictionValue",
+        "frictionType"
+    ] if "crsdef_frictionId" in gdf else [
+        "frictionValue",
+        "frictionType"
+    ]
+    frictions = gdf[friction_keys]
+    if "crsdef_frictionId" in frictions:
+        # Remove nan
+        frictions = frictions.rename(columns={"crsdef_frictionId": "frictionId"})
+        frictions = frictions.dropna(subset="frictionId")
     # For xyz crosssections, column name is frictionids instead of frictionid
     if "crsdef_frictionIds" in gdf:
         # For now assume unique and not list
