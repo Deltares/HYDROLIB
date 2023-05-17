@@ -525,13 +525,19 @@ def links1d2d_add_links_2d_to_1d_lateral(
         # and convert it to a geometrylist
         # Note that the provided meshboundaries is a (list of) polygon(s). Holes are provided
         # as polygons as well, which dont make it a valid MultiPolygon
-        geometrylist = GeometryList.from_geometry(
+        if isinstance(mpboundaries, Polygon):
+            geometrylist = GeometryList.from_geometry(
             MultiPolygon(
-                common.as_polygon_list(
-                    [geom.intersection(within) for geom in mpboundaries.geoms]
+                [mpboundaries]
+            ))
+        else:
+            geometrylist = GeometryList.from_geometry(
+                MultiPolygon(
+                    common.as_polygon_list(
+                        [geom.intersection(within) for geom in mpboundaries.geoms]
+                    )
                 )
             )
-        )
 
     # Get the nodes for the specific branch ids
     node_mask = network._mesh1d.get_node_mask(branchids)
@@ -549,7 +555,10 @@ def links1d2d_add_links_2d_to_1d_lateral(
         return
 
     # Create multilinestring
-    multilinestring = MultiLineString([poly.exterior for poly in mpboundaries.geoms])
+    if isinstance(mpboundaries, Polygon):
+        multilinestring = MultiLineString([mpboundaries.exterior])
+    else: 
+        multilinestring = MultiLineString([poly.exterior for poly in mpboundaries.geoms])
 
     # Find the links that intersect the boundary close to the origin
     id1d = network._link1d2d.link1d2d[npresent:, 0]

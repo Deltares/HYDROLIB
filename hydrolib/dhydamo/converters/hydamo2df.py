@@ -124,7 +124,7 @@ class CrossSectionsIO:
             groupidx = [
                 idx
                 for idx, group in profile_groups.iterrows()
-                if ("brugid" in profile_groups.columns) and (group.brugid is not None)
+                if ("brugid" in profile_groups.columns) & (group.brugid is not None)
             ]
 
             groupidx = groupidx + [
