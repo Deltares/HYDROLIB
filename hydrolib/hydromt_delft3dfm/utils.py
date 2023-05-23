@@ -335,12 +335,17 @@ def read_friction(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFrame:
             frictype[fric_list[i].global_[j].frictionid] = (
                 fric_list[i].global_[j].frictiontype
             )
-
     # Create friction value and type by replacing frictionid values with dict
     gdf_out = gdf.copy()
-    gdf_out["frictionValue"] = gdf_out["crsdef_frictionId"]
+    if "crsdef_frictionId" in gdf_out:
+        gdf_out["frictionValue"] = gdf_out["crsdef_frictionId"]
+    elif "crsdef_frictionids" in gdf_out:
+        gdf_out["frictionValue"] = gdf_out["crsdef_frictionids"]
     gdf_out["frictionValue"] = gdf_out["frictionValue"].replace(fricval)
-    gdf_out["frictionType"] = gdf_out["crsdef_frictionId"]
+    if "crsdef_frictionId" in gdf_out:
+        gdf_out["frictionType"] = gdf_out["crsdef_frictionId"]
+    elif "crsdef_frictionids" in gdf_out:
+        gdf_out["frictionType"] = gdf_out["crsdef_frictionids"]
     gdf_out["frictionType"] = gdf_out["frictionType"].replace(frictype)
 
     return gdf_out
@@ -368,7 +373,8 @@ def write_friction(gdf: gpd.GeoDataFrame, savedir: str) -> List[str]:
         "frictionType"
     ] if "crsdef_frictionId" in gdf else [
         "frictionValue",
-        "frictionType"
+        "frictionType",
+        "crsdef_frictionIds"
     ]
     frictions = gdf[friction_keys]
     if "crsdef_frictionId" in frictions:
@@ -378,11 +384,13 @@ def write_friction(gdf: gpd.GeoDataFrame, savedir: str) -> List[str]:
     # For xyz crosssections, column name is frictionids instead of frictionid
     if "crsdef_frictionIds" in gdf:
         # For now assume unique and not list
-        frictionsxyz = gdf[["crsdef_frictionIds", "frictionValue", "frictionType"]]
+        frictionsxyz = gdf
+        # frictionsxyz = gdf[["crsdef_frictionids", "frictionValue", "frictionType"]]
         frictionsxyz = frictionsxyz.dropna(subset="crsdef_frictionIds")
         frictionsxyz = frictionsxyz.rename(columns={"crsdef_frictionIds": "frictionId"})
         frictions = pd.concat([frictions, frictionsxyz])
-    frictions = frictions.drop_duplicates(subset="frictionId")
+    if "frictionId" in frictions:
+        frictions = frictions.drop_duplicates(subset="frictionId")
 
     friction_fns = []
     # create a new friction
@@ -499,10 +507,11 @@ def read_1dboundary(
     # Initialise dataarray attributes
     bc = {"quantity": quantity}
     nodeids = df.nodeid.values
+    nodeids = nodeids[nodeids!="nan"]
     # Assume one forcing file (hydromt writer) and read
     forcing = df.forcingfile.iloc[0]
     df_forcing = pd.DataFrame([f.__dict__ for f in forcing.forcing])
-    # Filter for the current nodes
+    # Filter for the current nodes, remove nans
     df_forcing = df_forcing[np.isin(df_forcing.name, nodeids)]
 
     # Get data
@@ -547,7 +556,11 @@ def read_1dboundary(
 
     # Get nodeid coordinates
     node_geoms = nodes.set_index("nodeId").reindex(nodeids)
-    xs, ys = np.vectorize(lambda p: (p.xy[0][0], p.xy[1][0]))(node_geoms["geometry"])
+    # # get rid of missing geometries
+    # index_name = node_geoms.index.name
+    # node_geoms = pd.DataFrame([row for n, row in node_geoms.iterrows() if row["geometry"] is not None])
+    # node_geoms.index.name = index_name
+    xs, ys = np.vectorize(lambda p: (np.nan, np.nan) if p is None else (p.xy[0][0], p.xy[1][0]))(node_geoms["geometry"])
     coords["x"] = ("index", xs)
     coords["y"] = ("index", ys)
 
