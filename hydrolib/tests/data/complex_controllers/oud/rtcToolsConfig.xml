@@ -1,0 +1,75 @@
+﻿<rtcToolsConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rtc="http://www.wldelft.nl/fews" xmlns="http://www.wldelft.nl/fews" xsi:schemaLocation="http://www.wldelft.nl/fews C:\Program%20Files\Deltares\D-HYDRO%20Suite%202023.02%201D2D\plugins\DeltaShell.Dimr\kernels\x64\drtc\bin\rtcToolsConfig.xsd">
+  <general>
+    <description>RTC Model DeltaShell</description>
+    <poolRoutingScheme>Theta</poolRoutingScheme>
+    <theta>0.5</theta>
+  </general>
+  <rules>
+    <rule>
+      <unitDelay id="rule01_unitDelay">
+        <input>
+          <x>[Output]S_96684/Crest level (s)</x>
+        </input>
+        <output>
+          <y>[Output]S_96684/Crest level (s)</y>
+        </output>
+      </unitDelay>
+    </rule>
+    <rule>
+      <interval id="[IntervalRule]Control Group 1/rule01">
+        <settingBelow>0</settingBelow>
+        <settingAbove>0</settingAbove>
+        <settingMaxStep>0</settingMaxStep>
+        <deadbandSetpointAbsolute>0</deadbandSetpointAbsolute>
+        <input>
+          <x ref="EXPLICIT">[Input]ObsS_96684_1/Water level (op)</x>
+          <setpoint>[SP]Control Group 1/rule01</setpoint>
+        </input>
+        <output>
+          <y>[Output]S_96684/Crest level (s)</y>
+          <status>[Status]Control Group 1/rule01</status>
+        </output>
+      </interval>
+    </rule>
+    <rule>
+      <interval id="[IntervalRule]Control Group 1/rule02">
+        <settingBelow>0</settingBelow>
+        <settingAbove>0</settingAbove>
+        <settingMaxStep>0</settingMaxStep>
+        <deadbandSetpointAbsolute>0</deadbandSetpointAbsolute>
+        <input>
+          <x ref="EXPLICIT">[Input]ObsS_96684_1/Water level (op)</x>
+          <setpoint>[SP]Control Group 1/rule02</setpoint>
+        </input>
+        <output>
+          <y>[Output]S_96684/Crest level (s)</y>
+          <status>[Status]Control Group 1/rule02</status>
+        </output>
+      </interval>
+    </rule>
+  </rules>
+  <triggers>
+    <trigger>
+      <standard id="[StandardCondition]Control Group 1/Standard Condition">
+        <condition>
+          <x1Series ref="EXPLICIT">[Input]ObsS_96684_1/Water level (op)</x1Series>
+          <relationalOperator>Greater</relationalOperator>
+          <x2Value>18.5</x2Value>
+        </condition>
+        <true>
+          <trigger>
+            <ruleReference>[IntervalRule]Control Group 1/rule01</ruleReference>
+          </trigger>
+        </true>
+        <false>
+          <trigger>
+            <ruleReference>[IntervalRule]Control Group 1/rule02</ruleReference>
+          </trigger>
+        </false>
+        <output>
+          <status>[Status]Control Group 1/Standard Condition</status>
+        </output>
+      </standard>
+    </trigger>
+  </triggers>
+</rtcToolsConfig>

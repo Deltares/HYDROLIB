@@ -466,18 +466,18 @@ def test_links1d2d_add_links_1d_to_2d():
     mesh.links1d2d_add_links_1d_to_2d(network, within=within)
     assert len(network._link1d2d.link1d2d) == 13
 
-    # # Plot to verify
-    fig, ax = plt.subplots(figsize=(5, 5))
+    # Plot to verify
+    # fig, ax = plt.subplots(figsize=(5, 5))
 
-    viz.plot_network(network, ax=ax)
+    # viz.plot_network(network, ax=ax)
 
-    for polygon in common.as_polygon_list(within):
-        ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
-        ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
-    ax.set_aspect(1.0)
-    ax.autoscale_view()
+    # for polygon in common.as_polygon_list(within):
+    #     ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
+    #     ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
+    # ax.set_aspect(1.0)
+    # ax.autoscale_view()
 
-    plt.show()
+    # plt.show()
 
 
 @pytest.mark.plots
@@ -502,17 +502,17 @@ def test_links1d2d_add_links_2d_to_1d_embedded():
     assert len(network._link1d2d.link1d2d) == 5
 
     # # Plot to verify
-    fig, ax = plt.subplots(figsize=(5, 5))
+    # fig, ax = plt.subplots(figsize=(5, 5))
 
-    viz.plot_network(network, ax=ax)
+    # viz.plot_network(network, ax=ax)
 
-    for polygon in common.as_polygon_list(within):
-        ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
-        ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
-    ax.set_aspect(1.0)
-    ax.autoscale_view()
+    # for polygon in common.as_polygon_list(within):
+    #     ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
+    #     ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
+    # ax.set_aspect(1.0)
+    # ax.autoscale_view()
 
-    plt.show()
+    # plt.show()
 
 
 @pytest.mark.plots
@@ -548,17 +548,17 @@ def test_links1d2d_add_links_2d_to_1d_lateral():
     assert len(network._link1d2d.link1d2d) == 24
 
     # Plot the final result verify
-    fig, ax = plt.subplots(figsize=(5, 5))
+    # fig, ax = plt.subplots(figsize=(5, 5))
 
-    viz.plot_network(network, ax=ax)
+    # viz.plot_network(network, ax=ax)
 
-    for polygon in common.as_polygon_list(within):
-        ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
-        ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
-    ax.set_aspect(1.0)
-    ax.autoscale_view()
+    # for polygon in common.as_polygon_list(within):
+    #     ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
+    #     ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
+    # ax.set_aspect(1.0)
+    # ax.autoscale_view()
 
-    plt.show()
+    # plt.show()
 
 
 @pytest.mark.plots

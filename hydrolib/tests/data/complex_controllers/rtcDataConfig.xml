@@ -1,6 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<rtcDataConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rtc="http://www.wldelft.nl/fews" xmlns="http://www.wldelft.nl/fews" xsi:schemaLocation="http://www.wldelft.nl/fews D:\3640.20\HYDROLIB-dhydamo\export\rtc\rtcDataConfig.xsd">
+<rtcDataConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rtc="http://www.wldelft.nl/fews" xmlns="http://www.wldelft.nl/fews" xsi:schemaLocation="http://www.wldelft.nl/fews D:\4390.10\HYDROLIB\hydrolib\tests\New%20folder\New%20folder%20(2)\rtc\rtcDataConfig.xsd">
   <importSeries>
+    <PITimeSeriesFile>
+      <timeSeriesFile>timeseries_import.xml</timeSeriesFile>
+      <useBinFile>false</useBinFile>
+    </PITimeSeriesFile>
     <timeSeries id="[Input]ObsS_96684_1/Water level (op)">
       <OpenMIExchangeItem>
         <elementId>ObsS_96684_1</elementId>
@@ -8,12 +12,21 @@
         <unit>m</unit>
       </OpenMIExchangeItem>
     </timeSeries>
-    <timeSeries id="[Input]ObsS_96684_2/Water level (op)">
-      <OpenMIExchangeItem>
-        <elementId>ObsS_96684_2</elementId>
-        <quantityId>Water level (op)</quantityId>
-        <unit>m</unit>
-      </OpenMIExchangeItem>
+    <timeSeries id="Control Group 1/Time Rule True">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group 1/Time Rule True</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>LINEAR</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group 1/Time rule False">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group 1/Time rule False</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>LINEAR</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
     </timeSeries>
   </importSeries>
   <exportSeries>
