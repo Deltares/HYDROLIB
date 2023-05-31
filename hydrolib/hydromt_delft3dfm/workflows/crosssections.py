@@ -282,22 +282,33 @@ def set_xyz_crosssections(
     crsdefs = pd.DataFrame(
         {
             "crsdef_id": crosssections.index.to_list(),
-            "crsdef_type": "xyz",
             "crsdef_branchId": crosssections.branch_id.to_list(),
+            "crsdef_type": "xyz",
             "crsdef_xyzCount": crosssections.x.map(len).to_list(),
             "crsdef_xCoordinates": [
-                " ".join(["{:.1f}".format(i) for i in l])
+                " ".join([f"{i}" for i in l])
                 for l in crosssections.x.to_list()
             ],
             "crsdef_yCoordinates": [
-                " ".join(["{:.1f}".format(i) for i in l])
+                " ".join([f"{i}" for i in l])
                 for l in crosssections.y.to_list()
             ],
             "crsdef_zCoordinates": [
-                " ".join(["{:.1f}".format(i) for i in l])
+                " ".join([f"{i}" for i in l])
                 for l in crosssections.z.to_list()
             ],
-            # 'crsdef_xylength': ' '.join(['{:.1f}'.format(i) for i in crosssections.l.to_list()[0]]),
+            # --- start of yz ---
+            # "crsdef_type": "yz",
+            # "crsdef_yzCount": crosssections.l.map(len).to_list(),
+            # 'crsdef_yCoordinates': [
+            #      " ".join(["{:.1f}".format(i) for i in l])
+            #      for l in crosssections.l.to_list()
+            #  ],
+            # "crsdef_zCoordinates": [
+            #     " ".join(["{:.1f}".format(i) for i in l])
+            #     for l in crosssections.z.to_list()
+            # ],
+            # --- end of yz ---
             # lower case key means temp keys (not written to file)
             "crsdef_frictionIds": branches.loc[
                 crosssections.branch_id.to_list(), "frictionId"
@@ -309,7 +320,7 @@ def set_xyz_crosssections(
                 crosssections.branch_id.to_list(), "frictionValue"
             ],
             "crsdef_frictionPositions": [
-                "0 {:.4f}".format(l) for l in crosssections.geometry.length.to_list()
+                f"0 {l}" for l in crosssections.geometry.length.to_list()
             ],
         }
     )
