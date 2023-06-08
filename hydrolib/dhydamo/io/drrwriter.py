@@ -646,7 +646,7 @@ class DRRWriter:
             f.write("*jaar maand dag verdamping[mm]\n")
             f.close()
             table = list(self.rrmodel.external_forcings.evap.values())[0]["evap"]
-            table.to_csv(
+            table.sort_index().to_csv(
                 filepath,
                 float_format="%.3f",
                 date_format="%#Y  %#m  %#d ",
