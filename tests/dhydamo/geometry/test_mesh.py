@@ -466,7 +466,7 @@ def test_links1d2d_add_links_1d_to_2d():
     mesh.links1d2d_add_links_1d_to_2d(network, within=within)
     assert len(network._link1d2d.link1d2d) == 13
 
-    # # Plot to verify
+    # Plot to verify
     # fig, ax = plt.subplots(figsize=(5, 5))
 
     # viz.plot_network(network, ax=ax)

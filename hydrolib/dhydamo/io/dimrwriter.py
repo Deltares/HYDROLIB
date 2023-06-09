@@ -25,6 +25,8 @@ class DIMRWriter:
         """
         if dimr_path is None:
             self.run_dimr = r"C:\Program Files\Deltares\D-HYDRO Suite 2022.04 1D2D\plugins\DeltaShell.Dimr\kernels\x64\dimr\scripts\run_dimr.bat"
+        else:
+            self.run_dimr = dimr_path
 
         if output_path is None:
             self.output_path = Path(os.path.abspath("."))
@@ -71,6 +73,7 @@ class DIMRWriter:
 
         # Parsing xml file
         configfile = ET.parse(self.template_dir / "dimr_config.xml")
+
         myroot = configfile.getroot()
         myroot[1][1].text = "fm"
         myroot[1][2].text = fm.filepath.name
@@ -368,11 +371,11 @@ class DIMRWriter:
                 item.tail = "\n"
 
                 source = ET.SubElement(item, gn_brackets + "sourceName")
-                source.text = f"catchments/{i}/water_level"
+                source.text = f"catchments/{i}/water_discharge"
                 source.tail = "\n"
 
                 target = ET.SubElement(item, gn_brackets + "targetName")
-                target.text = f"laterals/{i}/water_level"
+                target.text = f"laterals/{i}/water_discharge"
                 target.tail = "\n"
 
             logrrfm = ET.SubElement(couplerrrfm, gn_brackets + "logger")
