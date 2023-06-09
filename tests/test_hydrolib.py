@@ -10,6 +10,6 @@ def test_version():
 
 def test_namespace():
     # Make sure we can access hydrolib-core package
-    from hydrolib.core import __version__
+    from hydrolib.core import __name__ as hc_name
 
-    assert __version__ == "0.4.1"
+    assert hc_name == "hydrolib.core"
