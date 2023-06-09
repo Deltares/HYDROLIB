@@ -98,7 +98,8 @@ class DRTCModel:
         savedict = {}
         savedict["dataconfig_import"] = []
         savedict["dataconfig_export"] = []
-        savedict["toolsconfig"] = []
+        savedict["toolsconfig_rules"] = []
+        savedict["toolsconfig_triggers"] = []
         savedict["timeseries"] = []
         savedict["state"] = []
         savedict["dimr_config"] = []
@@ -106,7 +107,7 @@ class DRTCModel:
             tree = ET.parse(xml_folder / file)
             root = tree.getroot()
             if file == "rtcDataConfig.xml":
-                for i in range(len(root[0])):
+                for i in range(1,len(root[0])):
                     savedict["dataconfig_import"].append(
                         ET.tostring(root[0][i]).decode()
                     )
@@ -115,10 +116,13 @@ class DRTCModel:
                         ET.tostring(root[1][i]).decode()
                     )
             elif file == "rtcToolsConfig.xml":
-                for i in range(1, len(root)):
-                    savedict["toolsconfig"].append(ET.tostring(root[i][0]).decode())
+                for i in range(0, len(root[1])):
+                    savedict["toolsconfig_rules"].append(ET.tostring(root[1][i]).decode())
+                for i in range(0, len(root[2])):
+                    savedict["toolsconfig_triggers"].append(ET.tostring(root[2][i]).decode())
             elif file == "timeseries_import.xml":
-                savedict["timeseries"].append(ET.tostring(root[0]).decode())
+                for i in range(0,len(root)):
+                    savedict["timeseries"].append(ET.tostring(root[i]).decode())
             elif file == "state_import.xml":
                 for i in range(0, len(root[0])):
                     savedict["state"].append(ET.tostring(root[0][i]).decode())
@@ -480,21 +484,21 @@ class DRTCModel:
                 f.tail = "\n          "
                 f.text = "[Output]" + str(key) + "/" + controller["steering_variable"]
 
-        # elements that are parsed ffrom user specified files should be inserted at the right place.
+        # elements that are parsed from user specified files should be inserted at the right place.
         if self.complex_controllers is not None:
-            for ctl in self.complex_controllers["toolsconfig"]:
-                if ctl.startswith("<ns0:rule"):
-                    myroot[1].append(ET.fromstring(ctl))
-                elif ctl.startswith("<ns0:trigger"):
-                    # no trigger block present yet
-                    if len(myroot) == 2:
-                        trigger = ET.Element(gn_brackets + "triggers")
-                        trigger.text = ""
-                        trigger.tail = "\n"
-                        myroot.append(trigger)
-                        myroot[2].append(ET.fromstring(ctl))
+            for ctl in self.complex_controllers["toolsconfig_rules"]:                
+                myroot[1].append(ET.fromstring(ctl))
+            for ctl in self.complex_controllers["toolsconfig_triggers"]:                                
+                # no trigger block present yet
+                if len(myroot) == 2:
+                    trigger = ET.Element(gn_brackets + "triggers")
+                    trigger.text = ""
+                    trigger.tail = "\n"
+                    myroot.append(trigger)
+                    myroot[2].append(ET.fromstring(ctl))
                 else:
-                    print("Only rules and triggers allowed for rtctoolsconfig.xml.")
+                    myroot[2].append(ET.fromstring(ctl))                
+                
         self.finish_file(myroot, configfile, self.output_path / "rtcToolsConfig.xml")
 
     def write_dataconfig(self) -> None:
@@ -724,6 +728,9 @@ class DRTCModel:
                         "value": str(controller["data"].values[i]),
                     }
                     k.tail = "\n"
+        if self.complex_controllers is not None:
+            for ctl in self.complex_controllers["timeseries"]:
+                myroot.append(ET.fromstring(ctl))
 
         self.finish_file(myroot, configfile, self.output_path / "timeseries_import.xml")
 

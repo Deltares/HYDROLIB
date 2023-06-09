@@ -82,8 +82,7 @@ class HyDAMO:
             geotype=LineString,
             required_columns=[
                 "code",
-                "geometry",
-                "typeruwheid",
+                "geometry"
             ],
         )
 
@@ -202,9 +201,9 @@ class HyDAMO:
             required_columns=["code", "globalid", "gemaalid", "maximalecapaciteit"]
         )
         self.management = ExtendedDataFrame(
-            required_columns=["code", "globalid", "pompid", "doelvariabele"]
+            required_columns=["code", "globalid"]
         )
-      
+
         # Hydraulische randvoorwaarden
         self.boundary_conditions = ExtendedGeoDataFrame(
             geotype=Point, required_columns=["code", "typerandvoorwaarde", "geometry"]
@@ -1832,6 +1831,21 @@ class Structures:
             index=[id],
         )
         self.pumps_df = pd.concat([self.pumps_df, dct], ignore_index=True)
+
+    @validate_arguments
+    def add_compound(self, id: str = None, structureids: list = None) -> None:
+        structurestring = ";".join([f"{s}" for s in structureids])
+        numstructures = len(structureids)
+        dct = pd.DataFrame(
+            {
+                "id": id,
+                "name": id,
+                "numstructures": numstructures,
+                "structureids": structurestring,
+            },
+            index=[id],
+        )
+        self.compounds_df = pd.concat([self.compounds_df, dct], ignore_index=True)
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def as_dataframe(

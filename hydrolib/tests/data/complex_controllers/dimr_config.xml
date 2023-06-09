@@ -70,10 +70,6 @@
       <sourceName>observations/ObsS_96684_1/water_level</sourceName>
       <targetName>[Input]ObsS_96684_1/Water level (op)</targetName>
     </item>
-    <item>
-      <sourceName>observations/ObsS_96684_2/water_level</sourceName>
-      <targetName>[Input]ObsS_96684_2/Water level (op)</targetName>
-    </item>
     <logger>
       <workingDir>.</workingDir>
       <outputFile>flow_to_rtc.nc</outputFile>
