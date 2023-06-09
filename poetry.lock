@@ -1260,19 +1260,19 @@ files = [
 
 [[package]]
 name = "hydrolib-core"
-version = "0.5.2"
+version = "0.4.1"
 description = "Python wrappers around D-HYDRO Suite."
 category = "main"
 optional = false
 python-versions = ">=3.8,<4.0"
 files = [
-    {file = "hydrolib_core-0.5.2-py3-none-any.whl", hash = "sha256:a14f37f5adaf2558a67445b9547f5c6b9fa554158cb420de8b31061fc86f3348"},
-    {file = "hydrolib_core-0.5.2.tar.gz", hash = "sha256:15ffe5a08db772c18e5ad2faad8bedbbf19aa215836cbb5c29a0d7ce51a2abbd"},
+    {file = "hydrolib_core-0.4.1-py3-none-any.whl", hash = "sha256:3adf727f9f4ef83386bf25f1a2c82ac0b5e54fee46d37ffe5142fcbdf608f7cc"},
+    {file = "hydrolib_core-0.4.1.tar.gz", hash = "sha256:6798268cdb6bac879a3ccae79416f32dce8829dc2eb0491eb6c17752bdf2e9c5"},
 ]
 
 [package.dependencies]
 lxml = ">=4.6,<5.0"
-meshkernel = ">=2.0.2,<3.0.0"
+meshkernel = ">=1.0.0,<2.0.0"
 netCDF4 = ">=1.5,<2.0"
 numpy = ">=1.21,<2.0"
 pydantic = ">=1.10,<1.11"
@@ -2224,15 +2224,16 @@ files = [
 
 [[package]]
 name = "meshkernel"
-version = "2.0.2"
+version = "1.0.0"
 description = "`meshkernel` is a library which can be used to manipulate meshes."
 category = "main"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "meshkernel-2.0.2-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:710b5541d0d67eafc3b75bbf9e7fa944430a3d9f57a9779c88431f977d99dc89"},
-    {file = "meshkernel-2.0.2-py3-none-win_amd64.whl", hash = "sha256:04a200ebe2a9302f15128cb8ce29f0267e323d0941e3b2612a7369f25ff85738"},
-    {file = "meshkernel-2.0.2.tar.gz", hash = "sha256:17565ea786d1247b6070f3c63df3a40b008b7a0d9b97e917bcd1674b42cf670f"},
+    {file = "meshkernel-1.0.0-py3-none-macosx_10_9_x86_64.whl", hash = "sha256:1d7c0638df0a2f908c3a29939fabcf832557af5c3c9cea73c1f496b3ea7aea8c"},
+    {file = "meshkernel-1.0.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:adb87f29a29ab804bcd5417f30e91570a6169f1293e6a30c92abaf58adde5e43"},
+    {file = "meshkernel-1.0.0-py3-none-win_amd64.whl", hash = "sha256:31e686646ef019279dec11a6e2c5b3f8eaba7a55242acb2dbc65d9d3d37afd39"},
+    {file = "meshkernel-1.0.0.tar.gz", hash = "sha256:9f927d1ef1ed6e6325d8ded9ec12af1fb494f4206fac67dd5adfee18a8837605"},
 ]
 
 [package.dependencies]
@@ -2240,7 +2241,7 @@ numpy = "*"
 
 [package.extras]
 docs = ["myst-nb", "sphinx", "sphinx-book-theme"]
-lint = ["black", "flake8", "isort"]
+lint = ["black (==21.4b1)", "flake8", "isort"]
 tests = ["matplotlib", "nbval", "pytest", "pytest-cov"]
 
 [[package]]
@@ -4534,4 +4535,4 @@ testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.11"
-content-hash = "c48da7c87390d4bdc50394afab6de982da1319f8d466ce9a857f9a68997428d2"
+content-hash = "f38707a329888c51c2bcfc273710360c232b5ea79e973842f8e171ea50bda0d4"
