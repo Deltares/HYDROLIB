@@ -33,6 +33,8 @@ __all__ = [
     "split_lines",
     "check_geodataframe",
     "check_gpd_attributes",
+    "update_data_columns_attributes_based_on_filter",
+    "get_gdf_from_branches",
 ]
 
 
@@ -533,3 +535,96 @@ def check_gpd_attributes(
             )
         return False
     return True
+
+def update_data_columns_attributes_based_on_filter(
+    gdf: gpd.GeoDataFrame,
+    df: pd.DataFrame,
+    filter_column: str,
+    filter_value: str = None,
+):
+    """
+    Add or update columns in the geodataframe based on column and values in attributes dataframe
+
+    If filter_column and filter_value is set, only update the attributes of the filtered geodataframe.
+
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        geodataframe containing user input
+    df : attribute DataFrame
+        a pd.DataFrame with attribute columns and values (e.g. width =  1) per filter_value in the filter_column (e.g. branch_type = pipe)
+    filter_column : str
+        Name of the column linking df to gdf.
+    filter_value: str
+        Value of the filter in the filter column.
+        Must be used with filter_column
+
+    Raises
+    ------
+    ValueError:
+        if Name of the column linking df to gdf (`filter_column`) is not specified
+
+    Returns
+    -------
+    gdf : gpd.GeoDataFrame
+        geodataframe containing user input filled with new attribute values.
+
+    """
+    if filter_column is None:
+        raise ValueError("Name of the column linking df to gdf must be specified")
+    
+    if filter_value is not None:
+        attributes = df[df[filter_column] == filter_value]
+    else:
+        attributes = df
+    
+    # Update attributes
+    for i in range(len(attributes.index)):
+        row = attributes.iloc[i, :]
+        filter_value = row.loc[filter_column]
+        for colname in row.index[1:]:
+            # If attribute is not at all in branches, add a new column
+            if colname not in gdf.columns:
+                gdf[colname] = pd.Series(dtype=attributes[colname].dtype)
+            # Then fill in empty or NaN values with defaults
+            gdf.loc[
+                np.logical_and(
+                    gdf[colname].isna(), gdf[filter_column] == filter_value
+                ),
+                colname,
+            ] = row.loc[colname]
+
+    return gdf
+
+
+def get_gdf_from_branches(branches:gpd.GeoDataFrame, df:pd.DataFrame) -> gpd.GeoDataFrame:
+    """Get geodataframe from dataframe. 
+    Based on interpolation of branches, using columns ["branchid", "chainage" in df]
+    
+    Parameters
+    ----------
+    branches:gpd.GeoDataFrame
+        line geometres of the branches
+        Required varaibles: ["branchId"/"branchid", "geometry" ]
+    df:pd.DataFrame
+        dataframe cotaining the features located on branches
+        Required varaibles: ["branchId"/"branchid", "chainage" ]
+    
+    Return
+    ------
+    gdf:gpd.GeoDataFrame
+        dataframe cotaining the features located on branches, with point geometry
+    
+    """
+    branches.columns = branches.columns.str.lower()
+    branches = branches.set_index("branchid")
+    
+    df["geometry"] = None
+    
+    # Iterate over each point and interpolate a point along the corresponding line feature
+    for i, row in df.iterrows():
+        line_geometry = branches.loc[row.branchid, "geometry"]
+        new_point_geometry = line_geometry.interpolate(row.chainage)
+        df.loc[i, "geometry"] = new_point_geometry
+    
+    return gpd.GeoDataFrame(df)

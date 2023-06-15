@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "process_branches",
     "validate_branches",
+    "find_nearest_branch",
     "update_data_columns_attributes",
     "update_data_columns_attribute_from_query",
     "snap_newbranches_to_branches_at_snapnodes",
@@ -999,3 +1000,4 @@ def _remove_branches_with_ring_geometries(
     logger.debug("Removing branches with ring geometries.")
 
     return branches
+

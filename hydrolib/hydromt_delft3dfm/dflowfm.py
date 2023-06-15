@@ -1515,6 +1515,226 @@ class DFlowFMModel(MeshModel):
             da_out, name=f"boundary1d_{da_out.name}_{branch_type}"
         )  # FIXME: this format cannot be read back due to lack of branch type info from model files
 
+    def _setup_1dstructures(self,
+                          st_type: str,
+                          st_fn: Union[str, Path, gpd.GeoDataFrame] = None,
+                          defaults_fn: Union[str, Path, pd.DataFrame] = None,
+                          filter: Optional[str] = None,
+                          snap_offset: Optional[float] = None,
+                          ):
+        """Setup 1D structures.
+        Include the universal weir (Not Implemented) , culvert (Not Implemented) and bridge (``str_type`` = 'bridge'), which can only be used in a single 1D channel.
+
+        The structures are first read from ``st_fn`` (only locations within the region will be read), and if any missing, filled with information provided in ``defaults_fn``.
+        Read locations are then filtered for value specified in ``filter`` on the column ``st_type``.
+        They are then snapped to the existing network within a max distance defined in ``snap_offset`` and will be dropped if not snapped.
+        Finally, crossections are read and set up for the remaining structures.
+
+
+        Parameters
+        ----------
+        st_fn: str Path, optional
+            Path or data source name for structures, see data/data_sources.yml.
+            Note only the points that are within the region polygon will be used.
+
+            * Optional variables: see the setup function for each ``st_type``
+        
+        defaults_fn : str Path, optional
+            Path to a csv file containing all defaults values per "structure_type".
+            By default `hydrolib.hydromt_delft3dfm.data.bridges.bridges_defaults.csv` is used. This file describes a minimum rectangle bridge profile.
+
+            * Allowed variables: see the setup function for each ``st_type``
+            
+        filter: str, optional
+            Keyword in "structure_type" column of ``st_fn`` used to filter features. If None all features are used (default).
+
+        snap_offset: float, optional
+            Snapping tolenrance to automatically snap bridges to network and add ['branchid', 'chainage'] attributes.
+            By default None. In this case, global variable "network_snap_offset" will be used.
+        
+        Returns
+        -------
+        gdf_st: geopandas.GeoDataFrame
+            geodataframe of the structures and crossections        
+        
+        
+        See Also
+        ----------
+        dflowfm.setup_bridges
+        """
+
+        if snap_offset is None:
+            snap_offset = self._network_snap_offset
+            self.logger.info(f"Snap_offset is set to global network snap offset: {snap_offset}")
+        
+        type_col = "structure_type"
+        id_col = "structure_id"
+        
+        branches = self.branches.set_index("branchId")
+
+        # 1. Read data and filter within region
+        # If needed read the structures GeoDataFrame
+        if isinstance(st_fn, str) or isinstance(st_fn, Path):
+            gdf_st = self.data_catalog.get_geodataframe(
+                st_fn, geom=self.region, buffer=0, predicate="contains"
+            )
+        else:
+            gdf_st = st_fn
+        # Filter features based on filter on type_col
+        if filter is not None and type_col in gdf_st.columns:
+            gdf_st = gdf_st[gdf_st[type_col].str.lower() == filter.lower()]
+            self.logger.info(f"Set {filter} locations filtered from {st_fn} as {st_type} .")
+        # Check if features in region
+        if len(gdf_st) == 0:
+            self.logger.warning(f"No 1D {type} locations found within domain")
+            return None
+        # reproject to model crs
+        gdf_st.to_crs(self.crs)
+
+        # Read defaults table
+        if isinstance(defaults_fn, pd.DataFrame):
+            defaults = defaults_fn
+        else:
+            if defaults_fn is None:
+                self.logger.warning(
+                    f"defaults_fn ({defaults_fn}) does not exist. Fall back choice to defaults. "
+                )
+                defaults_fn = Path(self._DATADIR).joinpath(
+                    f"{st_type}s", f"{st_type}s_defaults.csv"
+                )
+            defaults = self.data_catalog.get_dataframe(defaults_fn)
+            self.logger.info(f"{st_type} default settings read from {defaults_fn}.")
+
+        # 2. Add defaults
+        # overwrite type and add id attributes if does not exist
+        gdf_st[type_col] = pd.Series(
+                data=np.repeat(st_type, len(gdf_st)), index=gdf_st.index, dtype=str
+            )
+        if id_col not in gdf_st.columns:
+            data = [
+                f"{st_type}_{i}"
+                for i in np.arange(
+                    len(self.structures) + 1, len(self.structures) + len(gdf_st) + 1
+                )
+            ]  # avoid duplicated ids being generated
+            gdf_st[id_col] = pd.Series(data, index=gdf_st.index, dtype=str)
+        # assign id
+        gdf_st.index = gdf_st[id_col]
+        gdf_st.index.name = id_col
+        # filter for allowed columns
+        allowed_columns = set(defaults.columns).intersection(gdf_st.columns)
+        allowed_columns.update({"geometry"})
+        gdf_st = gpd.GeoDataFrame(gdf_st[allowed_columns], crs=gdf_st.crs)
+        self.logger.info("Adding/Filling default attributes values")
+        gdf_st = workflows.update_data_columns_attributes_based_on_filter(
+            gdf_st, defaults, type_col, st_type
+        )
+
+        # 3. snap structures to branches
+        # setup branch_id - snap structures to branch (inplace of structures, will add branch_id and branch_offset columns)
+        workflows.find_nearest_branch(
+            branches=branches, geometries=gdf_st,  maxdist = snap_offset
+        )
+        # setup failed - drop based on branch_offset that are not snapped to branch
+        _old_ids = gdf_st.index.to_list()
+        gdf_st.dropna(axis=0, inplace=True, subset=["branch_offset"])
+        _new_ids = gdf_st.index.to_list()
+        if len(_old_ids) != len(_new_ids):
+            logger.warning(
+                f"structure with id: {list(set(_old_ids) - set(_new_ids))} are dropped: unable to find closest branch. "
+            )
+        # setup success, add branchid and chainage
+        gdf_st["structure_branchid"] = gdf_st["branch_id"]
+        gdf_st["structure_chainage"] = gdf_st["branch_offset"]
+
+        # 4. add structure crossections
+        # derive corssections
+        gdf_st_crossections = workflows.set_point_crosssections(
+                branches, gdf_st, maxdist=snap_offset
+            )
+        # add to structures
+        gdf_st = gdf_st.reset_index().merge(gdf_st_crossections, how="left")
+
+        return gdf_st
+
+
+    def setup_bridges(self,
+                      bridges_fn: Optional[str] = None,
+                      bridges_defaults_fn: Optional[str] = None,
+                      bridge_filter: Optional[str] = None,
+                      snap_offset: Optional[float] = None,
+                      ):
+        """Prepares bridges, including bridge locations and bridge crossections.
+
+        The bridges are read from ``bridges_fn`` and if any missing, filled with information provided in ``bridges_defaults_fn``.
+
+        When reading ``bridges_fn``, only locations within the region will be read. 
+        Read locations are then filtered for value specified in ``bridge_filter`` on the column "structure_type" .
+        Remaining locations are snapped to the existing network within a max distance defined in ``snap_offset`` and will be dropped if not snapped.
+
+        A default rectangle bridge profile can be found in ``bridges_defaults_fn`` as an example.
+
+        Structure attributes ['structure_id', 'structure_type'] are either taken from data or generated in the script.
+        Structure attributes ['shape', 'diameter', 'width', 't_width', 'height', 'closed', 'shift', 'length', 'pillarwidth', 'formfactor', 'friction_type', 'friction_value', 'allowedflowdir',  'inletlosscoeff', 'outletlosscoeff']
+            are either taken from data,  or in case of missing read from defaults.
+
+        Adds/Updates model layers:
+            * **bridges** geom: 1D bridges vector
+
+        Parameters
+        ----------
+        bridges_fn: str Path, optional
+            Path or data source name for bridges, see data/data_sources.yml.
+            Note only the points that are within the region polygon will be used.
+
+            * Optional variables: ['structure_id', 'structure_type', 'shape', 'diameter', 'width', 't_width', 'height', 'closed', 'shift', 'length', 'pillarwidth', 'formfactor', 'friction_type', 'friction_value', 'allowedflowdir',  'inletlosscoeff', 'outletlosscoeff']
+        
+        bridges_defaults_fn : str Path, optional
+            Path to a csv file containing all defaults values per "structure_type".
+            By default `hydrolib.hydromt_delft3dfm.data.bridges.bridges_defaults.csv` is used. This file describes a minimum rectangle bridge profile.
+
+            * Allowed variables: ['structure_type', 'shape', 'diameter', 'width', 't_width', 'height', 'closed', 'shift', 'length', 'pillarwidth', 'formfactor', 'friction_type', 'friction_value', 'allowedflowdir',  'inletlosscoeff', 'outletlosscoeff']
+        
+        river_filter: str, optional
+            Keyword in "structure_type" column of ``bridges_fn`` used to filter bridge features. If None all features are used (default).
+
+        snap_offset: float, optional
+            Snapping tolenrance to automatically snap bridges to network and add ['branchid', 'chainage'] attributes.
+            By default None. In this case, global variable "network_snap_offset" will be used..
+        
+        See Also
+        ----------
+        dflowfm._setup_1dstructures
+        """
+        
+        # keywords in hydrolib-core
+        _st_type = "bridge"
+        _allowed_columns =['id', 'type', 'branchid', 'chainage', 'allowedflowdir', 'pillarwidth', 'formfactor', 'csdefid', 'shift', 'inletlosscoeff', 'outletlosscoeff', 'frictiontype', 'friction', 'length']
+        
+        # setup general 1d structures
+        bridges = self._setup_1dstructures(_st_type, bridges_fn, bridges_defaults_fn, bridge_filter, snap_offset)
+        
+        # setup crossection definitions
+        # remove crslocs and friction  (read from bridges)? would it matter? something to test.
+        _crsdefs = bridges[[c for c in bridges.columns if c.startswith("crsdef") and not 'friction' in c]]
+        self.set_crosssections(_crsdefs)
+        
+        # setup bridges
+        bridges.columns = bridges.columns.str.lower()
+        bridges.rename(columns = {"structure_id": "id",
+                                  "structure_type": "type",
+                                  "structure_branchid": "branchid",
+                                  "structure_chainage": "chainage",
+                                  "crsloc_definitionid": "csdefid",
+                                  "friction_type": "frictiontype",
+                                  "friction_value": "friction"}, inplace = True)
+        # filter for allowed columns
+        allowed_columns = set(_allowed_columns).intersection(bridges.columns)
+        allowed_columns.update({"geometry"})
+        bridges = gpd.GeoDataFrame(bridges[allowed_columns], crs=bridges.crs)
+        self.set_geoms(bridges, "bridges")
+
+
     def setup_mesh2d(
         self,
         mesh2d_fn: Optional[str] = None,
@@ -2605,13 +2825,20 @@ class DFlowFMModel(MeshModel):
             self.logger.info("Reading manholes file")
             manholes = utils.read_manholes(self.network1d_nodes, self.dfmmodel)
             self.set_geoms(manholes, "manholes")
+        
+        # Read structures
+        if self.dfmmodel.geometry.structurefile is not None:
+            self.logger.info("Reading structures file")
+            structures = utils.read_structures(self.branches, self.dfmmodel)
+            for st_type in structures["type"].unique():
+                self.set_geoms(structures[structures["type"]==st_type], f"{st_type}s")
 
     def write_geoms(self) -> None:
         """Write model geometries to a GeoJSON file at <root>/<geoms>"""
         self._assert_write_mode
 
         # Write geojson equivalent of all objects. Note that these files are not directly used when updating the model
-        super().write_geoms(fn="geoms/{name}.geojson")
+        # super().write_geoms(fn="geoms/{name}.geojson")
 
         # Write dfm files
         savedir = dirname(join(self.root, self._config_fn))
@@ -2639,6 +2866,17 @@ class DFlowFMModel(MeshModel):
                 savedir,
             )
             self.set_config("geometry.storagenodefile", storage_fn)
+            
+        # Write structures
+        structures = pd.concat([self.geoms[st] for st in ["bridges"]])
+        if len(structures) > 0:
+            self.logger.info(f"Writting structures file.")
+            structures_fn = utils.write_structures(
+                structures,
+                savedir,
+            )
+            self.set_config("geometry.structurefile", structures_fn)
+            
 
     def read_forcing(
         self,
@@ -2761,7 +2999,7 @@ class DFlowFMModel(MeshModel):
             branches = utils.read_branches_gui(branches, self.dfmmodel)
 
             # Add branches
-            self.set_branches(branches)
+            self._branches = branches 
 
     def write_mesh(self, write_gui=True):
         """Write 1D branches and 2D mesh at <root/dflowfm/fm_net.nc> in model ready format"""
@@ -3052,7 +3290,7 @@ class DFlowFMModel(MeshModel):
         if "rivers" in self.geoms:
             gdf = self.geoms["rivers"]
         else:
-            gdf = self.set_branches_component("rivers")
+            gdf = self.set_branches_component("river")
         return gdf
 
     @property

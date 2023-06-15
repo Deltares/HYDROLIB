@@ -389,12 +389,6 @@ def set_point_crosssections(
     find_nearest_branch(
         branches=branches, geometries=crosssections, method="overal", maxdist=maxdist
     )
-    # get branch friction
-    crosssections = crosssections.merge(
-        branches[["frictionId", "frictionType", "frictionValue"]],
-        left_on="branch_id",
-        right_index=True,
-    )
 
     # setup failed - drop based on branch_offset that are not snapped to branch (inplace of yz_crosssections) and issue warning
     _old_ids = crosssections.index.to_list()
@@ -404,6 +398,19 @@ def set_point_crosssections(
         logger.warning(
             f"Crosssection with id: {list(set(_old_ids) - set(_new_ids))} are dropped: unable to find closest branch. "
         )
+    
+    if len(crosssections.branch_offset.dropna()) == 0:
+        logger.error(
+            f"No crossections are set up."
+        )
+        return pd.DataFrame()
+    
+    # get branch friction
+    crosssections = crosssections.merge(
+        branches[["frictionId", "frictionType", "frictionValue"]],
+        left_on="branch_id",
+        right_index=True,
+    )
 
     # get a temporary id based on the convention of branch_id and branch_offset(precision 2 decimals)
     crosssections["temp_id"] = crosssections.apply(lambda x:f"{x.branch_id}_{x.branch_offset:.2f}", axis = 1)
