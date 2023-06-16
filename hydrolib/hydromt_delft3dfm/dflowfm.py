@@ -799,14 +799,16 @@ class DFlowFMModel(MeshModel):
             Units corresponding to [friction_type] are ["Chézy C [m 1/2 /s]", "Manning n [s/m 1/3 ]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Strickler k_s [m 1/3 /s]", "De Bos-Bijkerk γ [1/s]"]
             Friction value. By default 0.023.
         crosssections_fn : str, Path, or a list of str or Path, optional
-            Name of data source for crosssections, see data/data_sources.yml.
+            Name of data source for crosssections, see data/data_sources.yml. One or a list corresponding to ``crosssections_type`` .
+            If ``crosssections_type`` = "branch"
+            crosssections_fn should be None
             If ``crosssections_type`` = "xyz"
             * Required variables: [crsId, order, z]
             If ``crosssections_type`` = "point"
             * Required variables: [crsId, shape, shift]
             By default None, crosssections will be set from branches
         crosssections_type : str, or a list of str, optional
-            Type of crosssections read from crosssections_fn. One of ["xyz", "point"].
+            Type of crosssections read from crosssections_fn. One or a list of ["branch", "xyz", "point"].
             By default None.
         snap_offset: float, optional
             Snapping tolerance to automatically connecting branches.
@@ -854,13 +856,18 @@ class DFlowFMModel(MeshModel):
 
         # setup crosssections
         if crosssections_type is None:
-            crosssections_type = ["branch"]
-            crosssections_fn = [
-                None
-            ]  # TODO: maybe assign a specific one for river, like branch_river
+            crosssections_type = []
+            crosssections_fn = [] 
+        elif isinstance(crosssections_type, str):
+            crosssections_type = [crosssections_type]
+            crosssections_fn = [crosssections_fn]
         elif isinstance(crosssections_type, list):
             assert len(crosssections_type) == len(crosssections_fn)
-
+        # inser branch as default
+        if "branch" not in crosssections_type:
+            crosssections_type.insert(0, "branch")
+            crosssections_fn.insert(0, None)
+        
         for crs_fn, crs_type in zip(crosssections_fn, crosssections_type):
             assert {crs_type}.issubset({"xyz", "point", "branch"})
             crosssections = self._setup_crosssections(
@@ -868,6 +875,7 @@ class DFlowFMModel(MeshModel):
                 crosssections_fn=crs_fn,
                 crosssections_type=crs_type,
             )
+            self.add_crosssections(crosssections)
 
         # setup branch orders
         # for crossection type yz or xyz, always use branchOrder = -1, because no interpolation can be applied.
@@ -1138,12 +1146,11 @@ class DFlowFMModel(MeshModel):
         """
 
         # setup crosssections
-        self.logger.info(f"Preparing 1D crosssections.")
-
         if crosssections_fn is None and crosssections_type == "branch":
             # TODO: set a seperate type for rivers because other branch types might require upstream/downstream
             # TODO: check for required columns
             # read crosssection from branches
+            self.logger.info(f"Preparing crossections from branch.")
             gdf_cs = workflows.set_branch_crosssections(branches, midpoint=midpoint)
 
         elif crosssections_type == "xyz":
@@ -1180,6 +1187,7 @@ class DFlowFMModel(MeshModel):
             gdf_cs.to_crs(self.crs)
 
             # set crsloc and crsdef attributes to crosssections
+            self.logger.info(f"Preparing 1D xyz crossections from {crosssections_fn}")
             gdf_cs = workflows.set_xyz_crosssections(branches, gdf_cs)
 
         elif crosssections_type == "point":
@@ -1216,6 +1224,7 @@ class DFlowFMModel(MeshModel):
             gdf_cs.to_crs(self.crs)
 
             # set crsloc and crsdef attributes to crosssections
+            self.logger.info(f"Preparing 1D point crossections from {crosssections_fn}")
             gdf_cs = workflows.set_point_crosssections(
                 branches, gdf_cs, maxdist=self._network_snap_offset
             )
@@ -1225,8 +1234,7 @@ class DFlowFMModel(MeshModel):
                 f"Method {crosssections_type} is not implemented."
             )
             
-        # add crossections
-        self.add_crosssections(gdf_cs)
+        return gdf_cs
 
 
     def setup_manholes(
@@ -3618,9 +3626,25 @@ class DFlowFMModel(MeshModel):
         # TODO: sort out the crosssections, e.g. remove branch crosssections if point/xyz exist etc
         # TODO: setup river crosssections, set contrains based on branch types
         if len(self.crosssections) > 0:
+            # add new crossections
             crosssections = gpd.GeoDataFrame(
                 pd.concat([self.crosssections, crosssections]), crs=self.crs
             )
+            # drop duplicated, keep the first one
+            crosssections["temp_id"] = crosssections.apply(lambda x:f'{x["crsloc_branchId"]}_{x["crsloc_chainage"]:.2f}', axis = 1)
+            if crosssections["temp_id"].duplicated().any():
+                logger.warning(f"Duplicate crosssections found, removing duplicates")
+                # Remove duplicates based on the branch_id, branch_offset column, keeping the first occurrence (with minimum branch_distance)
+                crosssections = crosssections.drop_duplicates(subset=["temp_id"], keep='first')
+            # remove existing generated branch crosssections
+            crossections_branch = crosssections[crosssections.crsdef_id.str.endswith("_branch")]
+            crossections_others = crosssections[~crosssections.crsdef_id.str.endswith("_branch")]
+            mask_to_remove = crossections_branch["crsloc_branchId"].isin(crossections_others["crsloc_branchId"])
+            if mask_to_remove.sum() > 0:
+                self.logger.warning(f'Overwrite branch crossections where user-defined crossections are used.')
+                crosssections = gpd.GeoDataFrame(
+                    pd.concat([crossections_branch[~mask_to_remove], crossections_others]), crs=self.crs
+                )
         self.set_geoms(crosssections, name="crosssections")
 
     @property

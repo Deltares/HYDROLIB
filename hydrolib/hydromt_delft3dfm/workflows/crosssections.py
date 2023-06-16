@@ -381,9 +381,17 @@ def set_point_crosssections(
         The cross sections.
     """
 
+
     # check if crs mismatch
     if crosssections.crs != branches.crs:
         logger.error(f"mismatch crs between cross-sections and branches")
+        
+    # remove duplicated geometries
+    _nodes = crosssections.copy()
+    G = _nodes["geometry"].apply(lambda geom: geom.wkb)
+    n = len(G) - len(G.drop_duplicates().index)
+    crosssections = _nodes[_nodes.index.isin(G.drop_duplicates().index)]
+
     # snap to branch
     # setup branch_id - snap bridges to branch (inplace of bridges, will add branch_id and branch_offset columns)
     find_nearest_branch(
@@ -412,7 +420,7 @@ def set_point_crosssections(
         right_index=True,
     )
 
-    # NOTE: below is removed because in case of multiple structures at the same location, there can be multiple crossections #FIXME to test
+    # NOTE: below is removed because in case of multiple structures at the same location, there can be multiple crossections
     # # get a temporary id based on the convention of branch_id and branch_offset(precision 2 decimals)
     # crosssections["temp_id"] = crosssections.apply(lambda x:f"{x.branch_id}_{x.branch_offset:.2f}", axis = 1)
     # # drop duplicated temp_id, keep the one with minimum branch_distance
@@ -686,8 +694,8 @@ def _set_trapezoid_crs(crosssections: gpd.GeoDataFrame):
         pd.DataFrame.from_records(crslocs),
         pd.DataFrame.from_records(crsdefs).drop_duplicates(),
         how="left",
-        left_on=["crsloc_definitionId"],
-        right_on=["crsdef_id"],
+        left_on=["crsloc_branchId", "crsloc_definitionId"],
+        right_on=["crsdef_branchId", "crsdef_id"],
     )
     return crosssections_
 
