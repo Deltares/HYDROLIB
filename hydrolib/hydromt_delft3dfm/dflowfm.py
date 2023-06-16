@@ -498,7 +498,7 @@ class DFlowFMModel(MeshModel):
 
         # add crosssections to exisiting ones and update geoms
         self.logger.debug(f"Adding crosssections vector to geoms.")
-        self.set_crosssections(crosssections)
+        self.add_crosssections(crosssections)
 
         # setup geoms
         self.logger.debug(f"Adding branches and branch_nodes vector to geoms.")
@@ -732,7 +732,7 @@ class DFlowFMModel(MeshModel):
 
         # add crosssections to exisiting ones and update geoms
         self.logger.debug(f"Adding crosssections vector to geoms.")
-        self.set_crosssections(crosssections)
+        self.add_crosssections(crosssections)
 
         # setup geoms #TODO do we still need channels?
         self.logger.debug(f"Adding rivers and river_nodes vector to geoms.")
@@ -869,16 +869,12 @@ class DFlowFMModel(MeshModel):
                 crosssections_type=crs_type,
             )
 
-            # TODO setup frictions, reserve for more complex type of frictions for rivers
-            # add crosssections to exisiting ones and update geoms
-            self.logger.debug(f"Adding crosssections vector to geoms.")
-            self.set_crosssections(crosssections)
-
-            # for crossection type yz or xyz, always use branchOrder = -1, because no interpolation can be applied.
-            # TODO: change to lower case is needed
-            _overwrite_branchorder = self.crosssections[self.crosssections["crsdef_type"].str.contains("yz")]["crsdef_branchId"].tolist()
-            if len(_overwrite_branchorder) > 0:
-                rivers.loc[rivers["branchId"].isin(_overwrite_branchorder), "branchOrder"] = -1
+        # setup branch orders
+        # for crossection type yz or xyz, always use branchOrder = -1, because no interpolation can be applied.
+        # TODO: change to lower case is needed
+        _overwrite_branchorder = self.crosssections[self.crosssections["crsdef_type"].str.contains("yz")]["crsdef_branchId"].tolist()
+        if len(_overwrite_branchorder) > 0:
+            rivers.loc[rivers["branchId"].isin(_overwrite_branchorder), "branchOrder"] = -1
 
         # setup geoms
         self.logger.debug(f"Adding rivers and river_nodes vector to geoms.")
@@ -1066,7 +1062,7 @@ class DFlowFMModel(MeshModel):
         )
         # add crosssections to exisiting ones and update geoms
         self.logger.debug(f"Adding crosssections vector to geoms.")
-        self.set_crosssections(crosssections)
+        self.add_crosssections(crosssections)
 
         # setup geoms
         self.logger.debug(f"Adding pipes and pipe_nodes vector to geoms.")
@@ -1228,17 +1224,10 @@ class DFlowFMModel(MeshModel):
             raise NotImplementedError(
                 f"Method {crosssections_type} is not implemented."
             )
+            
+        # add crossections
+        self.add_crosssections(gdf_cs)
 
-        # check if all branches have crosssections, if not add defaults from branches
-        if branches["branchId"].isin(gdf_cs["crsloc_branchId"]).all():
-            self.logger.info(f"All branches have crosssections")
-        else:
-            self.logger.warning(f"Not all branches have crosssections, filling in from branches")
-            missing_branches = branches.loc[~branches["branchId"].isin(gdf_cs["crsloc_branchId"])]
-            missing_gdf_cs = workflows.set_branch_crosssections(missing_branches, midpoint=True)
-            gdf_cs = gdf_cs.append(missing_gdf_cs)
-
-        return gdf_cs
 
     def setup_manholes(
         self,
@@ -1645,20 +1634,26 @@ class DFlowFMModel(MeshModel):
             logger.warning(
                 f"structure with id: {list(set(_old_ids) - set(_new_ids))} are dropped: unable to find closest branch. "
             )
-        # setup success, add branchid and chainage
-        gdf_st["structure_branchid"] = gdf_st["branch_id"]
-        gdf_st["structure_chainage"] = gdf_st["branch_offset"]
+        if len(_new_ids) == 0:
+            self.logger.warning(f"No 1D {type} locations found within the proximaty of the network")
+            return None
+        else:
+            # setup success, add branchid and chainage
+            gdf_st["structure_branchid"] = gdf_st["branch_id"]
+            gdf_st["structure_chainage"] = gdf_st["branch_offset"]
 
         # 4. add structure crossections
         # add a dummy "shift" for crossection locations if missing (e.g. culverts), because structures only needs crossection definitions.
         if "shift" not in gdf_st.columns:
             gdf_st["shift"] = np.nan
-        # derive crosssections
+        # derive crosssections 
         gdf_st_crossections = workflows.set_point_crosssections(
                 branches, gdf_st, maxdist=snap_offset
             )
+        # remove crossection locations and any friction from the setup
+        gdf_st_crsdefs = gdf_st_crossections.drop(columns = [c for c in gdf_st_crossections.columns if c.startswith("crsloc") or "friction" in c])
         # add to structures
-        gdf_st = gdf_st.merge(gdf_st_crossections.drop(columns = "geometry"), left_index = True, right_index=True)
+        gdf_st = gdf_st.merge(gdf_st_crsdefs.drop(columns = "geometry"), left_index = True, right_index=True)
        
         # 5. replace np.nan as None
         gdf_st = gdf_st.replace(np.nan, None)
@@ -1726,9 +1721,7 @@ class DFlowFMModel(MeshModel):
         bridges = self._setup_1dstructures(_st_type, bridges_fn, bridges_defaults_fn, bridge_filter, snap_offset)
         
         # setup crossection definitions
-        # remove crslocs and friction  (read from bridges)? would it matter? something to test.
-        _crsdefs = bridges[[c for c in bridges.columns if c.startswith("crsdef") and not 'friction' in c]]
-        self.set_crosssections(_crsdefs)
+        self.add_crosssections(bridges[[c for c in bridges.columns if c.startswith("crsdef")]])
         
         # setup bridges
         bridges.columns = bridges.columns.str.lower()
@@ -1736,7 +1729,7 @@ class DFlowFMModel(MeshModel):
                                   "structure_type": "type",
                                   "structure_branchid": "branchid",
                                   "structure_chainage": "chainage",
-                                  "crsloc_definitionid": "csdefid",
+                                  "crsdef_id": "csdefid",
                                   "friction_type": "frictiontype",
                                   "friction_value": "friction"}, inplace = True)
         # filter for allowed columns
@@ -1814,9 +1807,7 @@ class DFlowFMModel(MeshModel):
         culverts = self._setup_1dstructures(_st_type, culverts_fn, culverts_defaults_fn, culvert_filter, snap_offset)
         
         # setup crossection definitions
-        # remove crslocs and friction  (read from culverts)? would it matter? something to test.
-        _crsdefs = culverts[[c for c in culverts.columns if c.startswith("crsdef") and not 'friction' in c]]
-        self.set_crosssections(_crsdefs)
+        self.add_crosssections(culverts[[c for c in culverts.columns if c.startswith("crsdef")]])
         
         # setup culverts
         culverts.columns = culverts.columns.str.lower()
@@ -1824,7 +1815,7 @@ class DFlowFMModel(MeshModel):
                                   "structure_type": "type",
                                   "structure_branchid": "branchid",
                                   "structure_chainage": "chainage",
-                                  "crsloc_definitionid": "csdefid",
+                                  "crsdef_id": "csdefid",
                                   "friction_type": "bedfrictiontype", 
                                   "friction_value": "bedfriction"}, inplace = True)
         # filter for allowed columns
@@ -2938,7 +2929,7 @@ class DFlowFMModel(MeshModel):
         self._assert_write_mode
 
         # Write geojson equivalent of all objects. Note that these files are not directly used when updating the model
-        # super().write_geoms(fn="geoms/{name}.geojson")
+        super().write_geoms(fn="geoms/{name}.geojson")
 
         # Write dfm files
         savedir = dirname(join(self.root, self._config_fn))
@@ -3622,7 +3613,7 @@ class DFlowFMModel(MeshModel):
             gdf = gpd.GeoDataFrame()
         return gdf
 
-    def set_crosssections(self, crosssections: gpd.GeoDataFrame):
+    def add_crosssections(self, crosssections: gpd.GeoDataFrame):
         """Updates crosssections in geoms with new ones"""
         # TODO: sort out the crosssections, e.g. remove branch crosssections if point/xyz exist etc
         # TODO: setup river crosssections, set contrains based on branch types
