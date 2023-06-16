@@ -7,6 +7,7 @@ from os.path import basename, dirname, isdir, isfile, join
 from pathlib import Path
 from turtle import st
 from typing import Any, Dict, List, Optional, Tuple, Union
+import itertools
 
 import geopandas as gpd
 import hydromt
@@ -1561,6 +1562,7 @@ class DFlowFMModel(MeshModel):
         See Also
         ----------
         dflowfm.setup_bridges
+        dflowfm.setup_culverts
         """
 
         if snap_offset is None:
@@ -1648,12 +1650,21 @@ class DFlowFMModel(MeshModel):
         gdf_st["structure_chainage"] = gdf_st["branch_offset"]
 
         # 4. add structure crossections
-        # derive corssections
+        # add a dummy "shift" for crossection locations if missing (e.g. culverts), because structures only needs crossection definitions.
+        if "shift" not in gdf_st.columns:
+            gdf_st["shift"] = np.nan
+        # derive crosssections
         gdf_st_crossections = workflows.set_point_crosssections(
                 branches, gdf_st, maxdist=snap_offset
             )
         # add to structures
-        gdf_st = gdf_st.reset_index().merge(gdf_st_crossections, how="left")
+        gdf_st = gdf_st.merge(gdf_st_crossections.drop(columns = "geometry"), left_index = True, right_index=True)
+       
+        # 5. replace np.nan as None
+        gdf_st = gdf_st.replace(np.nan, None)
+        
+        # 6. remove index
+        gdf_st = gdf_st.reset_index()
 
         return gdf_st
 
@@ -1733,6 +1744,94 @@ class DFlowFMModel(MeshModel):
         allowed_columns.update({"geometry"})
         bridges = gpd.GeoDataFrame(bridges[allowed_columns], crs=bridges.crs)
         self.set_geoms(bridges, "bridges")
+
+
+    def setup_culverts(self,
+                      culverts_fn: Optional[str] = None,
+                      culverts_defaults_fn: Optional[str] = None,
+                      culvert_filter: Optional[str] = None,
+                      snap_offset: Optional[float] = None,
+                      ):
+        
+        """Prepares culverts, including locations and crossections. Note that only subtype culvert is supported, i.e. invertedsiphon is not supported
+
+        The culverts are read from ``culverts_fn`` and if any missing, filled with information provided in ``culverts_defaults_fn``.
+
+        When reading ``culverts_fn``, only locations within the region will be read. 
+        Read locations are then filtered for value specified in ``culvert_filter`` on the column "structure_type" .
+        Remaining locations are snapped to the existing network within a max distance defined in ``snap_offset`` and will be dropped if not snapped.
+
+        A default ``culverts_defaults_fn`` that defines a circle culvert profile can be found in dflowfm.data.culverts as an example.
+
+        Structure attributes ['structure_id', 'structure_type'] are either taken from data or generated in the script.
+        Structure attributes ['shape', 'diameter', 'width', 't_width', 'height', 'closed', 'leftlevel', 'rightlevel', 'length',
+            'valveonoff', 'valveopeningheight', 'numlosscoeff', 'relopening', 'losscoeff', 
+            'friction_type', 'friction_value', 'allowedflowdir',  'inletlosscoeff', 'outletlosscoeff']
+            are either taken from data,  or in case of missing read from defaults.
+
+        Adds/Updates model layers:
+            * **culverts** geom: 1D culverts vector
+
+        Parameters
+        ----------
+        culverts_fn: str Path, optional
+            Path or data source name for culverts, see data/data_sources.yml.
+            Note only the points that are within the region polygon will be used.
+
+            * Optional variables: ['structure_id', 'structure_type', 'shape', 'diameter', 'width', 't_width', 'height', 'closed', 
+                                    'leftlevel', 'rightlevel', 'length', 'valveonoff', 'valveopeningheight', 
+                                    'numlosscoeff', 'relopening', 'losscoeff', 
+                                    'friction_type', 'friction_value', 'allowedflowdir',  'inletlosscoeff', 'outletlosscoeff']
+        
+        culverts_defaults_fn : str Path, optional
+            Path to a csv file containing all defaults values per "structure_type".
+            By default `hydrolib.hydromt_delft3dfm.data.culverts.culverts_defaults.csv` is used. 
+            This file describes a default circle culvert profile.
+
+            * Allowed variables: ['structure_type', 'shape', 'diameter', 'width', 't_width', 'height', 'closed', 
+                                    'leftlevel', 'rightlevel', 'length', 'valveonoff', 'valveopeningheight', 
+                                    'numlosscoeff', 'relopening', 'losscoeff', 
+                                    'friction_type', 'friction_value', 'allowedflowdir',  'inletlosscoeff', 'outletlosscoeff']
+        
+        culvert_filter: str, optional
+            Keyword in "structure_type" column of ``culverts_fn`` used to filter culvert features. If None all features are used (default).
+
+        snap_offset: float, optional
+            Snapping tolenrance to automatically snap culverts to network and add ['branchid', 'chainage'] attributes.
+            By default None. In this case, global variable "network_snap_offset" will be used..
+        
+        See Also
+        ----------
+        dflowfm._setup_1dstructures
+        """
+        
+        # keywords in hydrolib-core
+        _st_type = "culvert"
+        _allowed_columns =['id', 'type', 'branchid', 'chainage', 'allowedflowdir', 'leftlevel', 'rightlevel', 'csdefid', 'length', 'inletlosscoeff', 'outletlosscoeff', 
+                           'valveonoff', 'valveopeningheight', 'numlosscoeff', 'relopening', 'losscoeff', 'bedfrictiontype', 'bedfriction']
+        
+        # setup general 1d structures
+        culverts = self._setup_1dstructures(_st_type, culverts_fn, culverts_defaults_fn, culvert_filter, snap_offset)
+        
+        # setup crossection definitions
+        # remove crslocs and friction  (read from culverts)? would it matter? something to test.
+        _crsdefs = culverts[[c for c in culverts.columns if c.startswith("crsdef") and not 'friction' in c]]
+        self.set_crosssections(_crsdefs)
+        
+        # setup culverts
+        culverts.columns = culverts.columns.str.lower()
+        culverts.rename(columns = {"structure_id": "id",
+                                  "structure_type": "type",
+                                  "structure_branchid": "branchid",
+                                  "structure_chainage": "chainage",
+                                  "crsloc_definitionid": "csdefid",
+                                  "friction_type": "bedfrictiontype", 
+                                  "friction_value": "bedfriction"}, inplace = True)
+        # filter for allowed columns
+        allowed_columns = set(_allowed_columns).intersection(culverts.columns)
+        allowed_columns.update({"geometry"})
+        culverts = gpd.GeoDataFrame(culverts[allowed_columns], crs=culverts.crs)
+        self.set_geoms(culverts, "culverts")
 
 
     def setup_mesh2d(
@@ -2574,7 +2673,8 @@ class DFlowFMModel(MeshModel):
             raise IOError("Model opened in write-only mode")
 
     def read(self):
-        """Method to read the complete model schematization and configuration from file."""
+        """Method to read the complete model schematization and configuration from file.
+        # FIXME: where to read crs? """
         self.logger.info(f"Reading model data from {self.root}")
         self.read_dimr()
         self.read_config()
@@ -2868,8 +2968,15 @@ class DFlowFMModel(MeshModel):
             self.set_config("geometry.storagenodefile", storage_fn)
             
         # Write structures
-        structures = pd.concat([self.geoms[st] for st in ["bridges"]])
-        if len(structures) > 0:
+        existing_structures = [st for st in ["bridges", "culverts"] if st in self.geoms]
+        if len(existing_structures) > 0: 
+            # combine all structures
+            structures = []
+            for st in existing_structures: 
+                structures.append(self.geoms.get(st).to_dict("records"))
+            structures = list(itertools.chain.from_iterable(structures))
+            structures = pd.DataFrame(structures).replace(np.nan, None)
+            # write
             self.logger.info(f"Writting structures file.")
             structures_fn = utils.write_structures(
                 structures,
