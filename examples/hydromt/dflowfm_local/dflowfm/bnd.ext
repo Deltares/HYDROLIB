@@ -11,8 +11,18 @@ forcingFile  = boundaryconditions1d_waterlevelbnd.bc
 
 [Boundary]
 quantity     = waterlevelbndbnd
-locationFile = 2dboundary_0.pli
-forcingFile  = boundaryconditions2d_2dboundary_0.bc
+locationFile = 1.pli
+forcingFile  = boundaryconditions2d_1.bc
+
+[Boundary]
+quantity     = waterlevelbndbnd
+locationFile = 1.pli
+forcingFile  = boundaryconditions2d_1.bc
+
+[Boundary]
+quantity     = waterlevelbndbnd
+locationFile = 0.pli
+forcingFile  = boundaryconditions2d_0.bc
 
 [Meteo]
 quantity            = rainfall_rate               # Name of the quantity. See UM Section C.5.3
