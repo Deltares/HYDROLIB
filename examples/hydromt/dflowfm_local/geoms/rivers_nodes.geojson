@@ -1,9 +1,0 @@
-{
-"type": "FeatureCollection",
-"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
-"features": [
-{ "type": "Feature", "properties": { "branchnodeid": "branchnodes_0", "branch_id": "river_1", "branchId": "river_1", "branchType": "river", "branchOrder": 1.0, "material": "clay", "shape": "rectangle", "width": 10.0, "t_width": 20.0, "height": 10.0, "bedlev": -10.0, "closed": 0.0, "frictionType": "Manning", "frictionValue": 0.023, "ORIG_branchId": "river_1" }, "geometry": { "type": "Point", "coordinates": [ 664057.966297403792851, 1526147.834882111055776 ] } },
-{ "type": "Feature", "properties": { "branchnodeid": "branchnodes_1", "branch_id": "river_1", "branchId": "river_1", "branchType": "river", "branchOrder": 1.0, "material": "clay", "shape": "rectangle", "width": 10.0, "t_width": 20.0, "height": 10.0, "bedlev": -10.0, "closed": 0.0, "frictionType": "Manning", "frictionValue": 0.023, "ORIG_branchId": "river_1" }, "geometry": { "type": "Point", "coordinates": [ 662793.794186791637912, 1524515.451732161454856 ] } },
-{ "type": "Feature", "properties": { "branchnodeid": "branchnodes_2", "branch_id": "river_2", "branchId": "river_2", "branchType": "river", "branchOrder": 1.0, "material": "clay", "shape": "rectangle", "width": 10.0, "t_width": 20.0, "height": 10.0, "bedlev": -10.0, "closed": 0.0, "frictionType": "Manning", "frictionValue": 0.023, "ORIG_branchId": "river_2" }, "geometry": { "type": "Point", "coordinates": [ 664197.234159623389132, 1527152.705984821310267 ] } }
-]
-}
