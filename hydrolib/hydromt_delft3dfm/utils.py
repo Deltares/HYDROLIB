@@ -820,9 +820,88 @@ def write_2dboundary(forcing: Dict, savedir: str, ext_fn: str = None) -> list[di
             )
     return forcing_fn, ext_fn
 
-def read_meteo():
-    # TODO: NotImplemented
-    pass
+def read_meteo(
+    df: pd.DataFrame, quantity: str
+) -> xr.DataArray:
+    """
+    Read for a specific quantity the corresponding external and forcing files and parse to xarray
+
+    Parameters
+    ----------
+    df: pd.DataFrame
+        External Model DataFrame filtered for quantity.
+    quantity: str
+        Name of quantity (e.g. "rainfall_rate", "rainfall").
+
+    Returns
+    -------
+    da_out: xr.DataArray
+        External and focing values combined into a DataArray for variable quantity.
+    """
+    # Initialise dataarray attributes
+    bc = {"quantity": quantity}
+
+    # Assume one forcing file (hydromt writer) and read
+    forcing = df.forcingfile.iloc[0]
+    df_forcing = pd.DataFrame([f.__dict__ for f in forcing.forcing])
+    # Filter for the current nodes
+    df_forcing = df_forcing[np.isin(df_forcing.name, "global")]
+
+    # Get data
+    # Check if all constant
+    if np.all(df_forcing.function == "constant"):
+        # Prepare data
+        data = np.array([v[0][0] for v in df_forcing.datablock])
+        data = data + df_forcing.offset.values * df_forcing.factor.values
+        # Prepare dataarray properties
+        dims = ["index"]
+        coords = dict(index="global")
+        bc["function"] = "constant"
+        bc["units"] = df_forcing.quantityunitpair.iloc[0][0].unit
+        bc["factor"] = 1
+        bc["offset"] = 0
+    # Check if all timeseries
+    elif np.all(df_forcing.function == "timeseries"):
+        # Prepare data
+        data = list()
+        for i in np.arange(len(df_forcing.datablock)):
+            v = df_forcing.datablock.iloc[i]
+            offset = df_forcing.offset.iloc[i]
+            factor = df_forcing.factor.iloc[i]
+            databl = [n[1] * factor + offset for n in v]
+            data.append(databl)
+        data = np.array(data)
+        # Assume unique times
+        times = np.array([n[0] for n in df_forcing.datablock.iloc[0]])
+        # Prepare dataarray properties
+        dims = ["index", "time"]
+        coords = dict(index=["global"], time=times)
+        bc["function"] = "timeseries"
+        bc["timeinterpolation"] = df_forcing.timeinterpolation.iloc[0]
+        bc["units"] = df_forcing.quantityunitpair.iloc[0][1].unit
+        bc["time_unit"] = df_forcing.quantityunitpair.iloc[0][0].unit
+        bc["factor"] = df_forcing.factor.iloc[0]
+        bc["offset"] = df_forcing.offset.iloc[0]
+    # Else not implemented yet
+    else:
+        raise NotImplementedError(
+            f"ForcingFile with several function for a single variable not implemented yet. Skipping reading forcing for variable {quantity}."
+        )
+
+    # Do not apply to "global" meteo
+    # coords["x"]
+    # coords["y"]
+
+    # Prep DataArray and add to forcing
+    da_out = xr.DataArray(
+        data=data,
+        dims=dims,
+        coords=coords,
+        attrs=bc,
+    )
+    da_out.name = f"{quantity}"
+    
+    return da_out
 
 def write_meteo(forcing: Dict, savedir: str, ext_fn: str = None) -> list[dict]:
     """
@@ -955,4 +1034,5 @@ def write_ext(
     os.chdir(cwd)
 
     return ext_fn
+
 

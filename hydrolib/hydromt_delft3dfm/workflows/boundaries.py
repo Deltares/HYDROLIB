@@ -505,7 +505,6 @@ def df_to_bc(
 
 def compute_meteo_forcings(da_meteo: xr.DataArray = None,
                          df_meteo: pd.DataFrame = None,
-                         gdf_meteomask: gpd.GeoDataFrame = None,
                          meteo_value : float = 0.0,
                          meteo_type : str = "rainfall_rate",
                          meteo_unit: str = "mm/day",
@@ -590,7 +589,7 @@ def compute_meteo_forcings(da_meteo: xr.DataArray = None,
             ),
             attrs=dict(
                 function="TimeSeries",
-                timeInterpolation="linear",
+                timeInterpolation="Linear",
                 quantity=f"{meteo_type}",
                 units=f"{meteo_unit}",
                 time_unit=f"{freq_name} since {pd.to_datetime(df_meteo.time[0])}",
