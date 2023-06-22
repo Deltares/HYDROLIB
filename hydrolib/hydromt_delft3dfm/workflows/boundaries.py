@@ -387,7 +387,6 @@ def df_to_bc(
 
 def compute_meteo_forcings(da_meteo: xr.DataArray = None,
                          df_meteo: pd.DataFrame = None,
-                         gdf_meteomask: gpd.GeoDataFrame = None,
                          meteo_value : float = 0.0,
                          meteo_type : str = "rainfall_rate",
                          meteo_unit: str = "mm/day",
