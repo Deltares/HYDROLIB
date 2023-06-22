@@ -1,68 +1,109 @@
 1D_boundaries_timeseries:
+  crs: 32647
   data_type: GeoDataset
-  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\boundaries.geojson
   driver: vector
   kwargs:
-    fn_data: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\boundaries_series.csv
+    fn_data: C:\Developments\HYDROLIB\tests\data\local_data\boundaries_series.csv
+  path: C:\Developments\HYDROLIB\tests\data\local_data\boundaries.geojson
+1D_branches:
   crs: 32647
-1D_pipes:
   data_type: GeoDataFrame
-  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\1D_rivers.geojson
   driver: vector
-  crs: 32647
-  rename: &id001
+  path: C:\Developments\HYDROLIB\tests\data\local_data\1D_rivers.geojson
+  rename:
     BRANCH_ID: branchId
     BR_TYPE: branchType
-1D_rivers:
-  data_type: GeoDataFrame
-  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\1D_rivers.geojson
-  driver: vector
-  crs: 32647
-  rename: *id001
 1D_rivers_pointcrosssections:
-  data_type: GeoDataFrame
-  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\1D_rivers_pointcrosssections.geojson
-  driver: vector
   crs: 32647
+  data_type: GeoDataFrame
+  driver: vector
+  path: C:\Developments\HYDROLIB\tests\data\local_data\1D_rivers_pointcrosssections.geojson
   rename:
-    id: crsId
+    BEDLEVEL: shift
+    HEIGHT: height
     TYPE: shape
     WIDTH: width
-    HEIGHT: height
-    BEDLEVEL: shift
+    id: crsId
 1D_rivers_xyzcrosssections:
-  data_type: GeoDataFrame
-  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\1D_rivers_xyzcrosssections.geojson
-  driver: vector
   crs: 32647
+  data_type: GeoDataFrame
+  driver: vector
+  path: C:\Developments\HYDROLIB\tests\data\local_data\1D_rivers_xyzcrosssections.geojson
   rename:
-    ORDER: order
     CRS_ID: crsId
+    ORDER: order
     Z: z
-1d_manholes:
+1d_bridges:
+  crs: 32647
   data_type: GeoDataFrame
-  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\manholes.geojson
   driver: vector
-  crs: 32647
+  path: C:\Developments\HYDROLIB\tests\data\local_data\bridges.geojson
   rename:
-    ID: manholeId
+    BEDLEV: shift
+    CLOSED: closed
+    FLOW_DIR: allowedflowdir
+    HEIGHT: height
+    IN_LOSS: inletlosscoeff
+    LENGTH: length
+    OUT_LOSS: outletlosscoeff
+    SHAPE: shape
+    STRUC_ID: structure_id
+    STRUC_TYPE: structure_type
+    WIDTH: width
+1d_culverts:
+  crs: 32647
+  data_type: GeoDataFrame
+  driver: vector
+  path: C:\Developments\HYDROLIB\tests\data\local_data\culverts.geojson
+  rename:
+    CLOSED: closed
+    FLOW_DIR: allowedflowdir
+    HEIGHT: height
+    INVLEV_DN: rightlevel
+    INVLEV_UP: leftlevel
+    SHAPE: shape
+    STRUC_ID: structure_id
+    STRUC_TYPE: structure_type
+    WIDTH: width
+1d_manholes:
+  crs: 32647
+  data_type: GeoDataFrame
+  driver: vector
+  path: C:\Developments\HYDROLIB\tests\data\local_data\manholes.geojson
+  rename:
     AREA: area
+    ID: manholeId
     STR_AREA: streetArea
-dem:
-  data_type: RasterDataset
-  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\tests\data\local_data\dem.tif
-  driver: raster
+2D_boundary:
   crs: 32647
-  rename:
-    dem: elevtn
+  data_type: GeoDataFrame
+  driver: vector
+  meta:
+    notes: created by buffer the extent by aqrt(2) * res
+  path: C:\Developments\HYDROLIB\tests\data\local_data\2d_boundary.geojson
+bridges_defaults:
+  data_type: DataFrame
+  driver: csv
+  path: c:\Developments\HYDROLIB\hydrolib\hydromt_delft3dfm\data\bridges\bridges_defaults.csv
+culverts_defaults:
+  data_type: DataFrame
+  driver: csv
+  path: c:\Developments\HYDROLIB\hydrolib\hydromt_delft3dfm\data\culverts\culverts_defaults.csv
+dem:
+  crs: 32647
+  data_type: RasterDataset
+  driver: raster
   meta:
     category: dem
     history: temporary dem within model extent
+  path: C:\Developments\HYDROLIB\tests\data\local_data\dem.tif
+  rename:
+    dem: elevtn
 pipes_defaults:
   data_type: DataFrame
-  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\hydrolib\hydromt_delft3dfm\data\pipes\pipes_defaults.csv
   driver: csv
+  path: c:\Developments\HYDROLIB\hydrolib\hydromt_delft3dfm\data\pipes\pipes_defaults.csv
 rivers_defaults:
   data_type: DataFrame
-  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\hydrolib\hydromt_delft3dfm\data\rivers\rivers_defaults.csv
   driver: csv
+  path: c:\Developments\HYDROLIB\hydrolib\hydromt_delft3dfm\data\rivers\rivers_defaults.csv

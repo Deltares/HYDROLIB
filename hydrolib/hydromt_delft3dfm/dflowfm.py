@@ -7,6 +7,7 @@ from os.path import basename, dirname, isdir, isfile, join
 from pathlib import Path
 from turtle import st
 from typing import Any, Dict, List, Optional, Tuple, Union
+import itertools
 
 import geopandas as gpd
 import hydromt
@@ -497,7 +498,7 @@ class DFlowFMModel(MeshModel):
 
         # add crosssections to exisiting ones and update geoms
         self.logger.debug(f"Adding crosssections vector to geoms.")
-        self.set_crosssections(crosssections)
+        self.add_crosssections(crosssections)
 
         # setup geoms
         self.logger.debug(f"Adding branches and branch_nodes vector to geoms.")
@@ -731,7 +732,7 @@ class DFlowFMModel(MeshModel):
 
         # add crosssections to exisiting ones and update geoms
         self.logger.debug(f"Adding crosssections vector to geoms.")
-        self.set_crosssections(crosssections)
+        self.add_crosssections(crosssections)
 
         # setup geoms #TODO do we still need channels?
         self.logger.debug(f"Adding rivers and river_nodes vector to geoms.")
@@ -798,14 +799,16 @@ class DFlowFMModel(MeshModel):
             Units corresponding to [friction_type] are ["Chézy C [m 1/2 /s]", "Manning n [s/m 1/3 ]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Nikuradse k_n [m]", "Strickler k_s [m 1/3 /s]", "De Bos-Bijkerk γ [1/s]"]
             Friction value. By default 0.023.
         crosssections_fn : str, Path, or a list of str or Path, optional
-            Name of data source for crosssections, see data/data_sources.yml.
+            Name of data source for crosssections, see data/data_sources.yml. One or a list corresponding to ``crosssections_type`` .
+            If ``crosssections_type`` = "branch"
+            crosssections_fn should be None
             If ``crosssections_type`` = "xyz"
             * Required variables: [crsId, order, z]
             If ``crosssections_type`` = "point"
             * Required variables: [crsId, shape, shift]
             By default None, crosssections will be set from branches
         crosssections_type : str, or a list of str, optional
-            Type of crosssections read from crosssections_fn. One of ["xyz", "point"].
+            Type of crosssections read from crosssections_fn. One or a list of ["branch", "xyz", "point"].
             By default None.
         snap_offset: float, optional
             Snapping tolerance to automatically connecting branches.
@@ -853,13 +856,18 @@ class DFlowFMModel(MeshModel):
 
         # setup crosssections
         if crosssections_type is None:
-            crosssections_type = ["branch"]
-            crosssections_fn = [
-                None
-            ]  # TODO: maybe assign a specific one for river, like branch_river
+            crosssections_type = []
+            crosssections_fn = [] 
+        elif isinstance(crosssections_type, str):
+            crosssections_type = [crosssections_type]
+            crosssections_fn = [crosssections_fn]
         elif isinstance(crosssections_type, list):
             assert len(crosssections_type) == len(crosssections_fn)
-
+        # inser branch as default
+        if "branch" not in crosssections_type:
+            crosssections_type.insert(0, "branch")
+            crosssections_fn.insert(0, None)
+        
         for crs_fn, crs_type in zip(crosssections_fn, crosssections_type):
             assert {crs_type}.issubset({"xyz", "point", "branch"})
             crosssections = self._setup_crosssections(
@@ -867,17 +875,14 @@ class DFlowFMModel(MeshModel):
                 crosssections_fn=crs_fn,
                 crosssections_type=crs_type,
             )
+            self.add_crosssections(crosssections)
 
-            # TODO setup frictions, reserve for more complex type of frictions for rivers
-            # add crosssections to exisiting ones and update geoms
-            self.logger.debug(f"Adding crosssections vector to geoms.")
-            self.set_crosssections(crosssections)
-
-            # for crossection type yz or xyz, always use branchOrder = -1, because no interpolation can be applied.
-            # TODO: change to lower case is needed
-            _overwrite_branchorder = self.crosssections[self.crosssections["crsdef_type"].str.contains("yz")]["crsdef_branchId"].tolist()
-            if len(_overwrite_branchorder) > 0:
-                rivers.loc[rivers["branchId"].isin(_overwrite_branchorder), "branchOrder"] = -1
+        # setup branch orders
+        # for crossection type yz or xyz, always use branchOrder = -1, because no interpolation can be applied.
+        # TODO: change to lower case is needed
+        _overwrite_branchorder = self.crosssections[self.crosssections["crsdef_type"].str.contains("yz")]["crsdef_branchId"].tolist()
+        if len(_overwrite_branchorder) > 0:
+            rivers.loc[rivers["branchId"].isin(_overwrite_branchorder), "branchOrder"] = -1
 
         # setup geoms
         self.logger.debug(f"Adding rivers and river_nodes vector to geoms.")
@@ -1065,7 +1070,7 @@ class DFlowFMModel(MeshModel):
         )
         # add crosssections to exisiting ones and update geoms
         self.logger.debug(f"Adding crosssections vector to geoms.")
-        self.set_crosssections(crosssections)
+        self.add_crosssections(crosssections)
 
         # setup geoms
         self.logger.debug(f"Adding pipes and pipe_nodes vector to geoms.")
@@ -1141,12 +1146,11 @@ class DFlowFMModel(MeshModel):
         """
 
         # setup crosssections
-        self.logger.info(f"Preparing 1D crosssections.")
-
         if crosssections_fn is None and crosssections_type == "branch":
             # TODO: set a seperate type for rivers because other branch types might require upstream/downstream
             # TODO: check for required columns
             # read crosssection from branches
+            self.logger.info(f"Preparing crossections from branch.")
             gdf_cs = workflows.set_branch_crosssections(branches, midpoint=midpoint)
 
         elif crosssections_type == "xyz":
@@ -1183,6 +1187,7 @@ class DFlowFMModel(MeshModel):
             gdf_cs.to_crs(self.crs)
 
             # set crsloc and crsdef attributes to crosssections
+            self.logger.info(f"Preparing 1D xyz crossections from {crosssections_fn}")
             gdf_cs = workflows.set_xyz_crosssections(branches, gdf_cs)
 
         elif crosssections_type == "point":
@@ -1219,6 +1224,7 @@ class DFlowFMModel(MeshModel):
             gdf_cs.to_crs(self.crs)
 
             # set crsloc and crsdef attributes to crosssections
+            self.logger.info(f"Preparing 1D point crossections from {crosssections_fn}")
             gdf_cs = workflows.set_point_crosssections(
                 branches, gdf_cs, maxdist=self._network_snap_offset
             )
@@ -1227,17 +1233,9 @@ class DFlowFMModel(MeshModel):
             raise NotImplementedError(
                 f"Method {crosssections_type} is not implemented."
             )
-
-        # check if all branches have crosssections, if not add defaults from branches
-        if branches["branchId"].isin(gdf_cs["crsloc_branchId"]).all():
-            self.logger.info(f"All branches have crosssections")
-        else:
-            self.logger.warning(f"Not all branches have crosssections, filling in from branches")
-            missing_branches = branches.loc[~branches["branchId"].isin(gdf_cs["crsloc_branchId"])]
-            missing_gdf_cs = workflows.set_branch_crosssections(missing_branches, midpoint=True)
-            gdf_cs = gdf_cs.append(missing_gdf_cs)
-
+            
         return gdf_cs
+
 
     def setup_manholes(
         self,
@@ -1561,6 +1559,7 @@ class DFlowFMModel(MeshModel):
         See Also
         ----------
         dflowfm.setup_bridges
+        dflowfm.setup_culverts
         """
 
         if snap_offset is None:
@@ -1643,17 +1642,32 @@ class DFlowFMModel(MeshModel):
             logger.warning(
                 f"structure with id: {list(set(_old_ids) - set(_new_ids))} are dropped: unable to find closest branch. "
             )
-        # setup success, add branchid and chainage
-        gdf_st["structure_branchid"] = gdf_st["branch_id"]
-        gdf_st["structure_chainage"] = gdf_st["branch_offset"]
+        if len(_new_ids) == 0:
+            self.logger.warning(f"No 1D {type} locations found within the proximaty of the network")
+            return None
+        else:
+            # setup success, add branchid and chainage
+            gdf_st["structure_branchid"] = gdf_st["branch_id"]
+            gdf_st["structure_chainage"] = gdf_st["branch_offset"]
 
         # 4. add structure crossections
-        # derive corssections
+        # add a dummy "shift" for crossection locations if missing (e.g. culverts), because structures only needs crossection definitions.
+        if "shift" not in gdf_st.columns:
+            gdf_st["shift"] = np.nan
+        # derive crosssections 
         gdf_st_crossections = workflows.set_point_crosssections(
                 branches, gdf_st, maxdist=snap_offset
             )
+        # remove crossection locations and any friction from the setup
+        gdf_st_crsdefs = gdf_st_crossections.drop(columns = [c for c in gdf_st_crossections.columns if c.startswith("crsloc") or "friction" in c])
         # add to structures
-        gdf_st = gdf_st.reset_index().merge(gdf_st_crossections, how="left")
+        gdf_st = gdf_st.merge(gdf_st_crsdefs.drop(columns = "geometry"), left_index = True, right_index=True)
+       
+        # 5. replace np.nan as None
+        gdf_st = gdf_st.replace(np.nan, None)
+        
+        # 6. remove index
+        gdf_st = gdf_st.reset_index()
 
         return gdf_st
 
@@ -1715,9 +1729,7 @@ class DFlowFMModel(MeshModel):
         bridges = self._setup_1dstructures(_st_type, bridges_fn, bridges_defaults_fn, bridge_filter, snap_offset)
         
         # setup crossection definitions
-        # remove crslocs and friction  (read from bridges)? would it matter? something to test.
-        _crsdefs = bridges[[c for c in bridges.columns if c.startswith("crsdef") and not 'friction' in c]]
-        self.set_crosssections(_crsdefs)
+        self.add_crosssections(bridges[[c for c in bridges.columns if c.startswith("crsdef")]])
         
         # setup bridges
         bridges.columns = bridges.columns.str.lower()
@@ -1725,7 +1737,7 @@ class DFlowFMModel(MeshModel):
                                   "structure_type": "type",
                                   "structure_branchid": "branchid",
                                   "structure_chainage": "chainage",
-                                  "crsloc_definitionid": "csdefid",
+                                  "crsdef_id": "csdefid",
                                   "friction_type": "frictiontype",
                                   "friction_value": "friction"}, inplace = True)
         # filter for allowed columns
@@ -1733,6 +1745,92 @@ class DFlowFMModel(MeshModel):
         allowed_columns.update({"geometry"})
         bridges = gpd.GeoDataFrame(bridges[allowed_columns], crs=bridges.crs)
         self.set_geoms(bridges, "bridges")
+
+
+    def setup_culverts(self,
+                      culverts_fn: Optional[str] = None,
+                      culverts_defaults_fn: Optional[str] = None,
+                      culvert_filter: Optional[str] = None,
+                      snap_offset: Optional[float] = None,
+                      ):
+        
+        """Prepares culverts, including locations and crossections. Note that only subtype culvert is supported, i.e. invertedsiphon is not supported
+
+        The culverts are read from ``culverts_fn`` and if any missing, filled with information provided in ``culverts_defaults_fn``.
+
+        When reading ``culverts_fn``, only locations within the region will be read. 
+        Read locations are then filtered for value specified in ``culvert_filter`` on the column "structure_type" .
+        Remaining locations are snapped to the existing network within a max distance defined in ``snap_offset`` and will be dropped if not snapped.
+
+        A default ``culverts_defaults_fn`` that defines a circle culvert profile can be found in dflowfm.data.culverts as an example.
+
+        Structure attributes ['structure_id', 'structure_type'] are either taken from data or generated in the script.
+        Structure attributes ['shape', 'diameter', 'width', 't_width', 'height', 'closed', 'leftlevel', 'rightlevel', 'length',
+            'valveonoff', 'valveopeningheight', 'numlosscoeff', 'relopening', 'losscoeff', 
+            'friction_type', 'friction_value', 'allowedflowdir',  'inletlosscoeff', 'outletlosscoeff']
+            are either taken from data,  or in case of missing read from defaults.
+
+        Adds/Updates model layers:
+            * **culverts** geom: 1D culverts vector
+
+        Parameters
+        ----------
+        culverts_fn: str Path, optional
+            Path or data source name for culverts, see data/data_sources.yml.
+            Note only the points that are within the region polygon will be used.
+
+            * Optional variables: ['structure_id', 'structure_type', 'shape', 'diameter', 'width', 't_width', 'height', 'closed', 
+                                    'leftlevel', 'rightlevel', 'length', 'valveonoff', 'valveopeningheight', 
+                                    'numlosscoeff', 'relopening', 'losscoeff', 
+                                    'friction_type', 'friction_value', 'allowedflowdir',  'inletlosscoeff', 'outletlosscoeff']
+        
+        culverts_defaults_fn : str Path, optional
+            Path to a csv file containing all defaults values per "structure_type".
+            By default `hydrolib.hydromt_delft3dfm.data.culverts.culverts_defaults.csv` is used. 
+            This file describes a default circle culvert profile.
+
+            * Allowed variables: ['structure_type', 'shape', 'diameter', 'width', 't_width', 'height', 'closed', 
+                                    'leftlevel', 'rightlevel', 'length', 'valveonoff', 'valveopeningheight', 
+                                    'numlosscoeff', 'relopening', 'losscoeff', 
+                                    'friction_type', 'friction_value', 'allowedflowdir',  'inletlosscoeff', 'outletlosscoeff']
+        
+        culvert_filter: str, optional
+            Keyword in "structure_type" column of ``culverts_fn`` used to filter culvert features. If None all features are used (default).
+
+        snap_offset: float, optional
+            Snapping tolenrance to automatically snap culverts to network and add ['branchid', 'chainage'] attributes.
+            By default None. In this case, global variable "network_snap_offset" will be used..
+        
+        See Also
+        ----------
+        dflowfm._setup_1dstructures
+        """
+        
+        # keywords in hydrolib-core
+        _st_type = "culvert"
+        _allowed_columns =['id', 'type', 'branchid', 'chainage', 'allowedflowdir', 'leftlevel', 'rightlevel', 'csdefid', 'length', 'inletlosscoeff', 'outletlosscoeff', 
+                           'valveonoff', 'valveopeningheight', 'numlosscoeff', 'relopening', 'losscoeff', 'bedfrictiontype', 'bedfriction']
+        
+        # setup general 1d structures
+        culverts = self._setup_1dstructures(_st_type, culverts_fn, culverts_defaults_fn, culvert_filter, snap_offset)
+        
+        # setup crossection definitions
+        self.add_crosssections(culverts[[c for c in culverts.columns if c.startswith("crsdef")]])
+        
+        # setup culverts
+        culverts.columns = culverts.columns.str.lower()
+        culverts.rename(columns = {"structure_id": "id",
+                                  "structure_type": "type",
+                                  "structure_branchid": "branchid",
+                                  "structure_chainage": "chainage",
+                                  "crsdef_id": "csdefid",
+                                  "friction_type": "bedfrictiontype", 
+                                  "friction_value": "bedfriction"}, inplace = True)
+        # filter for allowed columns
+        allowed_columns = set(_allowed_columns).intersection(culverts.columns)
+        allowed_columns.update({"geometry"})
+        culverts = gpd.GeoDataFrame(culverts[allowed_columns], crs=culverts.crs)
+        self.set_geoms(culverts, "culverts")
 
 
     def setup_mesh2d(
@@ -2574,7 +2672,8 @@ class DFlowFMModel(MeshModel):
             raise IOError("Model opened in write-only mode")
 
     def read(self):
-        """Method to read the complete model schematization and configuration from file."""
+        """Method to read the complete model schematization and configuration from file.
+        # FIXME: where to read crs? """
         self.logger.info(f"Reading model data from {self.root}")
         self.read_dimr()
         self.read_config()
@@ -2838,7 +2937,7 @@ class DFlowFMModel(MeshModel):
         self._assert_write_mode
 
         # Write geojson equivalent of all objects. Note that these files are not directly used when updating the model
-        # super().write_geoms(fn="geoms/{name}.geojson")
+        super().write_geoms(fn="geoms/{name}.geojson")
 
         # Write dfm files
         savedir = dirname(join(self.root, self._config_fn))
@@ -2868,8 +2967,15 @@ class DFlowFMModel(MeshModel):
             self.set_config("geometry.storagenodefile", storage_fn)
             
         # Write structures
-        structures = pd.concat([self.geoms[st] for st in ["bridges"]])
-        if len(structures) > 0:
+        existing_structures = [st for st in ["bridges", "culverts"] if st in self.geoms]
+        if len(existing_structures) > 0: 
+            # combine all structures
+            structures = []
+            for st in existing_structures: 
+                structures.append(self.geoms.get(st).to_dict("records"))
+            structures = list(itertools.chain.from_iterable(structures))
+            structures = pd.DataFrame(structures).replace(np.nan, None)
+            # write
             self.logger.info(f"Writting structures file.")
             structures_fn = utils.write_structures(
                 structures,
@@ -3515,14 +3621,30 @@ class DFlowFMModel(MeshModel):
             gdf = gpd.GeoDataFrame()
         return gdf
 
-    def set_crosssections(self, crosssections: gpd.GeoDataFrame):
+    def add_crosssections(self, crosssections: gpd.GeoDataFrame):
         """Updates crosssections in geoms with new ones"""
         # TODO: sort out the crosssections, e.g. remove branch crosssections if point/xyz exist etc
         # TODO: setup river crosssections, set contrains based on branch types
         if len(self.crosssections) > 0:
+            # add new crossections
             crosssections = gpd.GeoDataFrame(
                 pd.concat([self.crosssections, crosssections]), crs=self.crs
             )
+            # drop duplicated, keep the first one
+            crosssections["temp_id"] = crosssections.apply(lambda x:f'{x["crsloc_branchId"]}_{x["crsloc_chainage"]:.2f}', axis = 1)
+            if crosssections["temp_id"].duplicated().any():
+                logger.warning(f"Duplicate crosssections found, removing duplicates")
+                # Remove duplicates based on the branch_id, branch_offset column, keeping the first occurrence (with minimum branch_distance)
+                crosssections = crosssections.drop_duplicates(subset=["temp_id"], keep='first')
+            # remove existing generated branch crosssections
+            crossections_branch = crosssections[crosssections.crsdef_id.str.endswith("_branch")]
+            crossections_others = crosssections[~crosssections.crsdef_id.str.endswith("_branch")]
+            mask_to_remove = crossections_branch["crsloc_branchId"].isin(crossections_others["crsloc_branchId"])
+            if mask_to_remove.sum() > 0:
+                self.logger.warning(f'Overwrite branch crossections where user-defined crossections are used.')
+                crosssections = gpd.GeoDataFrame(
+                    pd.concat([crossections_branch[~mask_to_remove], crossections_others]), crs=self.crs
+                )
         self.set_geoms(crosssections, name="crosssections")
 
     @property

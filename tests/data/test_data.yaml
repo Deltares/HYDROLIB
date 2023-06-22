@@ -1,4 +1,4 @@
-1D_rivers:
+1D_branches:
   data_type: GeoDataFrame
   driver: vector
   path: local_data/1D_rivers.geojson
@@ -26,8 +26,6 @@
     WIDTH: width
     HEIGHT: height
     BEDLEVEL: shift
-1D_pipes:
-    alias: 1D_rivers
 1d_manholes:
   data_type: GeoDataFrame
   driver: vector
@@ -37,6 +35,38 @@
     ID: manholeId
     AREA: area
     STR_AREA: streetArea
+1d_bridges:
+  data_type: GeoDataFrame
+  driver: vector
+  path: local_data/bridges.geojson
+  crs: 32647
+  rename:
+    STRUC_ID: structure_id
+    STRUC_TYPE: structure_type
+    SHAPE: shape
+    WIDTH: width
+    HEIGHT: height
+    CLOSED: closed
+    BEDLEV: shift
+    LENGTH: length
+    FLOW_DIR: allowedflowdir
+    IN_LOSS: inletlosscoeff
+    OUT_LOSS: outletlosscoeff
+1d_culverts:
+  data_type: GeoDataFrame
+  driver: vector
+  path: local_data/culverts.geojson
+  crs: 32647
+  rename:
+    STRUC_ID: structure_id
+    STRUC_TYPE: structure_type
+    SHAPE: shape
+    WIDTH: width
+    HEIGHT: height
+    CLOSED: closed
+    INVLEV_UP: leftlevel
+    INVLEV_DN: rightlevel
+    FLOW_DIR: allowedflowdir
 1D_boundaries:
   data_type: GeoDataFrame
   driver: vector
