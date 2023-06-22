@@ -79,8 +79,19 @@
   data_type: GeoDataFrame
   driver: vector
   meta:
-    notes: created by buffer the extent by aqrt(2) * res
+    notes: created by buffer the extent by aqrt(2) * res. Must contain boundary_id
+      if timeseries is specified
   path: C:\Developments\HYDROLIB\tests\data\local_data\2d_boundary.geojson
+2D_boundary_timeseries:
+  data_type: DataFrame
+  driver: csv
+  kwargs:
+    index_col: time
+    parse_dates: true
+  meta:
+    notes: time series data for the 2D boundary, must contain time as index and boundary_id
+      as columns
+  path: C:\Developments\HYDROLIB\tests\data\local_data\2dboundaries_series.csv
 bridges_defaults:
   data_type: DataFrame
   driver: csv
@@ -99,6 +110,18 @@ dem:
   path: C:\Developments\HYDROLIB\tests\data\local_data\dem.tif
   rename:
     dem: elevtn
+meteo_timeseries_T2:
+  data_type: DataFrame
+  driver: csv
+  kwargs:
+    index_col: 0
+    infer_datetime_format: true
+    parse_dates: true
+  meta:
+    unit: mm day-1
+  path: C:\Developments\HYDROLIB\tests\data\local_data\rainfall_series.csv
+  rename:
+    T2_mm/day: global
 pipes_defaults:
   data_type: DataFrame
   driver: csv

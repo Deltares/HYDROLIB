@@ -304,7 +304,7 @@ class DFlowFMModel(MeshModel):
                 defaults_fn = Path(self._DATADIR).joinpath(
                     f"{br_type}s", f"{br_type}s_defaults.csv"
                 )
-            defaults = self.data_catalog.get_dataframe(defaults_fn)
+            defaults = self.data_catalog.get_dataframe(defaults_fn, time_tuple=())
             self.logger.info(f"{br_type} default settings read from {defaults_fn}.")
 
         # 2. Add defaults
@@ -2042,25 +2042,17 @@ class DFlowFMModel(MeshModel):
         meteo_value: float = 0.,
         meteo_type: str = "rainfall_rate",
         meteo_unit: str = "mm/day",
-        geom_fn: str = None,
     ):
         """
-        Prepares the spatial or global Meteorological forcings to 2d grid using timeseries or a constant.
-        Possible to apply only within a masked area.
-        # FIXME: Only support global precipitation for now.
+        Prepares the Meteorological forcings to 2d grid using timeseries or a constant.
+        For now only support global  (spatially uniform) timeseries. 
+        TODO: support timeseries on meteo stations and gridded meteo data (using ``meteo_geodataset_fn``) 
+        TODO: support meteo masks (.pol)
+        
+        For global  (spatially uniform) timeseries, the values can either be a constant 
+        using ``meteo_value`` (default), or global timeseries read from ``meteo_timeseries_fn``. 
 
-        The values can either be a constant using ``meteo_value`` (default) or spatial varying timeseries read from ``meteo_geodataset_fn``,
-        or global timeseries read from ``meteo_timeseries_fn``. When ``geom_fn`` is specified,
-        meteo applies only within the geom (NotImplemented).
-
-        Use ``meteo_geodataset_fn`` to set the meteo values from a dataset of point locations, i.e. stations,
-        timeseries. Only locations within the model region + 10m are selected.
-        When this option is used, interpolation method of nearest neighbour (nearestNB) will be auomatically set.
-
-        Use ``meteo_timeseries_fn`` to set the meteo values from global timeseries.
-
-        Use `meteo_value`` to set a global constant meteo value.
-        If ``meteo_geodataset_fn`` has missing values, the constant ``meteo_value`` will be used, e.g. 0.
+        If ``meteo_timeseries_fn`` has missing values, the constant ``meteo_value`` will be used, e.g. 0.
 
         The dataset/timeseries are clipped to the model time based on the model config
         tstart and tstop entries.
@@ -2070,58 +2062,44 @@ class DFlowFMModel(MeshModel):
 
         Parameters
         ----------
-        meteo_geodataset_fn : str, Path
-            Path or data source name for geospatial point timeseries file.
-            This can either be a netcdf file with geospatial coordinates
-            or a combined point location file with a timeseries data csv file
-            which can be setup through the data_catalog yml file.
-
-            * Required variables if netcdf: ['rainfall', 'rainfall_rate'] depending on ``boundary_type``
-            * Required coordinates if netcdf: ['time', 'index', 'y', 'x']
-
-            * Required variables if a combined point location file: ['index'] with type int
-            * Required index types if a time series data csv file: int
-
-            NOTE: Require equidistant time series
-            NOTE: Do not support Gridded meteo data in netCDF yet (See User Manual Section 13.2.1)
+        meteo_geodataset_fn : str, Path (Not implemented)
+            Path or data source name for geospatial point timeseries file or girdded rainfall file.
+            
+            NOTE: Due to Delft3DFM not supporting Gridded meteo data in netCDF yet, 
+            an extra step of converting gridded data into meteo stations might be nedded.
         meteo_timeseries_fn: str, Path
-            Path to a global timeseries csv file with time index in first column.
-
-            * Required variables : ['time', 'global']
-
-            NOTE: Require equidistant time series; Allow only one global time series
+            Path or data source name to tabulated timeseries csv file with time index in first column.
+            
+            * Required variables : ['global']
+            
+            see :py:meth:`hydromt.get_dataframe`, for details.
+            NOTE: Require equidistant time series
         meteo_value : float, optional
             Constant value to use for if both ``meteo_geodataset_fn`` and ``meteo_timeseries_fn`` are None and to
-            fill in missing data. By default, 0 ``meteo_unit``.
+            fill in missing data. 
+            By default 0. 
             NOTE: a daily time series will be created in case of the constant value is used.
         meteo_type : str, optional
             Type of meteo tu use. One of ["rainfall", "rainfall_rate"].
             By default "rainfall_rate". Note that Delft3DFM 1D2D Suite 2022.04 supports only "rainfall_rate".
         meteo_unit : str, optional.
-            Unit meteo_type to [meteo_type].
-            If ``boundary_type`` = "rainfall"
+            Unit applied to ``meteo_type``.
+            If ``meteo_type`` = "rainfall"
                 Allowed unit is [mm]
             if ''meteo_type`` = "rainfall_rate":
                Allowed unit is [mm/day]
             By default mm/day.
-        geom_fn(NotImplemented): str Path, optional
-            Path to a polygon used to specify region within which meteo forcing is applied.
 
         Raises
         ------
         NotImplementedError:
-            geom_fn is currently not implemented.
-            TODO: apply it as a attribute in meteo_forcing data array
+            ``meteo_geodataset_fn`` is currently not implemented.
+
         """
 
         self.logger.info(f"Preparing {meteo_type} meteo forcing.")
 
-        if geom_fn is not None:
-            raise NotImplementedError
-        else:
-            gdf_meteomask = None # polygon mask
-
-        if meteo_type == "rainfall_rate": assert meteo_unit.split("/")[-1] in ["hour", "day"]
+        if meteo_type == "rainfall_rate": assert meteo_unit in ["mm/day"]
         if meteo_type == "rainfall": assert meteo_unit in ["mm"]
 
         refdate, tstart, tstop = self.get_model_time()  # time slice
@@ -2129,32 +2107,15 @@ class DFlowFMModel(MeshModel):
 
         # 1. apply spatial varying meteo
         if meteo_geodataset_fn is not None:
-            da_meteo = self.data_catalog.get_geodataset(
-                meteo_geodataset_fn,
-                geom=self.region,
-                variables=[meteo_type],
-                time_tuple=(tstart, tstop),
-                crs=self.crs.to_epsg(),  # assume model crs if none defined
-            ).rename(meteo_type)
-            # error if time mismatch
-            if np.logical_and(
-                pd.to_datetime(da_meteo.time.values[0]) == pd.to_datetime(tstart),
-                pd.to_datetime(da_meteo.time.values[-1]) == pd.to_datetime(tstop),
-            ):
-                pass
-            else:
-                self.logger.error(
-                    f"forcing has different start and end time. Please check the forcing file. support yyyy-mm-dd HH:MM:SS. "
-                )
-            # TODO: error if type and unit mismatch
-            # reproject if needed and convert to location
-            if da_meteo.vector.crs != self.crs:
-                da_meteo.vector.to_crs(self.crs)
+            raise NotImplementedError("Do not support meteo types other than global constant or timeseries.")
 
         # 2. apply global meteo
         else:
             da_meteo = None
             if meteo_timeseries_fn is not None:
+                # add neccessary keys for parsing timeseries correctly
+                self.data_catalog[meteo_timeseries_fn].kwargs.update({'parse_dates': True})
+                self.data_catalog[meteo_timeseries_fn].kwargs.update({'infer_datetime_format': True})
                 df_meteo = self.data_catalog.get_dataframe(
                     meteo_timeseries_fn,
                     varibles = ["global"],
@@ -2174,7 +2135,6 @@ class DFlowFMModel(MeshModel):
                                               pd.DataFrame(data={"global": [np.nan]}, index=[pd.to_datetime(tstop)])]
                                              ).resample(df_meteo.index[1] - df_meteo.index[0]).asfreq()
                 df_meteo["time"] = df_meteo.index
-                # TODO: error if type and unit mismatch
 
             else:
                 df_meteo = pd.DataFrame({"time":
@@ -2190,7 +2150,6 @@ class DFlowFMModel(MeshModel):
             meteo_type=meteo_type,
             meteo_unit=meteo_unit,
             meteo_location=meteo_location,
-            gdf_meteomask = gdf_meteomask,
             logger=self.logger,
         )
 
@@ -2507,29 +2466,26 @@ class DFlowFMModel(MeshModel):
         self,
         boundaries_fn: str = None,
         boundaries_timeseries_fn: str = None,
-        boundaries_geodataset_fn: str = None,
         boundary_value: float = 0.0,
         boundary_type: str = "waterlevel",
         boundary_unit: str = "m",
         tolerance: float = 3.0,
     ):
         """
-        Prepares the 2D boundaries from line geometry.
+        Prepares the 2D boundaries from line geometries.
 
         The values can either be a spatially-uniform constant using ``boundaries_fn`` and ``boundary_value`` (default),
-        or spatially-uniform timeseries read from ``boundaries_timeseries_fn`` (TODO: Not Implemented, check the example for meteo)
-        or spatially-varying timeseries read from ``boundaries_geodataset_fn`` (TODO: Not Implemented, check if hydromt support line geometry time series)
+        or spatially-varying timeseries using ``boundaries_fn`` and  ``boundaries_timeseries_fn``
         The ``boundary_type`` can either be "waterlevel" or "discharge".
 
-        If ``boundaries_timeseries_fn``  or ``boundaries_geodataset_fn`` has missing values,
-        the constant ``boundary_value`` will be used.
+        If ``boundaries_timeseries_fn`` has missing values, the constant ``boundary_value`` will be used.
 
         The dataset/timeseries are clipped to the model region (see below note), and model time based on the model config
         tstart and tstop entries.
 
         Note that:
         (1) Only line geometry that are contained within the distance of ``tolenrance`` to grid cells are allowed.
-        (2) Because of the above, this function must be called before the mesh refinement.
+        (2) Because of the above, this function must be called before the mesh refinement. #FIXME: check this after deciding on mesh refinement being a workflow or function
         (3) when using constant boundary, the output forcing will be written to time series with constant values.
 
         Adds/Updates model layers:
@@ -2539,21 +2495,11 @@ class DFlowFMModel(MeshModel):
         ----------
         boundaries_fn: str Path
             Path or data source name for line geometry file.
-            * Required variables if a combined time series data csv file: ['index'] with type int
+            * Required variables if a combined time series data csv file: ["boundary_id"] with type int
         boundaries_timeseries_fn: str, Path
             Path to tabulated timeseries csv file with time index in first column
-            and location index with type int in the first row,
-            see :py:meth:`hydromt.open_timeseries_from_table`, for details.
-            NOTE: Require equidistant time series
-        boundaries_geodataset_fn : str, Path
-            Path or data source name for geospatial point timeseries file.
-            This can either be a netcdf file with geospatial coordinates
-            or a combined point location file with a timeseries data csv file
-            which can be setup through the data_catalog yml file, see hydromt User Manual (https://deltares.github.io/hydromt/latest/_examples/prep_data_catalog.html#GeoDataset-from-vector-files)
-            * Required variables if netcdf: ['discharge', 'waterlevel'] depending on ``boundary_type``
-            * Required coordinates if netcdf: ['time', 'index', 'y', 'x']
-            * Required variables if a combined point location file: ['index'] with type int
-            * Required index types if a time series data csv file: int
+            and location index with type int in the first row, matching "boundary_id" in ``boundaries_fn`.
+            see :py:meth:`hydromt.get_dataframe`, for details.
             NOTE: Require equidistant time series
         boundary_value : float, optional
             Constant value to use for all boundaries, and to
@@ -2573,10 +2519,11 @@ class DFlowFMModel(MeshModel):
             Unit: in cell size units (i.e., not meters)
             By default, 3.0
 
-        Raises:
-        -------
-        NotImplementedError:
-            The use of boundaries_timeseries_fn and boundaries_geodataset_fn is not yet implemented.
+        Raises
+        ------
+        AssertionError
+            If "boundary_unit" is not in the allowed units or
+            if "boundary_id" in "boundaries_fn" does not match the columns of ``boundaries_timeseries_fm``.
 
         """
         self.logger.info(f"Preparing 2D boundaries.")
@@ -2596,7 +2543,7 @@ class DFlowFMModel(MeshModel):
 
         refdate, tstart, tstop = self.get_model_time()  # time slice
 
-        # 1. read constant boundaries
+        # 1. read boundary geometries
         if boundaries_fn is not None:
             gdf_bnd = self.data_catalog.get_geodataframe(
                 boundaries_fn,
@@ -2615,37 +2562,37 @@ class DFlowFMModel(MeshModel):
                 gdf_bnd["boundary_id"] = [
                     f"2dboundary_{i}" for i in range(len(gdf_bnd))
                 ]
+            else:
+                gdf_bnd["boundary_id"] = gdf_bnd["boundary_id"].astype(str)
         else:
             gdf_bnd = None
         # 2. read timeseries boundaries
         if boundaries_timeseries_fn is not None:
-            raise NotImplementedError(
-                "Does not support reading timeseries boundaries yet."
-            )
+            self.logger.info("reading timeseries boundaries")
+            df_bnd = self.data_catalog.get_dataframe(boundaries_timeseries_fn,
+                                                     time_tuple=(tstart, tstop)) # could not use open_geodataset due to line geometry
+            if gdf_bnd is not None:
+                # check if all boundary_id are in df_bnd
+                assert all(
+                    [
+                        bnd in df_bnd.columns
+                        for bnd in gdf_bnd["boundary_id"].unique()
+                    ]
+                ), "Not all boundary_id are in df_bnd"
         else:
-            df_bnd = pd.DataFrame(
-                {
-                    "time": pd.date_range(
+            # default timeseries
+            d_bnd = {bnd_id: np.nan for bnd_id in gdf_bnd["boundary_id"].unique()}
+            d_bnd.update({"time": pd.date_range(
                         start=pd.to_datetime(tstart),
                         end=pd.to_datetime(tstop),
                         freq="D",
-                    ),
-                    "global": np.nan,
-                }
-            )
-        # 3. read spatially varying timeseries boundaries
-        if boundaries_geodataset_fn is not None:
-            raise NotImplementedError(
-                "Does not support reading geodataset boundaries yet."
-            )
-        else:
-            da_bnd = None
+                    )})
+            df_bnd = pd.DataFrame(d_bnd).set_index("time")
 
         # 4. Derive DataArray with boundary values at boundary locations in boundaries_branch_type
-        da_out = workflows.compute_2dboundary_values(
+        da_out_dict = workflows.compute_2dboundary_values(
             boundaries=gdf_bnd,
-            da_bnd=da_bnd,
-            df_bnd=df_bnd,
+            df_bnd=df_bnd.reset_index(),
             boundary_value=boundary_value,
             boundary_type=boundary_type,
             boundary_unit=boundary_unit,
@@ -2653,7 +2600,8 @@ class DFlowFMModel(MeshModel):
         )
 
         # 5. set boundaries
-        self.set_forcing(da_out, name=f"boundary2d_{da_out.name}")
+        for da_out_name,da_out in da_out_dict.items():
+            self.set_forcing(da_out, name=f"boundary2d_{da_out_name}")
 
         # adjust parameters
         self.set_config("geometry.openboundarytolerance", tolerance)
@@ -2782,6 +2730,9 @@ class DFlowFMModel(MeshModel):
                         rm_dict[name] = fricname[0]
                     # Check if name in self._MAPS to update properties
                     if name in rm_dict:
+                        # update all keywords
+                        inidict.__dict__.pop("comments")
+                        self._MAPS[rm_dict[name]].update(inidict)
                         # Update default interpolation method
                         if inidict.interpolationmethod == "averaging":
                             self._MAPS[rm_dict[name]][
@@ -2827,19 +2778,19 @@ class DFlowFMModel(MeshModel):
                     "dataFile": f"../maps/{name}.tif",
                     "dataFileType": "GeoTIFF",
                     "interpolationMethod": interp_method,
-                    "operand": "O",
+                    "operand": da_dict.get("oprand", 'O'),
                     "locationType": locationtype,
                 }
-            else:  # averaging
+            else: 
                 inidict = {
                     "quantity": name,
                     "dataFile": f"../maps/{name}.tif",
                     "dataFileType": "GeoTIFF",
                     "interpolationMethod": "averaging",
+                    "operand": da_dict.get("oprand", 'O'),
                     "averagingType": interp_method,
-                    "operand": "O",
+                    "averagingRelSize": da_dict.get("averagingrelsize"),
                     "locationType": locationtype,
-                    "averagingRelSize": da_dict["averagingrelsize"],
                 }
             if type == "initial":
                 inilist.append(inidict)
@@ -2908,16 +2859,17 @@ class DFlowFMModel(MeshModel):
         self._assert_read_mode
         super().read_geoms(fn="geoms/region.geojson")
 
-        # Read cross-sections and friction
-        # Add crosssections properties, should be done before friction
-        # Branches are needed do derive locations, self.branches should start the read if not done yet
-        self.logger.info("Reading cross-sections files")
-        crosssections = utils.read_crosssections(self.branches, self.dfmmodel)
+        if self.dfmmodel.geometry.crosslocfile is not None:
+            # Read cross-sections and friction
+            # Add crosssections properties, should be done before friction
+            # Branches are needed do derive locations, self.branches should start the read if not done yet
+            self.logger.info("Reading cross-sections files")
+            crosssections = utils.read_crosssections(self.branches, self.dfmmodel)
 
-        # Add friction properties from roughness files
-        self.logger.info("Reading friction files")
-        crosssections = utils.read_friction(crosssections, self.dfmmodel)
-        self.set_geoms(crosssections, "crosssections")
+            # Add friction properties from roughness files
+            self.logger.info("Reading friction files")
+            crosssections = utils.read_friction(crosssections, self.dfmmodel)
+            self.set_geoms(crosssections, "crosssections")
 
         # Read manholes
         if self.dfmmodel.geometry.storagenodefile is not None:
@@ -2992,33 +2944,47 @@ class DFlowFMModel(MeshModel):
         # Read external forcing
         ext_model = self.dfmmodel.external_forcing.extforcefilenew
         if ext_model is not None:
-            # read boundary blocks #FIXME: there might be better options
-            df_ext = pd.DataFrame([f.__dict__ for f in ext_model.boundary])
-            # 1d boundary
-            df_ext_1d = df_ext.loc[~df_ext.nodeid.isna(), :]
-            if len(df_ext_1d) > 0:
-                # Forcing data arrays to prepare for each quantity
-                forcing_names = np.unique(df_ext_1d.quantity).tolist()
+            # boundary
+            if len(ext_model.boundary) > 0:
+                df_ext = pd.DataFrame([f.__dict__ for f in ext_model.boundary])
+                # 1d boundary
+                df_ext_1d = df_ext.loc[~df_ext.nodeid.isna(), :]
+                if len(df_ext_1d) > 0:
+                    # Forcing data arrays to prepare for each quantity
+                    forcing_names = np.unique(df_ext_1d.quantity).tolist()
+                    # Loop over forcing names to build data arrays
+                    for name in forcing_names:
+                        # Get the dataframe corresponding to the current variable
+                        df = df_ext_1d[df_ext_1d.quantity == name]
+                        # Get the corresponding nodes gdf
+                        node_geoms = self.network1d_nodes[
+                            np.isin(self.network1d_nodes["nodeId"], df.nodeid.values)
+                        ]
+                        da_out = utils.read_1dboundary(df, quantity=name, nodes=node_geoms)
+                        # Add to forcing
+                        self.set_forcing(da_out)
+                # 2d boundary
+                df_ext_2d = df_ext.loc[df_ext.nodeid.isna(), :]
+                if len(df_ext_2d) > 0:
+                    for _, df in df_ext_2d.iterrows():
+                        da_out = utils.read_2dboundary(
+                            df, workdir=self.dfmmodel.filepath.parent
+                        )
+                        # Add to forcing
+                        self.set_forcing(da_out)
+            # meteo
+            if len(ext_model.meteo) > 0:
+                df_ext = pd.DataFrame([f.__dict__ for f in ext_model.meteo])
+                # Forcing dataarrays to prepare for each quantity
+                forcing_names = np.unique(df_ext.quantity).tolist()
                 # Loop over forcing names to build data arrays
                 for name in forcing_names:
                     # Get the dataframe corresponding to the current variable
-                    df = df_ext_1d[df_ext_1d.quantity == name]
-                    # Get the corresponding nodes gdf
-                    node_geoms = self.network1d_nodes[
-                        np.isin(self.network1d_nodes["nodeId"], df.nodeid.values)
-                    ]
-                    da_out = utils.read_1dboundary(df, quantity=name, nodes=node_geoms)
+                    df = df_ext[df_ext.quantity == name]
+                    da_out = utils.read_meteo(df, quantity=name)
                     # Add to forcing
                     self.set_forcing(da_out)
-            # 2d boundary
-            df_ext_2d = df_ext.loc[df_ext.nodeid.isna(), :]
-            if len(df_ext_2d) > 0:
-                for _, df in df_ext_2d.iterrows():
-                    da_out = utils.read_2dboundary(
-                        df, workdir=self.dfmmodel.filepath.parent
-                    )
-                    # Add to forcing
-                    self.set_forcing(da_out)
+            # TODO lateral
 
     def write_forcing(self) -> None:
         """write forcing into hydrolib-core ext and forcing models"""
@@ -3630,12 +3596,15 @@ class DFlowFMModel(MeshModel):
             crosssections = gpd.GeoDataFrame(
                 pd.concat([self.crosssections, crosssections]), crs=self.crs
             )
-            # drop duplicated, keep the first one
-            crosssections["temp_id"] = crosssections.apply(lambda x:f'{x["crsloc_branchId"]}_{x["crsloc_chainage"]:.2f}', axis = 1)
-            if crosssections["temp_id"].duplicated().any():
-                logger.warning(f"Duplicate crosssections found, removing duplicates")
+            # drop duplicated locations, keep the first one
+            _crosssections_locations = crosssections[~crosssections.crsloc_id.isna()]
+            _crosssections_definitions = crosssections[crosssections.crsloc_id.isna()] # retain crs defs for nan locations - structures
+            _crosssections_locations["temp_id"] = _crosssections_locations.apply(lambda x:f'{x["crsloc_branchId"]}_{x["crsloc_chainage"]:.2f}', axis = 1)
+            if _crosssections_locations["temp_id"].duplicated().any():
+                logger.warning(f"Duplicate crosssections locations found, removing duplicates")
                 # Remove duplicates based on the branch_id, branch_offset column, keeping the first occurrence (with minimum branch_distance)
-                crosssections = crosssections.drop_duplicates(subset=["temp_id"], keep='first')
+                _crosssections_locations = _crosssections_locations.drop_duplicates(subset=["temp_id"], keep='first')
+            crosssections = pd.concat([_crosssections_locations, _crosssections_definitions])
             # remove existing generated branch crosssections
             crossections_branch = crosssections[crosssections.crsdef_id.str.endswith("_branch")]
             crossections_others = crosssections[~crosssections.crsdef_id.str.endswith("_branch")]
@@ -3749,3 +3718,18 @@ class DFlowFMModel(MeshModel):
         Returns the network (hydrolib-core Network object) representing the entire network file.
         """
         return self.dfmmodel.geometry.netfile.network
+    
+    @property
+    def _model_has_2d(self):
+        if not self.mesh2d.is_empty():
+            return True
+        else:
+            return False
+        
+    @property
+    def _model_has_1d(self):
+        if not self.mesh1d.is_empty():
+            return True
+        else:
+            return False
+        

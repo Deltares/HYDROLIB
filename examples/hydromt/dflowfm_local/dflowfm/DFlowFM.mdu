@@ -188,7 +188,7 @@ restartDateTime =  # Restart time [YYYYMMDDHHMMSS], only relevant in case of res
 [External Forcing]
 extForceFile    =         # Old format for external forcings file *.ext, link with tim/cmp-format boundary conditions specification.
 extForceFileNew = bnd.ext # New format for external forcings file *.ext, link with bcformat boundary conditions specification.
-rainfall        =         # Include rainfall, (0=no, 1=yes).
+rainfall        = 1       # Include rainfall, (0=no, 1=yes).
 qExt            =         # Include user Qin/out, externally provided, (0=no, 1=yes).
 evaporation     =         # Include evaporation in water balance, (0=no, 1=yes).
 windExt         =         # Include wind, externally provided, (0=no, 1=reserved for EC, 2=yes).

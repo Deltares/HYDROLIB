@@ -252,21 +252,14 @@ def cleanup_branches(
     branches = branches.loc[~branches.geometry.isna(), :]
 
     # explode multiline string
-    n = 0
-    for branch_index, branch in branches.iterrows():
-        if branch.geometry.type != "LineString":
-            branches.at[branch_index, "geometry"] = LineString(
-                [p[:2] for l in branch.geometry for p in l.coords] #simply line geometry by removing Z coodinates
-            )
-        elif len(branch.geometry.coords[:][0]) >2:
-            branches.at[branch_index, "geometry"] = LineString(
-                [p[:2] for p in branch.geometry .coords]  # simply line geometry by removing Z coodinates
-            )
-            n += 1
-    logger.debug(f"Exploding {n} branches which have multipline geometry.")
+    _branches = branches.explode()
+    #3 remove z coordinates
+    _branches["geometry"] = _branches["geometry"].apply(lambda x: LineString(
+                [p[:2] for p in x.coords]  # simply line geometry by removing Z coodinates
+            ))
+    logger.debug(f"Exploding branches.")
 
     # remove duplicated geometry
-    _branches = branches.copy()
     G = _branches["geometry"].apply(lambda geom: geom.wkb)
     n = len(G) - len(G.drop_duplicates().index)
     branches = _branches[_branches.index.isin(G.drop_duplicates().index)]
