@@ -1603,7 +1603,7 @@ class DFlowFMModel(MeshModel):
     ):
         """Generate 1d2d links that link mesh1d and mesh2d according UGRID conventions.
 
-        1d2d links are added to allow water exchange between 1d and 2d for a 1d2d model.
+        1d2d links are added to allow water exchange between 1d and 2d for an 1d2d model.
         They can only be added if both mesh1d and mesh2d are present. By default, 1d_to_2d links are generated for the entire mesh1d except boundary locations.
         When ''polygon_fn'' is specified, only links within the polygon will be added.
         When ''branch_type'' is specified, only 1d branches matching the specified type will be used for generating 1d2d link.
@@ -1615,15 +1615,17 @@ class DFlowFMModel(MeshModel):
             Direction of the links: ["1d_to_2d", "2d_to_1d"].
             Default to 1d_to_2d.
         link_type : str, optional
-            Type of the links to be generated: ["embedded", "lateral"]. only used when ''link_direction'' = '2d_to_1d'.
+            Type of the links to be generated: ["embedded", "lateral"]. Only used when ''link_direction'' = '2d_to_1d'.
             Default to None.
         polygon_fn: str Path, optional
-             Source name of raster data in data_catalog.
+             Source name of polygon data in data_catalog.
+             Area within 1D2D links are generated.
              Default to None.
         branch_type: str, Optional
              Type of branch to be used for 1d: ["river","pipe","channel", "tunnel"].
-             When ''branch_type'' = "pipe" or "tunnel" are specified, 1d2d links will also be generated at boundary locations.
-             Default to None. Add 1d2d links for the all branches at non-boundary locations.
+             When ''branch_type'' = "pipe" or "tunnel" are specified, 1d2d links will also be generated at end nodes.
+             This is not yet implemented.
+             Default to None. Add 1d2d links for the all branches at non-end node locations.
         max_length : Union[float, None], optional
              Max allowed edge length for generated links.
              Only used when ''link_direction'' = '2d_to_1d'  and ''link_type'' = 'lateral'.
@@ -1631,7 +1633,7 @@ class DFlowFMModel(MeshModel):
         dist_factor : Union[float, None], optional:
              Factor to determine which links are kept.
              Only used when ''link_direction'' = '2d_to_1d'  and ''link_type'' = 'lateral'.
-             Defaults to 2.0. Links with an intersection distance larger than 2 times the center to edge distance of the cell, are removed.
+             Defaults to 2.0. Links with an intersection distance larger than 2 (dist_factor) times the center to edge distance of the cell, are removed.
 
          See Also
          ----------
@@ -1653,7 +1655,7 @@ class DFlowFMModel(MeshModel):
 
         # check input
         if polygon_fn is not None:
-            within = self.data_catalog.get_geodataframe(polygon_fn).gemetry
+            within = self.data_catalog.get_geodataframe(polygon_fn).geometry
             self.logger.info(f"adding 1d2d links only within polygon {polygon_fn}")
         else:
             within = None
@@ -1670,7 +1672,7 @@ class DFlowFMModel(MeshModel):
         # setup 1d2d links
         if link_direction == "1d_to_2d":
             self.logger.info("setting up 1d_to_2d links.")
-            # recompute max_length based on the diagnal distance of the max mesh area
+            # recompute max_length based on the diagonal distance of the max mesh area
             max_length = np.sqrt(self._mesh.ugrid.to_geodataframe().area.max()) * np.sqrt(2)
             mesh.links1d2d_add_links_1d_to_2d(
                 self.network, branchids=branchids, within=within, max_length=max_length)
@@ -2893,7 +2895,7 @@ class DFlowFMModel(MeshModel):
     @property
     def link1d2d(self):
         """
-        Returns the link1d2d (hydrolib-core Link1d2d object) representing the 1d2d link.
+        Returns the link1d2d (hydrolib-core Link1d2d object) representing the 1d2d links.
         """
         return self.dfmmodel.geometry.netfile.network._link1d2d
 
