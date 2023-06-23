@@ -1,0 +1,3 @@
+structure_type,allowedflowdir,shape,diameter,width,t_width,height,closed,leftlevel,rightlevel,length,valveonoff,valveopeningheight,numlosscoeff,relopening,losscoeff,friction_type,friction_value,inletlosscoeff,outletlosscoeff
+culvert,both,circle,1,,,,yes,0,0,1,0,,,,,Manning,0.012,0.2,0.2
+# leftlevel is the upstream level, rightlevel is the downstream level.

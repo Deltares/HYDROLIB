@@ -1,0 +1,7 @@
+{
+"type": "FeatureCollection",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
+"features": [
+{ "type": "Feature", "properties": { "branchid": "branch_13", "type": "culvert", "leftlevel": 2.56, "numlosscoeff": null, "length": 1.0, "losscoeff": null, "valveopeningheight": null, "inletlosscoeff": 0.2, "allowedflowdir": "positive", "id": "culvert_1", "bedfrictiontype": "Manning", "bedfriction": 0.012, "rightlevel": 2.5, "csdefid": "rect_h1.500_w1.500_cyes_point", "outletlosscoeff": 0.2, "relopening": null, "valveonoff": 0.0, "chainage": 331.832 }, "geometry": { "type": "Point", "coordinates": [ 665186.754018069244921, 1525896.07843215460889 ] } }
+]
+}

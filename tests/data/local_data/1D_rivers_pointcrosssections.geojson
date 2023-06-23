@@ -3,6 +3,6 @@
 "name": "1D_rivers_pointcrosssections",
 "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32647" } },
 "features": [
-{ "type": "Feature", "properties": { "id": 1, "TYPE": "rectangle", "WIDTH": 50.0, "HEIGHT": 10.0, "BEDLEVEL": -10.0, "closed": "0" }, "geometry": { "type": "Point", "coordinates": [ 664218.294187036110088, 1526836.218842534581199 ] } }
+{ "type": "Feature", "properties": { "id": 1, "TYPE": "rectangle", "WIDTH": 50.0, "HEIGHT": 10.0, "BEDLEVEL": -10.0, "closed": "0" }, "geometry": { "type": "Point", "coordinates": [ 664224.816234820173122, 1526639.322860097046942 ] } }
 ]
 }

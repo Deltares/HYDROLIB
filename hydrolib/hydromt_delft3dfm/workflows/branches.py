@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "process_branches",
     "validate_branches",
+    "find_nearest_branch",
     "update_data_columns_attributes",
     "update_data_columns_attribute_from_query",
     "snap_newbranches_to_branches_at_snapnodes",
@@ -221,6 +222,7 @@ def cleanup_branches(
     """Clean up the branches by:
     * Removing null geomtry
     * Exploding branches with multiline strings
+    * simply line geometry by removing Z coordinates
     * Removing branches with duplicated geometry
     * Removing branches that are shorter than 0.1 meters
     * Renaming branches with duplicate IDs
@@ -250,17 +252,14 @@ def cleanup_branches(
     branches = branches.loc[~branches.geometry.isna(), :]
 
     # explode multiline string
-    n = 0
-    for branch_index, branch in branches.iterrows():
-        if branch.geometry.type != "LineString":
-            branches.at[branch_index, "geometry"] = LineString(
-                [p for l in branch.geometry for p in l.coords]
-            )
-            n += 1
-    logger.debug(f"Exploding {n} branches which have multipline geometry.")
+    _branches = branches.explode()
+    #3 remove z coordinates
+    _branches["geometry"] = _branches["geometry"].apply(lambda x: LineString(
+                [p[:2] for p in x.coords]  # simply line geometry by removing Z coodinates
+            ))
+    logger.debug(f"Exploding branches.")
 
     # remove duplicated geometry
-    _branches = branches.copy()
     G = _branches["geometry"].apply(lambda geom: geom.wkb)
     n = len(G) - len(G.drop_duplicates().index)
     branches = _branches[_branches.index.isin(G.drop_duplicates().index)]
@@ -807,6 +806,7 @@ def possibly_intersecting(
 
 
 # TODO copied from dhydamo geometry.py, update when available in main
+# NOTE add option to write distance to nearest branch
 def find_nearest_branch(
     branches: gpd.GeoDataFrame,
     geometries: gpd.GeoDataFrame,
@@ -894,6 +894,7 @@ def find_nearest_branch(
             if dist.min() < maxdist:
                 branchidxmin = dist.idxmin()
                 geometries.at[geometry.Index, "branch_id"] = dist.idxmin()
+                geometries.at[geometry.Index, "branch_distance"] = dist.min()
                 if isinstance(geometry.geometry, Point):
                     geo = geometry.geometry
                 else:
@@ -992,3 +993,4 @@ def _remove_branches_with_ring_geometries(
     logger.debug("Removing branches with ring geometries.")
 
     return branches
+

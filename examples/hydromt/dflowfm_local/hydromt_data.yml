@@ -3,27 +3,21 @@
   data_type: GeoDataset
   driver: vector
   kwargs:
-    fn_data: c:\Developments\HYDROLIB\tests\data\local_data\boundaries_series.csv
-  path: c:\Developments\HYDROLIB\tests\data\local_data\boundaries.geojson
-1D_pipes:
+    fn_data: C:\Developments\HYDROLIB\tests\data\local_data\boundaries_series.csv
+  path: C:\Developments\HYDROLIB\tests\data\local_data\boundaries.geojson
+1D_branches:
   crs: 32647
   data_type: GeoDataFrame
   driver: vector
-  path: c:\Developments\HYDROLIB\tests\data\local_data\1D_rivers.geojson
-  rename: &id001
+  path: C:\Developments\HYDROLIB\tests\data\local_data\1D_rivers.geojson
+  rename:
     BRANCH_ID: branchId
     BR_TYPE: branchType
-1D_rivers:
-  crs: 32647
-  data_type: GeoDataFrame
-  driver: vector
-  path: c:\Developments\HYDROLIB\tests\data\local_data\1D_rivers.geojson
-  rename: *id001
 1D_rivers_pointcrosssections:
   crs: 32647
   data_type: GeoDataFrame
   driver: vector
-  path: c:\Developments\HYDROLIB\tests\data\local_data\1D_rivers_pointcrosssections.geojson
+  path: C:\Developments\HYDROLIB\tests\data\local_data\1D_rivers_pointcrosssections.geojson
   rename:
     BEDLEVEL: shift
     HEIGHT: height
@@ -34,20 +28,79 @@
   crs: 32647
   data_type: GeoDataFrame
   driver: vector
-  path: c:\Developments\HYDROLIB\tests\data\local_data\1D_rivers_xyzcrosssections.geojson
+  path: C:\Developments\HYDROLIB\tests\data\local_data\1D_rivers_xyzcrosssections.geojson
   rename:
     CRS_ID: crsId
     ORDER: order
     Z: z
+1d_bridges:
+  crs: 32647
+  data_type: GeoDataFrame
+  driver: vector
+  path: C:\Developments\HYDROLIB\tests\data\local_data\bridges.geojson
+  rename:
+    BEDLEV: shift
+    CLOSED: closed
+    FLOW_DIR: allowedflowdir
+    HEIGHT: height
+    IN_LOSS: inletlosscoeff
+    LENGTH: length
+    OUT_LOSS: outletlosscoeff
+    SHAPE: shape
+    STRUC_ID: structure_id
+    STRUC_TYPE: structure_type
+    WIDTH: width
+1d_culverts:
+  crs: 32647
+  data_type: GeoDataFrame
+  driver: vector
+  path: C:\Developments\HYDROLIB\tests\data\local_data\culverts.geojson
+  rename:
+    CLOSED: closed
+    FLOW_DIR: allowedflowdir
+    HEIGHT: height
+    INVLEV_DN: rightlevel
+    INVLEV_UP: leftlevel
+    SHAPE: shape
+    STRUC_ID: structure_id
+    STRUC_TYPE: structure_type
+    WIDTH: width
 1d_manholes:
   crs: 32647
   data_type: GeoDataFrame
   driver: vector
-  path: c:\Developments\HYDROLIB\tests\data\local_data\manholes.geojson
+  path: C:\Developments\HYDROLIB\tests\data\local_data\manholes.geojson
   rename:
     AREA: area
     ID: manholeId
     STR_AREA: streetArea
+2D_boundary:
+  crs: 32647
+  data_type: GeoDataFrame
+  driver: vector
+  meta:
+    notes: created by buffer the extent by aqrt(2) * res. Must contain boundary_id
+      if timeseries is specified
+  path: C:\Developments\HYDROLIB\tests\data\local_data\2d_boundary.geojson
+2D_boundary_timeseries:
+  data_type: DataFrame
+  driver: csv
+  kwargs:
+    dayfirst: true
+    index_col: time
+    parse_dates: true
+  meta:
+    notes: time series data for the 2D boundary, must contain time as index and boundary_id
+      as columns
+  path: C:\Developments\HYDROLIB\tests\data\local_data\2dboundaries_series.csv
+bridges_defaults:
+  data_type: DataFrame
+  driver: csv
+  path: c:\Developments\HYDROLIB\hydrolib\hydromt_delft3dfm\data\bridges\bridges_defaults.csv
+culverts_defaults:
+  data_type: DataFrame
+  driver: csv
+  path: c:\Developments\HYDROLIB\hydrolib\hydromt_delft3dfm\data\culverts\culverts_defaults.csv
 dem:
   crs: 32647
   data_type: RasterDataset
@@ -55,9 +108,20 @@ dem:
   meta:
     category: dem
     history: temporary dem within model extent
-  path: c:\Developments\HYDROLIB\tests\data\local_data\dem.tif
+  path: C:\Developments\HYDROLIB\tests\data\local_data\dem.tif
   rename:
     dem: elevtn
+meteo_timeseries_T2:
+  data_type: DataFrame
+  driver: csv
+  kwargs:
+    index_col: 0
+    parse_dates: true
+  meta:
+    unit: mm day-1
+  path: C:\Developments\HYDROLIB\tests\data\local_data\rainfall_series.csv
+  rename:
+    T2_mm/day: precip
 pipes_defaults:
   data_type: DataFrame
   driver: csv
