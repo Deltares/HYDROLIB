@@ -86,6 +86,7 @@
   data_type: DataFrame
   driver: csv
   kwargs:
+    dayfirst: true
     index_col: time
     parse_dates: true
   meta:
@@ -115,13 +116,12 @@ meteo_timeseries_T2:
   driver: csv
   kwargs:
     index_col: 0
-    infer_datetime_format: true
     parse_dates: true
   meta:
     unit: mm day-1
   path: C:\Developments\HYDROLIB\tests\data\local_data\rainfall_series.csv
   rename:
-    T2_mm/day: global
+    T2_mm/day: precip
 pipes_defaults:
   data_type: DataFrame
   driver: csv

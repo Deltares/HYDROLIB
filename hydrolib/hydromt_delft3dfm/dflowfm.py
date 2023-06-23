@@ -15,13 +15,18 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import xugrid as xu
-from hydromt.models import MeshModel
+import meshkernel as mk
 from pyproj import CRS
-from shapely.geometry import LineString, box
+from hydromt.models import MeshModel
+from shapely.geometry import box, LineString
+from datetime import datetime, timedelta
+from meshkernel import MeshKernel
 
 from hydrolib.core.dflowfm import FMModel, IniFieldModel, Mesh1d, Network
 from hydrolib.core.dimr import DIMR, FMComponent, Start
 from hydrolib.dhydamo.geometry import mesh
+from meshkernel import GeometryList
+
 
 from . import DATADIR, utils, workflows
 
@@ -883,6 +888,12 @@ class DFlowFMModel(MeshModel):
         _overwrite_branchorder = self.crosssections[self.crosssections["crsdef_type"].str.contains("yz")]["crsdef_branchId"].tolist()
         if len(_overwrite_branchorder) > 0:
             rivers.loc[rivers["branchId"].isin(_overwrite_branchorder), "branchOrder"] = -1
+
+            # for crossection type yz or xyz, always use branchOrder = -1, because no interpolation can be applied.
+            # TODO: change to lower case is needed
+            _overwrite_branchorder = self.crosssections[self.crosssections["crsdef_type"].str.contains("yz")]["crsdef_branchId"].tolist()
+            if len(_overwrite_branchorder) > 0:
+                rivers.loc[rivers["branchId"].isin(_overwrite_branchorder), "branchOrder"] = -1
 
         # setup geoms
         self.logger.debug(f"Adding rivers and river_nodes vector to geoms.")
@@ -1940,7 +1951,7 @@ class DFlowFMModel(MeshModel):
     ):
         """Generate 1d2d links that link mesh1d and mesh2d according UGRID conventions.
 
-        1d2d links are added to allow water exchange between 1d and 2d for a 1d2d model.
+        1d2d links are added to allow water exchange between 1d and 2d for an 1d2d model.
         They can only be added if both mesh1d and mesh2d are present. By default, 1d_to_2d links are generated for the entire mesh1d except boundary locations.
         When ''polygon_fn'' is specified, only links within the polygon will be added.
         When ''branch_type'' is specified, only 1d branches matching the specified type will be used for generating 1d2d link.
@@ -1952,15 +1963,17 @@ class DFlowFMModel(MeshModel):
             Direction of the links: ["1d_to_2d", "2d_to_1d"].
             Default to 1d_to_2d.
         link_type : str, optional
-            Type of the links to be generated: ["embedded", "lateral"]. only used when ''link_direction'' = '2d_to_1d'.
+            Type of the links to be generated: ["embedded", "lateral"]. Only used when ''link_direction'' = '2d_to_1d'.
             Default to None.
         polygon_fn: str Path, optional
-             Source name of raster data in data_catalog.
+             Source name of polygon data in data_catalog.
+             Area within 1D2D links are generated.
              Default to None.
         branch_type: str, Optional
              Type of branch to be used for 1d: ["river","pipe","channel", "tunnel"].
-             When ''branch_type'' = "pipe" or "tunnel" are specified, 1d2d links will also be generated at boundary locations.
-             Default to None. Add 1d2d links for the all branches at non-boundary locations.
+             When ''branch_type'' = "pipe" or "tunnel" are specified, 1d2d links will also be generated at end nodes.
+             This is not yet implemented.
+             Default to None. Add 1d2d links for the all branches at non-end node locations.
         max_length : Union[float, None], optional
              Max allowed edge length for generated links.
              Only used when ''link_direction'' = '2d_to_1d'  and ''link_type'' = 'lateral'.
@@ -1968,7 +1981,7 @@ class DFlowFMModel(MeshModel):
         dist_factor : Union[float, None], optional:
              Factor to determine which links are kept.
              Only used when ''link_direction'' = '2d_to_1d'  and ''link_type'' = 'lateral'.
-             Defaults to 2.0. Links with an intersection distance larger than 2 times the center to edge distance of the cell, are removed.
+             Defaults to 2.0. Links with an intersection distance larger than 2 (dist_factor) times the center to edge distance of the cell, are removed.
 
          See Also
          ----------
@@ -1990,7 +2003,7 @@ class DFlowFMModel(MeshModel):
 
         # check input
         if polygon_fn is not None:
-            within = self.data_catalog.get_geodataframe(polygon_fn).gemetry
+            within = self.data_catalog.get_geodataframe(polygon_fn).geometry
             self.logger.info(f"adding 1d2d links only within polygon {polygon_fn}")
         else:
             within = None
@@ -2007,7 +2020,7 @@ class DFlowFMModel(MeshModel):
         # setup 1d2d links
         if link_direction == "1d_to_2d":
             self.logger.info("setting up 1d_to_2d links.")
-            # recompute max_length based on the diagnal distance of the max mesh area
+            # recompute max_length based on the diagonal distance of the max mesh area
             max_length = np.sqrt(self._mesh.ugrid.to_geodataframe().area.max()) * np.sqrt(2)
             mesh.links1d2d_add_links_1d_to_2d(
                 self.network, branchids=branchids, within=within, max_length=max_length)
@@ -2037,113 +2050,127 @@ class DFlowFMModel(MeshModel):
 
     # TODO: Create link1d2d mesh in xu Ugrid
 
+    # FIXME: use the below function as a workflow in setup_mesh2d would be better - to be discussed
+    def setup_mesh2d_refine(self,
+                            polygon_fn: Optional[str] = None,
+                            sample_fn: Optional[str] = None,
+                            steps: Optional[int] = None,
+                            ):
+        """Refine the 2d mesh within the geometry based on polygon `polygon_fn` or raster samples `sample_fn`.
+        The number of refinement is defined by `steps` if `polygon_fn` is used.
 
-    def setup_rainfall_from_constant(
-        self,
-        constant_value: float,
-    ):
-        """
-        Prepares constant daily rainfall_rate timeseries for the 2D grid based on ``constant_value``.
-
-        Adds/Updates model layers:
-            * **meteo_{meteo_type}** forcing: DataArray
-        
-        Parameters
-        ----------
-        constant_value: float
-            Constant value for the rainfall_rate timeseries in mm/day.
-        """
-        self.logger.info(f"Preparing rainfall meteo forcing from uniform timeseries.")
-
-        refdate, tstart, tstop = self.get_model_time()  # time slice
-        meteo_location = (self.region.centroid.x, self.region.centroid.y) # global station location
-
-        df_meteo = pd.DataFrame({
-            "time": pd.date_range(start=pd.to_datetime(tstart), end = pd.to_datetime(tstop), freq='D'),
-            "precip": constant_value,
-        })
-
-        # 3. Derive DataArray with meteo values
-        da_out = workflows.compute_meteo_forcings(
-            df_meteo = df_meteo,
-            fill_value=constant_value,
-            is_rate=True,
-            meteo_location=meteo_location,
-            logger=self.logger,
-        )
-
-        # 4. set meteo forcing
-        self.set_forcing(da_out, name=f"meteo_{da_out.name}")
-        
-        # 5. set meteo in mdu
-        self.set_config("external_forcing.rainfall", 1)
-    
-    def setup_rainfall_from_uniform_timeseries(
-        self,
-        meteo_timeseries_fn: Union[str, Path],
-        fill_value: float = 0.,
-        is_rate: bool = True,
-    ):
-        """
-        Prepares spatially uniform rainfall forcings to 2d grid using timeseries from ``meteo_timeseries_fn``.
-        For now only support global  (spatially uniform) timeseries.
-
-        If ``meteo_timeseries_fn`` has missing values, the constant ``fill_value`` will be used, e.g. 0.
-
-        The dataset/timeseries are clipped to the model time based on the model config
-        tstart and tstop entries.
+        Note that this function can only be applied on an existing regular rectangle 2d mesh.
+        # FIXME: how to identify if the mesh is uniform rectangle 2d mesh? regular irregular?
 
         Adds/Updates model layers:
-            * **meteo_{meteo_type}** forcing: DataArray
+
+        * **2D mesh** geom: By any changes in 2D grid
+        * **1D2D links** geom: By any changes in 2D grid #TODO: check if this is needed, possible to issue an error if 1d2d links are present
 
         Parameters
         ----------
-        meteo_timeseries_fn: str, Path
-            Path or data source name to tabulated timeseries csv file with time index in first column.
-            
-            * Required variables : ['precip']
-            
-            see :py:meth:`hydromt.get_dataframe`, for details.
-            NOTE: Require equidistant time series
-        fill_value : float, optional
-            Constant value to use to fill in missing data. By default 0. 
-        is_rate : bool, optional
-            Specify if the type of meteo data is direct "rainfall" (False) or "rainfall_rate" (True).
-            By default True for "rainfall_rate". Note that Delft3DFM 1D2D Suite 2022.04 supports only "rainfall_rate".
-            If rate, unit is expected to be in mm/day and else mm.
+        polygon_fn : str Path, optional
+            Path to a polygon or MultiPolygon used to refine the 2D mesh
+        sample_fn  : str Path, optional
+            Path to a raster sample file used to refine the 2D mesh.
+            The value of each sample point is the number of steps to refine the mesh. Allow only single values.
+            The resolution of the raster should be the same as the desired end result resolution.
+
+            * Required variable: ['steps']
+        steps : int, optional
+            Number of steps in the refinement when `polygon_fn' is used.
+            By default 1, i.e. no refinement is applied.
 
         """
-        self.logger.info(f"Preparing rainfall meteo forcing from uniform timeseries.")
 
-        refdate, tstart, tstop = self.get_model_time()  # time slice
-        meteo_location = (self.region.centroid.x, self.region.centroid.y) # global station location
+        if self.mesh2d is None:
+            logger.error("2d mesh is not available.")
+            return
 
-        # get meteo timeseries
-        df_meteo = self.data_catalog.get_dataframe(
-            meteo_timeseries_fn,
-            variables = ["precip"],
-            time_tuple=(tstart, tstop))
-        # error if time mismatch or wrong parsing of dates
-        if np.dtype(df_meteo.index).type != np.datetime64:
-            raise ValueError(
-                "Dates in meteo_timeseries_fn were not parsed correctly. "
-                "Update the source kwargs in the DataCatalog based on the driver function arguments (eg pandas.read_csv for csv driver).")
-        df_meteo["time"] = df_meteo.index
+        if polygon_fn is not None and steps is not None:
+            self.logger.info(f"reading geometry from file {polygon_fn}. ")
+            # read
+            gdf = self.data_catalog.get_geodataframe(
+                polygon_fn, geom=self.region, buffer=0, predicate="contains"
+            )
+            # reproject
+            if gdf.crs != self.crs:
+                gdf = gdf.to_crs(self.crs)
+            # refine
+            _old_size = len(self.mesh2d.mesh2d_face_x)
+            
+            # Create a list of coordinate lists
+            polygon = gdf.geometry.unary_union
+            cls = GeometryList()
+            # Add exterior
+            x_ext, y_ext = np.array(polygon.exterior.coords[:]).T
+            x_crds = [x_ext]
+            y_crds = [y_ext]
+            # Add interiors, seperated by inner_outer_separator
+            for interior in polygon.interiors:
+                x_int, y_int = np.array(interior.coords[:]).T
+                x_crds.append([cls.inner_outer_separator])
+                x_crds.append(x_int)
+                y_crds.append([cls.inner_outer_separator])
+                y_crds.append(y_int)
+            gl = GeometryList(
+                x_coordinates=np.concatenate(x_crds), y_coordinates=np.concatenate(y_crds)
+            )
+            self.network.mesh2d_refine(gl, steps)
+            _new_size = len(self.mesh2d.mesh2d_face_x)
+            # log
+            if _new_size != _old_size:
+                logger.info(f"2d mesh refined within polygon. Number of faces before: {_old_size} and after: {_new_size}")
+            else:
+                logger.warning("2d mesh unrefined.")
+            # update res # FIXME: might not be the best solution
+            self._res = self._res/2**steps
 
-        # 3. Derive DataArray with meteo values
-        da_out = workflows.compute_meteo_forcings(
-            df_meteo = df_meteo,
-            fill_value=fill_value,
-            is_rate=is_rate,
-            meteo_location=meteo_location,
-            logger=self.logger,
-        )
-
-        # 4. set meteo forcing
-        self.set_forcing(da_out, name=f"meteo_{da_out.name}")
-        
-        # 5. set meteo in mdu
-        self.set_config("external_forcing.rainfall", 1)
+        elif sample_fn is not None:
+            self.logger.info(f"reading samples from file {sample_fn}. ")
+            # read
+            da = self.data_catalog.get_rasterdataset(
+                sample_fn, geom=self.region, buffer=0, predicate="contains", variables=["steps"], single_var_as_array=True,
+            ).astype(np.float64) # float64 is needed by mesh kernel to convert into c double
+            # reproject
+            if da.raster.crs != self.crs:
+                self.logger.warning(f"Sample grid has a different resolution than model. Reprojecting with nearest but some information might be lost.")
+                da = da.raster.reproject(self.crs, method="nearest")
+            # get sample point
+            xv, yv = np.meshgrid(da.x.values, da.y.values)
+            zv = da.values
+            mask = zv > 0
+            samples = GeometryList(xv[mask].flatten(), yv[mask].flatten(), zv[mask].flatten())
+            # get steps
+            steps = int(zv.max())
+            # refine using mesh kernel
+            _old_size = len(self.mesh2d.mesh2d_face_x)
+            # refine parameters
+            parameters = mk.MeshRefinementParameters(
+                refinement_type= 2,                 # Enumerator describing the different refinement types (WaveCourant = 1, RefinementLevels = 2)
+                max_refinement_iterations= steps, # Maximum number of refinement iterations, set to 1 if only one refinement is wanted (default 10)
+                min_face_size= self.res / 2 ** steps,  # calculate - Minimum cell size
+                account_for_samples_outside_face=False,  # default, not useful - Take samples outside face into account , 1 yes 0 no
+                connect_hanging_nodes=True,  # default, not useful - Connect hanging nodes at the end of the iteration, 1 yes or 0 no
+                refine_intersected=False,  # default, not useful - Whether to compute faces intersected by polygon (yes=1/no=0)
+                use_mass_center_when_refining=False,  # default, not useful - Whether to use the mass center when splitting a face in the refinement process (yes=1/no=0)
+            )
+            # refine assuming sample spacing is the same as end result resolution (hence relative_search_radius=1, minimum_num_samples=1 )
+            self.mesh2d.meshkernel.mesh2d_refine_based_on_samples(samples,
+                                                       relative_search_radius=1,
+                                                       minimum_num_samples=1,
+                                                       mesh_refinement_params=parameters)
+            self.set_mesh2d(self.mesh2d.meshkernel.mesh2d_get()) # because the resulting mesh2d is only stored in the meshkernel object
+            _new_size = len(self.mesh2d.mesh2d_face_x)
+            # log
+            if _new_size != _old_size:
+                logger.info(f"2d mesh refined based on samples. Number of faces before: {_old_size} and after: {_new_size}")
+            else:
+                logger.warning("2d mesh unrefined.")
+            # update res # FIXME: might not be the best solution
+            self._res = self._res/2**steps
+        else:
+            logger.warning("2d mesh unrefined.")
 
     def setup_link1d2d(
             self,
@@ -2254,6 +2281,8 @@ class DFlowFMModel(MeshModel):
 
     # TODO: Create link1d2d mesh in xu Ugrid
 
+    
+    
     def setup_maps_from_raster(
         self,
         raster_fn: str,
@@ -2506,9 +2535,9 @@ class DFlowFMModel(MeshModel):
         self.logger.info(f"Preparing 2D boundaries.")
 
         if boundary_type == "waterlevel":
-            boundary_unit = ["m"]
+            boundary_unit = "m"
         if boundary_type == "discharge":
-            boundary_unit = ["m3/s"]
+            boundary_unit = "m3/s"
 
         _mesh_region = self._mesh.ugrid.to_geodataframe().unary_union
         _boundary_region = _mesh_region.buffer(tolerance * self.res).difference(
@@ -2548,6 +2577,15 @@ class DFlowFMModel(MeshModel):
             self.logger.info("reading timeseries boundaries")
             df_bnd = self.data_catalog.get_dataframe(boundaries_timeseries_fn,
                                                      time_tuple=(tstart, tstop)) # could not use open_geodataset due to line geometry
+            # error if time mismatch or wrong parsing of dates
+            if np.dtype(df_bnd.index).type != np.datetime64:
+                raise ValueError(
+                    "Dates in boundaries_timeseries_fn were not parsed correctly. "
+                    "Update the source kwargs in the DataCatalog based on the driver function arguments (eg pandas.read_csv for csv driver).")
+            if (df_bnd.index[-1] -  df_bnd.index[0]) < (tstop - tstart):
+                raise ValueError(
+                    "Time in boundaries_timeseries_fn were shorter than model simulation time. "
+                    "Update the source kwargs in the DataCatalog based on the driver function arguments (eg pandas.read_csv for csv driver).")
             if gdf_bnd is not None:
                 # check if all boundary_id are in df_bnd
                 assert all(
@@ -2582,6 +2620,118 @@ class DFlowFMModel(MeshModel):
 
         # adjust parameters
         self.set_config("geometry.openboundarytolerance", tolerance)
+    
+    
+    def setup_rainfall_from_constant(
+        self,
+        constant_value: float,
+    ):
+        """
+        Prepares constant daily rainfall_rate timeseries for the 2D grid based on ``constant_value``.
+
+        Adds/Updates model layers:
+            * **meteo_{meteo_type}** forcing: DataArray
+        
+        Parameters
+        ----------
+        constant_value: float
+            Constant value for the rainfall_rate timeseries in mm/day.
+        """
+        self.logger.info(f"Preparing rainfall meteo forcing from uniform timeseries.")
+
+        refdate, tstart, tstop = self.get_model_time()  # time slice
+        meteo_location = (self.region.centroid.x, self.region.centroid.y) # global station location
+
+        df_meteo = pd.DataFrame({
+            "time": pd.date_range(start=pd.to_datetime(tstart), end = pd.to_datetime(tstop), freq='D'),
+            "precip": constant_value,
+        })
+
+        # 3. Derive DataArray with meteo values
+        da_out = workflows.compute_meteo_forcings(
+            df_meteo = df_meteo,
+            fill_value=constant_value,
+            is_rate=True,
+            meteo_location=meteo_location,
+            logger=self.logger,
+        )
+
+        # 4. set meteo forcing
+        self.set_forcing(da_out, name=f"meteo_{da_out.name}")
+        
+        # 5. set meteo in mdu
+        self.set_config("external_forcing.rainfall", 1)
+    
+    def setup_rainfall_from_uniform_timeseries(
+        self,
+        meteo_timeseries_fn: Union[str, Path],
+        fill_value: float = 0.,
+        is_rate: bool = True,
+    ):
+        """
+        Prepares spatially uniform rainfall forcings to 2d grid using timeseries from ``meteo_timeseries_fn``.
+        For now only support global  (spatially uniform) timeseries.
+
+        If ``meteo_timeseries_fn`` has missing values, the constant ``fill_value`` will be used, e.g. 0.
+
+        The dataset/timeseries are clipped to the model time based on the model config
+        tstart and tstop entries.
+
+        Adds/Updates model layers:
+            * **meteo_{meteo_type}** forcing: DataArray
+
+        Parameters
+        ----------
+        meteo_timeseries_fn: str, Path
+            Path or data source name to tabulated timeseries csv file with time index in first column.
+            
+            * Required variables : ['precip']
+            
+            see :py:meth:`hydromt.get_dataframe`, for details.
+            NOTE: Require equidistant time series
+        fill_value : float, optional
+            Constant value to use to fill in missing data. By default 0. 
+        is_rate : bool, optional
+            Specify if the type of meteo data is direct "rainfall" (False) or "rainfall_rate" (True).
+            By default True for "rainfall_rate". Note that Delft3DFM 1D2D Suite 2022.04 supports only "rainfall_rate".
+            If rate, unit is expected to be in mm/day and else mm.
+
+        """
+        self.logger.info(f"Preparing rainfall meteo forcing from uniform timeseries.")
+
+        refdate, tstart, tstop = self.get_model_time()  # time slice
+        meteo_location = (self.region.centroid.x, self.region.centroid.y) # global station location
+
+        # get meteo timeseries
+        df_meteo = self.data_catalog.get_dataframe(
+            meteo_timeseries_fn,
+            variables = ["precip"],
+            time_tuple=(tstart, tstop))
+        # error if time mismatch or wrong parsing of dates
+        if np.dtype(df_meteo.index).type != np.datetime64:
+            raise ValueError(
+                "Dates in meteo_timeseries_fn were not parsed correctly. "
+                "Update the source kwargs in the DataCatalog based on the driver function arguments (eg pandas.read_csv for csv driver).")
+        if (df_meteo.index[-1] -  df_meteo.index[0]) < (tstop - tstart):
+                raise ValueError(
+                    "Time in meteo_timeseries_fn were shorter than model simulation time. "
+                    "Update the source kwargs in the DataCatalog based on the driver function arguments (eg pandas.read_csv for csv driver).")
+        df_meteo["time"] = df_meteo.index
+
+        # 3. Derive DataArray with meteo values
+        da_out = workflows.compute_meteo_forcings(
+            df_meteo = df_meteo,
+            fill_value=fill_value,
+            is_rate=is_rate,
+            meteo_location=meteo_location,
+            logger=self.logger,
+        )
+
+        # 4. set meteo forcing
+        self.set_forcing(da_out, name=f"meteo_{da_out.name}")
+        
+        # 5. set meteo in mdu
+        self.set_config("external_forcing.rainfall", 1)
 
     # ## I/O
     # TODO: remove after hydromt 0.6.1 release
@@ -2999,15 +3149,15 @@ class DFlowFMModel(MeshModel):
             net._mesh2d._set_mesh2d()
             mesh2d = net._mesh2d.get_mesh2d()
             # Create Ugrid2d object
-            # TODO: after release of xugrid use grid = xu.Ugrid2d.from_meshkernel(mesh2d)
-            n_max_node = mesh2d.nodes_per_face.max()
-            grid = xu.Ugrid2d(
-                node_x=mesh2d.node_x,
-                node_y=mesh2d.node_y,
-                fill_value=-1,
-                face_node_connectivity=mesh2d.face_nodes.reshape((-1, n_max_node)),
-                crs=crs,
-            )
+            grid = xu.Ugrid2d.from_meshkernel(mesh2d)
+            # n_max_node = mesh2d.nodes_per_face.max()
+            # grid = xu.Ugrid2d(
+            #     node_x=mesh2d.node_x,
+            #     node_y=mesh2d.node_y,
+            #     fill_value=-1,
+            #     face_node_connectivity=mesh2d.face_nodes.reshape((-1, n_max_node)),
+            #     crs=crs,
+            # )
             # grid._mesh = mesh2d
             # Create UgridDataset
             da = xr.DataArray(
@@ -3675,17 +3825,17 @@ class DFlowFMModel(MeshModel):
             self.dfmmodel.geometry.netfile.network._mesh2d
         )  # needed to setup 1d2d links
 
-    def set_mesh2d(self):
+    def set_mesh2d(self, mesh2d: mk.py_structures.Mesh2d = None):
         """update the mesh2d in hydrolib-core net object by overwrite"""
         # process mesh2d to net object
-        if self._mesh:
+        if mesh2d is None and self._mesh is not None:
             mesh2d = self._mesh.ugrid.grid.mesh
-            self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
+        self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
 
     @property
     def link1d2d(self):
         """
-        Returns the link1d2d (hydrolib-core Link1d2d object) representing the 1d2d link.
+        Returns the link1d2d (hydrolib-core Link1d2d object) representing the 1d2d links.
         """
         return self.dfmmodel.geometry.netfile.network._link1d2d
 

@@ -79,6 +79,12 @@
   crs: 32647
   kwargs:
     fn_data: local_data/boundaries_series.csv
+roads:
+  path: local_data/roads.tiff
+  data_type: RasterDataset
+  crs: 32647
+  rename:
+    roads: steps
 2D_boundary:
   data_type: GeoDataFrame
   driver: vector
@@ -93,6 +99,7 @@
   kwargs:
       index_col: time
       parse_dates: true
+      dayfirst: true
   meta:
     notes: time series data for the 2D boundary, must contain time as index and boundary_id as columns
 meteo_timeseries_T2:
@@ -100,7 +107,7 @@ meteo_timeseries_T2:
   data_type: DataFrame
   driver: csv
   rename:
-    T2_mm/day: global
+    T2_mm/day: precip
   kwargs:
     index_col: 0
     parse_dates: True
@@ -111,7 +118,7 @@ meteo_timeseries_T5:
   data_type: DataFrame
   driver: csv
   rename:
-    T5_mm/day: global
+    T5_mm/day: precip
   kwargs:
     index_col: 0
     parse_dates: True

@@ -15,17 +15,17 @@ nodeId       = 666180.040000_1525894.770000
 forcingFile  = boundaryconditions1d_waterlevelbnd.bc
 
 [Boundary]
-quantity     = waterlevelbndbnd
+quantity     = waterlevelbnd
 locationFile = 1.pli
 forcingFile  = boundaryconditions2d_1.bc
 
 [Boundary]
-quantity     = waterlevelbndbnd
+quantity     = waterlevelbnd
 locationFile = 1.pli
 forcingFile  = boundaryconditions2d_1.bc
 
 [Boundary]
-quantity     = waterlevelbndbnd
+quantity     = waterlevelbnd
 locationFile = 0.pli
 forcingFile  = boundaryconditions2d_0.bc
 
