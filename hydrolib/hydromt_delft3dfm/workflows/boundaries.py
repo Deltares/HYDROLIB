@@ -528,7 +528,7 @@ def compute_meteo_forcings(
         meteo_type = "rainfall_rate"
         meteo_unit = "mm/day"
     else: 
-        meteo_type == "rainfall"
+        meteo_type = "rainfall"
         meteo_unit = "mm"
 
     # Timeseries boundary values
