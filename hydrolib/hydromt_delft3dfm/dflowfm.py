@@ -1717,24 +1717,62 @@ class DFlowFMModel(MeshModel):
     # TODO: Create link1d2d mesh in xu Ugrid
 
 
-    def setup_meteo(
+    def setup_rainfall_from_constant(
         self,
-        meteo_geodataset_fn: str = None,
-        meteo_timeseries_fn: str = None,
-        meteo_value: float = 0.,
-        meteo_type: str = "rainfall_rate",
-        meteo_unit: str = "mm/day",
+        constant_value: float,
+        is_rate: bool = True,
     ):
         """
-        Prepares the Meteorological forcings to 2d grid using timeseries or a constant.
-        For now only support global  (spatially uniform) timeseries. 
-        TODO: support timeseries on meteo stations and gridded meteo data (using ``meteo_geodataset_fn``) 
-        TODO: support meteo masks (.pol)
-        
-        For global  (spatially uniform) timeseries, the values can either be a constant 
-        using ``meteo_value`` (default), or global timeseries read from ``meteo_timeseries_fn``. 
+        Prepares constant daily rainfall timeseries for the 2D grid based on ``constant_value``.
 
-        If ``meteo_timeseries_fn`` has missing values, the constant ``meteo_value`` will be used, e.g. 0.
+        Adds/Updates model layers:
+            * **meteo_{meteo_type}** forcing: DataArray
+        
+        Parameters
+        ----------
+        constant_value: float
+            Constant value for the rainfall timeseries.
+        is_rate: bool
+            Specify if the type of meteo data is direct "rainfall" (False) or "rainfall_rate" (True).
+            By default True for "rainfall_rate". Note that Delft3DFM 1D2D Suite 2022.04 supports only "rainfall_rate".
+            If rate, unit is expected to be in mm/day and else mm.
+        """
+        self.logger.info(f"Preparing rainfall meteo forcing from uniform timeseries.")
+
+        refdate, tstart, tstop = self.get_model_time()  # time slice
+        meteo_location = (self.region.centroid.x, self.region.centroid.y) # global station location
+
+        df_meteo = pd.DataFrame({
+            "time": pd.date_range(start=pd.to_datetime(tstart), end = pd.to_datetime(tstop), freq='D'),
+            "precip": constant_value,
+        })
+
+        # 3. Derive DataArray with meteo values
+        da_out = workflows.compute_meteo_forcings(
+            df_meteo = df_meteo,
+            fill_value=constant_value,
+            is_rate=is_rate,
+            meteo_location=meteo_location,
+            logger=self.logger,
+        )
+
+        # 4. set meteo forcing
+        self.set_forcing(da_out, name=f"meteo_{da_out.name}")
+        
+        # 5. set meteo in mdu
+        self.set_config("external_forcing.rainfall", 1)
+    
+    def setup_rainfall_from_uniform_timeseries(
+        self,
+        meteo_timeseries_fn: Union[str, Path],
+        fill_value: float = 0.,
+        is_rate: bool = True,
+    ):
+        """
+        Prepares spatially uniform rainfall forcings to 2d grid using timeseries from ``meteo_timeseries_fn``.
+        For now only support global  (spatially uniform) timeseries.
+
+        If ``meteo_timeseries_fn`` has missing values, the constant ``fill_value`` will be used, e.g. 0.
 
         The dataset/timeseries are clipped to the model time based on the model config
         tstart and tstop entries.
@@ -1744,93 +1782,43 @@ class DFlowFMModel(MeshModel):
 
         Parameters
         ----------
-        meteo_geodataset_fn : str, Path (Not implemented)
-            Path or data source name for geospatial point timeseries file or girdded rainfall file.
-            
-            NOTE: Due to Delft3DFM not supporting Gridded meteo data in netCDF yet, 
-            an extra step of converting gridded data into meteo stations might be nedded.
         meteo_timeseries_fn: str, Path
             Path or data source name to tabulated timeseries csv file with time index in first column.
             
-            * Required variables : ['global']
+            * Required variables : ['precip']
             
             see :py:meth:`hydromt.get_dataframe`, for details.
             NOTE: Require equidistant time series
-        meteo_value : float, optional
-            Constant value to use for if both ``meteo_geodataset_fn`` and ``meteo_timeseries_fn`` are None and to
-            fill in missing data. 
-            By default 0. 
-            NOTE: a daily time series will be created in case of the constant value is used.
-        meteo_type : str, optional
-            Type of meteo tu use. One of ["rainfall", "rainfall_rate"].
-            By default "rainfall_rate". Note that Delft3DFM 1D2D Suite 2022.04 supports only "rainfall_rate".
-        meteo_unit : str, optional.
-            Unit applied to ``meteo_type``.
-            If ``meteo_type`` = "rainfall"
-                Allowed unit is [mm]
-            if ''meteo_type`` = "rainfall_rate":
-               Allowed unit is [mm/day]
-            By default mm/day.
-
-        Raises
-        ------
-        NotImplementedError:
-            ``meteo_geodataset_fn`` is currently not implemented.
+        fill_value : float, optional
+            Constant value to use to fill in missing data. By default 0. 
+        is_rate : bool, optional
+            Specify if the type of meteo data is direct "rainfall" (False) or "rainfall_rate" (True).
+            By default True for "rainfall_rate". Note that Delft3DFM 1D2D Suite 2022.04 supports only "rainfall_rate".
+            If rate, unit is expected to be in mm/day and else mm.
 
         """
-
-        self.logger.info(f"Preparing {meteo_type} meteo forcing.")
-
-        if meteo_type == "rainfall_rate": assert meteo_unit in ["mm/day"]
-        if meteo_type == "rainfall": assert meteo_unit in ["mm"]
+        self.logger.info(f"Preparing rainfall meteo forcing from uniform timeseries.")
 
         refdate, tstart, tstop = self.get_model_time()  # time slice
         meteo_location = (self.region.centroid.x, self.region.centroid.y) # global station location
 
-        # 1. apply spatial varying meteo
-        if meteo_geodataset_fn is not None:
-            raise NotImplementedError("Do not support meteo types other than global constant or timeseries.")
-
-        # 2. apply global meteo
-        else:
-            da_meteo = None
-            if meteo_timeseries_fn is not None:
-                # add neccessary keys for parsing timeseries correctly
-                self.data_catalog[meteo_timeseries_fn].kwargs.update({'parse_dates': True})
-                self.data_catalog[meteo_timeseries_fn].kwargs.update({'infer_datetime_format': True})
-                df_meteo = self.data_catalog.get_dataframe(
-                    meteo_timeseries_fn,
-                    varibles = ["global"],
-                    time_tuple=(tstart, tstop))
-                # error if time mismatch
-                if np.logical_and(
-                        pd.to_datetime(df_meteo.index.values[0]) == pd.to_datetime(tstart),
-                        pd.to_datetime(df_meteo.index.values[-1]) == pd.to_datetime(tstop),
-                ):
-                    pass
-                else:
-                    if pd.to_datetime(df_meteo.index.values[0]) != pd.to_datetime(tstart):
-                        df_meteo = pd.concat([pd.DataFrame(data = {"global":[np.nan]}, index = [pd.to_datetime(tstart)]),
-                                             df_meteo]).resample(df_meteo.index[1] - df_meteo.index[0]).asfreq()
-                    if pd.to_datetime(df_meteo.index.values[-1]) != pd.to_datetime(tstop):
-                        df_meteo = pd.concat([df_meteo,
-                                              pd.DataFrame(data={"global": [np.nan]}, index=[pd.to_datetime(tstop)])]
-                                             ).resample(df_meteo.index[1] - df_meteo.index[0]).asfreq()
-                df_meteo["time"] = df_meteo.index
-
-            else:
-                df_meteo = pd.DataFrame({"time":
-                                             pd.date_range(start=pd.to_datetime(tstart), end = pd.to_datetime(tstop), freq='D'),
-                                         "global":
-                                             np.nan})
+        # get meteo timeseries
+        df_meteo = self.data_catalog.get_dataframe(
+            meteo_timeseries_fn,
+            variables = ["precip"],
+            time_tuple=(tstart, tstop))
+        # error if time mismatch or wrong parsing of dates
+        if np.dtype(df_meteo.index).type != np.datetime64:
+            raise ValueError(
+                "Dates in meteo_timeseries_fn were not parsed correctly. "
+                "Update the source kwargs in the DataCatalog based on the driver function arguments (eg pandas.read_csv for csv driver).")
+        df_meteo["time"] = df_meteo.index
 
         # 3. Derive DataArray with meteo values
         da_out = workflows.compute_meteo_forcings(
-            da_meteo=da_meteo,
             df_meteo = df_meteo,
-            meteo_value=meteo_value,
-            meteo_type=meteo_type,
-            meteo_unit=meteo_unit,
+            fill_value=fill_value,
+            is_rate=is_rate,
             meteo_location=meteo_location,
             logger=self.logger,
         )
@@ -2150,7 +2138,6 @@ class DFlowFMModel(MeshModel):
         boundaries_timeseries_fn: str = None,
         boundary_value: float = 0.0,
         boundary_type: str = "waterlevel",
-        boundary_unit: str = "m",
         tolerance: float = 3.0,
     ):
         """
@@ -2189,13 +2176,6 @@ class DFlowFMModel(MeshModel):
         boundary_type : str, optional
             Type of boundary tu use. One of ["waterlevel", "discharge"].
             By default "waterlevel".
-        boundary_unit : str, optional.
-            Unit corresponding to [boundary_type].
-            If ``boundary_type`` = "waterlevel"
-                Allowed unit is [m]
-            if ''boundary_type`` = "discharge":
-               Allowed unit is [m3/s]
-            By default m.
         tolerance: float, optional
             Search tolerance factor between boundary polyline and grid cells.
             Unit: in cell size units (i.e., not meters)
@@ -2204,16 +2184,15 @@ class DFlowFMModel(MeshModel):
         Raises
         ------
         AssertionError
-            If "boundary_unit" is not in the allowed units or
-            if "boundary_id" in "boundaries_fn" does not match the columns of ``boundaries_timeseries_fm``.
+            if "boundary_id" in "boundaries_fn" does not match the columns of ``boundaries_timeseries_fn``.
 
         """
         self.logger.info(f"Preparing 2D boundaries.")
 
         if boundary_type == "waterlevel":
-            assert boundary_unit in ["m"]
+            boundary_unit = ["m"]
         if boundary_type == "discharge":
-            assert boundary_unit in ["m3/s"]
+            boundary_unit = ["m3/s"]
 
         _mesh_region = self._mesh.ugrid.to_geodataframe().unary_union
         _boundary_region = _mesh_region.buffer(tolerance * self.res).difference(
