@@ -604,10 +604,10 @@ def get_gdf_from_branches(branches:gpd.GeoDataFrame, df:pd.DataFrame) -> gpd.Geo
     Parameters
     ----------
     branches:gpd.GeoDataFrame
-        line geometres of the branches
+        line geometries of the branches
         Required varaibles: ["branchId"/"branchid", "geometry" ]
     df:pd.DataFrame
-        dataframe cotaining the features located on branches
+        dataframe containing the features located on branches
         Required varaibles: ["branchId"/"branchid", "chainage" ]
     
     Return

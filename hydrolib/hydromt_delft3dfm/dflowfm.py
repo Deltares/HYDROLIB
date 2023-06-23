@@ -166,7 +166,7 @@ class DFlowFMModel(MeshModel):
 
         self.config
 
-        # Gloabl options for generation of the mesh1d network
+        # Global options for generation of the mesh1d network
         self._network_snap_offset = network_snap_offset
         self._snap_newbranches_to_branches_at_snapnodes = snap_newbranches_to_branches_at_snapnodes
         self._openwater_computation_node_distance = openwater_computation_node_distance
@@ -1521,7 +1521,7 @@ class DFlowFMModel(MeshModel):
                           snap_offset: Optional[float] = None,
                           ):
         """Setup 1D structures.
-        Include the universal weir (Not Implemented) , culvert (Not Implemented) and bridge (``str_type`` = 'bridge'), which can only be used in a single 1D channel.
+        Include the universal weir (Not Implemented) , culvert and bridge (``str_type`` = 'bridge'), which can only be used in a single 1D channel.
 
         The structures are first read from ``st_fn`` (only locations within the region will be read), and if any missing, filled with information provided in ``defaults_fn``.
         Read locations are then filtered for value specified in ``filter`` on the column ``st_type``.
@@ -1531,6 +1531,9 @@ class DFlowFMModel(MeshModel):
 
         Parameters
         ----------
+        st_type: str, required
+            Name of structure type
+
         st_fn: str Path, optional
             Path or data source name for structures, see data/data_sources.yml.
             Note only the points that are within the region polygon will be used.
@@ -1590,7 +1593,7 @@ class DFlowFMModel(MeshModel):
         # reproject to model crs
         gdf_st.to_crs(self.crs)
 
-        # Read defaults table
+        # 2.  Read defaults table
         if isinstance(defaults_fn, pd.DataFrame):
             defaults = defaults_fn
         else:
@@ -1604,7 +1607,7 @@ class DFlowFMModel(MeshModel):
             defaults = self.data_catalog.get_dataframe(defaults_fn)
             self.logger.info(f"{st_type} default settings read from {defaults_fn}.")
 
-        # 2. Add defaults
+        # 3. Add defaults
         # overwrite type and add id attributes if does not exist
         gdf_st[type_col] = pd.Series(
                 data=np.repeat(st_type, len(gdf_st)), index=gdf_st.index, dtype=str
@@ -1629,7 +1632,7 @@ class DFlowFMModel(MeshModel):
             gdf_st, defaults, type_col, st_type
         )
 
-        # 3. snap structures to branches
+        # 4. snap structures to branches
         # setup branch_id - snap structures to branch (inplace of structures, will add branch_id and branch_offset columns)
         workflows.find_nearest_branch(
             branches=branches, geometries=gdf_st,  maxdist = snap_offset
@@ -1643,14 +1646,14 @@ class DFlowFMModel(MeshModel):
                 f"structure with id: {list(set(_old_ids) - set(_new_ids))} are dropped: unable to find closest branch. "
             )
         if len(_new_ids) == 0:
-            self.logger.warning(f"No 1D {type} locations found within the proximaty of the network")
+            self.logger.warning(f"No 1D {type} locations found within the proximity of the network")
             return None
         else:
             # setup success, add branchid and chainage
             gdf_st["structure_branchid"] = gdf_st["branch_id"]
             gdf_st["structure_chainage"] = gdf_st["branch_offset"]
 
-        # 4. add structure crossections
+        # 5. add structure crossections
         # add a dummy "shift" for crossection locations if missing (e.g. culverts), because structures only needs crossection definitions.
         if "shift" not in gdf_st.columns:
             gdf_st["shift"] = np.nan
@@ -1663,10 +1666,10 @@ class DFlowFMModel(MeshModel):
         # add to structures
         gdf_st = gdf_st.merge(gdf_st_crsdefs.drop(columns = "geometry"), left_index = True, right_index=True)
        
-        # 5. replace np.nan as None
+        # 6. replace np.nan as None
         gdf_st = gdf_st.replace(np.nan, None)
         
-        # 6. remove index
+        # 7. remove index
         gdf_st = gdf_st.reset_index()
 
         return gdf_st
@@ -1754,7 +1757,7 @@ class DFlowFMModel(MeshModel):
                       snap_offset: Optional[float] = None,
                       ):
         
-        """Prepares culverts, including locations and crossections. Note that only subtype culvert is supported, i.e. invertedsiphon is not supported
+        """Prepares culverts, including locations and crossections. Note that only subtype culvert is supported, i.e. inverted siphon is not supported
 
         The culverts are read from ``culverts_fn`` and if any missing, filled with information provided in ``culverts_defaults_fn``.
 
