@@ -1,0 +1,2 @@
+structure_type,allowedflowdir,shape,diameter,width,t_width,height,closed,shift,length,pillarwidth,formfactor,friction_type,friction_value,inletlosscoeff,outletlosscoeff
+bridge,both,rectangle,,1,,1,yes,0,1,,,Manning,0.023,0.2,0.2

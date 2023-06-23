@@ -22,6 +22,7 @@ from hydrolib.core.dflowfm import (
     FrictionModel,
     PolyFile,
     StorageNodeModel,
+    StructureModel,
 )
 
 from .workflows import helper
@@ -33,6 +34,8 @@ __all__ = [
     "write_crosssections",
     "read_friction",
     "write_friction",
+    "read_structures",
+    "write_structures",
     "read_manholes",
     "write_manholes",
     "read_1dboundary",
@@ -239,7 +242,7 @@ def read_crosssections(
     )
 
     # Combine def attributes with locs for crossection geom
-    gdf_crs = _gdf_crsloc.merge(_gdf_crsdef, on="crs_id")
+    gdf_crs = _gdf_crsloc.merge(_gdf_crsdef, on="crs_id", how='outer') # use outer because some crsdefs are from structures, therefore no crslocs associated
     gdf_crs = gpd.GeoDataFrame(gdf_crs, crs=gdf.crs)
 
     return gdf_crs
@@ -285,6 +288,7 @@ def write_crosssections(gdf: gpd.GeoDataFrame, savedir: str) -> Tuple[str, str]:
     gpd_crsloc = gpd_crsloc.rename(
         columns={c: c.removeprefix("crsloc_") for c in gpd_crsloc.columns}
     )
+    gpd_crsloc = gpd_crsloc.dropna(subset="id") # structures have crsdefs but no crslocs
 
     # add x,y column --> hydrolib value_error: branchId and chainage or x and y should be provided
     # x,y would make reading back much faster than re-computing from branchid and chainage....
@@ -405,6 +409,77 @@ def write_friction(gdf: gpd.GeoDataFrame, savedir: str) -> List[str]:
         friction_fns.append(fric_filename)
 
     return friction_fns
+
+
+
+def read_structures(branches: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFrame:
+    """
+    Read structures into hydrolib-core structures objects
+    Returns structures geodataframe.
+
+    Parameters
+    ----------
+    branches: geopandas.GeoDataFrame
+        gdf containing the branches
+    fm_model: hydrolib.core FMModel
+        DflowFM model object from hydrolib
+
+    Returns
+    -------
+    gdf_structures: geopandas.GeoDataFrame
+        geodataframe of the structures and data
+    """
+    structures_fns = fm_model.geometry.structurefile
+    # Parse to dict and DataFrame
+    structures_dict = dict()
+    for structures_fn in structures_fns:
+        structures = structures_fn.structure
+        for st in structures:
+            structures_dict[st.id] = st.__dict__
+    df_structures = pd.DataFrame.from_dict(structures_dict, orient="index")
+
+    # Drop comments
+    df_structures = df_structures.drop(
+        ["comments"],
+        axis=1,
+    )
+    
+    # Add geometry
+    gdf_structures = helper.get_gdf_from_branches(branches, df_structures)
+
+    return gdf_structures
+
+
+
+
+
+def write_structures(gdf: gpd.GeoDataFrame, savedir: str) -> str:
+    """
+    write structures into hydrolib-core structures objects
+
+    Parameters
+    ----------
+    gdf: geopandas.GeoDataFrame
+        gdf containing the structures
+    savedir: str
+        path to the directory where to save the file.
+
+    Returns
+    -------
+    structures_fn: str
+        relative path to structures file.
+    """
+    structures = StructureModel(structure=gdf.to_dict("records"))
+
+    structures_fn = structures._filename() + ".ini"
+    structures.save(
+        join(savedir, structures_fn),
+        recurse=False,
+    )
+
+    return structures_fn
+
+
 
 
 def read_manholes(gdf: gpd.GeoDataFrame, fm_model: FMModel) -> gpd.GeoDataFrame:

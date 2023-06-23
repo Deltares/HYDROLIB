@@ -5,20 +5,14 @@
   kwargs:
     fn_data: C:\Developments\HYDROLIB\tests\data\local_data\boundaries_series.csv
   path: C:\Developments\HYDROLIB\tests\data\local_data\boundaries.geojson
-1D_pipes:
+1D_branches:
   crs: 32647
   data_type: GeoDataFrame
   driver: vector
   path: C:\Developments\HYDROLIB\tests\data\local_data\1D_rivers.geojson
-  rename: &id001
+  rename:
     BRANCH_ID: branchId
     BR_TYPE: branchType
-1D_rivers:
-  crs: 32647
-  data_type: GeoDataFrame
-  driver: vector
-  path: C:\Developments\HYDROLIB\tests\data\local_data\1D_rivers.geojson
-  rename: *id001
 1D_rivers_pointcrosssections:
   crs: 32647
   data_type: GeoDataFrame
@@ -39,6 +33,38 @@
     CRS_ID: crsId
     ORDER: order
     Z: z
+1d_bridges:
+  crs: 32647
+  data_type: GeoDataFrame
+  driver: vector
+  path: C:\Developments\HYDROLIB\tests\data\local_data\bridges.geojson
+  rename:
+    BEDLEV: shift
+    CLOSED: closed
+    FLOW_DIR: allowedflowdir
+    HEIGHT: height
+    IN_LOSS: inletlosscoeff
+    LENGTH: length
+    OUT_LOSS: outletlosscoeff
+    SHAPE: shape
+    STRUC_ID: structure_id
+    STRUC_TYPE: structure_type
+    WIDTH: width
+1d_culverts:
+  crs: 32647
+  data_type: GeoDataFrame
+  driver: vector
+  path: C:\Developments\HYDROLIB\tests\data\local_data\culverts.geojson
+  rename:
+    CLOSED: closed
+    FLOW_DIR: allowedflowdir
+    HEIGHT: height
+    INVLEV_DN: rightlevel
+    INVLEV_UP: leftlevel
+    SHAPE: shape
+    STRUC_ID: structure_id
+    STRUC_TYPE: structure_type
+    WIDTH: width
 1d_manholes:
   crs: 32647
   data_type: GeoDataFrame
@@ -66,6 +92,14 @@
     notes: time series data for the 2D boundary, must contain time as index and boundary_id
       as columns
   path: C:\Developments\HYDROLIB\tests\data\local_data\2dboundaries_series.csv
+bridges_defaults:
+  data_type: DataFrame
+  driver: csv
+  path: c:\Developments\HYDROLIB\hydrolib\hydromt_delft3dfm\data\bridges\bridges_defaults.csv
+culverts_defaults:
+  data_type: DataFrame
+  driver: csv
+  path: c:\Developments\HYDROLIB\hydrolib\hydromt_delft3dfm\data\culverts\culverts_defaults.csv
 dem:
   crs: 32647
   data_type: RasterDataset

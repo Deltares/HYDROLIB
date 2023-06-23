@@ -381,19 +381,21 @@ def set_point_crosssections(
         The cross sections.
     """
 
+
     # check if crs mismatch
     if crosssections.crs != branches.crs:
         logger.error(f"mismatch crs between cross-sections and branches")
+        
+    # remove duplicated geometries
+    _nodes = crosssections.copy()
+    G = _nodes["geometry"].apply(lambda geom: geom.wkb)
+    n = len(G) - len(G.drop_duplicates().index)
+    crosssections = _nodes[_nodes.index.isin(G.drop_duplicates().index)]
+
     # snap to branch
     # setup branch_id - snap bridges to branch (inplace of bridges, will add branch_id and branch_offset columns)
     find_nearest_branch(
         branches=branches, geometries=crosssections, method="overal", maxdist=maxdist
-    )
-    # get branch friction
-    crosssections = crosssections.merge(
-        branches[["frictionId", "frictionType", "frictionValue"]],
-        left_on="branch_id",
-        right_index=True,
     )
 
     # setup failed - drop based on branch_offset that are not snapped to branch (inplace of yz_crosssections) and issue warning
@@ -404,22 +406,57 @@ def set_point_crosssections(
         logger.warning(
             f"Crosssection with id: {list(set(_old_ids) - set(_new_ids))} are dropped: unable to find closest branch. "
         )
+    
+    if len(crosssections.branch_offset.dropna()) == 0:
+        logger.error(
+            f"No crossections are set up."
+        )
+        return pd.DataFrame()
+    
+    # get branch friction
+    crosssections = crosssections.merge(
+        branches[["frictionId", "frictionType", "frictionValue"]],
+        left_on="branch_id",
+        right_index=True,
+    )
 
-    # get a temporary id based on the convention of branch_id and branch_offset(precision 2 decimals)
-    crosssections["temp_id"] = crosssections.apply(lambda x:f"{x.branch_id}_{x.branch_offset:.2f}", axis = 1)
-    # drop duplicated temp_id, keep the one with minimum branch_distance
-    if crosssections["temp_id"].duplicated().any():
-        logger.warning(f"Duplicate crosssections found, removing duplicates")
-        # Sort DataFrame by branch_distance in ascending order
-        crosssections_sorted = crosssections.sort_values('branch_distance')
-        # Remove duplicates based on the branch_id, branch_offset column, keeping the first occurrence (with minimum branch_distance)
-        crosssections = crosssections_sorted.drop_duplicates(subset=["temp_id"], keep='first')
+    # NOTE: below is removed because in case of multiple structures at the same location, there can be multiple crossections
+    # # get a temporary id based on the convention of branch_id and branch_offset(precision 2 decimals)
+    # crosssections["temp_id"] = crosssections.apply(lambda x:f"{x.branch_id}_{x.branch_offset:.2f}", axis = 1)
+    # # drop duplicated temp_id, keep the one with minimum branch_distance
+    # if crosssections["temp_id"].duplicated().any():
+    #     logger.warning(f"Duplicate crosssections found, removing duplicates")
+    #     # Sort DataFrame by branch_distance in ascending order
+    #     crosssections_sorted = crosssections.sort_values('branch_distance')
+    #     # Remove duplicates based on the branch_id, branch_offset column, keeping the first occurrence (with minimum branch_distance)
+    #     crosssections = crosssections_sorted.drop_duplicates(subset=["temp_id"], keep='first')
 
     crosssections_ = pd.DataFrame()
     # loop through the shapes
     all_shapes = crosssections["shape"].unique().tolist()
     for shape in all_shapes:
-        if shape == "rectangle":
+        if shape == "circle":
+            circle_crs = crosssections.loc[crosssections["shape"] == shape, :]
+            circle_crs["definitionid"] = circle_crs.apply(
+                lambda x: "circ_d{:,.3f}_{:s}".format(x["diameter"], "point"),
+                axis=1,
+            )
+            valid_attributes = check_gpd_attributes(
+                circle_crs,
+                required_columns=[
+                    "branch_id",
+                    "branch_offset",
+                    "frictionId",
+                    "frictionType",
+                    "frictionValue",
+                    "diameter",
+                    "shift",
+                ],
+            )
+            crosssections_ = pd.concat(
+                [crosssections_, _set_circle_crs(circle_crs)]
+            )
+        elif shape == "rectangle":
             rectangle_crs = crosssections.loc[crosssections["shape"] == shape, :]
             rectangle_crs["definitionid"] = rectangle_crs.apply(
                 lambda x: "rect_h{:,.3f}_w{:,.3f}_c{:s}_{:s}".format(
@@ -523,7 +560,7 @@ def set_point_crosssections(
 
     crosssections_ = gpd.GeoDataFrame(crosssections_, crs=branches.crs)
 
-    return crosssections_.drop_duplicates()
+    return crosssections_
 
 
 def _set_circle_crs(crosssections: gpd.GeoDataFrame):
@@ -557,11 +594,14 @@ def _set_circle_crs(crosssections: gpd.GeoDataFrame):
 
     crosssections_ = pd.merge(
         pd.DataFrame.from_records(crslocs),
-        pd.DataFrame.from_records(crsdefs),
+        pd.DataFrame.from_records(crsdefs).drop_duplicates(),
         how="left",
         left_on=["crsloc_branchId", "crsloc_definitionId"],
         right_on=["crsdef_branchId", "crsdef_id"],
     )
+    
+    crosssections_.index = crosssections.index
+    
     return crosssections_
 
 
@@ -597,11 +637,14 @@ def _set_rectangle_crs(crosssections: gpd.GeoDataFrame):
 
     crosssections_ = pd.merge(
         pd.DataFrame.from_records(crslocs),
-        pd.DataFrame.from_records(crsdefs),
+        pd.DataFrame.from_records(crsdefs).drop_duplicates(),
         how="left",
         left_on=["crsloc_branchId", "crsloc_definitionId"],
         right_on=["crsdef_branchId", "crsdef_id"],
     )
+    
+    crosssections_.index = crosssections.index
+    
     return crosssections_
 
 
@@ -646,17 +689,13 @@ def _set_trapezoid_crs(crosssections: gpd.GeoDataFrame):
             }
         )
 
-    # remove duplicate
-    crslocs_df = pd.DataFrame.from_records(crslocs).drop_duplicates(subset=["crsloc_id", "crsloc_definitionId", "crsloc_shift"]) # a crsloc is unique by id, definitionId and shift
-    crsdefs_df = pd.DataFrame.from_records(crsdefs).drop_duplicates(subset=["crsdef_id"]) # a crsdef is unique by id
-
     # merge
     crosssections_ = pd.merge(
-        crslocs_df,
-        crsdefs_df,
-        how="inner",
-        left_on=["crsloc_definitionId"],
-        right_on=["crsdef_id"],
+        pd.DataFrame.from_records(crslocs),
+        pd.DataFrame.from_records(crsdefs).drop_duplicates(),
+        how="left",
+        left_on=["crsloc_branchId", "crsloc_definitionId"],
+        right_on=["crsdef_branchId", "crsdef_id"],
     )
     return crosssections_
 
@@ -694,11 +733,14 @@ def _set_zw_crs(crosssections: gpd.GeoDataFrame):
 
     crosssections_ = pd.merge(
         pd.DataFrame.from_records(crslocs),
-        pd.DataFrame.from_records(crsdefs),
+        pd.DataFrame.from_records(crsdefs).drop_duplicates(),
         how="left",
         left_on=["crsloc_branchId", "crsloc_definitionId"],
         right_on=["crsdef_branchId", "crsdef_id"],
     )
+    
+    crosssections_.index = crosssections.index
+    
     return crosssections_
 
 
@@ -734,11 +776,14 @@ def _set_yz_crs(crosssections: gpd.GeoDataFrame):
 
     crosssections_ = pd.merge(
         pd.DataFrame.from_records(crslocs),
-        pd.DataFrame.from_records(crsdefs),
+        pd.DataFrame.from_records(crsdefs).drop_duplicates(),
         how="left",
         left_on=["crsloc_branchId", "crsloc_definitionId"],
         right_on=["crsdef_branchId", "crsdef_id"],
     )
+    
+    crosssections_.index = crosssections.index
+    
     return crosssections_
 
 
