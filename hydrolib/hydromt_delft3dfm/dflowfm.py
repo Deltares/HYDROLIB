@@ -14,16 +14,18 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import xugrid as xu
+import meshkernel as mk
 from pyproj import CRS
 from hydromt.models import MeshModel
 from shapely.geometry import box, LineString
 from datetime import datetime, timedelta
+from meshkernel import MeshKernel
 
 from hydrolib.core.dflowfm import FMModel, Mesh1d, IniFieldModel, Network
 from hydrolib.core.dimr import DIMR, FMComponent, Start
 
 from hydrolib.dhydamo.geometry import mesh
-
+from meshkernel import GeometryList
 
 from . import DATADIR
 from . import workflows
@@ -875,6 +877,12 @@ class DFlowFMModel(MeshModel):
             self.logger.debug(f"Adding crosssections vector to geoms.")
             self.set_crosssections(crosssections)
 
+            # for crossection type yz or xyz, always use branchOrder = -1, because no interpolation can be applied.
+            # TODO: change to lower case is needed
+            _overwrite_branchorder = self.crosssections[self.crosssections["crsdef_type"].str.contains("yz")]["crsdef_branchId"].tolist()
+            if len(_overwrite_branchorder) > 0:
+                rivers.loc[rivers["branchId"].isin(_overwrite_branchorder), "branchOrder"] = -1
+
         # setup geoms
         self.logger.debug(f"Adding rivers and river_nodes vector to geoms.")
         self.set_geoms(rivers, "rivers")
@@ -1702,6 +1710,128 @@ class DFlowFMModel(MeshModel):
 
     # TODO: Create link1d2d mesh in xu Ugrid
 
+    # FIXME: use the below function as a workflow in setup_mesh2d would be better - to be discussed
+    def setup_mesh2d_refine(self,
+                            polygon_fn: Optional[str] = None,
+                            sample_fn: Optional[str] = None,
+                            steps: Optional[int] = None,
+                            ):
+        """Refine the 2d mesh within the geometry based on polygon `polygon_fn` or raster samples `sample_fn`.
+        The number of refinement is defined by `steps` if `polygon_fn` is used.
+
+        Note that this function can only be applied on an existing regular rectangle 2d mesh.
+        # FIXME: how to identify if the mesh is uniform rectangle 2d mesh? regular irregular?
+
+        Adds/Updates model layers:
+
+        * **2D mesh** geom: By any changes in 2D grid
+        * **1D2D links** geom: By any changes in 2D grid #TODO: check if this is needed, possible to issue an error if 1d2d links are present
+
+        Parameters
+        ----------
+        polygon_fn : str Path, optional
+            Path to a polygon or MultiPolygon used to refine the 2D mesh
+        sample_fn  : str Path, optional
+            Path to a raster sample file used to refine the 2D mesh.
+            The value of each sample point is the number of steps to refine the mesh. Allow only single values.
+            The resolution of the raster should be the same as the desired end result resolution.
+
+            * Required variable: ['steps']
+        steps : int, optional
+            Number of steps in the refinement when `polygon_fn' is used.
+            By default 1, i.e. no refinement is applied.
+
+        """
+
+        if self.mesh2d is None:
+            logger.error("2d mesh is not available.")
+            return
+
+        if polygon_fn is not None and steps is not None:
+            self.logger.info(f"reading geometry from file {polygon_fn}. ")
+            # read
+            gdf = self.data_catalog.get_geodataframe(
+                polygon_fn, geom=self.region, buffer=0, predicate="contains"
+            )
+            # reproject
+            if gdf.crs != self.crs:
+                gdf = gdf.to_crs(self.crs)
+            # refine
+            _old_size = len(self.mesh2d.mesh2d_face_x)
+            
+            # Create a list of coordinate lists
+            polygon = gdf.geometry.unary_union
+            cls = GeometryList()
+            # Add exterior
+            x_ext, y_ext = np.array(polygon.exterior.coords[:]).T
+            x_crds = [x_ext]
+            y_crds = [y_ext]
+            # Add interiors, seperated by inner_outer_separator
+            for interior in polygon.interiors:
+                x_int, y_int = np.array(interior.coords[:]).T
+                x_crds.append([cls.inner_outer_separator])
+                x_crds.append(x_int)
+                y_crds.append([cls.inner_outer_separator])
+                y_crds.append(y_int)
+            gl = GeometryList(
+                x_coordinates=np.concatenate(x_crds), y_coordinates=np.concatenate(y_crds)
+            )
+            self.network.mesh2d_refine(gl, steps)
+            _new_size = len(self.mesh2d.mesh2d_face_x)
+            # log
+            if _new_size != _old_size:
+                logger.info(f"2d mesh refined within polygon. Number of faces before: {_old_size} and after: {_new_size}")
+            else:
+                logger.warning("2d mesh unrefined.")
+            # update res # FIXME: might not be the best solution
+            self._res = self._res/2**steps
+
+        elif sample_fn is not None:
+            self.logger.info(f"reading samples from file {sample_fn}. ")
+            # read
+            da = self.data_catalog.get_rasterdataset(
+                sample_fn, geom=self.region, buffer=0, predicate="contains", variables=["steps"], single_var_as_array=True,
+            ).astype(np.float64) # float64 is needed by mesh kernel to convert into c double
+            # reproject
+            if da.raster.crs != self.crs:
+                self.logger.warning(f"Sample grid has a different resolution than model. Reprojecting with nearest but some information might be lost.")
+                da = da.raster.reproject(self.crs, method="nearest")
+            # get sample point
+            xv, yv = np.meshgrid(da.x.values, da.y.values)
+            zv = da.values
+            mask = zv > 0
+            samples = GeometryList(xv[mask].flatten(), yv[mask].flatten(), zv[mask].flatten())
+            # get steps
+            steps = int(zv.max())
+            # refine using mesh kernel
+            _old_size = len(self.mesh2d.mesh2d_face_x)
+            # refine parameters
+            parameters = mk.MeshRefinementParameters(
+                refinement_type= 2,                 # Enumerator describing the different refinement types (WaveCourant = 1, RefinementLevels = 2)
+                max_refinement_iterations= steps, # Maximum number of refinement iterations, set to 1 if only one refinement is wanted (default 10)
+                min_face_size= self.res / 2 ** steps,  # calculate - Minimum cell size
+                account_for_samples_outside_face=False,  # default, not useful - Take samples outside face into account , 1 yes 0 no
+                connect_hanging_nodes=True,  # default, not useful - Connect hanging nodes at the end of the iteration, 1 yes or 0 no
+                refine_intersected=False,  # default, not useful - Whether to compute faces intersected by polygon (yes=1/no=0)
+                use_mass_center_when_refining=False,  # default, not useful - Whether to use the mass center when splitting a face in the refinement process (yes=1/no=0)
+            )
+            # refine assuming sample spacing is the same as end result resolution (hence relative_search_radius=1, minimum_num_samples=1 )
+            self.mesh2d.meshkernel.mesh2d_refine_based_on_samples(samples,
+                                                       relative_search_radius=1,
+                                                       minimum_num_samples=1,
+                                                       mesh_refinement_params=parameters)
+            self.set_mesh2d(self.mesh2d.meshkernel.mesh2d_get()) # because the resulting mesh2d is only stored in the meshkernel object
+            _new_size = len(self.mesh2d.mesh2d_face_x)
+            # log
+            if _new_size != _old_size:
+                logger.info(f"2d mesh refined based on samples. Number of faces before: {_old_size} and after: {_new_size}")
+            else:
+                logger.warning("2d mesh unrefined.")
+            # update res # FIXME: might not be the best solution
+            self._res = self._res/2**steps
+        else:
+            logger.warning("2d mesh unrefined.")
+
     def setup_maps_from_raster(
         self,
         raster_fn: str,
@@ -2232,15 +2362,15 @@ class DFlowFMModel(MeshModel):
             net._mesh2d._set_mesh2d()
             mesh2d = net._mesh2d.get_mesh2d()
             # Create Ugrid2d object
-            # TODO: after release of xugrid use grid = xu.Ugrid2d.from_meshkernel(mesh2d)
-            n_max_node = mesh2d.nodes_per_face.max()
-            grid = xu.Ugrid2d(
-                node_x=mesh2d.node_x,
-                node_y=mesh2d.node_y,
-                fill_value=-1,
-                face_node_connectivity=mesh2d.face_nodes.reshape((-1, n_max_node)),
-                crs=crs,
-            )
+            grid = xu.Ugrid2d.from_meshkernel(mesh2d)
+            # n_max_node = mesh2d.nodes_per_face.max()
+            # grid = xu.Ugrid2d(
+            #     node_x=mesh2d.node_x,
+            #     node_y=mesh2d.node_y,
+            #     fill_value=-1,
+            #     face_node_connectivity=mesh2d.face_nodes.reshape((-1, n_max_node)),
+            #     crs=crs,
+            # )
             # grid._mesh = mesh2d
             # Create UgridDataset
             da = xr.DataArray(
@@ -2885,12 +3015,12 @@ class DFlowFMModel(MeshModel):
             self.dfmmodel.geometry.netfile.network._mesh2d
         )  # needed to setup 1d2d links
 
-    def set_mesh2d(self):
+    def set_mesh2d(self, mesh2d: mk.py_structures.Mesh2d = None):
         """update the mesh2d in hydrolib-core net object by overwrite"""
         # process mesh2d to net object
-        if self._mesh:
+        if mesh2d is None and self._mesh is not None:
             mesh2d = self._mesh.ugrid.grid.mesh
-            self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
+        self.dfmmodel.geometry.netfile.network._mesh2d._process(mesh2d)
 
     @property
     def link1d2d(self):

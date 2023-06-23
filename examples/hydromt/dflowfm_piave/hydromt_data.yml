@@ -1,8 +1,7 @@
 grip_roads:
-  data_type: GeoDataFrame
-  path: C:\Users\li_xn\.hydromt_data\artifact_data\v0.0.7\grip_roads.gpkg
-  driver: vector
   crs: 4326
+  data_type: GeoDataFrame
+  driver: vector
   meta:
     category: road
     paper_doi: 10.1088/1748-9326/aabd42
@@ -10,11 +9,18 @@ grip_roads:
     source_license: CC0-1.0
     source_url: https://www.globio.info/download-grip-dataset
     source_version: v4
+  path: p:\wflow_global\hydromt\infrastructure\grip\GRIP4_world.fgb
+  rename:
+    GP_RCY: country_code
+    GP_RTP: road_type
 merit_hydro:
-  data_type: RasterDataset
-  path: C:\Users\li_xn\.hydromt_data\artifact_data\v0.0.7\merit_hydro\{variable}.tif
-  driver: raster
   crs: 4326
+  data_type: RasterDataset
+  driver: raster
+  kwargs:
+    chunks:
+      x: 6000
+      y: 6000
   meta:
     category: topography
     paper_doi: 10.1029/2019WR024873
@@ -22,13 +28,22 @@ merit_hydro:
     source_license: CC-BY-NC 4.0 or ODbL 1.0
     source_url: http://hydro.iis.u-tokyo.ac.jp/~yamadai/MERIT_Hydro
     source_version: 1.0
+  path: p:\wflow_global\hydromt\topography\merit_hydro\*.vrt
+  rename:
+    bas: basins
+    dir: flwdir
+    elv: elevtn
+    slp: lndslp
+    sto: strord
+    upa: uparea
+    upg: upgrid
+    wth: rivwth
 pipes_defaults:
   data_type: DataFrame
-  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\hydrolib\hydromt_delft3dfm\data\pipes\pipes_defaults.csv
   driver: csv
+  path: c:\Developments\HYDROLIB\hydrolib\hydromt_delft3dfm\data\pipes\pipes_defaults.csv
 rivers_lin2019_v1:
   data_type: GeoDataFrame
-  path: C:\Users\li_xn\.hydromt_data\artifact_data\v0.0.7\rivers_lin2019_v1.gpkg
   driver: vector
   meta:
     category: hydrography
@@ -37,28 +52,36 @@ rivers_lin2019_v1:
     source_license: CC-BY-NC 4.0
     source_url: https://zenodo.org/record/3552776#.YVbOrppByUk
     source_version: 1
+  path: p:\wflow_global\hydromt\hydrography\rivers_lin2019\rivers_ge30m.fgb
+  rename:
+    Q2: qbankfull
+    width_m: rivwth
 vito:
-  data_type: RasterDataset
-  path: C:\Users\li_xn\.hydromt_data\artifact_data\v0.0.7\vito.tif
-  driver: raster
   crs: 4326
+  data_type: RasterDataset
+  driver: raster
+  kwargs:
+    chunks:
+      x: 3600
+      y: 3600
   meta:
-    category: landuse & landcover
+    category: landuse
     paper_doi: 10.5281/zenodo.3939038
     paper_ref: Buchhorn et al (2020)
     source_url: https://land.copernicus.eu/global/products/lc
     source_version: v2.0.2
+  path: p:\wflow_global\hydromt\landuse\vito\ProbaV_LC100_epoch2015_global_v2.0.2_discrete-classification_EPSG-4326.tif
 vito_mapping:
   data_type: DataFrame
-  path: D:\Projects\hydromt-delft3dfm\HYDROLIB\hydrolib\hydromt_delft3dfm\data\landuse\vito_mapping.csv
   driver: csv
   kwargs:
     index_col: 0
-  nodata:
-    landuse: 0
-    roughness_manning: -999.0
-    infiltcap: -999.0
   meta:
     category: landuse
     source_info: landuse parameters based on vito classification (https://land.copernicus.eu/global/products/lc)
     source_version: 1.0
+  nodata:
+    infiltcap: -999.0
+    landuse: 0
+    roughness_manning: -999.0
+  path: c:\Developments\HYDROLIB\hydrolib\hydromt_delft3dfm\data\landuse\vito_mapping.csv
