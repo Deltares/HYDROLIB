@@ -559,7 +559,7 @@ def compute_meteo_forcings(
     # instantiate xr.DataArray for global time series
     da_out = xr.DataArray(
         data=np.full(
-            (1, len(df_meteo)), df_meteo["global"].values, dtype=np.float32
+            (1, len(df_meteo)), df_meteo["precip"].values, dtype=np.float32
         ),
         dims=["index", "time"],
         coords=dict(

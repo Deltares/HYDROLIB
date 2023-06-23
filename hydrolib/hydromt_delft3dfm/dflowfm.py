@@ -1720,10 +1720,9 @@ class DFlowFMModel(MeshModel):
     def setup_rainfall_from_constant(
         self,
         constant_value: float,
-        is_rate: bool = True,
     ):
         """
-        Prepares constant daily rainfall timeseries for the 2D grid based on ``constant_value``.
+        Prepares constant daily rainfall_rate timeseries for the 2D grid based on ``constant_value``.
 
         Adds/Updates model layers:
             * **meteo_{meteo_type}** forcing: DataArray
@@ -1731,11 +1730,7 @@ class DFlowFMModel(MeshModel):
         Parameters
         ----------
         constant_value: float
-            Constant value for the rainfall timeseries.
-        is_rate: bool
-            Specify if the type of meteo data is direct "rainfall" (False) or "rainfall_rate" (True).
-            By default True for "rainfall_rate". Note that Delft3DFM 1D2D Suite 2022.04 supports only "rainfall_rate".
-            If rate, unit is expected to be in mm/day and else mm.
+            Constant value for the rainfall_rate timeseries in mm/day.
         """
         self.logger.info(f"Preparing rainfall meteo forcing from uniform timeseries.")
 
@@ -1751,7 +1746,7 @@ class DFlowFMModel(MeshModel):
         da_out = workflows.compute_meteo_forcings(
             df_meteo = df_meteo,
             fill_value=constant_value,
-            is_rate=is_rate,
+            is_rate=True,
             meteo_location=meteo_location,
             logger=self.logger,
         )
