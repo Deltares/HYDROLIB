@@ -49,11 +49,12 @@
   crs: 32647
   kwargs:
     fn_data: local_data/boundaries_series.csv
-citycenter:
-  data_type: GeoDataFrame
-  driver: vector
-  path: local_data/citycenter.geojson
+roads:
+  path: local_data/roads.tiff
+  data_type: RasterDataset
   crs: 32647
+  rename:
+    roads: steps
 dem:
   path: local_data/dem.tif
   data_type: RasterDataset

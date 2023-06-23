@@ -2251,15 +2251,15 @@ class DFlowFMModel(MeshModel):
             net._mesh2d._set_mesh2d()
             mesh2d = net._mesh2d.get_mesh2d()
             # Create Ugrid2d object
-            # TODO: after release of xugrid use grid = xu.Ugrid2d.from_meshkernel(mesh2d)
-            n_max_node = mesh2d.nodes_per_face.max()
-            grid = xu.Ugrid2d(
-                node_x=mesh2d.node_x,
-                node_y=mesh2d.node_y,
-                fill_value=-1,
-                face_node_connectivity=mesh2d.face_nodes.reshape((-1, n_max_node)),
-                crs=crs,
-            )
+            grid = xu.Ugrid2d.from_meshkernel(mesh2d)
+            # n_max_node = mesh2d.nodes_per_face.max()
+            # grid = xu.Ugrid2d(
+            #     node_x=mesh2d.node_x,
+            #     node_y=mesh2d.node_y,
+            #     fill_value=-1,
+            #     face_node_connectivity=mesh2d.face_nodes.reshape((-1, n_max_node)),
+            #     crs=crs,
+            # )
             # grid._mesh = mesh2d
             # Create UgridDataset
             da = xr.DataArray(
