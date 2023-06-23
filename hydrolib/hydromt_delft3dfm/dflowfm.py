@@ -25,7 +25,7 @@ from hydrolib.core.dflowfm import FMModel, Mesh1d, IniFieldModel, Network
 from hydrolib.core.dimr import DIMR, FMComponent, Start
 
 from hydrolib.dhydamo.geometry import mesh
-from hydrolib.dhydamo.geometry.models import GeometryList
+from meshkernel import GeometryList
 
 from . import DATADIR
 from . import workflows
@@ -1621,9 +1621,11 @@ class DFlowFMModel(MeshModel):
         polygon_fn : str Path, optional
             Path to a polygon or MultiPolygon used to refine the 2D mesh
         sample_fn  : str Path, optional
-            Path to a  raster sample file used to refine the 2D mesh.
+            Path to a raster sample file used to refine the 2D mesh.
             The value of each sample point is the number of steps to refine the mesh. Allow only single values.
-            The resolution of the raster should be the same as end result resolution.
+            The resolution of the raster should be the same as the desired end result resolution.
+
+            * Required variable: ['steps']
         steps : int, optional
             Number of steps in the refinement when `polygon_fn' is used.
             By default 1, i.e. no refinement is applied.
@@ -1645,7 +1647,25 @@ class DFlowFMModel(MeshModel):
                 gdf = gdf.to_crs(self.crs)
             # refine
             _old_size = len(self.mesh2d.mesh2d_face_x)
-            mesh.mesh2d_refine(self.network, gdf.geometry.unary_union, steps)
+            
+            # Create a list of coordinate lists
+            polygon = gdf.geometry.unary_union
+            cls = GeometryList()
+            # Add exterior
+            x_ext, y_ext = np.array(polygon.exterior.coords[:]).T
+            x_crds = [x_ext]
+            y_crds = [y_ext]
+            # Add interiors, seperated by inner_outer_separator
+            for interior in polygon.interiors:
+                x_int, y_int = np.array(interior.coords[:]).T
+                x_crds.append([cls.inner_outer_separator])
+                x_crds.append(x_int)
+                y_crds.append([cls.inner_outer_separator])
+                y_crds.append(y_int)
+            gl = GeometryList(
+                x_coordinates=np.concatenate(x_crds), y_coordinates=np.concatenate(y_crds)
+            )
+            self.network.mesh2d_refine(gl, steps)
             _new_size = len(self.mesh2d.mesh2d_face_x)
             # log
             if _new_size != _old_size:
@@ -1658,15 +1678,16 @@ class DFlowFMModel(MeshModel):
         elif sample_fn is not None:
             self.logger.info(f"reading samples from file {sample_fn}. ")
             # read
-            ds = self.data_catalog.get_rasterdataset(
-                sample_fn, geom=self.region, buffer=0, predicate="contains"
+            da = self.data_catalog.get_rasterdataset(
+                sample_fn, geom=self.region, buffer=0, predicate="contains", variables=["steps"], single_var_as_array=True,
             ).astype(np.float64) # float64 is needed by mesh kernel to convert into c double
             # reproject
-            if ds.raster.crs != self.crs:
-                ds = ds.raster.reproject(self.crs)
+            if da.raster.crs != self.crs:
+                self.logger.warning(f"Sample grid has a different resolution than model. Reprojecting with nearest but some information might be lost.")
+                da = da.raster.reproject(self.crs, method="nearest")
             # get sample point
-            xv, yv = np.meshgrid(ds.x.values, ds.y.values)
-            zv = ds.values
+            xv, yv = np.meshgrid(da.x.values, da.y.values)
+            zv = da.values
             mask = zv > 0
             samples = GeometryList(xv[mask].flatten(), yv[mask].flatten(), zv[mask].flatten())
             # get steps
