@@ -139,3 +139,5 @@ hydrolib/dhydamo/debug.py
 .DS_Store
 coverage-reports
 xunit-reports
+hydrolib/tests/model/*
+dimr_config.xml

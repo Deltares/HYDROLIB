@@ -8,7 +8,7 @@ from hydrolib.dhydamo.io.drrwriter import DRRWriter
 from tests.dhydamo.io import test_from_hydamo
 
 
-def test_setup_rr_model():
+def test_setup_rr_model(hydamo=None):
 
     data_path = Path("hydrolib/tests/data").resolve()
     assert data_path.exists()
@@ -17,7 +17,8 @@ def test_setup_rr_model():
 
     drrmodel = DRRModel()
 
-    hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
+    if hydamo is None:
+        hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
 
     # all data and settings to create the RR-model
     lu_file = data_path / "rasters" / "sobek_landuse.tif"
@@ -128,4 +129,4 @@ def test_setup_rr_model():
     )
     rr_writer.write_all()
 
-    
+    return drrmodel

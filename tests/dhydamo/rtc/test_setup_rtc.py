@@ -10,13 +10,13 @@ from hydrolib.dhydamo.core.drtc import DRTCModel
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
 
 
-def test_setup_rtc_model():
+def test_setup_rtc_model(hydamo=None):
     data_path = Path("hydrolib/tests/data").resolve()
     assert data_path.exists()
     output_path = Path("hydrolib/tests/model").resolve()
     assert output_path.exists()
 
-    hydamo, fm = setup_model()
+    hydamo, fm = setup_model(hydamo=hydamo)
 
     drtcmodel = DRTCModel(
         hydamo,
@@ -68,3 +68,5 @@ def test_setup_rtc_model():
     )
 
     assert len(drtcmodel.time_controllers) == 2
+
+    return drtcmodel
