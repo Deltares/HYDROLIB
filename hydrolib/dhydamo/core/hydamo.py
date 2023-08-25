@@ -1970,7 +1970,7 @@ class ObservationPoints:
             columns={"branch_id": "branchid", "branch_offset": "chainage"}, inplace=True
         )
 
-        obs = obs1d.append(obs2d, sort=True) if locationTypes is not None else obs1d
+        obs = pd.concat([obs1d, obs2d], sort=True) if locationTypes is not None else obs1d
 
         obs.dropna(how="all", axis=1, inplace=True)
 
