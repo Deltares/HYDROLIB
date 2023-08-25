@@ -321,7 +321,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # add a letter to 'exploded' multipolygons
         if "MultiPolygon" in list(gdf.geometry.type):
-            gdf = gdf.explode()
+            gdf = gdf.explode(index_parts=True)
             for ftc in gdf[id_col].unique():
                 if len(gdf[gdf[id_col] == ftc]) > 1:
                     gdf.loc[gdf[id_col] == ftc, id_col] = [
