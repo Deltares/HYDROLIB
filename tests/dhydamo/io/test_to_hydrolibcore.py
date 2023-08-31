@@ -37,7 +37,7 @@ output_path.mkdir(parents=True, exist_ok=True)
 assert output_path.exists()
 
 
-def setup_model(hydamo=None):
+def setup_model(hydamo=None, full_test=False):
     fm = FMModel()
     # Set start and stop time
     fm.time.refdate = 20160601
@@ -55,14 +55,16 @@ def setup_model(hydamo=None):
         hydamo.management_device,
     )
 
-    structures = hydamo.structures.as_dataframe(
-        rweirs=True,
-        bridges=True,
-        uweirs=True,
-        culverts=True,
-        orifices=True,
-        pumps=True,
-    )
+    structures = None
+    if full_test:
+        structures = hydamo.structures.as_dataframe(
+            rweirs=True,
+            bridges=True,
+            uweirs=True,
+            culverts=True,
+            orifices=True,
+            pumps=True,
+        )
 
     mesh.mesh1d_add_branches_from_gdf(
         fm.geometry.netfile.network,
@@ -102,52 +104,52 @@ def setup_model(hydamo=None):
     hydamo.crosssections.set_default_definition(definition=default, shift=10.0)
     hydamo.external_forcings.set_initial_waterdepth(1.5)
 
-    hydamo.observationpoints.add_points(
-        [Point(199617,394885), Point(199421,393769), Point(199398,393770), Point(200198,396489)],
-        ["Obs_BV152054", "ObsS_96684_1","ObsS_96684_2", "ObsS_96544"],
-        locationTypes=["1d", "1d", "1d", "1d"],
-        snap_distance=10.0,
-    )
+    if full_test:
+        hydamo.observationpoints.add_points(
+            [Point(199617,394885), Point(199421,393769), Point(199398,393770), Point(200198,396489)],
+            ["Obs_BV152054", "ObsS_96684_1","ObsS_96684_2", "ObsS_96544"],
+            locationTypes=["1d", "1d", "1d", "1d"],
+            snap_distance=10.0,
+        )
 
-    # Check how many branches do not have a profile.
-    # One way to fix this is by assigning order numbers to branches, so the 
-    # crosssections are interpolated over branches with the same order. First, 
-    # we assign branches iwth the same 'naam' the same branch order.    
-    missing = hydamo.crosssections.get_branches_without_crosssection()
-    j = 0
-    hydamo.branches["order"] = np.nan
-    for i in hydamo.branches.naam.unique():
-        if i is None:
-            continue
+        # Check how many branches do not have a profile.
+        # One way to fix this is by assigning order numbers to branches, so the 
+        # crosssections are interpolated over branches with the same order. First, 
+        # we assign branches iwth the same 'naam' the same branch order.    
+        missing = hydamo.crosssections.get_branches_without_crosssection()
+        j = 0
+        hydamo.branches["order"] = np.nan
+        for i in hydamo.branches.naam.unique():
+            if i is None:
+                continue
 
-        name_matches = hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "code"]
-        all_missing = all(x in missing for x in name_matches)
-        if not all_missing:
-            hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "order"] = int(j)
-            j = j + 1
+            name_matches = hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "code"]
+            all_missing = all(x in missing for x in name_matches)
+            if not all_missing:
+                hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "order"] = int(j)
+                j = j + 1
 
-    # We assign these orders, now as column in the hydamo.branches dataframe, to the network.
-    interpolation = []
-    for i in hydamo.branches.order.unique():
-        if i > 0:
-            mesh.mesh1d_set_branch_order(
-                fm.geometry.netfile.network,
-                hydamo.branches.code[hydamo.branches.order == i].to_list(),
-                idx=int(i),
-            )
-            interpolation = (
-                interpolation + hydamo.branches.code[hydamo.branches.order == i].to_list()
-            )
-    
-    # Check for how many branches no interpolation can be applied.
-    missing_after_interpolation = np.setdiff1d(missing, interpolation)
-    
-    # Set a default cross section
-    profiel=np.array([[0,21],[2,19],[7,19],[9,21]])
-    default = hydamo.crosssections.add_yz_definition(yz=profiel, thalweg = 4.5, roughnesstype='StricklerKs', roughnessvalue=25.0,  name='default')
-    hydamo.crosssections.set_default_definition(definition=default, shift=0.0)
-    hydamo.crosssections.set_default_locations(missing_after_interpolation)
-
+        # We assign these orders, now as column in the hydamo.branches dataframe, to the network.
+        interpolation = []
+        for i in hydamo.branches.order.unique():
+            if i > 0:
+                mesh.mesh1d_set_branch_order(
+                    fm.geometry.netfile.network,
+                    hydamo.branches.code[hydamo.branches.order == i].to_list(),
+                    idx=int(i),
+                )
+                interpolation = (
+                    interpolation + hydamo.branches.code[hydamo.branches.order == i].to_list()
+                )
+        
+        # Check for how many branches no interpolation can be applied.
+        missing_after_interpolation = np.setdiff1d(missing, interpolation)
+        
+        # Set a default cross section
+        profiel=np.array([[0,21],[2,19],[7,19],[9,21]])
+        default = hydamo.crosssections.add_yz_definition(yz=profiel, thalweg = 4.5, roughnesstype='StricklerKs', roughnessvalue=25.0,  name='default')
+        hydamo.crosssections.set_default_definition(definition=default, shift=0.0)
+        hydamo.crosssections.set_default_locations(missing_after_interpolation)
 
     # main filepath
     fm.filepath = Path(output_path) / "fm" / "test.mdu"
@@ -163,8 +165,8 @@ def test_convert_to_hydrolibmodel():
     assert len(models.crossdefs) == 353
 
 
-def test_add_to_filestructure(drrmodel=None, hydamo=None):
-    hydamo, fm = setup_model(hydamo=hydamo)
+def test_add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
+    hydamo, fm = setup_model(hydamo=hydamo, full_test=full_test)
 
     if drrmodel is not None:
         hydamo.external_forcings.convert.laterals(
@@ -215,8 +217,8 @@ def test_add_to_filestructure(drrmodel=None, hydamo=None):
     return fm
 
 
-def test_write_model(drrmodel=None, hydamo=None):
-    fm = test_add_to_filestructure(drrmodel=drrmodel, hydamo=hydamo)
+def test_write_model(drrmodel=None, hydamo=None, full_test=False):
+    fm = test_add_to_filestructure(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
 
     dimr = DIMR()
     dimr.component.append(

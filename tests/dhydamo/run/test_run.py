@@ -7,6 +7,24 @@ from tests.dhydamo.rr import test_setup_rr
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
 
 
+def test_find_dimr(dhydro_path="C:/Program Files/Deltares"):
+    dimr_path = None
+
+    # Find latest D-Hydro installation
+    # @TODO only checks windows
+    # @TODO assumes program files installation
+    dhydro_path = pathlib.Path(dhydro_path)
+    if dhydro_path.exists():
+        installs = [p for p in dhydro_path.iterdir() if p.is_dir() and p.name.startswith("D-HYDRO Suite")]
+        if len(installs) > 0:
+            sort_keys = [p.name.replace("D-HYDRO Suite", "").strip().split(" ")[0] for p in installs]
+            installs = [x for _, x in sorted(zip(sort_keys, installs))]
+            dimr_path = str(installs[-1].joinpath("plugins/DeltaShell.Dimr/kernels/x64/dimr/scripts/run_dimr.bat"))
+
+    assert dimr_path is not None
+
+    return dimr_path
+
 def test_run_model():
     # Read hydamo object only once
     hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
@@ -49,29 +67,19 @@ def test_run_model():
     drrmodel = test_setup_rr.test_setup_rr_model(hydamo=hydamo)
 
     # Setup model
-    fm, output_path = test_to_hydrolibcore.test_write_model(drrmodel=drrmodel, hydamo=hydamo)
+    fm, output_path = test_to_hydrolibcore.test_write_model(drrmodel=drrmodel, hydamo=hydamo, full_test=True)
 
     # Add RTC component
     drtcmodel = test_setup_rtc.test_setup_rtc_model(hydamo=hydamo)
     drtcmodel.write_xml_v1()
 
-    # Find latest D-Hydro installation
-    dimr_path = None
-    dhydro_path = pathlib.Path(r"C:\Program Files\Deltares")
-    if dhydro_path.exists():
-        installs = [p for p in dhydro_path.iterdir() if p.is_dir() and p.name.startswith("D-HYDRO Suite")]
-        if len(installs) > 0:
-            sort_keys = [p.name.replace("D-HYDRO Suite", "").strip().split(" ")[0] for p in installs]
-            installs = [x for _, x in sorted(zip(sort_keys, installs))]
-            dimr_path = str(installs[-1].joinpath("plugins/DeltaShell.Dimr/kernels/x64/dimr/scripts/run_dimr.bat"))
-
     # Write DIMR config
+    dimr_path = test_find_dimr()
     dimr = DIMRWriter(output_path=output_path, dimr_path=dimr_path)
     dimr.write_dimrconfig(fm, rr_model=drrmodel, rtc_model=drtcmodel)
     dimr.write_runbat()
 
     # Call DIMR .bat file
-    output_path = pathlib.Path("hydrolib/tests/model").resolve()
     p = subprocess.Popen("run.bat", cwd=output_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = p.communicate()
     stdout = stdout.decode("ascii")
@@ -79,6 +87,3 @@ def test_run_model():
 
     print(stdout)
     # assert stderr == ""
-
-if __name__ == "__main__":
-    test_run_model()
