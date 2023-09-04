@@ -106,4 +106,7 @@ fiona = { channel = "conda-forge" }
 contextily = { channel = "conda-forge" }
 
 [tool.pytest.ini_options]
-markers = "plot"
+markers = [
+    "slow_test: marks tests as slow (deselect with '-m \"not slow\"')",
+    "plots: marks tests as having plots (deselect with '-m \"not plots\"')",
+]
