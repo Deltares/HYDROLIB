@@ -21,8 +21,7 @@ hydamo_data_path = (
 )
 
 
-@pytest.mark.plots
-def test_create_2d_rectilinear():
+def test_create_2d_rectilinear(do_plot=False):
     # Define polygon
     bbox = (1.0, -2.0, 3.0, 4.0)
 
@@ -48,7 +47,8 @@ def test_create_2d_rectilinear():
         np.array([0.0, 0.0, 0.0, 5.0, 5.0, 5.0, 10.0, 10.0, 10.0]),
     )
 
-    # viz.plot_network(network)
+    if do_plot:
+        viz.plot_network(network)
 
 
 def _get_circle_polygon(
@@ -62,8 +62,7 @@ def _get_circle_polygon(
     return circle
 
 
-@pytest.mark.plots
-def test_create_2d_rectilinear_within_circle():
+def test_create_2d_rectilinear_within_circle(do_plot=False):
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
 
@@ -80,18 +79,18 @@ def test_create_2d_rectilinear_within_circle():
     )
 
     # Plot to verify
-    # fig, ax = plt.subplots()
-    # viz.plot_network(network, ax=ax)
-    # ax.plot(*circle.exterior.coords.xy, color="red", ls="--")
-    # plt.show()
+    if do_plot:
+        fig, ax = plt.subplots()
+        viz.plot_network(network, ax=ax)
+        ax.plot(*circle.exterior.coords.xy, color="red", ls="--")
+        plt.show()
 
     # Test if 80 (of the 100) cells are left
     assert len(network._mesh2d.mesh2d_face_x) == 80
 
 
 @pytest.mark.xfail
-@pytest.mark.plots
-def test_create_2d_triangular_within_circle():
+def test_create_2d_triangular_within_circle(do_plot=False):
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
 
@@ -250,15 +249,15 @@ def test_create_2d_triangular_within_circle():
     )
 
     # Plot to verify
-    # fig, ax = plt.subplots()
-    # ax.set_aspect(1.0)
-    # viz.plot_network(network, ax=ax)
-    # ax.plot(*circle.exterior.coords.xy, color="red", ls="--")
-    # plt.show()
+    if do_plot:
+        fig, ax = plt.subplots()
+        ax.set_aspect(1.0)
+        viz.plot_network(network, ax=ax)
+        ax.plot(*circle.exterior.coords.xy, color="red", ls="--")
+        plt.show()
 
 
-@pytest.mark.plots
-def test_create_2d_rectangular_from_multipolygon():
+def test_create_2d_rectangular_from_multipolygon(do_plot=False):
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -294,19 +293,19 @@ def test_create_2d_rectangular_from_multipolygon():
     assert len(network._mesh2d.mesh2d_face_x) == 303
 
     # Plot to verify
-    # fig, ax = plt.subplots()
-    # ax.set_aspect(1.0)
-    # viz.plot_network(network, ax=ax)
-    # ax.plot(*polygon1.exterior.coords.xy, color="k", ls="--")
-    # ax.plot(*polygon2.exterior.coords.xy, color="k", ls="--")
-    # ax.plot(*river.exterior.coords.xy, color="r", ls="--")
-    # ax.plot(*refinement.exterior.coords.xy, color="g", ls="--")
-    # plt.show()
+    if do_plot:
+        fig, ax = plt.subplots()
+        ax.set_aspect(1.0)
+        viz.plot_network(network, ax=ax)
+        ax.plot(*polygon1.exterior.coords.xy, color="k", ls="--")
+        ax.plot(*polygon2.exterior.coords.xy, color="k", ls="--")
+        ax.plot(*river.exterior.coords.xy, color="r", ls="--")
+        ax.plot(*refinement.exterior.coords.xy, color="g", ls="--")
+        plt.show()
 
 
 @pytest.mark.xfail
-@pytest.mark.plots
-def test_create_2d_triangular_from_multipolygon():
+def test_create_2d_triangular_from_multipolygon(do_plot=False):
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -331,17 +330,17 @@ def test_create_2d_triangular_from_multipolygon():
     assert len(network._mesh2d.mesh2d_edge_x) == 984
 
     # # Plot to verify
-    # fig, ax = plt.subplots()
-    # ax.set_aspect(1.0)
-    # viz.plot_network(network, ax=ax)
-    # ax.plot(*circle1.exterior.coords.xy, color="k", ls="--")
-    # ax.plot(*circle2.exterior.coords.xy, color="k", ls="--")
-    # ax.plot(*refinement_box.exterior.coords.xy, color="g", ls="--")
-    # plt.show()
+    if do_plot:
+        fig, ax = plt.subplots()
+        ax.set_aspect(1.0)
+        viz.plot_network(network, ax=ax)
+        ax.plot(*circle1.exterior.coords.xy, color="k", ls="--")
+        ax.plot(*circle2.exterior.coords.xy, color="k", ls="--")
+        ax.plot(*refinement_box.exterior.coords.xy, color="g", ls="--")
+        plt.show()
 
 
-@pytest.mark.plots
-def test_2d_clip_outside_polygon():
+def test_2d_clip_outside_polygon(do_plot=False):
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -360,17 +359,17 @@ def test_2d_clip_outside_polygon():
     assert len(network._mesh2d.mesh2d_node_x) == 285
 
     # Plot to verify
-    # fig, ax = plt.subplots()
-    # ax.set_aspect(1.0)
-    # viz.plot_network(network, ax=ax)
-    # ax.plot(*clipgeo.exterior.coords.xy, color="k", ls="--")
-    # for hole in clipgeo.interiors:
-    #     ax.plot(*hole.coords.xy, color="r", ls="--")
-    # plt.show()
+    if do_plot:
+        fig, ax = plt.subplots()
+        ax.set_aspect(1.0)
+        viz.plot_network(network, ax=ax)
+        ax.plot(*clipgeo.exterior.coords.xy, color="k", ls="--")
+        for hole in clipgeo.interiors:
+            ax.plot(*hole.coords.xy, color="r", ls="--")
+        plt.show()
 
 
-@pytest.mark.plots
-def test_2d_clip_inside_multipolygon():
+def test_2d_clip_inside_multipolygon(do_plot=False):
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -385,18 +384,18 @@ def test_2d_clip_inside_multipolygon():
     mesh.mesh2d_clip(network, clipgeo, deletemeshoption=1, inside=True)
     assert len(network._mesh2d.mesh2d_node_x) == 437
 
-    # # Plot to verify
-    # fig, ax = plt.subplots()
+    # Plot to verify
+    if do_plot:
+        fig, ax = plt.subplots()
 
-    # ax.set_aspect(1.0)
-    # viz.plot_network(network, ax=ax)
-    # for polygon in clipgeo.geoms:
-    #     ax.plot(*polygon.exterior.coords.xy, color="r", ls="--")
-    # plt.show()
+        ax.set_aspect(1.0)
+        viz.plot_network(network, ax=ax)
+        for polygon in clipgeo.geoms:
+            ax.plot(*polygon.exterior.coords.xy, color="r", ls="--")
+        plt.show()
 
 
-@pytest.mark.plots
-def test_1d_add_branch_from_linestring():
+def test_1d_add_branch_from_linestring(do_plot=False):
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -408,14 +407,15 @@ def test_1d_add_branch_from_linestring():
     mesh.mesh1d_add_branch_from_linestring(network, branch, node_distance=3)
 
     # Plot to verify
-    # fig, ax = plt.subplots()
+    if do_plot:
+        fig, ax = plt.subplots()
 
-    # ax.set_aspect(1.0)
-    # viz.plot_network(network, ax=ax)
-    # ax.autoscale_view()
-    # for ls in common.as_linestring_list(branch):
-    #     ax.plot(*ls.coords.xy, color="k", ls="-", lw=3, alpha=0.2)
-    # plt.show()
+        ax.set_aspect(1.0)
+        viz.plot_network(network, ax=ax)
+        ax.autoscale_view()
+        for ls in common.as_linestring_list(branch):
+            ax.plot(*ls.coords.xy, color="k", ls="-", lw=3, alpha=0.2)
+        plt.show()
 
 
 def _prepare_1d2d_mesh():
@@ -441,8 +441,7 @@ def _prepare_1d2d_mesh():
     return network, within, branchids
 
 
-@pytest.mark.plots
-def test_links1d2d_add_links_1d_to_2d():
+def test_links1d2d_add_links_1d_to_2d(do_plot=False):
     network, within, branchids = _prepare_1d2d_mesh()
 
     # Generate all links
@@ -467,21 +466,21 @@ def test_links1d2d_add_links_1d_to_2d():
     assert len(network._link1d2d.link1d2d) == 13
 
     # Plot to verify
-    # fig, ax = plt.subplots(figsize=(5, 5))
+    if do_plot:
+        fig, ax = plt.subplots(figsize=(5, 5))
 
-    # viz.plot_network(network, ax=ax)
+        viz.plot_network(network, ax=ax)
 
-    # for polygon in common.as_polygon_list(within):
-    #     ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
-    #     ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
-    # ax.set_aspect(1.0)
-    # ax.autoscale_view()
+        for polygon in common.as_polygon_list(within):
+            ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
+            ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
+        ax.set_aspect(1.0)
+        ax.autoscale_view()
 
-    # plt.show()
+        plt.show()
 
 
-@pytest.mark.plots
-def test_links1d2d_add_links_2d_to_1d_embedded():
+def test_links1d2d_add_links_2d_to_1d_embedded(do_plot=False):
     network, within, branchids = _prepare_1d2d_mesh()
 
     # Generate all links
@@ -501,22 +500,22 @@ def test_links1d2d_add_links_2d_to_1d_embedded():
     mesh.links1d2d_add_links_2d_to_1d_embedded(network, within=within)
     assert len(network._link1d2d.link1d2d) == 5
 
-    # # Plot to verify
-    # fig, ax = plt.subplots(figsize=(5, 5))
+    # Plot to verify
+    if do_plot:
+        fig, ax = plt.subplots(figsize=(5, 5))
 
-    # viz.plot_network(network, ax=ax)
+        viz.plot_network(network, ax=ax)
 
-    # for polygon in common.as_polygon_list(within):
-    #     ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
-    #     ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
-    # ax.set_aspect(1.0)
-    # ax.autoscale_view()
+        for polygon in common.as_polygon_list(within):
+            ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
+            ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
+        ax.set_aspect(1.0)
+        ax.autoscale_view()
 
-    # plt.show()
+        plt.show()
 
 
-@pytest.mark.plots
-def test_links1d2d_add_links_2d_to_1d_lateral():
+def test_links1d2d_add_links_2d_to_1d_lateral(do_plot=False):
     network, within, branchids = _prepare_1d2d_mesh()
 
     # Generate all links
@@ -548,21 +547,21 @@ def test_links1d2d_add_links_2d_to_1d_lateral():
     assert len(network._link1d2d.link1d2d) == 24
 
     # Plot the final result verify
-    # fig, ax = plt.subplots(figsize=(5, 5))
+    if do_plot:
+        fig, ax = plt.subplots(figsize=(5, 5))
 
-    # viz.plot_network(network, ax=ax)
+        viz.plot_network(network, ax=ax)
 
-    # for polygon in common.as_polygon_list(within):
-    #     ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
-    #     ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
-    # ax.set_aspect(1.0)
-    # ax.autoscale_view()
+        for polygon in common.as_polygon_list(within):
+            ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
+            ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
+        ax.set_aspect(1.0)
+        ax.autoscale_view()
 
-    # plt.show()
+        plt.show()
 
 
-@pytest.mark.plots
-def test_linkd1d2d_remove_links_within_polygon():
+def test_linkd1d2d_remove_links_within_polygon(do_plot=False):
     network, within, _ = _prepare_1d2d_mesh()
     within = within.buffer(-2)
 
@@ -571,17 +570,18 @@ def test_linkd1d2d_remove_links_within_polygon():
     mesh.links1d2d_remove_within(network, within=within)
 
     # Plot to verify
-    # fig, ax = plt.subplots(figsize=(5, 5))
+    if do_plot:
+        fig, ax = plt.subplots(figsize=(5, 5))
 
-    # viz.plot_network(network, ax=ax)
+        viz.plot_network(network, ax=ax)
 
-    # for polygon in common.as_polygon_list(within):
-    #     ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
-    #     ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
-    # ax.set_aspect(1.0)
-    # ax.autoscale_view()
+        for polygon in common.as_polygon_list(within):
+            ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
+            ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
+        ax.set_aspect(1.0)
+        ax.autoscale_view()
 
-    # plt.show()
+        plt.show()
 
 
 def _prepare_hydamo(culverts: bool = False):
@@ -682,7 +682,7 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
     ) == np.round(np.float32(outcome), 2)
 
 
-def test_mesh1d_add_branches_from_gdf():
+def test_mesh1d_add_branches_from_gdf(do_plot=False):
     # Create full HyDAMO object (use from other test)
     hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
 
@@ -708,9 +708,11 @@ def test_mesh1d_add_branches_from_gdf():
         structures=structures,
     )
     # Plot to verify
-    # fig, ax = plt.subplots()
+    if do_plot:
+        fig, ax = plt.subplots()
 
-    # ax.set_aspect(1.0)
-    # viz.plot_network(network, ax=ax)
-    # ax.autoscale_view()
-    # plt.show()
+        ax.set_aspect(1.0)
+        viz.plot_network(network, ax=ax)
+        ax.autoscale_view()
+        plt.show()
+
