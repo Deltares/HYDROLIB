@@ -2,7 +2,9 @@ import sys
 
 sys.path.insert(0, r".")
 import os
+import geopandas as gpd
 import numpy as np
+import pandas as pd
 
 # and from hydrolib-core
 from hydrolib.core.dimr.models import DIMR, FMComponent
@@ -129,6 +131,9 @@ def setup_model(hydamo=None, full_test=False):
                 hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "order"] = int(j)
                 j = j + 1
 
+        # branch W_1386_0 has a name, but is  single side branch, it's order is no use. Reset it.
+        hydamo.branches.loc[hydamo.branches.code == 'W_1386_0', 'order']  = -1
+
         # We assign these orders, now as column in the hydamo.branches dataframe, to the network.
         interpolation = []
         for i in hydamo.branches.order.unique():
@@ -150,6 +155,23 @@ def setup_model(hydamo=None, full_test=False):
         default = hydamo.crosssections.add_yz_definition(yz=profiel, thalweg = 4.5, roughnesstype='StricklerKs', roughnessvalue=25.0,  name='default')
         hydamo.crosssections.set_default_definition(definition=default, shift=0.0)
         hydamo.crosssections.set_default_locations(missing_after_interpolation)
+
+        hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network)
+        series = pd.Series(np.sin(np.linspace(2, 8, 120) * -1) + 1.0)
+        series.index = [pd.Timestamp("2016-06-01 00:00:00") + pd.Timedelta(hours=i) for i in range(120)]
+        hydamo.external_forcings.add_boundary_condition(
+            "RVW_01", (197464.0, 392130.0), "dischargebnd", series, fm.geometry.netfile.network
+        )
+        hydamo.external_forcings.set_initial_waterdepth(1.5)
+
+        # Add 2d network
+        extent = gpd.read_file(data_path.joinpath("2D_extent.shp")).at[0, "geometry"]
+        network = fm.geometry.netfile.network
+        mesh.mesh2d_add_rectilinear(network, extent, dx=20, dy=20)
+        mesh.mesh2d_clip(network, hydamo.branches.loc['W_2646_0'].geometry.buffer(20.))
+        mesh.mesh2d_altitude_from_raster(network, data_path.joinpath("rasters/AHN_2m_clipped_filled.tif"), "face", "mean", fill_value=-999)
+        mesh.links1d2d_add_links_1d_to_2d(network)
+        mesh.links1d2d_remove_1d_endpoints(network)
 
     # main filepath
     fm.filepath = Path(output_path) / "fm" / "test.mdu"
@@ -176,7 +198,11 @@ def test_add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
             rr_boundaries=drrmodel.external_forcings.boundary_nodes
         )
 
-    models = Df2HydrolibModel(hydamo)
+
+    if full_test:
+        models = Df2HydrolibModel(hydamo, assign_default_profiles=True)
+    else:
+        models = Df2HydrolibModel(hydamo)
 
     fm.geometry.structurefile = [StructureModel(structure=models.structures)]
     fm.geometry.crosslocfile = CrossLocModel(crosssection=models.crosslocs)

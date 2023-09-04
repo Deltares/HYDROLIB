@@ -1,5 +1,6 @@
 import pathlib
 import subprocess
+import pytest
 
 from tests.dhydamo.io import test_to_hydrolibcore, test_from_hydamo
 from tests.dhydamo.rtc import test_setup_rtc
@@ -7,7 +8,7 @@ from tests.dhydamo.rr import test_setup_rr
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
 
 
-def test_find_dimr(dhydro_path="C:/Program Files/Deltares"):
+def _find_dimr(dhydro_path="C:/Program Files/Deltares"):
     dimr_path = None
 
     # Find latest D-Hydro installation
@@ -21,13 +22,13 @@ def test_find_dimr(dhydro_path="C:/Program Files/Deltares"):
             installs = [x for _, x in sorted(zip(sort_keys, installs))]
             dimr_path = str(installs[-1].joinpath("plugins/DeltaShell.Dimr/kernels/x64/dimr/scripts/run_dimr.bat"))
 
-    assert dimr_path is not None
-
     return dimr_path
 
+@pytest.mark.slow
 def test_run_model():
     # Read hydamo object only once
     hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
+    hydamo = test_from_hydamo.test_convert_structures(hydamo=hydamo)
 
     hydamo.structures.add_rweir(
         id="rwtest",
@@ -73,8 +74,11 @@ def test_run_model():
     drtcmodel = test_setup_rtc.test_setup_rtc_model(hydamo=hydamo)
     drtcmodel.write_xml_v1()
 
+    # Find DIMR path
+    dimr_path = _find_dimr()
+    assert dimr_path is not None
+
     # Write DIMR config
-    dimr_path = test_find_dimr()
     dimr = DIMRWriter(output_path=output_path, dimr_path=dimr_path)
     dimr.write_dimrconfig(fm, rr_model=drrmodel, rtc_model=drtcmodel)
     dimr.write_runbat()
@@ -85,5 +89,4 @@ def test_run_model():
     stdout = stdout.decode("ascii")
     stderr = stderr.decode("ascii")
 
-    print(stdout)
-    # assert stderr == ""
+    # @TODO write actual check if the model output is as expected

@@ -153,9 +153,10 @@ def test_hydamo_object_from_gpkg():
     return hydamo
 
 
-def test_convert_structures():
+def test_convert_structures(hydamo=None):
     # iniate a hydamo object
-    hydamo = test_hydamo_object_from_gpkg()
+    if hydamo is None:
+        hydamo = test_hydamo_object_from_gpkg()
 
     # Convert
     hydamo.structures.convert.weirs(
