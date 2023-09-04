@@ -24,7 +24,7 @@ def _find_dimr(dhydro_path="C:/Program Files/Deltares"):
 
     return dimr_path
 
-@pytest.mark.slow
+@pytest.mark.slow_test
 def test_run_model():
     # Read hydamo object only once
     hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
