@@ -41,7 +41,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
 
       - name: Test with pytest
-        run: poetry run pytest -v -m "not slow_test" -m "not plots" --cov . --cov-report xml:coverage-reports/coverage-hydrolib.xml --junitxml=xunit-reports/xunit-result-hydrolib.xml
+        run: poetry run pytest -v -m "not slow_test and not plots" --cov . --cov-report xml:coverage-reports/coverage-hydrolib.xml --junitxml=xunit-reports/xunit-result-hydrolib.xml
 
       #- name: Autoformat code if the check fails
       #  if: ${{ (matrix.os == 'ubuntu-latest') && (matrix.python-version == 3.8) }}
