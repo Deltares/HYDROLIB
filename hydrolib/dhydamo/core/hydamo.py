@@ -1068,7 +1068,7 @@ class CrossSections:
                 branche_geom = branches[branches.code == css.branch_id].geometry.values
 
                 if css.geometry.intersection(branche_geom[0]).geom_type == "MultiPoint":
-                    thalweg_xyz = css.geometry.intersection(branche_geom[0])[0].coords[
+                    thalweg_xyz = css.geometry.intersection(branche_geom[0]).geoms[0].coords[
                         :
                     ][0]
                 else:
@@ -1434,7 +1434,7 @@ class ExternalForcings:
         if isinstance(series, pd.Series):
             times = ((series.index - series.index[0]).total_seconds() / 60.0).tolist()
             values = series.values.tolist()
-            startdate = pd.datetime.strftime(series.index[0], "%Y-%m-%d %H:%M:%S")
+            startdate = series.index[0].strftime("%Y-%m-%d %H:%M:%S")
         else:
             times = None
             values = series
@@ -1506,7 +1506,7 @@ class ExternalForcings:
                 (discharge.index - discharge.index[0]).total_seconds() / 60.0
             ).tolist()
             values = discharge.values.tolist()
-            startdate = pd.datetime.strftime(discharge.index[0], "%Y-%m-%d %H:%M:%S")
+            startdate = discharge.index[0].strftime("%Y-%m-%d %H:%M:%S")
         else:
             times = None
             values = None

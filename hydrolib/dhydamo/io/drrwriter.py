@@ -585,7 +585,7 @@ class DRRWriter:
                 df[ms[0]] = pd.Series(ms[1]["precip"])
 
             f = open(filepath, "w")
-            f.write("*Name of this file: c:\Result\1058\DEFAULT.BUI\n")
+            f.write("*Name of this file: c:\\Result\\1058\\DEFAULT.BUI\n")
             f.close()
             f = open(filepath, "a")
             f.write("*Date and time of construction: 00/00/2000 00:00:00.\n")
