@@ -11,7 +11,7 @@ license = "LGPL"
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"
-pandas = "^1.2"
+pandas = ">=1.2"
 geopandas = "^0.10"
 xarray = "^0.17"
 hydrolib-core = "0.4.1"
