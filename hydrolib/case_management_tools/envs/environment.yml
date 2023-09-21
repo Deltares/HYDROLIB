@@ -9,9 +9,9 @@ dependencies:
   - jupyter
   - openpyxl
   - pandas
-  - setuptools
   - netCDF4
+  - gdown
   - simplejson
-  - spyder
-  - matplotlib
-  - git
+  - pip
+  - pip:
+    - hydrolib-core==0.3.0

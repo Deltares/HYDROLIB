@@ -1,3 +1,4 @@
+import json
 import logging
 import shutil
 from datetime import datetime, timedelta
@@ -5,8 +6,11 @@ from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import List, Optional, Union
 
+import netCDF4 as nc
+import pandas as pd
 from cmt.run import dhydro
 from cmt.utils.modifyers import prefix_to_paths
+from cmt.utils.read_his import get_timeseries
 from cmt.utils.readers import read_stochastics, read_text
 from cmt.utils.writers import (
     write_flow_boundaries,
@@ -15,10 +19,9 @@ from cmt.utils.writers import (
     write_stowa_buien,
 )
 from pydantic import BaseModel
-from pydantic.types import DirectoryPath
 
-from hydrolib.core.io.fnm.models import RainfallRunoffModel
 from hydrolib.core.io.mdu.models import FMModel
+from hydrolib.core.io.rr.models import RainfallRunoffModel
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -26,6 +29,8 @@ logger.setLevel(logging.DEBUG)
 
 
 class BoundaryCondition(BaseModel):
+    """Boundary condition class."""
+
     id: str
     name: str
     start_datetime: datetime
@@ -33,58 +38,162 @@ class BoundaryCondition(BaseModel):
 
 
 class InitialCondition(BaseModel):
+    """Initial condition class."""
+
     id: str
     name: str
 
 
 class Run(BaseModel):
+    """Model run specification class."""
+
     completed: bool = False
     success: Optional[bool]
     start_datetime: Optional[datetime]
     run_duration: Optional[timedelta]
+    results_id: Optional[str]
+    output_deleted: Optional[bool]
 
 
 class Case(BaseModel):
+    """Case class."""
+
     id: str
     name: str
     meteo_bc_id: str
     flow_bc_id: str
     model_id: str
+    fm_output_dir: Path
     start_datetime: datetime
     simulation_period: timedelta
     run: Run = Run()
 
 
 class Model(BaseModel):
+    """D-HYDRO model class."""
+
     id: str
     name: str
     mdu: str
     fnm: str
 
 
+class Source(BaseModel):
+    """Result sample source class."""
+
+    nc_file: str = "his"
+    id: str
+    layer: str
+    variable: str
+    statistic: str = "max"
+
+
+class Sample(BaseModel):
+    """Result Sample class."""
+
+    id: str
+    name: str
+    source: Source
+
+
+class Result(BaseModel):
+    """D-HYDRO result class."""
+
+    id: str
+    statistic: str = "max"
+    samples: List[Sample]
+    results: Optional[dict] = {}
+
+    def __get_sample_ids(self, nc_file, layer, variable):
+        return [
+            i.id
+            for i in self.samples
+            if (i.source.layer == layer)
+            & (i.source.nc_file == nc_file)
+            & (i.source.variable == variable)
+        ]
+
+    def get_results(self, output_dir: Path, case_id: str, model_name: str):
+        """
+        Get results from a D-HYDRO model run
+
+        Args:
+            output_dir (Path): D-HYDRO FM output (results) directory
+            case_id (str): Case id
+            model_name (str): Model name
+
+        Returns:
+            pd.DataFrame: Pandas DataFrame with results
+        """
+
+        def __get_result(self, nc_file, layer, variable):
+            ids = self.__get_sample_ids(nc_file, layer, variable)
+            with nc.Dataset(output_dir.joinpath(f"{model_name}_{nc_file}.nc")) as ds:
+                series = get_timeseries(
+                    ds,
+                    long_name=variable,
+                    ids=ids,
+                    layer=layer,
+                    statistic=self.statistic,
+                )
+            return series
+
+        sets = set(
+            [
+                (i.source.nc_file, i.source.layer, i.source.variable)
+                for i in self.samples
+            ]
+        )
+        result = pd.concat([__get_result(self, *i) for i in sets])
+        self.results[case_id] = result.to_dict()
+        return result
+
+    def write_results(self, project_dir: Path):
+        """
+        Write results to JSON
+
+        Args:
+            project_dir (Path): Project directory.
+
+        Returns:
+            None.
+
+        """
+        results_dir = project_dir.joinpath("results")
+        results_dir.mkdir(parents=True, exist_ok=True)
+        results_path = results_dir.joinpath(f"{self.id}.json")
+        results_path.write_text(json.dumps(self.results, indent=2))
+
+
 class BoundaryConditions(BaseModel):
+    """Boundary Conditions Class."""
+
     meteo: List[BoundaryCondition] = []
     flow: List[BoundaryCondition] = []
 
 
 class InitialConditions(BaseModel):
+    """Initial Conditions Class."""
+
     rr: List[InitialCondition] = []
     flow: List[BoundaryCondition] = []
 
 
 class Project(BaseModel):
-    filepath: Optional[DirectoryPath] = None
+    """CMT Project class."""
+
+    filepath: Optional[Path] = None
     boundary_conditions: BoundaryConditions = BoundaryConditions()
     initial_conditions: InitialConditions = InitialConditions()
     models: List[Model] = []
     cases: List[Case] = []
+    results: Optional[List[Result]]
 
     def _init_filepath(self):
-        if self.filepath is not None:
-            if self.filepath.exists():
-                shutil.rmtree(self.filepath)
-        self.filepath.mkdir(parents=True, exist_ok=True)
+        if self.filepath.exists():
+            shutil.rmtree(self.filepath)
         self.filepath = self.filepath.absolute().resolve()
+        self.filepath.mkdir(parents=True, exist_ok=True)
 
     def _create_subdir(self, subdir):
         dir_path = Path(self.filepath) / subdir
@@ -92,30 +201,180 @@ class Project(BaseModel):
             dir_path.mkdir(parents=True, exist_ok=True)
         return dir_path
 
-    def get_case(self, case_id):
+    def get_case(self, case_id: str):
+        """
+        Get a Case object by case_id
+
+        Args:
+            case_id (str): Case Id
+
+        Returns:
+            Case: Case-object
+
+        """
         return next((i for i in self.cases if i.id == case_id), None)
 
+    def get_results(self, results_id: str):
+        """
+        Get a Result by results_id
+
+        Args:
+            results_id (str): id of result
+
+        Returns:
+            Result: Result-object
+
+        """
+        return next((i for i in self.results if i.id == results_id), None)
+
+    def get_fm_output_dir(self, case_id: str):
+        """
+        Get the D-HYDRO FM output directory for a case_id.
+
+        Args:
+            case_id (str): Case id
+
+        Returns:
+            Path: FM output Directory
+
+        """
+
+        case = self.get_case(case_id)
+        model = self.get_model(case.model_id)
+        fm_dir = Path(model.mdu).parent
+
+        return self.filepath.joinpath("cases", case_id, fm_dir, case.fm_output_dir)
+
+    def delete_output(self, case_id: str):
+        """
+        Delete output for a case_id
+
+        Args:
+            case_id (str): Case id
+
+        Returns:
+            None.
+
+        """
+        case = self.get_case(case_id)
+        output_dir = self.get_fm_output_dir(case_id)
+        if output_dir.exists():
+            try:
+                shutil.rmtree(output_dir)
+                case.run.output_deleted = True
+            except:
+                logger.warning(f"Failed to remove: {output_dir}")
+
     def get_cases(self):
+        """
+        Get all cases (by id) for the CMT project
+
+        Returns:
+            list: List with case_ids
+
+        """
+
         return [i.id for i in self.cases]
 
-    def get_model(self, model_id):
+    def get_model(self, model_id: str):
+        """
+        Get a model by model_id
+
+        Args:
+            model_id (str): Model id
+
+        Returns:
+            Model: Model
+
+        """
+
         return next((i for i in self.models if i.id == model_id))
 
-    def run_cases(self, case_ids, workers=None):
+    def run_post(self, case_id: str, delete_output: bool = False):
+        """
+        Postprocess the results of a D-HYDRO model run
+
+        Args:
+            case_id (str): Case id to postprocess
+            delete_output (bool, optional): Delete all model-output after
+                post-processing Defaults to False.
+
+        Returns:
+            None.
+
+        """
+        case = self.get_case(case_id)
+        if case.run.results_id is not None:
+            results = self.get_results(case.run.results_id)
+            model = self.get_model(case.model_id)
+            model_name = Path(model.mdu).stem
+            output_dir = self.get_fm_output_dir(case_id)
+            results.get_results(output_dir, case_id, model_name)
+            results.write_results(self.filepath)
+
+            if delete_output:
+                self.delete_output(case_id)
+
+    def run_cases(
+        self, case_ids: List[str], workers: int = None, delete_output: bool = False
+    ):
+        """
+        Run one or more D-HYDRO model cases
+
+        Args:
+            case_ids (List[str],): list of case_ids to run
+            workers (int, optional): Amount of models to run in parallel. Defaults to None.
+            delete_output (bool, optional): DESCRIPTION. Delete all model-output after
+                post-processing Defaults to False.
+
+        Returns:
+            None.
+
+        """
+
         logger.info(f"Start running batch: #cases: {len(case_ids)}, #workers {workers}")
         tp = ThreadPool(workers)
         for idx, case_id in enumerate(case_ids):
             progress = f" ({idx+1}/{len(case_ids)})"
-            tp.apply_async(self.run_case, (case_id, progress))
+            tp.apply_async(
+                self.run_case, (case_id, progress, False, True, delete_output)
+            )
         tp.close()
         tp.join()
         self.write_manifest()
-        logger.info(f"Finished running batch")
+        logger.info("Finished running batch")
 
-    def run_case(self, case_id, progress="", stream_output=False, returncode=True):
+    def run_case(
+        self,
+        case_id: str,
+        progress: str = None,
+        stream_output: bool = False,
+        returncode: bool = True,
+        delete_output=False,
+    ):
+        """
+        Run a D-HYDRO model case
+
+        Args:
+            case_id (str): Case id to run
+            progress (str, optional): Process to be displayed Defaults to None.
+            stream_output (bool, optional): Stream logging to console Defaults to False.
+            returncode (bool, optional): Pass a return code so succes/failure can be
+                can be captured. Defaults to True.
+            delete_output (bool, optional): DESCRIPTION. Delete all model-output after
+                post-processing Defaults to False.
+
+        Returns:
+            None.
+
+        """
         start_datetime = datetime.now()
         case = self.get_case(case_id)
-        logger.info(f"Start running case{progress}: '{case_id}'")
+        if progress is None:
+            logger.info(f"Start running case: '{case_id}'")
+        else:
+            logger.info(f"Start running case{progress}: '{case_id}'")
+
         if case is not None:
             case.run.start_datetime = start_datetime
             cwd = self.filepath.joinpath(f"cases/{case_id}").absolute().resolve()
@@ -132,6 +391,7 @@ class Project(BaseModel):
                 logger.info(
                     f"finished running case: '{case_id}' in {run_duration.total_seconds()} secs"
                 )
+                self.run_post(case_id, delete_output=delete_output)
             else:
                 case.run.completed = False
                 case.run.success = False
@@ -156,11 +416,54 @@ class Project(BaseModel):
 
     @classmethod
     def from_manifest(cls, manifest_json: Union[str, Path]):
+        """
+        Read the CMT project from a manifest file
+
+        Args:
+            manifest_json (Union[str, Path]): Path to Manifest file
+
+        Returns:
+            Project: CMT project
+
+        """
+
         cls = cls.parse_raw(read_text(manifest_json))
         cls.filepath = Path(manifest_json).parent.absolute().resolve()
         return cls
 
     def from_stochastics(self, stochastics_json: Path):
+        """
+        Build a CMT project from stochastics input
+
+        Args:
+            stochastics_json (Path): Path to stochastics input-file
+
+        Returns:
+            CMT: CMT Project
+
+        """
+
+        def __convert_to_samples(results):
+            def __strip_file_name(filename):
+                if filename.endswith("his.nc"):
+                    return "his"
+                elif filename.endswith("map.nc"):
+                    return "map"
+
+            def __get_source(sample):
+                return Source(
+                    id=sample["id"],
+                    nc_file=__strip_file_name(sample["filename"]),
+                    layer="station",
+                    variable=sample["parameter"],
+                )
+
+            def __get_sample(sample):
+                source = __get_source(sample)
+                return Sample(id=sample["id"], name=sample["name"], source=source)
+
+            return [__get_sample(i) for i in results]
+
         self._init_filepath()
         stochastics_dict = read_stochastics(stochastics_json)
         src_dir = stochastics_json.parent
@@ -201,6 +504,14 @@ class Project(BaseModel):
             write_models(models_path, models, src_dir)
             self.models = [
                 Model(id=i["id"], name=i["name"], mdu=i["mdu_file"], fnm=i["fnm_file"])
+                for i in models
+            ]
+            self.results = [
+                Result(
+                    id=i["id"],
+                    statistic=i["results"][0]["filter"].lower(),
+                    samples=__convert_to_samples(i["results"]),
+                )
                 for i in models
             ]
 
@@ -247,18 +558,25 @@ class Project(BaseModel):
                 ]
                 exclude_names = ["sobek3b_progress.txt", "RSRR_OUT", "RR-ready"]
                 for i in fnm.__fields__.keys():
-                    setattr(
-                        fnm,
-                        i,
-                        prefix_to_paths(
-                            getattr(fnm, i),
-                            prefix=fnm_prefix,
-                            exclude_suffices=exclude_suffices,
-                            exclude_names=exclude_names,
-                        ),
-                    )
+                    # chech for mutability (if property is allowed to be set)
+                    item = getattr(fnm, i)
+                    set_attr = True
+                    if hasattr(item, "__config__"):
+                        set_attr = item.__config__.allow_mutation
+
+                    # set property
+                    if set_attr:
+                        setattr(
+                            fnm,
+                            i,
+                            prefix_to_paths(
+                                item,
+                                prefix=fnm_prefix,
+                                exclude_suffices=exclude_suffices,
+                                exclude_names=exclude_names,
+                            ),
+                        )
                 for i in cases_subset:
-                    print(rf"{i['id']}")
 
                     # read start_datetime
                     # set paths
@@ -301,6 +619,7 @@ class Project(BaseModel):
                     ).total_seconds()
                     mdu.time.tstop = time_delta.total_seconds()
                     mdu.save(dst_path / model.mdu)
+                    fm_output_dir = mdu.output.outputdir
 
                     # copy rtc model
                     shutil.copytree(rtc_dir, dst_path / "rtc")
@@ -319,10 +638,12 @@ class Project(BaseModel):
                             meteo_bc_id=i["meteo_bc_id"],
                             flow_bc_id=i["flow_bc_id"],
                             model_id=i["model_id"],
+                            fm_output_dir=fm_output_dir,
                             start_datetime=start_datetime,
                             simulation_period=time_delta,
                         )
                     ]
+                    self.cases[-1].run.results_id = model_id
 
                     # write run.bat
                     bat_path = self.filepath / "models" / model.id / "run.bat"
