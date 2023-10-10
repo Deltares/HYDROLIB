@@ -208,6 +208,10 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         )
         for laynum, layer_name in enumerate(layerlist):
             layer = gpd.read_file(gpkg_path, layer=layer_name)
+            if layer.empty:
+                logger.warning(f'Layer {layer_name} is empty.')
+                continue
+
             nfields = len(layer.columns)
             nfeatures = layer.shape[0]
             geom_type = layer.geom_type.iloc[0]
