@@ -253,9 +253,9 @@ class PavedIO:
         catchments: ExtendedGeoDataFrame,
         landuse: Union[Path, str],
         surface_level: Union[Path, str],
-        street_storage,  #:Union[str, float, int],
-        sewer_storage,  #:Union[str, float, int],
-        pump_capacity,  #:Union[str, float, int],
+        street_storage: Union[float, int,str],
+        sewer_storage: float,
+        pump_capacity: float,
         meteo_areas: ExtendedGeoDataFrame,
         overflows: ExtendedGeoDataFrame = None,
         sewer_areas: ExtendedGeoDataFrame = None,
@@ -268,8 +268,8 @@ class PavedIO:
             landuse (str): filename of landuse raster
             surface_level (str): file name of suface level raster
             street_storage (Union): numeric for spatially uniform street storage (mm), or raster for distributed values
-            sewer_storage (Union): numeric for spatially uniform sewer storage (mm), or raster for distributed values
-            pump_capacity (Union): numeric for spatially uniform pump capaities (mm), or raster for distributed values
+            sewer_storage (float): numeric for spatially uniform sewer storage (mm). Only used if sewer areas do not contain a storage.
+            pump_capacity (float): numeric for spatially uniform pump capacities (mm/day). Only used if sewer areas do not contain a POC.
             meteo_areas (ExtendedGeoDataFrame): meteo areas, for each station a meteo time series is assigned
             overflows (ExtendedGeoDataFrame, optional): overflow locations. Defaults to None.
             sewer_areas (ExtendedGeoDataFrame, optional): sewer area locations. Defaults to None.
@@ -295,8 +295,7 @@ class PavedIO:
             affine=sl_affine,
             stats="median",
             all_touched=all_touched,
-        )
-
+        )      
         if isinstance(street_storage, str):
             strs_rast, strs_affine = self.paved.drrmodel.read_raster(
                 street_storage, static=True
@@ -323,20 +322,7 @@ class PavedIO:
             )
         elif isinstance(sewer_storage, int):
             sewer_storage = float(sewer_storage)
-        if isinstance(pump_capacity, str):
-            pump_rast, pump_affine = self.paved.drrmodel.read_raster(
-                pump_capacity, static=True
-            )
-            pump_caps = zonal_stats(
-                catchments,
-                pump_rast,
-                affine=pump_affine,
-                stats="mean",
-                all_touched=True,
-            )
-        elif isinstance(pump_capacity, int):
-            pump_capacity = float(pump_capacity)
-
+       
         def update_dict(dict1, dict2):
             for i in dict2.keys():
                 if i in dict1:
@@ -365,15 +351,7 @@ class PavedIO:
                     affine=sews_affine,
                     stats="mean",
                     all_touched=True,
-                )
-            if isinstance(pump_capacity, str):
-                pump_caps_sa = zonal_stats(
-                    sewer_areas,
-                    pump_rast,
-                    affine=pump_affine,
-                    stats="mean",
-                    all_touched=True,
-                )
+                )          
             mean_sa_elev = zonal_stats(
                 sewer_areas, sl_rast, affine=sl_affine, stats="median", all_touched=True
             )
@@ -416,11 +394,8 @@ class PavedIO:
                 pav_pixels = pixels[14.0]
                 pav_area += pav_pixels * px_area
 
-                # subtract it fromthe total paved area in this catchment, make sure at least 0 remains
-                # lu_counts[cat_ind][14.0] -=  pav_pixels
-                # if lu_counts[cat_ind][14.0] < 0: lu_counts[cat_ind][14.0]  = 0
-
                 elev = mean_sa_elev[isew]["median"]
+
                 # find overflows related to this sewer area
                 ovf = overflows[overflows.codegerelateerdobject == sew.code]
                 for ov in ovf.itertuples():
@@ -445,18 +420,17 @@ class PavedIO:
                         paved_drr.at[
                             ov.code, "street_storage"
                         ] = f'{str_stors_sa[isew]["mean"]:.2f}'
-                    if isinstance(sewer_storage, float):
+                    
+                    if sew.riool_berging is None:                    
                         paved_drr.at[ov.code, "sewer_storage"] = f"{sewer_storage:.2f}"
                     else:
-                        paved_drr.at[
-                            ov.code, "sewer_storage"
-                        ] = f'{sew_stors_sa[isew]["mean"]:.2f}'
-                    if isinstance(pump_capacity, float):
-                        paved_drr.at[ov.code, "pump_capacity"] = f"{pump_capacity}"
+                        paved_drr.at[ov.code, "sewer_storage"] = f'{sew.riool_berging:.2f}'
+                    
+                    if sew.riool_poc is None:                    
+                        paved_drr.at[ov.code, "pump_capacity"] = f"{pump_capacity/(1000.*86400.)*pav_area*ov.fractie:.2f}"
                     else:
-                        paved_drr.at[
-                            ov.code, "pump_capacity"
-                        ] = f'{pump_caps_sa[isew]["mean"]:.2f}'
+                        paved_drr.at[ov.code, "pump_capacity"] = f'{sew.riool_berging * ov.fractie:.2f}'
+    
                     paved_drr.at[ov.code, "meteo_area"] = str(ms)
                     paved_drr.at[ov.code, "px"] = f"{ov.geometry.coords[0][0]+10:.0f}"
                     paved_drr.at[ov.code, "py"] = f"{ov.geometry.coords[0][1]:.0f}"
@@ -557,11 +531,7 @@ class PavedIO:
                     cat.code, "sewer_storage"
                 ] = f'{sew_stors[num]["mean"]:.2f}'
             if isinstance(pump_capacity, float):
-                paved_drr.at[cat.code, "pump_capacity"] = f"{pump_capacity}"
-            else:
-                paved_drr.at[
-                    cat.code, "pump_capacity"
-                ] = f'{pump_caps[num]["mean"]:.2f}'
+                paved_drr.at[cat.code, "pump_capacity"] = f"{float(pav_area) * pump_capacity/(1000.*86400.)}"            
             paved_drr.at[cat.code, "meteo_area"] = str(ms)
             paved_drr.at[
                 cat.code, "px"
