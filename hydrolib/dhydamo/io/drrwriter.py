@@ -450,7 +450,7 @@ class DRRWriter:
                             + dct["id"]
                             + "' ss 0 qc 0 "
                             + dct["qc"]
-                            + " 0 qo 1 0 ms '"
+                            + " 0 qo 2 2 ms '"
                             + dct["ms"]
                             + "' is "
                             + dct["is"]
