@@ -427,9 +427,9 @@ class PavedIO:
                         paved_drr.at[ov.code, "sewer_storage"] = f'{sew.riool_berging:.2f}'
                     
                     if sew.riool_poc is None:                    
-                        paved_drr.at[ov.code, "pump_capacity"] = f"{pump_capacity/(1000.*86400.)*pav_area*ov.fractie:.2f}"
+                        paved_drr.at[ov.code, "pump_capacity"] = f"{pump_capacity/(1000.*86400.)*pav_area*ov.fractie:.4f}"
                     else:
-                        paved_drr.at[ov.code, "pump_capacity"] = f'{sew.riool_berging * ov.fractie:.2f}'
+                        paved_drr.at[ov.code, "pump_capacity"] = f'{sew.riool_berging * ov.fractie:.4f}'
     
                     paved_drr.at[ov.code, "meteo_area"] = str(ms)
                     paved_drr.at[ov.code, "px"] = f"{ov.geometry.coords[0][0]+10:.0f}"
