@@ -107,28 +107,47 @@ class DRTCModel:
             tree = ET.parse(xml_folder / file)
             root = tree.getroot()
             if file == "rtcDataConfig.xml":
-                for i in range(1,len(root[0])):
-                    savedict["dataconfig_import"].append(
-                        ET.tostring(root[0][i]).decode()
-                    )
-                for i in range(2, len(root[1])):
-                    savedict["dataconfig_export"].append(
-                        ET.tostring(root[1][i]).decode()
-                    )
+                children = DRTCModel._parse_unique_children(root)
+                if "importSeries" in children:
+                    for el in children["importSeries"][1:]:
+                        savedict["dataconfig_import"].append(ET.tostring(el).decode())
+                if "exportSeries" in children:
+                    for el in children["exportSeries"][2:]:
+                        savedict["dataconfig_export"].append(ET.tostring(el).decode())
             elif file == "rtcToolsConfig.xml":
-                for i in range(0, len(root[1])):
-                    savedict["toolsconfig_rules"].append(ET.tostring(root[1][i]).decode())
-                for i in range(0, len(root[2])):
-                    savedict["toolsconfig_triggers"].append(ET.tostring(root[2][i]).decode())
+                children = DRTCModel._parse_unique_children(root)
+                if "rules" in children:
+                    for el in children["rules"]:
+                        savedict["toolsconfig_rules"].append(ET.tostring(el).decode())
+                if "triggers" in children:
+                    for el in children["triggers"]:
+                        savedict["toolsconfig_triggers"].append(ET.tostring(el).decode())
             elif file == "timeseries_import.xml":
-                for i in range(0,len(root)):
-                    savedict["timeseries"].append(ET.tostring(root[i]).decode())
+                for el in root:
+                    savedict["timeseries"].append(ET.tostring(el).decode())
             elif file == "state_import.xml":
-                for i in range(0, len(root[0])):
-                    savedict["state"].append(ET.tostring(root[0][i]).decode())
+                for el in root[0]:
+                    savedict["state"].append(ET.tostring(el).decode())
             elif file == "dimr_config.xml":
                 savedict["dimr_config"].append(root)
         return savedict
+
+    @staticmethod
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def _parse_unique_children(root: ET.Element):
+        # Store xml sections by tag, this function assumes unique children.
+        children = {}
+        for child in root:
+            # remove namespace from tag
+            tag = child.tag
+            if tag.startswith("{"):
+                tag = tag.split("}")[1]
+            # Sanity check: ensure that tag does not exist yet
+            if tag in children:
+                raise KeyError(f"Duplicate tag '{tag}'")
+            children[tag] = child
+
+        return children
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def from_hydamo(
