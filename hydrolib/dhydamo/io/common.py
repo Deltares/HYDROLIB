@@ -261,64 +261,19 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             if len(geom_types) != 1 or geom_types[0] != "Point":
                 raise ValueError("Can only group Points to LineString")
 
-            # Get the values from the column that is grouped
-            columnid = columns.index(groupby_column)
-            groupbyvalues = layer[groupby_column]
-
-            order = layer[order_column]
-
-            # Create empty dict for lines
-            branches, counts = np.unique(groupbyvalues, return_counts=True)
-            lines = {branch: [0] * count for branch, count in zip(branches, counts)}
-
-            # Since the order does not always start at 1, find the starting number per group
-            startnr = {branch: layer.shape[0] + 1 for branch in branches}
-            for branch, volgnr in zip(groupbyvalues, order):
-                startnr[branch] = min(volgnr, startnr[branch])
-
-            # Determine relative order of points in profile (required if the point numbering is not subsequent)
-            order_rel = []
-            for branch, volgnr in zip(groupbyvalues, order):
-                lst_volgnr = [x[1] for x in zip(groupbyvalues, order) if x[0] == branch]
-                lst_volgnr.sort()
-                for i, x in enumerate(lst_volgnr):
-                    if volgnr == x:
-                        order_rel.append(i)
-
-            # Filter branches with too few points
-            singlepoint = counts < 2
-
-            # Assign points
-            for point, volgnr, branch, volgnr_rel in zip(
-                layer.geometry, order, groupbyvalues, order_rel
-            ):
-                # lines[branch][volgnr - startnr[branch]] = point
-                lines[branch][volgnr_rel] = point
-
             # Group geometries to lines
-            for branch in branches[~singlepoint]:
-                if any(isinstance(pt, int) for pt in lines[branch]):
-                    print(
-                        f'Points are not properly assigned for branch "{branch}". Check the input file.'
-                    )
-                    lines[branch] = [
-                        pt for pt in lines[branch] if not isinstance(pt, int)
-                    ]
-                lines[branch] = LineString(lines[branch])
+            geometries = []
+            fields = []
+            for groupname, group in layer.groupby(groupby_column, sort=False):
+                # Filter branches with too few points
+                if len(group) < 2:
+                    logger.warning(f'Ignoring {groupby_column} "{groupname}": contains less than two points.')
+                    continue
 
-            # Set order for branches with single point to 0, so features are not loaded
-            for branch in branches[singlepoint]:
-                order[groupbyvalues.index(branch)] = 0
-
-            # Read fields at first occurence
-            startnrs = [startnr[branch] for branch in groupbyvalues]
-            idx = [
-                nr for nr, (i, volgnr) in enumerate(zip(order, startnrs)) if i == volgnr
-            ]
-            fields = layer.iloc[idx, :]
-
-            # Get geometries in correct order for featuresF
-            geometries = [lines[row[columnid]] for _, row in fields.iterrows()]
+                # Determine relative order of points in profile
+                group = group.sort_values(order_column)
+                geometries.append(LineString(group.geometry.tolist()))
+                fields.append(group.iloc[0, :]) 
 
         else:
             fields = layer
