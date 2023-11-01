@@ -209,7 +209,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         for laynum, layer_name in enumerate(layerlist):
             layer = gpd.read_file(gpkg_path, layer=layer_name)
             if layer.empty:
-                logger.warning(f'Layer {layer_name} is empty.')
+                logger.warning(f'Layer "{layer_name}" is empty.')
                 continue
 
             nfields = len(layer.columns)
@@ -240,6 +240,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if isinstance(gpkg_path, Path):
             gpkg_path = str(gpkg_path)
 
+        if layer_name.lower() not in map(str.lower, fiona.listlayers(gpkg_path)):
+            raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
+
         layer = gpd.read_file(gpkg_path, layer=layer_name)
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
@@ -250,8 +253,12 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             if groupby_column not in columns:
                 raise ValueError("Groupby column not found in feature list.")
 
+            if order_column is None or order_column not in columns:
+                raise ValueError("Order column not found in feature list.")
+
             # Check if the geometry is as expected
-            if not isinstance(layer.geometry.iloc[0], Point):
+            geom_types = layer.geometry.geom_type.unique()
+            if len(geom_types) != 1 or geom_types[0] != "Point":
                 raise ValueError("Can only group Points to LineString")
 
             # Get the values from the column that is grouped
@@ -521,6 +528,9 @@ class ExtendedDataFrame(pd.DataFrame):
 
         if isinstance(gpkg_path, Path):
             gpkg_path = str(gpkg_path)
+
+        if layer_name.lower() not in map(str.lower, fiona.listlayers(gpkg_path)):
+            raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
 
         layer = gpd.read_file(gpkg_path, layer=layer_name)
         columns = [col.lower() for col in layer.columns]
