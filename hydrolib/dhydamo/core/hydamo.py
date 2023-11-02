@@ -84,21 +84,61 @@ class HyDAMO:
                 "code",
                 "geometry"
             ],
+            related=None
         )
 
         self.profile = ExtendedGeoDataFrame(
             geotype=LineString,
             required_columns=["code", "geometry", "globalid", "profiellijnid"],
+            related={
+                "profile_roughness": {
+                    "via": "globalid",
+                    "on": "profielpuntid",
+                    "coupled_to": None
+                },
+                "profile_line": {
+                    "via": "profiellijnid",
+                    "on": "globalid",
+                    "coupled_to": {
+                        "profile_group": {
+                            "via": "profielgroepid",
+                            "on": "globalid",
+                            "coupled_to": None
+                        }
+                    }
+                }
+            }
         )
         self.profile_roughness = ExtendedDataFrame(
             required_columns=["code", "profielpuntid"]
         )
 
         self.profile_line = ExtendedGeoDataFrame(
-            geotype=LineString, required_columns=["globalid", "profielgroepid"]
+            geotype=LineString,
+            required_columns=["globalid", "profielgroepid"],
+            related={
+                "profile_group": {
+                    "via": "profielgroepid",
+                    "on": "globalid",
+                    "coupled_to": None
+                },
+                "profile": {
+                    "via": "globalid",
+                    "on": "profiellijnid",
+                    "coupled_to": {
+                        "profile_roughness": {
+                            "via": "globalid",
+                            "on": "profielpuntid",
+                            "coupled_to": None
+                        }
+                    }
+                }
+            }
         )
 
-        self.profile_group = ExtendedDataFrame(required_columns=[])
+        self.profile_group = ExtendedDataFrame(
+            required_columns=[]
+        )
 
         self.param_profile = ExtendedDataFrame(
             required_columns=["globalid", "normgeparamprofielid", "hydroobjectid"]
@@ -125,6 +165,19 @@ class HyDAMO:
                 "soortstuw",
                 "afvoercoefficient",
             ],
+            related={
+                "opening": {
+                    "via": "globalid",
+                    "on": "stuwid",
+                    "coupled_to": {
+                        "management_device": {
+                            "via": "globalid",
+                            "on": "kunstwerkopeningid",
+                            "coupled_to": None
+                        }
+                    }
+                }
+            }
         )
 
         # opening
@@ -142,7 +195,9 @@ class HyDAMO:
         )
 
         # opening
-        self.closing_device = ExtendedDataFrame(required_columns=["code"])
+        self.closing_device = ExtendedDataFrame(
+            required_columns=["code"]
+        )
 
         # opening
         self.management_device = ExtendedDataFrame(
@@ -162,6 +217,7 @@ class HyDAMO:
                 "ruwheid",
                 "typeruwheid",
             ],
+            related=None
         )
 
         # Culverts
@@ -181,11 +237,13 @@ class HyDAMO:
                 "typeruwheid",
                 "ruwheid",
             ],
-        )
-
-        # Laterals
-        self.laterals = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["globalid", "geometry"]
+            related={
+                "management_device": {
+                    "via": "globalid",
+                    "on": "duikersifonhevelid",
+                    "coupled_to": None
+                }
+            }
         )
 
         # Gemalen
@@ -196,6 +254,19 @@ class HyDAMO:
                 "globalid",
                 "geometry",
             ],
+            related={
+                "pumps": {
+                    "via": "globalid",
+                    "on": "gemaalid",
+                    "coupled_to": {
+                        "management": {
+                            "via": "globalid",
+                            "on": "pompid",
+                            "coupled_to": None
+                        }
+                    }
+                }
+            }
         )
         self.pumps = ExtendedDataFrame(
             required_columns=["code", "globalid", "gemaalid", "maximalecapaciteit"]
@@ -206,29 +277,104 @@ class HyDAMO:
 
         # Hydraulische randvoorwaarden
         self.boundary_conditions = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["code", "typerandvoorwaarde", "geometry"]
+            geotype=Point,
+            required_columns=["code", "typerandvoorwaarde", "geometry"],
+            related=None
         )
 
         # RR catchments
         self.catchments = ExtendedGeoDataFrame(
             geotype=Polygon,
             required_columns=["code", "geometry", "globalid", "lateraleknoopid"],
+            related={
+                "laterals": {
+                    "via": "lateraleknoopid",
+                    "on": "globalid",
+                    "coupled_to": {
+                        "overflows": {
+                            "via": "globalid",
+                            "on": "lateraleknoopid",
+                            "coupled_to": None
+                        },
+                        "sewer_areas": {
+                            "via": "globalid",
+                            "on": "lateraleknoopid",
+                            "coupled_to": None
+                        }
+                    }
+                }
+            }
         )
 
         # Laterals
         self.laterals = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["code", "geometry", "globalid"]
+            geotype=Point,
+            required_columns=["code", "geometry", "globalid"],
+            related={
+                "catchments": {
+                    "via": "globalid",
+                    "on": "lateraleknoopid",
+                    "coupled_to": None
+                },
+                "overflows": {
+                    "via": "globalid",
+                    "on": "lateraleknoopid",
+                    "coupled_to": None
+                },
+                "sewer_areas": {
+                    "via": "globalid",
+                    "on": "lateraleknoopid",
+                    "coupled_to": None
+                }
+            }
         )
 
         # RR overflows
         self.overflows = ExtendedGeoDataFrame(
             geotype=Point,
             required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
+            related={
+                "laterals": {
+                    "via": "lateraleknoopid",
+                    "on": "globalid",
+                    "coupled_to": {
+                        "catchments": {
+                            "via": "globalid",
+                            "on": "lateraleknoopid",
+                            "coupled_to": None
+                        },
+                        "sewer_areas": {
+                            "via": "globalid",
+                            "on": "lateraleknoopid",
+                            "coupled_to": None
+                        }
+                    }
+                }
+            }
         )
 
         # RR sewer areas
         self.sewer_areas = ExtendedGeoDataFrame(
-            geotype=Polygon, required_columns=["code", "geometry"]
+            geotype=Polygon,
+            required_columns=["code", "geometry"],
+            related={
+                "laterals": {
+                    "via": "lateraleknoopid",
+                    "on": "globalid",
+                    "coupled_to": {
+                        "catchments": {
+                            "via": "globalid",
+                            "on": "lateraleknoopid",
+                            "coupled_to": None
+                        },
+                        "overflows": {
+                            "via": "globalid",
+                            "on": "lateraleknoopid",
+                            "coupled_to": None
+                        }
+                    }
+                }
+            }
         )
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -260,6 +406,37 @@ class HyDAMO:
 
         return pd.DataFrame.from_dict(dictionary, orient="index")
 
+    def snap_to_branch_and_drop(self, extendedgdf, branches, snap_method: str, maxdist=5, drop_related=True):
+        """Snap the geometries to the branch and drop loose objects"""
+
+        # Snap the extended geodataframe to branches
+        extendedgdf.snap_to_branch(branches, snap_method, maxdist=maxdist)
+
+        # Determine which labels need to be drop for the first object based on
+        # nan values for branch_offset.
+        drop_idx = extendedgdf[pd.isnull(extendedgdf.branch_offset)].index.values
+        drop_list = [(extendedgdf, drop_idx)]
+        print(f"dropping labels: {drop_idx}")
+
+        # Find out which labels need to be dropped from related objects
+        if drop_related and extendedgdf.related is not None:
+            for target_str, relation in extendedgdf.related.items():
+                self._recursive_drop_related(drop_list, extendedgdf, drop_idx, target_str, **relation)
+
+        # Drop the relevant rows with the list of labels
+        for source, drop_idx in drop_list:
+            source.drop(labels=drop_idx, inplace=True)
+
+    def _recursive_drop_related(self, drop_list, source, drop_idx, target_str, via, on, coupled_to):
+        target = getattr(self, target_str)
+        drop_related = source.loc[drop_idx, via].values
+        drop_idx = target[target[on].isin(drop_related)].index.values
+        drop_list.append((target, drop_idx))
+        print(f"  - dropping labels from '{target_str}': {drop_idx}")
+
+        if coupled_to is not None:
+            for next_target_str, next_relation in coupled_to.items():
+                return self._recursive_drop_related(drop_list, target, drop_idx, next_target_str, **next_relation)
 
 class Network:
     def __init__(self, hydamo: HyDAMO) -> None:

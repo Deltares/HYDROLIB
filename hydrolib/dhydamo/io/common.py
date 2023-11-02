@@ -17,9 +17,9 @@ logger = logging.getLogger()
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
     # normal properties
-    _metadata = ["required_columns", "geotype"] + gpd.GeoDataFrame._metadata
+    _metadata = ["required_columns", "geotype", "related"] + gpd.GeoDataFrame._metadata
 
-    def __init__(self, geotype, required_columns=None, logger=logging, *args, **kwargs):
+    def __init__(self, geotype, required_columns=None, related=None, logger=logging, *args, **kwargs):
         # Check type
         if required_columns is None:
             required_columns = []
@@ -36,6 +36,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         self.required_columns = required_columns[:]
         self.geotype = geotype
+        self.related = deepcopy(related)
 
     def copy(self, deep=True):
         """
