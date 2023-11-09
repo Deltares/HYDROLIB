@@ -459,12 +459,12 @@ class PavedIO:
                     if sew.riool_poc_m3s is None or np.isnan(sew.riool_poc_m3s) or not isinstance(sew.riool_poc_m3s, float):                    
                          if isinstance(pump_capacity, float):
                             # convert the value from mm/h to m3/s
-                            paved_drr.at[ov.code, "pump_capacity"] = f"{pump_capacity * (sew.geometry.area * ov.fractie) / (1000. * 3600.):.8f}"   
+                            paved_drr.at[ov.code, "pump_capacity"] = f"{pump_capacity * (float(pav_area) * ov.fractie) / (1000. * 3600.):.8f}"   
                          elif isinstance(pump_capacity, (Path, str)):
                             # convert the value (extracted from the raster) from mm/h to m3/s
                             paved_drr.at[
                             ov.code, "pump_capacity"
-                            ] = f'{pump_caps_sa[isew]["mean"] * (sew.geometry.area* ov.fractie) / (1000. * 3600.):.8f}'
+                            ] = f'{pump_caps_sa[isew]["mean"] * (float(pav_area) * ov.fractie) / (1000. * 3600.):.8f}'
                          else:
                             raise ValueError(f'pump_capacity has the wrong datatype. It should be a filename (Path or string) or number (float or int).')        
                     else:
@@ -571,11 +571,11 @@ class PavedIO:
                     cat.code, "sewer_storage"
                 ] = f'{sew_stors[num]["mean"]:.2f}'
             if isinstance(pump_capacity, float):
-                paved_drr.at[cat.code, "pump_capacity"] = f'{(pump_capacity * cat.geometry.area * ov.fractie) / (1000. * 3600.):.8f}'
+                paved_drr.at[cat.code, "pump_capacity"] = f'{(pump_capacity * float(pav_area) * ov.fractie) / (1000. * 3600.):.8f}'
             else:
                 paved_drr.at[
                     cat.code, "pump_capacity"
-                ] = f'{pump_caps[num]["mean"] * (cat.geometry.area * ov.fractie) / (1000. * 3600.):.8f}'
+                ] = f'{pump_caps[num]["mean"] * (float(pav_area) * ov.fractie) / (1000. * 3600.):.8f}'
             
             paved_drr.at[cat.code, "meteo_area"] = str(ms)
             paved_drr.at[
