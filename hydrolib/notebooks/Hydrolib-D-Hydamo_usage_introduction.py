@@ -36,7 +36,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 ## In not installed, add a path from where hydrolib it can be imported
 #sys.path.insert(0, "d:/Documents/GitHub/HYDROLIB")
-#sys.path.insert(0, r"../../")
+sys.path.insert(0, r"..\..\\")
 
 # NOTE: core and dhydamo need to be in the same folder to be imported correctly
 # and from hydrolib-core
@@ -76,15 +76,10 @@ output_path = Path("../tests/model").resolve()
 # assert output_path.exists()
 
 
-# Define components that should be used in the model. 1D is used in all cases.
 
-# In[4]:
-
-
-TwoD = False
+TwoD = True
 RR = True
-RTC = False
-
+RTC = True
 
 # ## Read HyDAMO DAMO2.2 data
 
@@ -116,42 +111,47 @@ hydamo.profile.read_gpkg_layer(
     index_col="code"
 )
 hydamo.profile_roughness.read_gpkg_layer(gpkg_file, layer_name="RuwheidProfiel")
-hydamo.profile.snap_to_branch(hydamo.branches, snap_method="intersecting")
-hydamo.profile.dropna(axis=0, inplace=True, subset=["branch_offset"])
+# hydamo.profile.snap_to_branch(hydamo.branches, snap_method="intersecting")
+# hydamo.profile.dropna(axis=0, inplace=True, subset=["branch_offset"])
 hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name="profiellijn")
 hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name="profielgroep")
 hydamo.profile.drop("code", axis=1, inplace=True)
 hydamo.profile["code"] = hydamo.profile["profiellijnid"]
+hydamo.snap_to_branch_and_drop(hydamo.profile, hydamo.branches, snap_method="intersecting", drop_related=True)
+
 # read structures
 hydamo.culverts.read_gpkg_layer(gpkg_file, layer_name="DuikerSifonHevel", index_col="code")
-hydamo.culverts.snap_to_branch(hydamo.branches, snap_method="ends", maxdist=5)
-hydamo.culverts.dropna(axis=0, inplace=True, subset=["branch_offset"])
-
+# hydamo.culverts.snap_to_branch(hydamo.branches, snap_method="ends", maxdist=5)
+# hydamo.culverts.dropna(axis=0, inplace=True, subset=["branch_offset"])
 hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name="Stuw", index_col="code")
-hydamo.weirs.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
-hydamo.weirs.dropna(axis=0, inplace=True, subset=["branch_offset"])
+# hydamo.weirs.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
+# hydamo.weirs.dropna(axis=0, inplace=True, subset=["branch_offset"])
 hydamo.weirs.geometry= hydamo.weirs.geometry
 hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
 hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-
 idx = hydamo.management_device[hydamo.management_device["duikersifonhevelid"].notnull()].index
 for i in idx:
     globid = hydamo.culverts[
         hydamo.culverts.code == hydamo.management_device.duikersifonhevelid.loc[i]
     ].globalid.values[0]
     hydamo.management_device.at[i, "duikersifonhevelid"] = globid
+hydamo.snap_to_branch_and_drop(hydamo.culverts, hydamo.branches, snap_method="ends", maxdist=5, drop_related=True)
+hydamo.snap_to_branch_and_drop(hydamo.weirs, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
 
 hydamo.pumpstations.read_gpkg_layer(gpkg_file, layer_name="Gemaal", index_col="code")
-hydamo.pumpstations.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
-hydamo.pumpstations.dropna(axis=0, inplace=True, subset=["branch_offset"])
+# hydamo.pumpstations.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
+# hydamo.pumpstations.dropna(axis=0, inplace=True, subset=["branch_offset"])
 hydamo.pumpstations.geometry = hydamo.pumpstations.geometry
 hydamo.pumps.read_gpkg_layer(gpkg_file, layer_name="Pomp", index_col="code")
 hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
+hydamo.snap_to_branch_and_drop(hydamo.pumpstations, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
 
 hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
-hydamo.bridges.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
-hydamo.bridges.dropna(axis=0, inplace=True, subset=["branch_offset"])
-hydamo.bridges.geometry= hydamo.bridges.geometry
+# hydamo.bridges.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
+# hydamo.bridges.dropna(axis=0, inplace=True, subset=["branch_offset"])
+hydamo.bridges.geometry = hydamo.bridges.geometry
+hydamo.snap_to_branch_and_drop(hydamo.bridges, hydamo.branches, snap_method="overal", maxdist=1100, drop_related=True)
+
 # read boundaries
 hydamo.boundary_conditions.read_gpkg_layer(
     gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code"
@@ -167,8 +167,6 @@ for ind, cat in hydamo.catchments.iterrows():
         hydamo.laterals.globalid == cat.lateraleknoopid
     ].code.values[0]
 hydamo.laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=5000)
-
-
 # In[7]:
 
 
@@ -206,8 +204,7 @@ ax.legend()
 cx.add_basemap(ax, crs=28992, source=cx.providers.OpenStreetMap.Mapnik)
 fig.tight_layout()
 
-
-# ## Data conversion
+## Data conversion
 # 
 
 # ### Structures
@@ -237,7 +234,11 @@ fig.tight_layout()
 
 hydamo.structures.convert.weirs(
     hydamo.weirs,   
+    hydamo.profile_group,
+    hydamo.profile_line,
+    hydamo.profile,
     opening=hydamo.opening,
+    
     management_device=hydamo.management_device
 )
 
@@ -318,8 +319,6 @@ fm = FMModel()
 # Set start and stop time
 fm.time.refdate = 20160601
 fm.time.tstop = 2 * 3600 * 24
-#add
-fm.time.dtuser= 60.
 
 # ## Add the 1D mesh
 
@@ -339,15 +338,15 @@ fm.time.dtuser= 60.
 
 hydamo.observationpoints.add_points(
     [Point(199617,394885), Point(199421,393769), Point(199398,393770)],
-    ["Obs_BV152054", "ObsS_96684_1","ObsS_96684_2"],
+    ["Obs_BV152054", "ObsS_96684","ObsO_test"],
     locationTypes=["1d", "1d", "1d"],
     snap_distance=10.0,
 )
 
 hydamo.observationpoints.add_points(
-    [Point(200198,396489)],
-    ["ObsS_96544"],
-    locationTypes=["1d"],
+    [Point(200198,396489), Point(201129, 396269)],
+    ["ObsS_96544", "ObsP_113GIS"],
+    locationTypes=["1d", "1d"],
     snap_distance=10.0,
 )
 hydamo.observationpoints.observation_points.head()
@@ -373,7 +372,7 @@ mesh.mesh1d_add_branches_from_gdf(
     branch_name_col="code",
     node_distance=20,
     max_dist_to_struc=None,
-    structures=objects#structures,
+    structures=objects
 )
 
 
@@ -810,7 +809,24 @@ if RTC:
                                 upper_bound=13.4,
                                 lower_bound=12.8,
                                 pid_settings=pid_settings['global'])
+    
+    drtcmodel.add_pid_controller(structure_id='orifice_test', 
+                                observation_location='ObsO_test', 
+                                steering_variable='Gate lower edge level (s)', 
+                                target_variable='Discharge (op)', 
+                                setpoint=13.2,
+                                upper_bound=13.4,
+                                lower_bound=12.8,
+                                pid_settings=pid_settings['global'])
 
+    drtcmodel.add_pid_controller(structure_id='113GIS', 
+                                observation_location='ObsP_113GIS', 
+                                steering_variable='Capacity (p)', 
+                                target_variable='Water level (op)', 
+                                setpoint=0.3,
+                                upper_bound=0.4,
+                                lower_bound=0.2,
+                                pid_settings=pid_settings['global'])
 
 # Note that the provided complex controllers use observation points that are not yet in the model. As opposed to delft3dfmpy, it is now possible to add observation points in stages. So we add the missing point now:
 
@@ -856,7 +872,7 @@ if RR:
     surface_storage = 10.0 # [mm]
     infiltration_capacity = 100.0 # [mm/hr]
     initial_gwd = 1.2  # water level depth below surface [m]  
-    runoff_resistance = 1.0 # [d]
+    runoff_resistance = 0.5 # [d]
     infil_resistance = 300.0 # [d]
     layer_depths = [0.0, 1.0, 2.0] # [m]
     layer_resistances = [30, 200, 10000] # [d]
@@ -949,8 +965,9 @@ if RR:
 
 if RR:    
     street_storage = 5.0 # [mm]
-    sewer_storage = 5.0 # [mm]
-    poc_mmd = 0.7 # [mm/d]
+    sewer_storage = 5 # [mm]
+    #poc_mmd = 0.7 # [mm/h]
+    poc_mmd  = data_path / 'rasters/pumpcap.tif'
 
 
 # For paved areas, two options are allowed.
@@ -980,7 +997,7 @@ if RR:
 
 
 if RR:
-    hydamo.sewer_areas.read_shp(str(data_path / 'rioleringsgebieden.shp'), column_mapping={'Code':'code', 'Berging_mm':'riool_berging', 'POC_m3s':'riool_poc' })
+    hydamo.sewer_areas.read_shp(str(data_path / 'rioleringsgebieden.shp'), column_mapping={'Code':'code', 'Berging_mm':'riool_berging_mm', 'POC_m3s':'riool_poc_m3s' })
     hydamo.overflows.read_shp(str(data_path / 'overstorten.shp'), column_mapping={'codegerela': 'codegerelateerdobject'})
     hydamo.overflows.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
 
@@ -1250,22 +1267,42 @@ for ifield, onedfield in enumerate(models.onedfieldmodels):
 
 # In[66]:
 
+fm.geometry.uniformwidth1d = 1.0 # default  breedte 
+fm.geometry.bedlevtype = 1      # 1: at cell center (tiles xz,yz,bl,bob=max(bl)), 2: at face (tiles xu,yu,blu,bob=blu), 3: at face (using mean node values), 4: at face 
+fm.geometry.changestructuredimensions = 0   # Change the structure dimensions in case these are inconsistent with the channel dimensions.
 
-fm.numerics.cflmax = 0.7
-fm.output.ncformat = 4 # parameter setting advised by Deltares for better performance
-fm.output.ncnoforcedflush = 1 # parameter setting advised by Deltares for better performance
-fm.output.mapformat=4  # parameter setting advised by Deltares for better performance
-fm.output.ncnounlimited = 1 # parameter setting advised by Deltares for better performance
+fm.numerics.cflmax = 0.7 # Maximum Courant nr.
+# fm.numerics.epsmaxlev = 0.0001 # stop criterion for non-linear solver
+# fm.numerics.epsmaxlevm = 0.0001 # stop criterion for Nested Newton loop
+fm.numerics.advectype = 33 # Adv type, 0=no, 33=Perot q(uio-u) fast, 3=Perot q(uio-u).
+
 fm.volumetables.increment = 0.2 # parameter setting advised by Deltares for better performance
 fm.volumetables.usevolumetables = 1 # parameter setting advised by Deltares for better performance
 
-fm.geometry.bedlevtype = 1
+fm.restart.restartfile     = None # Restart file, only from netCDF-file, hence: either *_rst.nc or *_map.nc.
+fm.restart.restartdatetime =None# Restart time [YYYYMMDDHHMMSS], only relevant in case of restart from *_map.nc.
 
-
-# Now we write the file structure:
+fm.output.mapformat=4  # parameter setting advised by Deltares for better performance
+fm.output.ncformat = 4# parameter setting advised by Deltares for better performance
+fm.output.ncnoforcedflush = 1 # parameter setting advised by Deltares for better performance
+fm.output.ncnounlimited = 1 # parameter setting advised by Deltares for better performance
+fm.output.wrimap_wet_waterdepth_threshold = 0.01 # Waterdepth threshold above which a grid point counts as 'wet'
+fm.output.mapinterval = [1200.0, fm.time.tstart, fm.time.tstop]       # Map file output, given as 'interval' 'start period' 'end period' [s].
+fm.output.rstinterval  = [86400.0, fm.time.tstart, fm.time.tstop]           # Restart file output, given as 'interval' 'start period' 'end period' [s].
+fm.output.hisinterval = [300., fm.time.tstart, fm.time.tstop]  # History output, given as 'interval' 'start period' 'end period' [s].
+fm.output.wrimap_flow_analysis = 1 # write information for flow analysis
 
 # In[67]:
 
+# check the timesteps:
+timesteps = []
+if RR:
+    timesteps.append(drrmodel.d3b_parameters['Timestepsize'])
+if RTC:
+    timesteps.append(drtcmodel.time_settings['step'])
+if len(timesteps)>0:
+    if fm.time.dtuser > np.min(timesteps):
+        fm.time.dtuser = np.min(timesteps)
 
 fm.filepath = Path(output_path) / "fm" / "test.mdu"
 dimr = DIMR()
@@ -1299,7 +1336,7 @@ if RR:
 # In[70]:
 
 
-dimr = DIMRWriter(output_path=output_path, dimr_path=str(r"C:\Program Files\Deltares\D-HYDRO Suite 2023.02 1D2D\plugins\DeltaShell.Dimr\kernels\x64\dimr\scripts\run_dimr.bat"))
+dimr = DIMRWriter(output_path=output_path, dimr_path=str(r"C:\Program Files\Deltares\D-HYDRO Suite 2023.03 1D2D\plugins\DeltaShell.Dimr\kernels\x64\dimr\scripts\run_dimr.bat"))
 
 
 # In[71]:

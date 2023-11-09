@@ -225,11 +225,16 @@ class DIMRWriter:
                 item.tail = "\n"
 
                 source = ET.SubElement(item, gn_brackets + "sourceName")
-                source.text = f"[Output]{i}/Crest level (s)"
+                source.text = f"[Output]{i}/{rtc_model.all_controllers[i]['steering_variable']}"
                 source.tail = "\n"
-
                 target = ET.SubElement(item, gn_brackets + "targetName")
-                target.text = f"weirs/{i}/crestLevel"
+                if rtc_model.all_controllers[i]['steering_variable'] == 'Crest level (s)':                    
+                    target.text = f"weirs/{i}/crestLevel"                    
+                elif rtc_model.all_controllers[i]['steering_variable'] == 'Gate lower edge level (s)':                
+                    target.text = f"orifices/{i}/gateLowerEdgeLevel"
+                elif rtc_model.all_controllers[i]['steering_variable'] == 'Capacity (p)':                
+                    target.text = f"pumps/{i}/capacity"
+                
                 target.tail = "\n"
 
             # check if there are user-specified controller that should be included
@@ -297,7 +302,12 @@ class DIMRWriter:
                     item.tail = "\n"
 
                     source = ET.SubElement(item, gn_brackets + "sourceName")
-                    source.text = f"observations/{rtc_model.pid_controllers[i]['observation_point']}/water_level"
+                    if rtc_model.pid_controllers[i]['target_variable'] == 'Discharge (op)':
+                        source.text = f"observations/{rtc_model.pid_controllers[i]['observation_point']}/discharge"
+                    elif rtc_model.pid_controllers[i]['target_variable'] == 'Water level (op)':
+                        source.text = f"observations/{rtc_model.pid_controllers[i]['observation_point']}/water_level"
+                    else:
+                        raise ValueError('Invalid target variable in controller: should bo discharge or water level.')
                     source.tail = "\n"
 
                     target = ET.SubElement(item, gn_brackets + "targetName")

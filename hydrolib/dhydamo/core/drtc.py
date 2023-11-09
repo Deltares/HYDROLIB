@@ -204,7 +204,7 @@ class DRTCModel:
             if management.stuurvariabele == "bovenkant afsluitmiddel":
                 steering_variable = "Crest level (s)"
             elif management.stuurvariabele == "hoogte opening":
-                steering_variable = "Opening height"
+                steering_variable = "Gate lover edge level (s)"
             elif management.stuurvariabele == "pompdebiet":
                 steering_variable = "Capacity (p)"
             else:

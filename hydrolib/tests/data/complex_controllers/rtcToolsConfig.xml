@@ -31,7 +31,7 @@
     <trigger>
       <standard id="[StandardCondition]Control Group 1/Standard Condition">
         <condition>
-          <x1Series ref="EXPLICIT">[Input]ObsS_96684_1/Water level (op)</x1Series>
+          <x1Series ref="EXPLICIT">[Input]ObsS_96684/Water level (op)</x1Series>
           <relationalOperator>Greater</relationalOperator>
           <x2Value>18.5</x2Value>
         </condition>

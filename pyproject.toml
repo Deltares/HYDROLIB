@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hydrolib"
-version = "0.2.0"
+version = "0.1.2"
 description = "HYDROLIB tools for hydrodynamic and hydrological modelling workflows"
 authors = ["Deltares"]
 maintainers = [
@@ -17,7 +17,7 @@ xarray = "^0.17"
 hydrolib-core = "0.4.1"
 shapely = "^1.8"
 matplotlib = "^3.5.2"
-numpy = "1.21"
+numpy = "1.23.1"
 openpyxl = "^3"
 scipy = "^1.9"
 tqdm = "^4.64.1"
@@ -30,6 +30,7 @@ jupyter = "^1.0.0"
 contextily = "^1.0.1"
 hkvsobekpy = "^1.5"
 fire = "^0.5.0"
+rstr = "^3.2.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
@@ -49,7 +50,7 @@ poetry2conda = "^0.3.0"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.2.0"
+version = "0.1.2"
 tag_format = "$version"
 version_files = [
     "hydrolib/post/__init__.py",
@@ -106,7 +107,4 @@ fiona = { channel = "conda-forge" }
 contextily = { channel = "conda-forge" }
 
 [tool.pytest.ini_options]
-markers = [
-    "slow_test: marks tests as slow (deselect with '-m \"not slow\"')",
-    "plots: marks tests as having plots (deselect with '-m \"not plots\"')",
-]
+markers = "plot"

@@ -6,7 +6,7 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
-from pydantic import validate_arguments
+from pydantic import validate_arguments, StrictFloat, StrictInt, StrictStr
 from rasterstats import zonal_stats
 from tqdm.auto import tqdm
 
@@ -23,12 +23,12 @@ class UnpavedIO:
     def unpaved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: Union[str, Path],
-        surface_level: Union[str, Path],
-        soiltype: Union[str, Path],
-        surface_storage,  #:Union[Stricttr, float, int],
-        infiltration_capacity,  #:Union[str, float, int],
-        initial_gwd,  #:Union[str, float, int],
+        landuse: Union[StrictStr, Path],
+        surface_level: Union[StrictStr, Path],
+        soiltype: Union[StrictStr, Path],
+        surface_storage: Union[StrictStr, Path, float],
+        infiltration_capacity: Union[StrictStr, Path, float],
+        initial_gwd: Union[StrictStr, Path, float],
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,
     ):
@@ -202,8 +202,8 @@ class UnpavedIO:
         catchments: ExtendedGeoDataFrame,
         depths: list,
         resistance: list,
-        infiltration_resistance: Union[int, float] = None,
-        runoff_resistance: Union[int, float] = None,
+        infiltration_resistance: float = None,
+        runoff_resistance: float = None,
     ) -> None:
         """Generate an Ernst definition for an unpaved node.
 
@@ -218,11 +218,7 @@ class UnpavedIO:
             infiltration_resistance = 300.0
         if runoff_resistance is None:
             runoff_resistance = 1.0
-        if isinstance(infiltration_resistance, int):
-            infiltration_resistance = float(infiltration_resistance)
-        if isinstance(runoff_resistance, int):
-            runoff_resistance = float(runoff_resistance)
-
+        
         ernst_drr = ExtendedDataFrame(required_columns=["id"])
         ernst_drr.set_data(
             pd.DataFrame(
@@ -237,8 +233,8 @@ class UnpavedIO:
             ernst_drr.at[cat.code, "id"] = str(cat.code)
             ernst_drr.at[cat.code, "cvo"] = " ".join([str(res) for res in resistance])
             ernst_drr.at[cat.code, "lv"] = " ".join([str(depth) for depth in depths])
-            ernst_drr.at[cat.code, "cvi"] = str(infiltration_resistance)
-            ernst_drr.at[cat.code, "cvs"] = str(runoff_resistance)
+            ernst_drr.at[cat.code, "cvi"] = f'{infiltration_resistance:.2f}'
+            ernst_drr.at[cat.code, "cvs"] = f'{runoff_resistance:.2f}'
 
         [self.unpaved.add_ernst_def(**ernst) for ernst in ernst_drr.to_dict("records")]
 
@@ -251,11 +247,11 @@ class PavedIO:
     def paved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: Union[Path, str],
-        surface_level: Union[Path, str],
-        street_storage: Union[float, int,str],
-        sewer_storage: float,
-        pump_capacity: float,
+        landuse: Union[StrictStr, Path],
+        surface_level: Union[StrictStr, Path],
+        street_storage:Union[StrictStr, Path, float],
+        sewer_storage:Union[StrictStr, Path,  float],
+        pump_capacity:Union[StrictStr, Path, float],
         meteo_areas: ExtendedGeoDataFrame,
         overflows: ExtendedGeoDataFrame = None,
         sewer_areas: ExtendedGeoDataFrame = None,
@@ -268,8 +264,8 @@ class PavedIO:
             landuse (str): filename of landuse raster
             surface_level (str): file name of suface level raster
             street_storage (Union): numeric for spatially uniform street storage (mm), or raster for distributed values
-            sewer_storage (float): numeric for spatially uniform sewer storage (mm). Only used if sewer areas do not contain a storage.
-            pump_capacity (float): numeric for spatially uniform pump capacities (mm/day). Only used if sewer areas do not contain a POC.
+            sewer_storage (Union): numeric for spatially uniform sewer storage (mm), or raster for distributed values
+            pump_capacity (Union): numeric for spatially uniform pump capaities (mm), or raster for distributed values
             meteo_areas (ExtendedGeoDataFrame): meteo areas, for each station a meteo time series is assigned
             overflows (ExtendedGeoDataFrame, optional): overflow locations. Defaults to None.
             sewer_areas (ExtendedGeoDataFrame, optional): sewer area locations. Defaults to None.
@@ -295,8 +291,9 @@ class PavedIO:
             affine=sl_affine,
             stats="median",
             all_touched=all_touched,
-        )      
-        if isinstance(street_storage, str):
+        )
+
+        if isinstance(street_storage, (Path, str)):
             strs_rast, strs_affine = self.paved.drrmodel.read_raster(
                 street_storage, static=True
             )
@@ -307,9 +304,8 @@ class PavedIO:
                 stats="mean",
                 all_touched=True,
             )
-        elif isinstance(street_storage, int):
-            street_storage = float(street_storage)
-        if isinstance(sewer_storage, str):
+        
+        if isinstance(sewer_storage, (Path, str)):
             sews_rast, sews_affine = self.paved.drrmodel.read_raster(
                 sewer_storage, static=True
             )
@@ -320,9 +316,20 @@ class PavedIO:
                 stats="mean",
                 all_touched=True,
             )
-        elif isinstance(sewer_storage, int):
-            sewer_storage = float(sewer_storage)
-       
+        
+        if isinstance(pump_capacity,  (Path, str)):
+            # raster of POC in mm/h
+            pump_rast, pump_affine = self.paved.drrmodel.read_raster(
+                pump_capacity, static=True
+            )
+            pump_caps = zonal_stats(
+                catchments,
+                pump_rast,
+                affine=pump_affine,
+                stats="mean",
+                all_touched=True,
+            )
+        
         def update_dict(dict1, dict2):
             for i in dict2.keys():
                 if i in dict1:
@@ -335,8 +342,8 @@ class PavedIO:
         px_area = lu_affine[0] * -lu_affine[4]
         paved_drr = ExtendedDataFrame(required_columns=["id"])
         if sewer_areas is not None:
-            # if the parameters area rasters, do the zonal statistics per sewage area as well.
-            if isinstance(street_storage, str):
+            # if the parameters ara rasters, do the zonal statistics per sewage area as well.
+            if isinstance(street_storage,(Path, str)):
                 str_stors_sa = zonal_stats(
                     sewer_areas,
                     strs_rast,
@@ -344,14 +351,22 @@ class PavedIO:
                     stats="mean",
                     all_touched=True,
                 )
-            if isinstance(sewer_storage, str):
+            if isinstance(sewer_storage, (Path, str)):
                 sew_stors_sa = zonal_stats(
                     sewer_areas,
                     sews_rast,
                     affine=sews_affine,
                     stats="mean",
                     all_touched=True,
-                )          
+                )
+            if isinstance(pump_capacity, (Path, str)):
+                pump_caps_sa = zonal_stats(
+                    sewer_areas,
+                    pump_rast,
+                    affine=pump_affine,
+                    stats="mean",
+                    all_touched=True,
+                )
             mean_sa_elev = zonal_stats(
                 sewer_areas, sl_rast, affine=sl_affine, stats="median", all_touched=True
             )
@@ -394,8 +409,11 @@ class PavedIO:
                 pav_pixels = pixels[14.0]
                 pav_area += pav_pixels * px_area
 
-                elev = mean_sa_elev[isew]["median"]
+                # subtract it fromthe total paved area in this catchment, make sure at least 0 remains
+                # lu_counts[cat_ind][14.0] -=  pav_pixels
+                # if lu_counts[cat_ind][14.0] < 0: lu_counts[cat_ind][14.0]  = 0
 
+                elev = mean_sa_elev[isew]["median"]
                 # find overflows related to this sewer area
                 ovf = overflows[overflows.codegerelateerdobject == sew.code]
                 for ov in ovf.itertuples():
@@ -411,26 +429,48 @@ class PavedIO:
                     paved_drr.at[ov.code, "id"] = str(ov.code)
                     paved_drr.at[ov.code, "area"] = str(pav_area * ov.fractie)
                     paved_drr.at[ov.code, "surface_level"] = f"{elev:.2f}"
+                    
                     # if a float is given, a standard value is passed. If a string is given, a rastername is assumed to zonal statistics are applied.
-                    if isinstance(street_storage, float):
+                    if isinstance(street_storage,  float):
                         paved_drr.at[
                             ov.code, "street_storage"
                         ] = f"{street_storage:.2f}"
-                    else:
+                    elif isinstance(street_storage, (Path, str)):
                         paved_drr.at[
                             ov.code, "street_storage"
                         ] = f'{str_stors_sa[isew]["mean"]:.2f}'
-                    
-                    if sew.riool_berging is None:                    
-                        paved_drr.at[ov.code, "sewer_storage"] = f"{sewer_storage:.2f}"
                     else:
-                        paved_drr.at[ov.code, "sewer_storage"] = f'{sew.riool_berging:.2f}'
+                        raise ValueError(f'street_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int).')
                     
-                    if sew.riool_poc is None:                    
-                        paved_drr.at[ov.code, "pump_capacity"] = f"{pump_capacity/(1000.*86400.)*pav_area*ov.fractie:.4f}"
+                    # three options: it can be an attribute of a sewer area, a uniform value or a raster
+                    if sew.riool_berging_mm is None or np.isnan(sew.riool_berging_mm) or not isinstance(sew.riool_berging_mm, float):  
+                        if isinstance(sewer_storage, float):
+                            paved_drr.at[ov.code, "sewer_storage"] = f"{sewer_storage:.2f}"   
+                        elif isinstance(street_storage, (Path, str)):
+                            paved_drr.at[
+                            ov.code, "sewer_storage"
+                            ] = f'{sew_stors_sa[isew]["mean"]:.2f}'
+                        else:
+                            raise ValueError(f'sewer_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int).')                            
+                    else:                                     
+                        paved_drr.at[ov.code, "sewer_storage"] = f'{sew.riool_berging_mm:.2f}'
+                    
+                    # three options: it can be an attribute of a sewer area, a uniform value or a raster
+                    if sew.riool_poc_m3s is None or np.isnan(sew.riool_poc_m3s) or not isinstance(sew.riool_poc_m3s, float):                    
+                         if isinstance(pump_capacity, float):
+                            # convert the value from mm/h to m3/s
+                            paved_drr.at[ov.code, "pump_capacity"] = f"{pump_capacity * (sew.geometry.area * ov.fractie) / (1000. * 3600.):.8f}"   
+                         elif isinstance(pump_capacity, (Path, str)):
+                            # convert the value (extracted from the raster) from mm/h to m3/s
+                            paved_drr.at[
+                            ov.code, "pump_capacity"
+                            ] = f'{pump_caps_sa[isew]["mean"] * (sew.geometry.area* ov.fractie) / (1000. * 3600.):.8f}'
+                         else:
+                            raise ValueError(f'pump_capacity has the wrong datatype. It should be a filename (Path or string) or number (float or int).')        
                     else:
-                        paved_drr.at[ov.code, "pump_capacity"] = f'{sew.riool_berging * ov.fractie:.4f}'
-    
+                        # use the attribute value
+                        paved_drr.at[ov.code, "pump_capacity"] = f'{sew.riool_poc_m3s * ov.fractie:.8f}'
+                                              
                     paved_drr.at[ov.code, "meteo_area"] = str(ms)
                     paved_drr.at[ov.code, "px"] = f"{ov.geometry.coords[0][0]+10:.0f}"
                     paved_drr.at[ov.code, "py"] = f"{ov.geometry.coords[0][1]:.0f}"
@@ -531,7 +571,12 @@ class PavedIO:
                     cat.code, "sewer_storage"
                 ] = f'{sew_stors[num]["mean"]:.2f}'
             if isinstance(pump_capacity, float):
-                paved_drr.at[cat.code, "pump_capacity"] = f"{float(pav_area) * pump_capacity/(1000.*86400.)}"            
+                paved_drr.at[cat.code, "pump_capacity"] = f'{(pump_capacity * cat.geometry.area * ov.fractie) / (1000. * 3600.):.8f}'
+            else:
+                paved_drr.at[
+                    cat.code, "pump_capacity"
+                ] = f'{pump_caps[num]["mean"] * (cat.geometry.area * ov.fractie) / (1000. * 3600.):.8f}'
+            
             paved_drr.at[cat.code, "meteo_area"] = str(ms)
             paved_drr.at[
                 cat.code, "px"
@@ -551,7 +596,7 @@ class GreenhouseIO:
         catchments: ExtendedGeoDataFrame,
         landuse: Union[Path, str],
         surface_level: Union[Path, str],
-        roof_storage,  #:Union[str, float, int],
+        roof_storage: Union[StrictStr,float],
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,
     ) -> None:
@@ -580,16 +625,14 @@ class GreenhouseIO:
             catchments, rast, affine=affine, stats="median", all_touched=all_touched
         )
         # optional rasters
-        if isinstance(roof_storage, str):
+        if isinstance(roof_storage, (Path, str)):
             rast, affine = self.greenhouse.drrmodel.read_raster(
                 roof_storage, static=True
             )
             roofstors = zonal_stats(
                 catchments, rast, affine=affine, stats="mean", all_touched=True
             )
-        elif isinstance(roof_storage, int):
-            roof_storage = float(roof_storage)
-
+        
         # get raster cellsize
         px_area = lu_affine[0] * -lu_affine[4]
 
@@ -726,7 +769,10 @@ class ExternalForcingsIO:
         """
         warnings.filterwarnings("ignore")
         file_list = os.listdir(seepage_folder)
-        file_list = [file for file in file_list if file.lower().endswith("_l1.idf")]
+        if file_list[0].endswith(".idf"):
+            file_list = [file for file in file_list if file.lower().endswith("_l1.idf")]
+        else:
+            file_list = [file for file in file_list if file.lower()]
         times = []
         arr = np.zeros((len(file_list), len(catchments.code)))
         for ifile, file in tqdm(
