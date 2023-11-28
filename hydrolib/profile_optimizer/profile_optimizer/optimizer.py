@@ -377,7 +377,7 @@ class ProfileOptimizer:
         # write new mdu
         mdu_copy = self.base_model.copy()
         mdu_copy.geometry.crossdeffile = cross_def_new
-        # mdu_copy.output.outputdir = f"output_{self.name}_{self.iteration_nr}"
+        mdu_copy.output.outputdir = f"output_{self.name}_{self.iteration_nr}"
         mdu_copy.filepath = self.work_dir / f"{self.name}_{self.iteration_nr}.mdu"
         mdu_copy.save(recurse=False)
 
@@ -395,28 +395,30 @@ class ProfileOptimizer:
         dimr.component.append(
             FMComponent(
                 name=f"{self.name}_{self.iteration_nr}",
-                workingDir=iteration_folder.parent.absolute(),
-                inputfile=mdu_copy.filepath.absolute(),
+                workingDir=".",
+                inputfile=f"{self.name}_{self.iteration_nr}.mdu",
                 model=mdu_copy,
             )
         )
         dimr.control.append(Start(name=f"{self.name}_{self.iteration_nr}"))
-        dimr_fn = iteration_folder / "dimr_config.xml"
+        dimr_fn = self.work_dir / "dimr_config.xml"
         dimr.save(dimr_fn)
         self._latest_bat = dimr_fn.parent / "run_bat.bat"
         shutil.copy(self.bat_file, self._latest_bat)
         return iteration_folder
 
     def run_model(self, bat_path, model_folder):
+        """run the model. Please note model_folder is not used anymore but kept as argument to not break notebooks
+        """
         print("Begin running model")
         subprocess.call(
-            [str(Path(bat_path).absolute())], cwd=str(Path(model_folder).absolute())
+            [str(Path(bat_path).absolute())], cwd=str(Path(self.work_dir).absolute())
         )
         print("Done running model")
 
     def get_water_level(self):
-        model_folder = self.work_dir / "output"
-        map_nc = glob(f"{model_folder}/**_map.nc")[0]
+        output_folder = self.work_dir / f"output_{self.name}_{self.iteration_nr}"
+        map_nc = glob(f"{output_folder}/**_map.nc")[0]
         ds = nc.Dataset(str(map_nc))
 
         edges = {"x": "mesh1d_node_x", "y": "mesh1d_node_y"}
@@ -477,12 +479,13 @@ class ProfileOptimizer:
         mdu_fn = self.work_dir / f"{self.name}_{iteration}.mdu"
         mdu = FMModel(mdu_fn)
         new_mdu = (
-            self.output_dir / f"{self.model_name.split('.')[0]}_Profile_Optimizer.mdu"
+            self.output_dir / f"{self.name}_{iteration}.mdu"
         )
         mdu.save(filepath=new_mdu, recurse=True)
         shutil.copytree(
-            self.work_dir / "output",
-            self.output_dir / f"output_{iteration}_Profile_Optimizer",
+            self.work_dir / f"output_{self.name}_{self.iteration_nr}",
+            self.output_dir
+            / f"output_{self.name}_{self.iteration_nr}",
         )
 
         other_files = os.listdir(self.work_dir)
