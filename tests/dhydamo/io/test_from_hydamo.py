@@ -42,23 +42,22 @@ def test_hydamo_object_from_gpkg():
         order_column="codevolgnummer",
         id_col="code",
     )
-    from shapely.geometry import LineString
 
     assert len(hydamo.profile) == 359
     assert hydamo.profile.geom_type.values[0] == "LineString"
 
     #     # read roughness
     hydamo.profile_roughness.read_gpkg_layer(gpkg_file, layer_name="RuwheidProfiel")
-    hydamo.profile.snap_to_branch(hydamo.branches, snap_method="intersecting")
 
-    # seven profiles are too far from a branch and are dropped
-    assert len(hydamo.profile.branch_offset[hydamo.profile.branch_offset.isnull()]) == 7
-
-    hydamo.profile.dropna(axis=0, inplace=True, subset=["branch_offset"])
     hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name="profiellijn")
     hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name="profielgroep")
     hydamo.profile.drop("code", axis=1, inplace=True)
     hydamo.profile["code"] = hydamo.profile["profiellijnid"]
+    len_profile_before = len(hydamo.profile)
+    hydamo.snap_to_branch_and_drop(hydamo.profile, hydamo.branches, snap_method="intersecting", drop_related=True)
+
+    # seven profiles are too far from a branch and are dropped
+    assert len_profile_before - len(hydamo.profile) == 7
 
     # the dataset contains two profile groups (a bridge and a uweir)
     assert hydamo.profile_group.shape == (2, 4)
@@ -69,22 +68,13 @@ def test_hydamo_object_from_gpkg():
 
     #     # Read Weirs
     hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name="Stuw")
-    hydamo.weirs.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
-    hydamo.weirs.dropna(axis=0, inplace=True, subset=["branch_offset"])
     hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
     hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-
-    assert len(hydamo.weirs) == 25
-    assert np.round(hydamo.weirs.doorstroombreedte.mean(), 2) == 2.17
 
     # Read culverts
     hydamo.culverts.read_gpkg_layer(
         gpkg_file, layer_name="DuikerSifonHevel", index_col="code"
     )
-    hydamo.culverts.snap_to_branch(hydamo.branches, snap_method="ends", maxdist=5)
-    hydamo.culverts.dropna(axis=0, inplace=True, subset=["branch_offset"])
-    assert len(hydamo.culverts) == 90
-    assert hydamo.culverts.length.sum() == 2497.687230867272
 
     # Read management device
     hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
@@ -101,23 +91,27 @@ def test_hydamo_object_from_gpkg():
         hydamo.management_device.at[i, "duikersifonhevelid"] = globid
     assert len(hydamo.management_device) == 27
 
+    hydamo.snap_to_branch_and_drop(hydamo.weirs, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
+    assert len(hydamo.weirs) == 25
+    assert np.round(hydamo.weirs.doorstroombreedte.mean(), 2) == 2.17
+
+    hydamo.snap_to_branch_and_drop(hydamo.culverts, hydamo.branches, snap_method="ends", maxdist=5, drop_related=True)
+    assert len(hydamo.culverts) == 90
+    assert hydamo.culverts.length.sum() == 2497.687230867272
+
     # Read pumpstations
     hydamo.pumpstations.read_gpkg_layer(
         gpkg_file, layer_name="Gemaal", index_col="code"
     )
-    hydamo.pumpstations.snap_to_branch(
-        hydamo.branches, snap_method="overal", maxdist=10
-    )
     hydamo.pumps.read_gpkg_layer(gpkg_file, layer_name="Pomp", index_col="code")
     hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
 
+    hydamo.snap_to_branch_and_drop(hydamo.pumpstations, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
     assert len(hydamo.pumps) == 1
 
     # Read bridges
     hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
-    hydamo.bridges.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
-    hydamo.bridges.dropna(axis=0, inplace=True, subset=["branch_offset"])
-
+    hydamo.snap_to_branch_and_drop(hydamo.bridges, hydamo.branches, snap_method="overal", maxdist=1100, drop_related=True)
     assert len(hydamo.bridges) == 1
     assert hydamo.bridges.branch_offset.values[0] == 182.117
 

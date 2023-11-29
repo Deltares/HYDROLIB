@@ -571,11 +571,11 @@ class PavedIO:
                     cat.code, "sewer_storage"
                 ] = f'{sew_stors[num]["mean"]:.2f}'
             if isinstance(pump_capacity, float):
-                paved_drr.at[cat.code, "pump_capacity"] = f'{(pump_capacity * float(pav_area) * ov.fractie) / (1000. * 3600.):.8f}'
+                paved_drr.at[cat.code, "pump_capacity"] = f'{(pump_capacity * float(pav_area)) / (1000. * 3600.):.8f}'
             else:
                 paved_drr.at[
                     cat.code, "pump_capacity"
-                ] = f'{pump_caps[num]["mean"] * (float(pav_area) * ov.fractie) / (1000. * 3600.):.8f}'
+                ] = f'{pump_caps[num]["mean"] * (float(pav_area)) / (1000. * 3600.):.8f}'
             
             paved_drr.at[cat.code, "meteo_area"] = str(ms)
             paved_drr.at[
