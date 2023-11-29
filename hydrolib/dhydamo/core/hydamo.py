@@ -110,7 +110,7 @@ class HyDAMO:
             }
         )
         self.profile_roughness = ExtendedDataFrame(
-            required_columns=["code", "profielpuntid"]
+            required_columns=["profielpuntid"]
         )
 
         self.profile_line = ExtendedGeoDataFrame(
