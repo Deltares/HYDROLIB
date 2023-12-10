@@ -266,13 +266,11 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                 startnr[branch] = min(volgnr, startnr[branch])
 
             # Determine relative order of points in profile (required if the point numbering is not subsequent)
-            order_rel = []
-            for branch, volgnr in zip(groupbyvalues, order):
-                lst_volgnr = [x[1] for x in zip(groupbyvalues, order) if x[0] == branch]
-                lst_volgnr.sort()
-                for i, x in enumerate(lst_volgnr):
-                    if volgnr == x:
-                        order_rel.append(i)
+            layer_sorted = layer.sort_values([groupby_column, order_column])
+            order_rel = layer_sorted[order_column]
+            order_rel = np.array([0 if x1 < x2 else 1 for x1, x2 in zip(order_rel[:-1], order_rel[1:])])
+            order_rel = np.append([1], order_rel[:-1])  # shift one place further
+            order_rel = np.arange(len(order_rel)) - pd.Series(np.where(order_rel == 1, np.arange(len(order_rel)), np.nan)).fillna(method='ffill')
 
             # Filter branches with too few points
             singlepoint = counts < 2
@@ -282,7 +280,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                 layer.geometry, order, groupbyvalues, order_rel
             ):
                 # lines[branch][volgnr - startnr[branch]] = point
-                lines[branch][volgnr_rel] = point
+                lines[branch][int(volgnr_rel)] = point
 
             # Group geometries to lines
             for branch in branches[~singlepoint]:
