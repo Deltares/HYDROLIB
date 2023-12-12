@@ -269,7 +269,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             layer_sorted = layer.sort_values([groupby_column, order_column])
             order_rel = layer_sorted[order_column]
             order_rel = np.array([0 if x1 < x2 else 1 for x1, x2 in zip(order_rel[:-1], order_rel[1:])])
-            order_rel = np.append([1], order_rel[:-1])  # shift one place further
+            order_rel = np.append([1], order_rel)  # shift one place further
             order_rel = np.arange(len(order_rel)) - pd.Series(np.where(order_rel == 1, np.arange(len(order_rel)), np.nan)).fillna(method='ffill')
 
             # Filter branches with too few points
