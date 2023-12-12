@@ -178,6 +178,7 @@ class DRTCModel:
                 logger.info(
                     f"Management for pump {management.pompid} is included in FM."
                 )
+                continue
             else:
                 raise ValueError(
                     "Only management_devices and pumps can be connected to a management object."

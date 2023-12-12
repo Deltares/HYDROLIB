@@ -204,6 +204,7 @@ def mesh1d_add_branch_from_linestring(
     linestring: LineString,
     node_distance: Union[float, int],
     name: Union[str, None] = None,
+    long_name: Union[str, None] = None,
     structure_chainage: Union[List[float], None] = None,
     max_dist_to_struc: Union[float, None] = None,
 ) -> str:
@@ -230,7 +231,7 @@ def mesh1d_add_branch_from_linestring(
         structure_chainage=structure_chainage,
         max_dist_to_struc=max_dist_to_struc,
     )
-    branchid = network.mesh1d_add_branch(branch, name=name)
+    branchid = network.mesh1d_add_branch(branch, name=name, long_name=long_name)
 
     return branchid
 
@@ -239,6 +240,7 @@ def mesh1d_add_branches_from_gdf(
     network: Network,
     branches: gpd.GeoDataFrame,
     branch_name_col: str,
+    branch_long_name_col: str,
     node_distance: float,
     max_dist_to_struc: float = None,
     structures=None,
@@ -280,8 +282,10 @@ def mesh1d_add_branches_from_gdf(
             structure_chainage[branchid] = u
 
     # Loop over all branches, and add structures
-    for branchname, geometry in zip(
-        branches[branch_name_col].tolist(), branches["geometry"].tolist()
+    for branchname, branchlongname, geometry in zip(
+        branches[branch_name_col].tolist(),
+        branches[branch_long_name_col].tolist(),
+        branches["geometry"].tolist()
     ):
         # Create branch
         branch = Branch(geometry=np.array(geometry.coords[:]))
@@ -289,11 +293,10 @@ def mesh1d_add_branches_from_gdf(
         branch.generate_nodes(
             mesh1d_edge_length=node_distance,
             structure_chainage=structure_chainage[branchname]
-            if branchname in structure_chainage
-            else None,
+            if branchname in structure_chainage else None,
             max_dist_to_struc=max_dist_to_struc,
         )
-        network.mesh1d_add_branch(branch, name=branchname)
+        network.mesh1d_add_branch(branch, name=branchname, long_name=branchlongname)
 
 
 def mesh1d_set_branch_order(network: Network, branchids: list, idx: int = None) -> None:

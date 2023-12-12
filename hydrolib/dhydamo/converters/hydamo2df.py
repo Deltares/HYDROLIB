@@ -536,8 +536,9 @@ class StructuresIO:
         """
 
         index = np.zeros((len(weirs.code)))
-        if (profile_groups is not None) & ("stuwid" in profile_groups):
-            index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
+        if profile_groups is not None:
+            if "stuwid" in profile_groups:
+                index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
 
         rweirs = weirs[index == 0]
         for weir in rweirs.itertuples():
