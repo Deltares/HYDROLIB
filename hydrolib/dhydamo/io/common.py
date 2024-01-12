@@ -297,6 +297,14 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                     ]
                     print(f"{ftc} is MultiPolygon; split into single parts.")
 
+        # Enforce a unique index column
+        if index_col is not None:
+            dupes = gdf[gdf.duplicated(subset=index_col, keep="first")].copy()
+            if len(dupes) > 0:
+                logger.warning(f"Index column '{index_col}' contains duplicates, making the index unique")
+                for dupe_id, group in dupes.groupby(by=index_col, sort=False):
+                    gdf.loc[group.index, index_col] = [f"{dupe_id}_{i+1}" for i in range(len(group))]
+
         # Add data to class GeoDataFrame
         self.set_data(
             gdf,
