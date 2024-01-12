@@ -290,18 +290,7 @@ class HyDAMO:
                 "laterals": {
                     "via": "lateraleknoopid",
                     "on": "globalid",
-                    "coupled_to": {
-                        "overflows": {
-                            "via": "globalid",
-                            "on": "lateraleknoopid",
-                            "coupled_to": None
-                        },
-                        "sewer_areas": {
-                            "via": "globalid",
-                            "on": "lateraleknoopid",
-                            "coupled_to": None
-                        }
-                    }
+                    "coupled_to": None
                 }
             }
         )
@@ -315,16 +304,6 @@ class HyDAMO:
                     "via": "globalid",
                     "on": "lateraleknoopid",
                     "coupled_to": None
-                },
-                "overflows": {
-                    "via": "globalid",
-                    "on": "lateraleknoopid",
-                    "coupled_to": None
-                },
-                "sewer_areas": {
-                    "via": "globalid",
-                    "on": "lateraleknoopid",
-                    "coupled_to": None
                 }
             }
         )
@@ -334,21 +313,10 @@ class HyDAMO:
             geotype=Point,
             required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
             related={
-                "laterals": {
-                    "via": "lateraleknoopid",
-                    "on": "globalid",
-                    "coupled_to": {
-                        "catchments": {
-                            "via": "globalid",
-                            "on": "lateraleknoopid",
-                            "coupled_to": None
-                        },
-                        "sewer_areas": {
-                            "via": "globalid",
-                            "on": "lateraleknoopid",
-                            "coupled_to": None
-                        }
-                    }
+                "sewer_areas": {
+                    "via": "codegerelateerdobject",
+                    "on": "code",
+                    "coupled_to": None
                 }
             }
         )
@@ -358,21 +326,10 @@ class HyDAMO:
             geotype=Polygon,
             required_columns=["code", "geometry"],
             related={
-                "laterals": {
-                    "via": "lateraleknoopid",
-                    "on": "globalid",
-                    "coupled_to": {
-                        "catchments": {
-                            "via": "globalid",
-                            "on": "lateraleknoopid",
-                            "coupled_to": None
-                        },
-                        "overflows": {
-                            "via": "globalid",
-                            "on": "lateraleknoopid",
-                            "coupled_to": None
-                        }
-                    }
+                "overflows": {
+                    "via": "code",
+                    "on": "codegerelateerdobject",
+                    "coupled_to": None
                 }
             }
         )

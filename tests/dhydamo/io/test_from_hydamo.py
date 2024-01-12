@@ -7,7 +7,9 @@ from shapely.geometry import Point
 from hydrolib.core.dflowfm.bc.models import ForcingModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
+from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 from hydrolib.core.dflowfm.mdu.models import FMModel
+
 
 hydamo_data_path = (
     Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
@@ -15,6 +17,69 @@ hydamo_data_path = (
 
 print(hydamo_data_path)
 
+
+def _check_related(hydamo, hydamo_name):
+    # assert type of object
+    extendedgdf = getattr(hydamo, hydamo_name)
+    assert isinstance(extendedgdf, ExtendedGeoDataFrame)
+
+    # Check relations recursively
+    if extendedgdf.related is not None:
+        for target_str, relation in extendedgdf.related.items():
+            print(f"{target_str}:")
+            _recursive_check_related(hydamo, hydamo_name, target_str, **relation)
+
+def _recursive_check_related(hydamo, source_str, target_str, via, on, coupled_to):
+    source = getattr(hydamo, source_str)
+    target = getattr(hydamo, target_str)
+
+    assert not source.empty
+    assert not target.empty
+    assert via in source.columns
+    assert on in target.columns
+
+    if coupled_to is not None:
+        for next_target_str, next_relation in coupled_to.items():
+            return _recursive_check_related(hydamo, target_str, next_target_str, **next_relation)
+            
+def test_hydamo_related():
+    # all data is contained in one geopackage called 'Example model'
+    gpkg_file = hydamo_data_path / "Example_model.gpkg"
+    assert gpkg_file.exists()
+
+    hydamo = HyDAMO()
+    hydamo.branches.read_gpkg_layer(gpkg_file, layer_name="HydroObject", index_col="code")
+    hydamo.profile.read_gpkg_layer(gpkg_file, layer_name="ProfielPunt", groupby_column="profiellijnid", order_column="codevolgnummer", id_col="code")
+    hydamo.profile_roughness.read_gpkg_layer(gpkg_file, layer_name="RuwheidProfiel")
+    hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name="profiellijn")
+    hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name="profielgroep")
+    hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name="Stuw")
+    hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
+    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
+    hydamo.culverts.read_gpkg_layer(gpkg_file, layer_name="DuikerSifonHevel", index_col="code")
+    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
+    hydamo.pumpstations.read_gpkg_layer(gpkg_file, layer_name="Gemaal", index_col="code")
+    hydamo.pumps.read_gpkg_layer(gpkg_file, layer_name="Pomp", index_col="code")
+    hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
+    hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
+    hydamo.boundary_conditions.read_gpkg_layer(gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code")
+    hydamo.catchments.read_gpkg_layer(gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code")
+    hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
+    hydamo.sewer_areas.read_shp(hydamo_data_path / 'rioleringsgebieden.shp', index_col='code', column_mapping={'Code':'code', 'Berging_mm':'riool_berging_mm', 'POC_m3s':'riool_poc_m3s' })
+    hydamo.overflows.read_shp(hydamo_data_path / 'overstorten.shp', column_mapping={'codegerela': 'codegerelateerdobject'})
+
+    _check_related(hydamo, "branches")
+    _check_related(hydamo, "profile")
+    _check_related(hydamo, "profile_line")
+    _check_related(hydamo, "weirs")
+    _check_related(hydamo, "bridges")
+    _check_related(hydamo, "culverts")
+    _check_related(hydamo, "pumpstations")
+    _check_related(hydamo, "boundary_conditions")
+    _check_related(hydamo, "catchments")
+    _check_related(hydamo, "laterals")
+    _check_related(hydamo, "overflows")
+    _check_related(hydamo, "sewer_areas")
 
 def test_hydamo_object_from_gpkg():
     # initialize a hydamo object
