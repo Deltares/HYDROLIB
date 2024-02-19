@@ -32,7 +32,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 # In[2]:
-
+os.chdir('hydrolib/notebooks')
 
 ## In not installed, add a path from where hydrolib it can be imported
 #sys.path.insert(0, "d:/Documents/GitHub/HYDROLIB")
@@ -66,6 +66,27 @@ from hydrolib.dhydamo.geometry.viz import plot_network
 
 # In[3]:
 
+# fmmodel = FMModel()
+# network = fmmodel.geometry.netfile.network
+# extent = gpd.read_file(r"data/2D_roostergebied_aangepast.shp").at[0, "geometry"]
+
+# edge_length = 500.
+
+# meshkernel = network._mesh2d.meshkernel
+# for polygon in common.as_polygon_list(extent):                
+#     polygon = interp_polygon(polygon, dist=edge_length)
+
+#     # Add triangular mesh within polygon
+#     meshkernel.mesh2d_make_triangular_mesh_from_polygon(from_polygon(polygon))
+
+# fig, ax = plt.subplots()
+# ax.set_aspect(1.0)
+# plot_network(network, ax=ax)
+# for geom in extent.geoms:
+#     ax.plot(*geom.exterior.coords.xy, color="k", ls="-")
+# ax.set_xlim(extent.bounds[0], extent.bounds[2])
+# ax.set_ylim(extent.bounds[1], extent.bounds[3])
+# ####
 
 # path to the package containing the dummy-data
 data_path = Path("../tests/data").resolve()
@@ -136,6 +157,7 @@ for i in idx:
     ].globalid.values[0]
     hydamo.management_device.at[i, "duikersifonhevelid"] = globid
 hydamo.snap_to_branch_and_drop(hydamo.culverts, hydamo.branches, snap_method="ends", maxdist=5, drop_related=True)
+
 hydamo.snap_to_branch_and_drop(hydamo.weirs, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
 
 hydamo.pumpstations.read_gpkg_layer(gpkg_file, layer_name="Gemaal", index_col="code")
@@ -209,7 +231,7 @@ fig.tight_layout()
 
 # ### Structures
 
-# HyDAMO contains methods to convert HyDAMO DAMO 2.2 data to internal dataframes, which correspond to the D-HYDRO format.
+# HyDAMO contains methods to convert HyD    AMO DAMO 2.2 data to internal dataframes, which correspond to the D-HYDRO format.
 # 
 # We first import the structures from the HyDAMO-object, since the structures' positions are necessary for defining the 1D-mesh. Structures can also be added without the HyDAMO imports.
 # 
@@ -231,14 +253,16 @@ fig.tight_layout()
 
 # In[8]:
 
+# test to set get universal weir from profile instead of laagstedoostrom
+idx = hydamo.weirs[hydamo.weirs.globalid == hydamo.profile_group.iloc[1].stuwid].index
+hydamo.weirs.loc[idx, 'laagstedoorstroomhoogte'] = None
 
 hydamo.structures.convert.weirs(
     hydamo.weirs,   
     hydamo.profile_group,
     hydamo.profile_line,
     hydamo.profile,
-    opening=hydamo.opening,
-    
+    opening=hydamo.opening,    
     management_device=hydamo.management_device
 )
 
@@ -288,6 +312,20 @@ hydamo.structures.add_uweir(
     yvalues="0.0 1.0 2.0 3.0",
     zvalues="19.0 18.0 18.2 19",
 )
+hydamo.structures.add_culvert(
+    id="culvert_test",
+    branchid="W_242213_0",
+    chainage=42.0,
+    rightlevel=17.2,
+    leftlevel=17.1,
+    length=5.,
+    bedfrictiontype='StricklerKs',
+    bedfriction=75,
+    inletlosscoeff=0.6,
+    outletlosscoeff = 1.0,
+    crosssection = {'shape':'circle', 'diameter':0.6}    
+)
+
 
 
 # The resulting dataframes look like this:
@@ -344,9 +382,9 @@ hydamo.observationpoints.add_points(
 )
 
 hydamo.observationpoints.add_points(
-    [Point(200198,396489), Point(201129, 396269)],
-    ["ObsS_96544", "ObsP_113GIS"],
-    locationTypes=["1d", "1d"],
+    [Point(200198,396489), Point(201129, 396269), Point(200264, 394761), Point(199665, 395323)],
+    ["ObsS_96544", "ObsP_113GIS", 'Obs_UWR', 'Obs_ORIF'],
+    locationTypes=["1d", "1d","1d", "1d"],
     snap_distance=10.0,
 )
 hydamo.observationpoints.observation_points.head()
@@ -688,8 +726,8 @@ if TwoD:
 
 
 if TwoD:
-    mesh.links1d2d_add_links_1d_to_2d(network)
-    #mesh.links1d2d_add_links_2d_to_1d_lateral(network, max_length=40.)
+    # mesh.links1d2d_add_links_1d_to_2d(network)
+    mesh.links1d2d_add_links_2d_to_1d_lateral(network, max_length=40.)
     #mesh.links1d2d_add_links_2d_to_1d_embedded(network)
     mesh.links1d2d_remove_1d_endpoints(network)
 
