@@ -1561,7 +1561,7 @@ class ExternalForcings:
             ]
         )
         get_nearest = KDTree(nodes1d[:, 0:2])
-        distance, idx_nearest = get_nearest.query(pt)
+        distance, idx_nearest = get_nearest.query(pt.coords[:])
         nodeid = f"{float(nodes1d[idx_nearest,0]):12.6f}_{float(nodes1d[idx_nearest,1]):12.6f}"
 
         # Convert time to minutes
@@ -2112,9 +2112,7 @@ class ObservationPoints:
         if self.observation_points.empty:
             self.observation_points = obs
         else:
-            self.observation_points = self.observation_points.append(
-                obs, ignore_index=True
-            )
+            self.observation_points = pd.concat([self.observation_points, obs], ignore_index=True)
 
 
 class StorageNodes:

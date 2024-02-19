@@ -354,7 +354,8 @@ class ExternalForcingsIO:
 
         latdct = {}
         if overflows is not None:
-            locations = locations.append(overflows)
+            locations = pd.concat([locations, overflows], ignore_index=True)
+
 
         # Get time series and add to dictionary
         # for nidx, lateral in zip(nearest_idx, locations.itertuples()):
@@ -574,28 +575,36 @@ class StructuresIO:
                 weir_mandev.overlaatonderlaat.to_string(index=False).lower()
                 == "onderlaat"
             ):
-                if "maximaaldebiet" not in weir_mandev:
+                if "maximaaldebiet" not in weir_mandev or weir_mandev.maximaaldebiet.values[0] is None:
                     limitflow = "false"
                     maxq = 0.0
                 else:
                     limitflow = "true"
+                    maxq = float(weir_mandev.maximaaldebiet.values[0])
                 self.structures.add_orifice(
                     id=weir.code,
                     name=name,
                     branchid=weir.branch_id,
                     chainage=weir.branch_offset,
-                    crestlevel=weir_opening.laagstedoorstroomhoogte.values[0],
-                    crestwidth=weir_opening.laagstedoorstroombreedte.values[0],
+                    crestlevel=float(weir_opening.laagstedoorstroomhoogte.values[0]),
+                    crestwidth=float(weir_opening.laagstedoorstroombreedte.values[0]),
                     corrcoeff=weir.afvoercoefficient,
                     allowedflowdir="both",
                     usevelocityheight=usevelocityheight,
-                    gateloweredgelevel=weir_opening.laagstedoorstroomhoogte.values[0]
-                    + weir_mandev.hoogteopening.values[0],
+                    gateloweredgelevel=float(weir_opening.laagstedoorstroomhoogte.values[0])
+                    + float(weir_mandev.hoogteopening.values[0]),
                     uselimitflowpos=limitflow,
                     limitflowpos=maxq,
                     uselimitflowneg=limitflow,
                     limitflowneg=maxq,
                 )
+            else:
+                if weir_opening.empty:
+                    print(f'No opening associated with {weir.code}.')
+                elif weir_mandev.empty:
+                    print(f'No management device associated with {weir.code}.')
+                else:
+                    print(f'Conversion failed for {weir.code}.')
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
@@ -621,6 +630,13 @@ class StructuresIO:
                     ]
                     yzvalues = np.c_[length, xyz[:, -1] - np.min(xyz[:, -1])]
 
+            if hasattr(uweir, 'laagstedoorstroomhoogte') & ~np.isnan(uweir.laagstedoorstroomhoogte):
+                kruinhoogte = uweir.laagstedoorstroomhoogte
+            else:
+                kruinhoogte = np.min(xyz[:,-1])
+            
+                
+
             if len(prof) == 0:
                 # return an error it is still not found
                 raise ValueError(f"{uweir.code} is not found in any cross-section.")
@@ -629,11 +645,9 @@ class StructuresIO:
                 name=name,
                 branchid=uweir.branch_id,
                 chainage=uweir.branch_offset,
-                crestlevel=uweir.laagstedoorstroomhoogte,
-                crestwidth=uweir.kruinbreedte,
+                crestlevel=kruinhoogte,                
                 dischargecoeff=uweir.afvoercoefficient,
-                allowedflowdir="both",
-                usevelocityheight=usevelocityheight,
+                allowedflowdir="both",                
                 numlevels=counts,
                 yvalues=" ".join([f"{yz[0]:7.3f}" for yz in yzvalues]),
                 zvalues=" ".join([f"{yz[1]:7.3f}" for yz in yzvalues]),
@@ -767,14 +781,14 @@ class StructuresIO:
         """
         for culvert in culverts.itertuples():
             # Generate cross section definition name
-            if culvert.vormkoker == "Rond" or culvert.vormkoker == "Ellipsvormig":
+            if culvert.vormkoker.lower() == "rond" or culvert.vormkoker.lower() == "ellipsvormig":
                 crosssection = {"shape": "circle", "diameter": culvert.hoogteopening}
             elif (
-                culvert.vormkoker == "Rechthoekig"
-                or culvert.vormkoker == "Onbekend"
-                or culvert.vormkoker == "Eivormig"
-                or culvert.vormkoker == "Muilprofiel"
-                or culvert.vormkoker == "Heulprofiel"
+                culvert.vormkoker.lower() == "rechthoekig"
+                or culvert.vormkoker.lower() == "onbekend"
+                or culvert.vormkoker.lower() == "eivormig"
+                or culvert.vormkoker.lower() == "muilprofiel"
+                or culvert.vormkoker.lower() == "heulprofiel"
             ):
                 crosssection = {
                     "shape": "rectangle",

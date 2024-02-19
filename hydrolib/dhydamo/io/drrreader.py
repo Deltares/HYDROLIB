@@ -8,8 +8,9 @@ import numpy as np
 import pandas as pd
 from pydantic import validate_arguments, StrictFloat, StrictInt, StrictStr
 from rasterstats import zonal_stats
+from rasterio.transform import from_origin
 from tqdm.auto import tqdm
-
+from hydrolib.dhydamo.io import idfreader
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
@@ -391,7 +392,8 @@ class PavedIO:
                 ),
                 index_col="id",
             )
-            paved_drr.index = catchments.code.append(overflows.code)
+            paved_drr.index = pd.concat([catchments.code, overflows.code], ignore_index=True)
+
 
             # find the paved area in the sewer areas
             for isew, sew in enumerate(sewer_areas.itertuples()):
@@ -446,7 +448,7 @@ class PavedIO:
                     if sew.riool_berging_mm is None or np.isnan(sew.riool_berging_mm) or not isinstance(sew.riool_berging_mm, float):  
                         if isinstance(sewer_storage, float):
                             paved_drr.at[ov.code, "sewer_storage"] = f"{sewer_storage:.2f}"   
-                        elif isinstance(street_storage, (Path, str)):
+                        elif isinstance(sewer_storage, (Path, str)):
                             paved_drr.at[
                             ov.code, "sewer_storage"
                             ] = f'{sew_stors_sa[isew]["mean"]:.2f}'
@@ -767,20 +769,28 @@ class ExternalForcingsIO:
             catchments (ExtendedGeoDataFrame): catchment areas
             seepage_folder (str): folder where the seepage rasters are stored
         """
-        warnings.filterwarnings("ignore")
+        warnings.filterwarnings("ignore")        
         file_list = os.listdir(seepage_folder)
-        if file_list[0].endswith(".idf"):
-            file_list = [file for file in file_list if file.lower().endswith("_l1.idf")]
-        else:
-            file_list = [file for file in file_list if file.lower()]
+        file_list = [file for file in file_list if file.lower()]        
         times = []
+        convert_units=False
         arr = np.zeros((len(file_list), len(catchments.code)))
         for ifile, file in tqdm(
             enumerate(file_list), total=len(file_list), desc="Reading seepage files"
         ):
-            array, affine, time = self.external_forcings.drrmodel.read_raster(
-                os.path.join(seepage_folder, file)
-            )
+            if file.endswith('.idf'):
+                dataset = idfreader.open(os.path.join(seepage_folder, file))                
+                array = dataset[0, 0, :, :].values
+                header = idfreader.header(os.path.join(seepage_folder, file), pattern=None)
+                affine = from_origin(
+                    header["xmin"], header["ymax"], header["dx"], header["dx"]
+                )
+                time = header['time']
+                convert_units=True
+            else:
+                array, affine, time = self.external_forcings.drrmodel.read_raster(
+                    os.path.join(seepage_folder, file)
+                )
             times.append(time)
             stats = zonal_stats(
                 catchments, array, affine=affine, stats="mean", all_touched=True
@@ -790,11 +800,13 @@ class ExternalForcingsIO:
             arr, columns=["sep_" + str(cat) for cat in catchments.code]
         )
         result.index = times
-        # convert units
-        result_mmd = (result / (1e-3 * (affine[0] * -affine[4]))) / (
-            (times[2] - times[1]).total_seconds() / 86400.0
-        )
-        [self.external_forcings.add_seepage(*sep) for sep in result_mmd.iteritems()]
+        if convert_units:
+            # if an NHI model (IDF files) is used, convert units from m3 to mm/d
+            result = (result / (1e-3 * (affine[0] * -affine[4]))) / (
+                    (times[2] - times[1]).total_seconds() / 86400.0
+            )
+        [self.external_forcings.add_seepage(*sep) for sep in result.items()]
+
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def precip_from_input(
@@ -832,7 +844,7 @@ class ExternalForcingsIO:
                 arr, columns=["ms_" + str(area) for area in areas.code]
             )
             result.index = times
-            [self.external_forcings.add_precip(*prec) for prec in result.iteritems()]
+            [self.external_forcings.add_precip(*prec) for prec in result.items()]
         else:
             self.external_forcings.precip = str(precip_file)
 
@@ -875,7 +887,7 @@ class ExternalForcingsIO:
                 arr, columns=["ms_" + str(area) for area in areas.code]
             )
             result.index = times
-            [self.external_forcings.add_evap(*evap) for evap in result.iteritems()]
+            [self.external_forcings.add_evap(*evap) for evap in result.items()]
         else:
             self.external_forcings.evap = str(evap_file)
 
@@ -947,7 +959,7 @@ class ExternalForcingsIO:
             index_col="id",
         )
         if overflows is not None:
-            bnd_drr.index = catchments.code.append(overflows.code)
+            bnd_drr.index = pd.concat([catchments.code, overflows.code], ignore_index=True)
         else:
             bnd_drr.index = catchments.code
         for num, cat in enumerate(catchments.itertuples()):

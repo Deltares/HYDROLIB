@@ -416,7 +416,7 @@ class DRRWriter:
                         f.write("TBLE\n")
                         for row in self.rrmodel.external_forcings.seepage[dct["sp"]][
                             "seepage"
-                        ].iteritems():
+                        ].items():
                             f.write(
                                 "'"
                                 + row[0].strftime("%Y/%m/%d;%H:%M:%S")

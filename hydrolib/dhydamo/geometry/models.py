@@ -38,7 +38,7 @@ class GeometryList(GeometryListMK):
         # Extract coordinates from geometry
         x_crds, y_crds = np.array(geometry.coords[:]).T
         gl = cls(x_coordinates=x_crds, y_coordinates=y_crds)
-        return gl
+        return glmk
 
     @classmethod
     def from_linestring(cls, linestring: LineString):
@@ -55,6 +55,11 @@ class GeometryList(GeometryListMK):
         x_ext, y_ext = np.array(polygon.exterior.coords[:]).T
         x_crds = [x_ext]
         y_crds = [y_ext]
+
+        
+        if not hasattr(cls, 'inner_outer_separator'):
+            cls.inner_outer_separator = -998
+
         # Add interiors, seperated by inner_outer_separator
         for interior in polygon.interiors:
             x_int, y_int = np.array(interior.coords[:]).T
@@ -71,6 +76,8 @@ class GeometryList(GeometryListMK):
     def _from_multigeometry(cls, multigeometry: Union[MultiLineString, MultiPolygon]):
         x_crds = []
         y_crds = []
+        cls.inner_outer_separator = -998
+        cls.geometry_separator = -999
         # Create a GeometryList for every polygon in the multipolygon
         for i, geometry in enumerate(multigeometry.geoms):
             gl = cls.from_geometry(geometry)

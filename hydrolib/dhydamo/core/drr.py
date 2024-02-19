@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 from typing import Union
 
-import imod
 import pandas as pd
 import rasterio
 from pydantic import validate_arguments
@@ -60,17 +59,9 @@ class DRRModel:
         if not static:
             time = pd.Timestamp(os.path.split(file)[1].split("_")[1].split(".")[0])
 
-        if filename.suffix.lower() == ".idf":
-            dataset = imod.idf.open(filename)
-            header = imod.idf.header(filename, pattern=None)
-            grid = dataset[0, 0, :, :].values
-            affine = from_origin(
-                header["xmin"], header["ymax"], header["dx"], header["dx"]
-            )
-        else:
-            dataset = rasterio.open(filename)
-            affine = dataset.transform
-            grid = dataset.read(1)
+        dataset = rasterio.open(filename)
+        affine = dataset.transform
+        grid = dataset.read(1)
 
         if static:
             return grid, affine

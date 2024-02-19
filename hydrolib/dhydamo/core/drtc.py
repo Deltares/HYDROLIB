@@ -180,13 +180,13 @@ class DRTCModel:
                     weir = self.hydamo.structures.rweirs_df[
                         self.hydamo.structures.rweirs_df.id == weir_code
                     ]
-                elif weir_code in list(self.hydamo.structures.uweirs_df.id):
+                elif not self.hydamo.structures.uweirs_df.empty and weir_code in list(self.hydamo.structures.uweirs_df.id):
                     weir = self.hydamo.structures.uweirs_df[
-                        self.hydamo.structures.uweirs.id == weir_code
+                        self.hydamo.structures.uweirs_df.id == weir_code
                     ]
-                elif weir_code in list(self.hydamo.structures.orifices_df.id):
+                elif not self.hydamo.structures.orifices_df.empty and  weir_code in list(self.hydamo.structures.orifices_df.id):
                     weir = self.hydamo.structures.orifices_df[
-                        self.hydamo.structures.orifices.id == weir_code
+                        self.hydamo.structures.orifices_df.id == weir_code
                     ]
                 else:
                     raise ValueError(
@@ -204,7 +204,7 @@ class DRTCModel:
             if management.stuurvariabele == "bovenkant afsluitmiddel":
                 steering_variable = "Crest level (s)"
             elif management.stuurvariabele == "hoogte opening":
-                steering_variable = "Gate lover edge level (s)"
+                steering_variable = "Gate lower edge level (s)"
             elif management.stuurvariabele == "pompdebiet":
                 steering_variable = "Capacity (p)"
             else:

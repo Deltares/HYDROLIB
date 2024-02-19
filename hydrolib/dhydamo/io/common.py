@@ -111,7 +111,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             gdf.rename(columns=column_mapping, inplace=True)
 
         if "MultiPolygon" or "MultiLineString" in str(gdf.geometry.type):
-            gdf = gdf.explode(index_parts=True)
+            gdf = gdf.explode()
             for ftc in gdf[id_col].unique():
                 if len(gdf[gdf[id_col] == ftc]) > 1:
                     gdf.loc[gdf[id_col] == ftc, id_col] = [
