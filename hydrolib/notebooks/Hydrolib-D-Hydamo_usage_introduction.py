@@ -150,12 +150,12 @@ hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name="Stuw", index_col="code")
 hydamo.weirs.geometry= hydamo.weirs.geometry
 hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
 hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-idx = hydamo.management_device[hydamo.management_device["duikersifonhevelid"].notnull()].index
-for i in idx:
-    globid = hydamo.culverts[
-        hydamo.culverts.code == hydamo.management_device.duikersifonhevelid.loc[i]
-    ].globalid.values[0]
-    hydamo.management_device.at[i, "duikersifonhevelid"] = globid
+# idx = hydamo.management_device[hydamo.management_device["duikersifonhevelid"].notnull()].index
+# for i in idx:
+#     globid = hydamo.culverts[
+#         hydamo.culverts.code == hydamo.management_device.duikersifonhevelid.loc[i]
+#     ].globalid.values[0]
+#     hydamo.management_device.at[i, "duikersifonhevelid"] = globid
 hydamo.snap_to_branch_and_drop(hydamo.culverts, hydamo.branches, snap_method="ends", maxdist=5, drop_related=True)
 
 hydamo.snap_to_branch_and_drop(hydamo.weirs, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
