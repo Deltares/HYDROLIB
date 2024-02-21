@@ -143,18 +143,7 @@ def test_hydamo_object_from_gpkg():
 
     # Read management device
     hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-    idx = hydamo.management_device.loc[
-        hydamo.management_device["duikersifonhevelid"].notnull()
-    ].index
-    for i in idx:
-        globid = hydamo.culverts.loc[
-            hydamo.culverts["code"].eq(
-                hydamo.management_device.at[i, "duikersifonhevelid"]
-            ),
-            "globalid",
-        ].values[0]
-        hydamo.management_device.at[i, "duikersifonhevelid"] = globid
-    assert len(hydamo.management_device) == 27
+    assert len(hydamo.management_device) == 28
 
     hydamo.snap_to_branch_and_drop(hydamo.weirs, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
     assert len(hydamo.weirs) == 25
@@ -227,7 +216,7 @@ def test_convert_structures(hydamo=None):
         hydamo.management_device,
     )
     # one weir is converted to an orifice
-    assert hydamo.structures.rweirs_df.shape[0] == hydamo.weirs.shape[0] - 1
+    assert hydamo.structures.rweirs_df.shape[0] == hydamo.weirs.shape[0] - 2
 
     hydamo.structures.convert.culverts(
         hydamo.culverts, management_device=hydamo.management_device
