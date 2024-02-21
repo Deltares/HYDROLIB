@@ -630,10 +630,11 @@ class StructuresIO:
                     ]
                     yzvalues = np.c_[length, xyz[:, -1] - np.min(xyz[:, -1])]
 
-            if hasattr(uweir, 'laagstedoorstroomhoogte') & ~np.isnan(uweir.laagstedoorstroomhoogte):
-                kruinhoogte = uweir.laagstedoorstroomhoogte
-            else:
+            if not hasattr(uweir, 'laagstedoorstroomhoogte') or uweir.laagstedoorstroomhoogte is None or np.isnan(uweir.laagstedoorstroomhoogte):
                 kruinhoogte = np.min(xyz[:,-1])
+            else:
+                kruinhoogte = uweir.laagstedoorstroomhoogte
+
             
                 
 
@@ -817,6 +818,11 @@ class StructuresIO:
                 for _, i in mandev.iterrows():
                     if i["soortregelmiddel"] == "terugslagklep":
                         allowedflowdir = "positive"
+                        valveonoff = 0
+                        numlosscoeff = None
+                        valveopeningheight = 0
+                        relopening = None
+                        losscoeff = None
                     elif i["soortregelmiddel"] == "schuif":
                         allowedflowdir = "positive"
                         valveonoff = 1
@@ -825,7 +831,7 @@ class StructuresIO:
                         relopening = [float(i["hoogteopening"]) / culvert.hoogteopening]
                         losscoeff = [float(i["afvoercoefficient"])]
                     else:
-                        print(
+                        raise NotImplementedError(
                             f'Type of closing device for culvert {culvert.code} is not implemented; only "schuif" and "terugslagklep" are allowed.'
                         )
 
