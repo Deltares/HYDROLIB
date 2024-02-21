@@ -726,8 +726,8 @@ if TwoD:
 
 
 if TwoD:
-    # mesh.links1d2d_add_links_1d_to_2d(network)
-    mesh.links1d2d_add_links_2d_to_1d_lateral(network, max_length=40.)
+    mesh.links1d2d_add_links_1d_to_2d(network)
+    # mesh.links1d2d_add_links_2d_to_1d_lateral(network, max_length=40.)
     #mesh.links1d2d_add_links_2d_to_1d_embedded(network)
     mesh.links1d2d_remove_1d_endpoints(network)
 
