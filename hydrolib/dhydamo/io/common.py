@@ -286,16 +286,16 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if column_mapping is not None:
             gdf.rename(columns=column_mapping, inplace=True)
 
-        # add a letter to 'exploded' multipolygons
-        if "MultiPolygon" in list(gdf.geometry.type):
-            gdf = gdf.explode(index_parts=True)
-            for ftc in gdf[id_col].unique():
-                if len(gdf[gdf[id_col] == ftc]) > 1:
-                    gdf.loc[gdf[id_col] == ftc, id_col] = [
-                        f"{i}_{n}"
-                        for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
-                    ]
-                    print(f"{ftc} is MultiPolygon; split into single parts.")
+        # # add a letter to 'exploded' multipolygons
+        # if "MultiPolygon" in list(gdf.geometry.type):
+        #     gdf = gdf.explode(index_parts=True)
+        #     for ftc in gdf[id_col].unique():
+        #         if len(gdf[gdf[id_col] == ftc]) > 1:
+        #             gdf.loc[gdf[id_col] == ftc, id_col] = [
+        #                 f"{i}_{n}"
+        #                 for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
+        #             ]
+        #             print(f"{ftc} is MultiPolygon; split into single parts.")
 
         # Enforce a unique index column
         if index_col is not None:

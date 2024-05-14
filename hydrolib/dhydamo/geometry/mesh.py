@@ -156,7 +156,7 @@ def mesh2d_add_triangular(
 def mesh2d_clip(
     network: Network,
     polygon: Union[GeometryList, Union[Polygon, MultiPolygon]],
-    deletemeshoption: mk.DeleteMeshOption = mk.DeleteMeshOption.INSIDE_NOT_INTERSECTED,
+    deletemeshoption: mk.DeleteMeshOption = mk.DeleteMeshOption.INSIDE_AND_INTERSECTED,
     inside=True,
 ) -> None:
     """Clip the mesh (currently implemented for 2d) and clean remaining hanging edges.
@@ -560,7 +560,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
     # Load 1d and 2d in meshkernel
     # network._mesh1d._set_mesh1d()
     # network._mesh2d._set_mesh2d()
-    id_invalid = np.where(network._mesh2d.mesh2d_face_nodes < 0.)[0]
+    # id_invalid = np.where(network._mesh2d.mesh2d_face_nodes < 0.)[0]
 
     geometrylist = network.meshkernel.mesh2d_get_mesh_boundaries_as_polygons()
     mpboundaries = GeometryList(**geometrylist.__dict__).to_geometry()
@@ -608,9 +608,9 @@ def links1d2d_add_links_2d_to_1d_lateral(
     id1d = network._link1d2d.link1d2d[npresent:, 0]
     id2d = network._link1d2d.link1d2d[npresent:, 1]
 
-    invalid_ids = np.where(network._mesh2d.mesh2d_face_nodes < 0.)[0]
-    id1d = np.delete(id1d, invalid_ids, 0)
-    id2d = np.delete(id2d, invalid_ids, 0)
+    # invalid_ids = np.where(network._mesh2d.mesh2d_face_nodes < 0.)[0]
+    # id1d = np.delete(id1d, invalid_ids, 0)
+    # id2d = np.delete(id2d, invalid_ids, 0)
 
     nodes1d = np.stack(
         [network._mesh1d.mesh1d_node_x[id1d], network._mesh1d.mesh1d_node_y[id1d]],

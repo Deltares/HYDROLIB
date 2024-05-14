@@ -54,6 +54,7 @@ class DRTCModel:
 
         self.pid_controllers = {}
         self.time_controllers = {}
+        self.interval_controllers = {}
 
         # set up the output path
         if output_path is None:
@@ -777,7 +778,7 @@ class DRTCModel:
 
             # te importeren data
             a = ET.SubElement(a0, gn_brackets + "treeVectorLeaf")
-            a.attrib = {"id": "Output/" + key + "/" + controller["steering_variable"]}
+            a.attrib = {"id": "[Output]/" + key + "/" + controller["steering_variable"]}
             a.text = ""
             a.tail = "\n   "
             b = ET.SubElement(a, gn_brackets + "vector")

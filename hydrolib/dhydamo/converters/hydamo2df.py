@@ -1056,15 +1056,15 @@ class StructuresIO:
                             offset = self.structures.pumps_df[
                                 self.structures.pumps_df.id == struc
                             ].chainage.values[0]
-                    elif not self.structures.rweirs_df.empty:
+                    if not self.structures.rweirs_df.empty:
                         if struc in list(self.structures.rweirs_df.id):
                             branch = self.structures.rweirs_df[
                                 self.structures.rweirs_df.id == struc
                             ].branchid.values[0]
                             offset = self.structures.rweirs_df[
                                 self.structures.rweirs_df.id == struc
-                            ].chainage.values[0]
-                    elif not self.structures.uweirs_df.empty:
+                            ].chainage.values[0]                        
+                    if not self.structures.uweirs_df.empty:
                         if struc in list(self.structures.uweirs_df.id):
                             branch = self.structures.uweirs_df[
                                 self.structures.uweirs_df.id == struc
@@ -1072,7 +1072,7 @@ class StructuresIO:
                             offset = self.structures.uweirs_df[
                                 self.structures.uweirs_df.id == struc
                             ].chainage.values[0]
-                    elif not self.structures.culverts_df.empty:
+                    if not self.structures.culverts_df.empty:
                         if struc in list(self.structures.culverts_df.id):
                             branch = self.structures.culverts_df[
                                 self.structures.culverts_df.id == struc
@@ -1080,24 +1080,22 @@ class StructuresIO:
                             offset = self.structures.culverts_df[
                                 self.structures.culverts_df.id == struc
                             ].chainage.values[0]
-                    elif not self.structures.bridges_df.empty:
+                    if not self.structures.bridges_df.empty:
                         if struc in list(self.structures.bridges_df.id):
                             branch = self.structures.bridges_df[
                                 self.structures.bridges_df.id == struc
                             ].branchid.values[0]
                             offset = self.structures.bridges_df[
-                                self.structures.pumpbridges_dfs_df.id == struc
+                                self.structures.bridges_df.id == struc
                             ].chainage.values[0]
-                    elif not self.structures.orifices_df.empty:
+                    if not self.structures.orifices_df.empty:
                         if struc in list(self.structures.orifices_df.id):
                             branch = self.structures.orifices_df[
                                 self.structures.orifices_df.id == struc
                             ].branchid.values[0]
                             offset = self.structures.orifices_df[
                                 self.structures.orifices_df.id == struc
-                            ].chainage.values[0]                    
-                    else:
-                        raise ValueError('ALl structure dataframes are empty. Convert individual structures first.')
+                            ].chainage.values[0]                                        
                 else:
                     # move a subsequent structure to the location of the first
                     if not self.structures.pumps_df.empty:
@@ -1114,7 +1112,7 @@ class StructuresIO:
                                 ].index,
                                 "chainage",
                             ] = offset
-                    elif not self.structures.rweirs_df.empty:
+                    if not self.structures.rweirs_df.empty:
                         if struc in list(self.structures.rweirs_df.id):
                             self.structures.rweirs_df.loc[
                                 self.structures.rweirs_df[
@@ -1128,7 +1126,7 @@ class StructuresIO:
                                 ].index,
                                 "chainage",
                             ] = offset
-                    elif not self.structures.uweirs_df.empty:
+                    if not self.structures.uweirs_df.empty:
                         if struc in list(self.structures.uweirs_df.id):
                             self.structures.uweirs_df.loc[
                                 self.structures.uweirs_df[
@@ -1142,7 +1140,7 @@ class StructuresIO:
                                 ].index,
                                 "chainage",
                             ] = offset
-                    elif not self.structures.culverts_df.empty:
+                    if not self.structures.culverts_df.empty:
                         if struc in list(self.structures.culverts_df.id):
                             self.structures.culverts_df.loc[
                                 self.structures.culverts_df[
@@ -1156,7 +1154,7 @@ class StructuresIO:
                                 ].index,
                                 "chainage",
                             ] = offset
-                    elif not self.structures.bridges_df.empty:
+                    if not self.structures.bridges_df.empty:
                         if struc in list(self.structures.bridges_df.id):
                             self.structures.bridges_df.loc[
                                 self.structures.bridges_df[
@@ -1170,7 +1168,7 @@ class StructuresIO:
                                 ].index,
                                 "chainage",
                             ] = offset
-                    elif not self.structures.orifices_df.empty:
+                    if not self.structures.orifices_df.empty:
                         if struc in list(self.structures.orifices_df.id):
                             self.structures.orifices_df.loc[
                                 self.structures.orifices_df[

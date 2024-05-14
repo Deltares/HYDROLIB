@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
+# %%
 
 # # Example of generating a 1D2DRR D-HYDRO model - an overview of functionalities
 # 
@@ -11,7 +12,7 @@
 
 # ## Load Python libraries and Hydrolib-core functionality
 
-# In[1]:
+# %%
 
 
 # Basis
@@ -28,11 +29,13 @@ import contextily as cx
 import os
 import sys
 import warnings
+from platform import python_version
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
-# In[2]:
-os.chdir('hydrolib/notebooks')
+
+# %%
+os.chdir(r'D:\4390.10\HYDROLIB_nf_nv\hydrolib/notebooks')
 
 ## In not installed, add a path from where hydrolib it can be imported
 #sys.path.insert(0, "d:/Documents/GitHub/HYDROLIB")
@@ -55,38 +58,15 @@ from hydrolib.core.dflowfm.obs.models import ObservationPointModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
 from hydrolib.dhydamo.geometry import mesh
+from hydrolib.dhydamo.geometry.mesh2d_gridgeom import Mesh2D_GG, Rectangular
+from hydrolib.dhydamo.geometry.gridgeom.links1d2d import Links1d2d
+
+
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
 from hydrolib.dhydamo.io.drrwriter import DRRWriter
 from hydrolib.dhydamo.geometry.viz import plot_network
-
-
-# Define in- and output paths
-
-# In[3]:
-
-# fmmodel = FMModel()
-# network = fmmodel.geometry.netfile.network
-# extent = gpd.read_file(r"data/2D_roostergebied_aangepast.shp").at[0, "geometry"]
-
-# edge_length = 500.
-
-# meshkernel = network._mesh2d.meshkernel
-# for polygon in common.as_polygon_list(extent):                
-#     polygon = interp_polygon(polygon, dist=edge_length)
-
-#     # Add triangular mesh within polygon
-#     meshkernel.mesh2d_make_triangular_mesh_from_polygon(from_polygon(polygon))
-
-# fig, ax = plt.subplots()
-# ax.set_aspect(1.0)
-# plot_network(network, ax=ax)
-# for geom in extent.geoms:
-#     ax.plot(*geom.exterior.coords.xy, color="k", ls="-")
-# ax.set_xlim(extent.bounds[0], extent.bounds[2])
-# ax.set_ylim(extent.bounds[1], extent.bounds[3])
-# ####
 
 # path to the package containing the dummy-data
 data_path = Path("../tests/data").resolve()
@@ -96,15 +76,16 @@ assert data_path.exists()
 output_path = Path("../tests/model").resolve()
 # assert output_path.exists()
 
-
+plotting = False
 
 TwoD = True
+TwoD_option = 'GG' # MK (meshkernel) or GG (gridgeom)
 RR = True
 RTC = True
 
 # ## Read HyDAMO DAMO2.2 data
 
-# In[5]:
+# %%
 
 
 # all data is contained in one geopackage called 'Example model'
@@ -117,7 +98,7 @@ hydamo = HyDAMO(extent_file=data_path / "Oostrumschebeek_extent.shp")
 hydamo.branches.show_gpkg(gpkg_file)
 
 
-# In[6]:
+# %%
 
 
 # read branchs
@@ -181,7 +162,7 @@ hydamo.boundary_conditions.read_gpkg_layer(
 hydamo.boundary_conditions.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
 
 # read catchments
-hydamo.catchments.read_gpkg_layer(gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code")
+hydamo.catchments.read_gpkg_layer(gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code", check_geotype=False)
 # read laterals
 hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
 for ind, cat in hydamo.catchments.iterrows():
@@ -189,42 +170,43 @@ for ind, cat in hydamo.catchments.iterrows():
         hydamo.laterals.globalid == cat.lateraleknoopid
     ].code.values[0]
 hydamo.laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=5000)
-# In[7]:
+# %%
 
 
 # plot the model objects
-plt.rcParams["axes.edgecolor"] = "w"
+if plotting:
+    plt.rcParams["axes.edgecolor"] = "w"
 
-fig, ax = plt.subplots(figsize=(20,20 ))
-xmin,ymin,xmax,ymax=hydamo.clipgeo.bounds
-ax.set_xlim(round(xmin), round(xmax))
-ax.set_ylim(round(ymin), round(ymax))
+    fig, ax = plt.subplots(figsize=(20,20 ))
+    xmin,ymin,xmax,ymax=hydamo.clipgeo.bounds
+    ax.set_xlim(round(xmin), round(xmax))
+    ax.set_ylim(round(ymin), round(ymax))
 
-hydamo.branches.geometry.plot(ax=ax, label="Channel", linewidth=2, color="blue")
-hydamo.profile.geometry.plot(ax=ax, color="black", label="Cross section", linewidth=4)
-hydamo.culverts.geometry.centroid.plot(
-    ax=ax, color="brown", label="Culvert", markersize=40, zorder=10, marker="^"
-)
-hydamo.weirs.geometry.plot(ax=ax, color="green", label="Weir", markersize=25, zorder=10, marker="^")
+    hydamo.branches.geometry.plot(ax=ax, label="Channel", linewidth=2, color="blue")
+    hydamo.profile.geometry.plot(ax=ax, color="black", label="Cross section", linewidth=4)
+    hydamo.culverts.geometry.centroid.plot(
+        ax=ax, color="brown", label="Culvert", markersize=40, zorder=10, marker="^"
+    )
+    hydamo.weirs.geometry.plot(ax=ax, color="green", label="Weir", markersize=25, zorder=10, marker="^")
 
-hydamo.bridges.geometry.plot(ax=ax, color="red", label="Bridge", markersize=20, zorder=10, marker="^")
-hydamo.pumpstations.geometry.plot(
-    ax=ax,
-    color="orange",
-    label="Pump",
-    marker="s",
-    markersize=125,
-    zorder=10,
-    facecolor="none",
-    linewidth=2.5,
-)
-hydamo.boundary_conditions.geometry.plot(
-    ax=ax, color="red", label="Boundary", marker="s", markersize=125, zorder=10, facecolor="red", linewidth=0
-)
-ax.legend()
+    hydamo.bridges.geometry.plot(ax=ax, color="red", label="Bridge", markersize=20, zorder=10, marker="^")
+    hydamo.pumpstations.geometry.plot(
+        ax=ax,
+        color="orange",
+        label="Pump",
+        marker="s",
+        markersize=125,
+        zorder=10,
+        facecolor="none",
+        linewidth=2.5,
+    )
+    hydamo.boundary_conditions.geometry.plot(
+        ax=ax, color="red", label="Boundary", marker="s", markersize=125, zorder=10, facecolor="red", linewidth=0
+    )
+    ax.legend()
 
-cx.add_basemap(ax, crs=28992, source=cx.providers.OpenStreetMap.Mapnik)
-fig.tight_layout()
+    cx.add_basemap(ax, crs=28992, source=cx.providers.OpenStreetMap.Mapnik)
+    fig.tight_layout()
 
 ## Data conversion
 # 
@@ -251,7 +233,7 @@ fig.tight_layout()
 # 
 # For more info on the structure definitions one is referred to the D-Flow FM user manual: https://content.oss.deltares.nl/delft3d/manuals/D-Flow_FM_User_Manual.pdf.
 
-# In[8]:
+# %%
 
 # test to set get universal weir from profile instead of laagstedoostrom
 idx = hydamo.weirs[hydamo.weirs.globalid == hydamo.profile_group.iloc[1].stuwid].index
@@ -280,7 +262,7 @@ hydamo.structures.convert.pumps(hydamo.pumpstations, pumps=hydamo.pumps, managem
 
 # Additional methods are available to add structures:
 
-# In[9]:
+# %%
 
 
 hydamo.structures.add_rweir(
@@ -330,7 +312,7 @@ hydamo.structures.add_culvert(
 
 # The resulting dataframes look like this:
 
-# In[10]:
+# %%
 
 
 hydamo.structures.culverts_df.head()
@@ -338,7 +320,7 @@ hydamo.structures.culverts_df.head()
 
 # Indicate structures that are at the same location and should be treated as a compound structure. The D-Hydro GUI does this automatically, but for DIMR-calculations this should be done here.
 
-# In[11]:
+# %%
 
 
 cmpnd_ids = ["cmpnd_1","cmpnd_2","cmpnd_3"]
@@ -350,7 +332,7 @@ hydamo.structures.convert.compound_structures(cmpnd_ids, cmpnd_list)
 
 # At this stage also the start and stoptime are defined, they will be used in the other modules if needed
 
-# In[12]:
+# %%
 
 
 fm = FMModel()
@@ -362,7 +344,7 @@ fm.time.tstop = 2 * 3600 * 24
 
 # The above structures are collected in one dataframe and in the generation of calculation poins, as structures should be separated by calculation points.
 
-# In[13]:
+# %%
 
 
 # ### Observation points
@@ -371,7 +353,7 @@ fm.time.tstop = 2 * 3600 * 24
 # 
 # Note: add_points can be called only once: once dfmodel.observation_points is filled,the add_points-method is not available anymore. Observation point coordinates can be definied eiher as an (x,y)-tuple or as a shapely Point-object.
 
-# In[24]:
+# %%
 
 
 hydamo.observationpoints.add_points(
@@ -401,7 +383,7 @@ structures = hydamo.structures.as_dataframe(
 
 objects = pd.concat([structures, hydamo.observationpoints.observation_points], axis=0)
 
-# In[14]:
+# %%
 
 
 mesh.mesh1d_add_branches_from_gdf(
@@ -422,7 +404,7 @@ mesh.mesh1d_add_branches_from_gdf(
 # Partly, missing crosssections can be resolved by interpolating over the main branch. We set all branches with identical names to the same order numbers and assign those to the branches. D-Hydro will then interpolate the cross-sections over the branches.
 # 
 
-# In[15]:
+# %%
 
 
 # Here roughness variant "High" ("ruwheidhoog" in HyDAMO) is chosen. Variant "Low" ("ruwheidlaag" in HyDAMO) can also be chosen
@@ -440,7 +422,7 @@ hydamo.crosssections.convert.profiles(
 
 # Check how many branches do not have a profile.
 
-# In[16]:
+# %%
 
 
 missing = hydamo.crosssections.get_branches_without_crosssection()
@@ -453,27 +435,27 @@ print(
 
 # We plot the missing ones.
 
-# In[17]:
+# %%
 
-
-plt.rcParams['axes.edgecolor'] = 'w'
-fig, ax = plt.subplots(figsize=(16, 16))
-xmin,ymin,xmax,ymax=hydamo.clipgeo.bounds
-ax.set_xlim(round(xmin), round(xmax))
-ax.set_ylim(round(ymin), round(ymax))
-hydamo.profile.geometry.plot(ax=ax, color='black', label='dwarsprofielen', linewidth=5)
-hydamo.branches.loc[missing,:].geometry.plot(ax=ax, color='C4', label='geen dwarsprofiel',linewidth=10)
-hydamo.branches.geometry.plot(ax=ax, label='Watergangen')
-ax.get_xaxis().set_visible(False)
-ax.get_yaxis().set_visible(False)
-ax.legend()
-cx.add_basemap(ax, crs=28992, source=cx.providers.OpenStreetMap.Mapnik)
-fig.tight_layout()
+if plotting:
+    plt.rcParams['axes.edgecolor'] = 'w'
+    fig, ax = plt.subplots(figsize=(16, 16))
+    xmin,ymin,xmax,ymax=hydamo.clipgeo.bounds
+    ax.set_xlim(round(xmin), round(xmax))
+    ax.set_ylim(round(ymin), round(ymax))
+    hydamo.profile.geometry.plot(ax=ax, color='black', label='dwarsprofielen', linewidth=5)
+    hydamo.branches.loc[missing,:].geometry.plot(ax=ax, color='C4', label='geen dwarsprofiel',linewidth=10)
+    hydamo.branches.geometry.plot(ax=ax, label='Watergangen')
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    ax.legend()
+    cx.add_basemap(ax, crs=28992, source=cx.providers.OpenStreetMap.Mapnik)
+    fig.tight_layout()
 
 
 # One way to fix this is by assigning order numbers to branches, so the crosssections are interpolated over branches with the same order. First, we assign branches iwth the same 'naam' the same branch order.
 
-# In[18]:
+# %%
 
 
 j = 0
@@ -495,7 +477,7 @@ for i in hydamo.branches.naam.unique():
 
 # Retentiebekken Rosmolen has a name, and therefore an ordernumber, but cannot be interpolated. Set the order to 0, so it gets a default profile.
 
-# In[19]:
+# %%
 
 
 # branch W_1386_0 has a name, but is  single side branch, it's order is no use. Reset it.
@@ -504,7 +486,7 @@ hydamo.branches.loc[hydamo.branches.code == 'W_1386_0', 'order']  = -1
 
 # We assign these orders, now as column in the hydamo.branches dataframe, to the network.
 
-# In[20]:
+# %%
 
 
 interpolation = []
@@ -522,7 +504,7 @@ for i in hydamo.branches.order.unique():
 
 # Check for how many branches no interpolation can be applied.
 
-# In[21]:
+# %%
 
 
 missing_after_interpolation = np.setdiff1d(missing, interpolation)
@@ -533,27 +515,27 @@ print(
 )
 
 
-# In[22]:
+# %%
 
-
-plt.rcParams['axes.edgecolor'] = 'w'
-fig, ax = plt.subplots(figsize=(16, 16))
-xmin,ymin,xmax,ymax=hydamo.clipgeo.bounds
-ax.set_xlim(round(xmin), round(xmax))
-ax.set_ylim(round(ymin), round(ymax))
-hydamo.profile.geometry.plot(ax=ax, color='C3', label='dwarsprofielen', linewidth=5)
-hydamo.branches.loc[missing,:].geometry.plot(ax=ax, color='C4', label='geen dwarsprofiel',linewidth=10)
-hydamo.branches.geometry.plot(ax=ax, label='Watergangen')
-ax.get_xaxis().set_visible(False)
-ax.get_yaxis().set_visible(False)
-ax.legend()
-cx.add_basemap(ax, crs=28992, source=cx.providers.OpenStreetMap.Mapnik)
-fig.tight_layout()
+if plotting: 
+    plt.rcParams['axes.edgecolor'] = 'w'
+    fig, ax = plt.subplots(figsize=(16, 16))
+    xmin,ymin,xmax,ymax=hydamo.clipgeo.bounds
+    ax.set_xlim(round(xmin), round(xmax))
+    ax.set_ylim(round(ymin), round(ymax))
+    hydamo.profile.geometry.plot(ax=ax, color='C3', label='dwarsprofielen', linewidth=5)
+    hydamo.branches.loc[missing,:].geometry.plot(ax=ax, color='C4', label='geen dwarsprofiel',linewidth=10)
+    hydamo.branches.geometry.plot(ax=ax, label='Watergangen')
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    ax.legend()
+    cx.add_basemap(ax, crs=28992, source=cx.providers.OpenStreetMap.Mapnik)
+    fig.tight_layout()
 
 
 # For these ones, we apply a default profile. In this case an yz-profile, but it can also be a rectangular or other type or profile.
 
-# In[23]:
+# %%
 
 
 # Set a default cross section
@@ -574,7 +556,7 @@ hydamo.crosssections.set_default_locations(missing_after_interpolation)
 
 # The HyDAMO database contains constant boundaries. They are added to the model:
 
-# In[25]:
+# %%
 
 
 hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network)
@@ -582,17 +564,18 @@ hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions, mesh1d=f
 
 # However, we also need an upstream discharge boundary, which is not constant. We add a fictional time series, which can be read from Excel as well:
 
-# In[26]:
+# %%
 
 
 series = pd.Series(np.sin(np.linspace(2, 8, 120) * -1) + 1.0)
 series.index = [pd.Timestamp("2016-06-01 00:00:00") + pd.Timedelta(hours=i) for i in range(120)]
-series.plot()
+if plotting:
+    series.plot()
 
 
 # There is also a fuction to convert laterals, but to run this we also need the RR model. Therefore, see below. It also possible to manually add boundaries and laterals as constants or timeseries. We implement the sinoid above as an upstream streamflow boundary and a lateral:
 
-# In[27]:
+# %%
 
 
 hydamo.external_forcings.add_boundary_condition(
@@ -600,7 +583,7 @@ hydamo.external_forcings.add_boundary_condition(
 )
 
 
-# In[28]:
+# %%
 
 
 hydamo.dict_to_dataframe(hydamo.external_forcings.boundary_nodes)
@@ -613,7 +596,7 @@ hydamo.dict_to_dataframe(hydamo.external_forcings.boundary_nodes)
 # <span style='color:Red'> WARNING: The path of the initialwaterdepth.ini file in fieldFile.ini is not an absolute path, change or the model is not portable!  </span>
 # <span style='color:Red'> This is a known issue for the HYDROLIB-core package and will be adressed in future  </span>
 
-# In[29]:
+# %%
 
 
 hydamo.external_forcings.set_initial_waterdepth(1.5)
@@ -631,18 +614,18 @@ hydamo.external_forcings.set_initial_waterdepth(1.5)
 # 
 # <span style='color:Red'> Important note: at the moment there are problems with showing 1d2d-links in the Deltashell GUI when a 2D mesh has been refined. They are, however, correctly interpreted by DIMR and the calculation. <span style='color:Red'>
 
-# In[30]:
+# %%
 
 
 # 2d mesh extent
 if TwoD:
-    extent = gpd.read_file(r"..\tests\data\2D_extent.shp").at[0, "geometry"]
+    extent = gpd.read_file(r"..\tests\data\2D_extent.shp").unary_union
     network = fm.geometry.netfile.network
-
-
+    cellsize=25.
+    rasterpath = data_path / 'rasters/AHN_2m_clipped_filled.tif'
 # Also the creation of a triangular mesh is possible. Note that there are maybe issues with the mesh orthogenality and additional steps in the D-Hydro GUI to orthogenalize the mesh may be necessary. In future we will implement this functionality in D-HyDAMO.
 
-# In[31]:
+# %%
 
 
 # if TwoD:
@@ -651,40 +634,50 @@ if TwoD:
 
 # And a rectangular mesh with an arbitrary 50 m cell size:
 
-# In[32]:
+# %%
 
 
-if TwoD:
-    mesh.mesh2d_add_rectilinear(network, extent, dx=20, dy=20)
-
+    if TwoD_option == 'MK':
+        mesh.mesh2d_add_rectilinear(network, extent, dx=cellsize, dy=cellsize)
+    elif TwoD_option == 'GG':
+        mesh_GG = Rectangular()        
+        mesh_GG.generate_within_polygon(extent, cellsize=cellsize, rotation=0)
 
 # Refine the 2D mesh within an arbitrary distance of 50 m from all branches (works on a subselection as well). Note that refining only works for a polygon without holes in it, so the exterior geometry is used.
 
-# In[33]:
+# %%
 
-
-# if TwoD:
-#     print("Nodes before refinement:", network._mesh2d.mesh2d_node_x.size)
-#     buffer = Polygon(hydamo.branches.buffer(50.0).unary_union.exterior)
-#     mesh.mesh2d_refine(network, buffer, 1)
-#     print("Nodes after refinement:", network._mesh2d.mesh2d_node_x.size)       
+    buffer = Polygon(hydamo.branches.buffer(50.0).unary_union.exterior)
+    if TwoD_option == 'MK':
+        print("Nodes before refinement:", network._mesh2d.mesh2d_node_x.size)        
+        mesh.mesh2d_refine(network, buffer, 1)
+        print("Nodes after refinement:", network._mesh2d.mesh2d_node_x.size)       
+    elif TwoD_option == 'GG':
+        print("Nodes before refinement:", len(mesh_GG.meshgeom.get_values('nodex')))
+        mesh_GG.refine(polygon=[hydamo.branches.unary_union.buffer(50.)], level=[1], cellsize=cellsize)
+        print("Nodes after refinement:", len(mesh_GG.meshgeom.get_values('nodex')))       
 
 
 # Clip the 2D mesh in a 20m buffer around all branches. The algorithm is quite sensitive to the geometry, for example holes are not allowed.
 
-# In[35]:
+# %%
 
 
-if TwoD:
-    print("Nodes before clipping:", network._mesh2d.mesh2d_node_x.size)
-#     for branch,_ in hydamo.branches.iterrows():
-    mesh.mesh2d_clip(network, hydamo.branches.loc['W_2646_0'].geometry.buffer(20.))
-    print("Nodes after clipping:", network._mesh2d.mesh2d_node_x.size)       
-
-
+    if TwoD_option == 'MK':
+        print("Nodes before clipping:", network._mesh2d.mesh2d_node_x.size)
+        try:
+            mesh.mesh2d_clip(network, hydamo.branches.unary_union.buffer(10.))
+            # error about a polygon with holes..
+        except:
+            mesh.mesh2d_clip(network, hydamo.branches.loc['W_2646_0'].geometry.buffer(20.))        
+        print("Nodes after clipping:", network._mesh2d.mesh2d_node_x.size)       
+    elif TwoD_option == 'GG':
+        print("Nodes before clipping:", len(mesh_GG.meshgeom.get_values('nodex')))
+        mesh_GG.clip_mesh_by_polygon(hydamo.branches.unary_union.buffer(10.))
+        print("Nodes after clipping:",  len(mesh_GG.meshgeom.get_values('nodex')))      
 # Alternatively, the mesh can be read from a netcdf file:
 
-# In[36]:
+# %%
 
 
 # if TwoD:
@@ -693,12 +686,61 @@ if TwoD:
 
 # Add elevation data to the cells
 
-# In[37]:
+# %%
 
 
-if TwoD:        
-    mesh.mesh2d_altitude_from_raster(network, "../tests/data/rasters/AHN_2m_clipped_filled.tif", "face", "mean", fill_value=-999)
+    if TwoD_option == 'MK':
+        mesh.mesh2d_altitude_from_raster(network, rasterpath, "face", "mean", fill_value=-999)
+    elif TwoD_option == 'GG':
+        mesh_GG.altitude_from_raster(rasterpath)
 
+        links1d2d = Links1d2d(network, mesh_GG.meshgeom, hydamo)
+        del links1d2d.faces2d[:]
+        del links1d2d.nodes1d[:]
+
+        # Generate 1D2D links with a maximum length of 50 m
+        # links1d2d.generate_1d_to_2d(max_distance=50)
+        links1d2d.generate_2d_to_1d(max_distance=50, intersecting=False)
+        # No links will be generated from 1D nodes with a boundary condition
+        links1d2d.remove_1d_endpoints()
+        links1d2d.remove_1d2d_link(200075., 393852., '1d', max_distance=2.)
+        polygon = hydamo.culverts.unary_union.buffer(1.)
+        links1d2d.remove_links1d2d_within_polygon(polygon)
+
+        # mesh.links1d2d_add_links_1d_to_2d(network)
+        # mesh.links1d2d_add_links_2d_to_1d_lateral(network, max_length=50.)
+        # # mesh.links1d2d_add_links_2d_to_1d_embedded(network)
+        # mesh.links1d2d_remove_1d_endpoints(network)
+
+        # add the gridgeom mesh to the fm-network
+        links1d2d.convert_to_hydrolib()   
+       
+        # nodes = np.c_[nodex, nodey]
+        # segments = nodes[edge_nodes]
+
+        # from matplotlib.collections import LineCollection
+        # fig, ax = plt.subplots(figsize=(13, 10))
+        # ax.set_aspect(1.0)
+
+        # # segments = dfmmodel.network.mesh2d.get_segments()
+        # ax.add_collection(LineCollection(segments, color='0.3', linewidths=0.5, label='2D-mesh'))
+
+        # #links = dfmmodel.network.links1d2d.get_1d2dlinks()
+        # links = links1d2d.get_1d2dlinks()
+        # ax.add_collection(LineCollection(links, color='k', linewidths=0.5))
+        # ax.plot(links[:, :, 0].ravel(), links[:, :, 1].ravel(), color='k', marker='.', ls='', label='1D2D-links')
+
+        # for i, p in enumerate([hydamo.branches.unary_union.buffer(10)]):
+        #     ax.plot(*p.exterior.xy, color='C3', lw=1.5, zorder=10, alpha=0.8, label='Refinement buffer' if i==0 else None)
+
+        # hydamo.branches.plot(ax=ax, color='C0', lw=2.5, alpha=0.8, label='1D-mesh')
+
+        # ax.legend()
+
+        # ax.set_xlim(199500, 201000)
+        # ax.set_ylim(395500, 396600)
+
+        # print('s')
 
 # To add a mesh, currently 2 options exist:
 # 1. The converter can generate a relatively simple mesh, with a rotation or refinement. Note that rotation _and_ refinement is currently not possible. In the section below we generate a refined 2D mesh with the following steps:
@@ -722,44 +764,81 @@ if TwoD:
 #  
 #  See https://hkvconfluence.atlassian.net/wiki/spaces/DHYD/pages/601030709/1D2D-links for details.
 
-# In[38]:
-
-
-if TwoD:
-    mesh.links1d2d_add_links_1d_to_2d(network)
-    # mesh.links1d2d_add_links_2d_to_1d_lateral(network, max_length=40.)
-    #mesh.links1d2d_add_links_2d_to_1d_embedded(network)
-    mesh.links1d2d_remove_1d_endpoints(network)
-
-
-# In[39]:
+# %%
 
 
 # plot the network
-if TwoD:
-    network = fm.geometry.netfile.network
-    fig, axs = plt.subplots(figsize=(13.5, 6), ncols=2, constrained_layout=True)
-    plot_network(network, ax=axs[0])
-    plot_network(network, ax=axs[1], links1d2d_kwargs=dict(lw=3, color="k"))
-#     for ax in axs:
-#         ax.set_aspect(1.0)
-#         ax.plot(*buffer.exterior.coords.xy, color="k", lw=0.5)
-    axs[0].autoscale_view()
-    axs[1].set_xlim(197600, 197800)
-    axs[1].set_ylim(392500, 392700)
 
-    sc = axs[1].scatter(
-        x=network._mesh2d.mesh2d_face_x,
-        y=network._mesh2d.mesh2d_face_y,
-        c=network._mesh2d.mesh2d_face_z,
-        s=10,
-        vmin=22,
-        vmax=27,
-    )
-    cb = plt.colorbar(sc, ax=axs[1])
-    cb.set_label("Face level [m+NAP]")
+if True:
+    fig, axs = plt.subplots(figsize=(13.5, 6), ncols=1, constrained_layout=True)
+    plot_network(network, ax=axs)
+    # plot_network(network, ax=axs[1], links1d2d_kwargs=dict(lw=3, color="k"))
+    for ax in [axs]:
+        ax.set_aspect(1.0)
+        ax.plot(*buffer.exterior.coords.xy, color="k", lw=0.5)
+    axs.autoscale_view()
+    axs.set_xlim(199500, 201000)
+    axs.set_ylim(395500, 396600)
+
+    # sc = axs[1].scatter(
+    #     x=network._mesh2d.mesh2d_face_x,
+    #     y=network._mesh2d.mesh2d_face_y,
+    #     c=network._mesh2d.mesh2d_face_z,
+    #     s=10,
+    #     vmin=22,
+    #     vmax=27,
+    # )
+    # cb = plt.colorbar(sc, ax=axs[1])
+    # cb.set_label("Face level [m+NAP]")
 
     plt.show()
+
+# if TwoD_MK or TwoD_GG:    
+#     from matplotlib.collections import LineCollection    
+    
+#     nodex = np.array(mesh.meshgeom.get_values('nodex'))
+#     nodey = np.array(mesh.meshgeom.get_values('nodey'))
+#     edge_nodes = mesh.meshgeom.get_values('edge_nodes')#network._mesh2d.mesh2d_edge_nodes
+#     edge_nodes = np.array(edge_nodes) - 1
+
+#     edge_coords = edge_nodes.reshape((int(len(edge_nodes) / 2), 2))
+#     edge_coords = [[(nodex[i0], nodey[i0]), (nodex[i1], nodey[i1])] for i0, i1 in edge_coords]
+#     mesh2d_kwargs = {"color": "C0", "lw": 0.5}
+#     lc_mesh2d = LineCollection(edge_coords, **mesh2d_kwargs)
+#     ax.add_collection(lc_mesh2d)
+#     ax.autoscale_view()
+#     ax.set_xlim(196600, 198800)
+#     ax.set_ylim(391500, 394700)
+#     plt.show()
+    
+
+#     fig, ax = plt.subplots()    
+# #     network._mesh2d.mesh2d_node_x = mesh.meshgeom.get_values('nodex')
+# #     network = fm.geometry.netfile.network
+# #     fig, axs = plt.subplots(figsize=(13.5, 6), ncols=2, constrained_layout=True)
+#     plot_network(network, ax=ax)
+# #     plot_network(network, ax=axs[1], links1d2d_kwargs=dict(lw=3, color="k"))
+# # #     for ax in axs:
+# # #         ax.set_aspect(1.0)
+# # #         ax.plot(*buffer.exterior.coords.xy, color="k", lw=0.5)
+#     ax.autoscale_view()
+# #     axs[1].set_xlim(197600, 197800)
+#     axs[1].set_ylim(392500, 392700)
+
+#     sc = axs[1].scatter(
+#         x=network._mesh2d.mesh2d_face_x,
+#         y=network._mesh2d.mesh2d_face_y,
+#         c=network._mesh2d.mesh2d_face_z,
+#         s=10,
+#         vmin=22,
+#         vmax=27,
+#     )
+#     cb = plt.colorbar(sc, ax=axs[1])
+#     cb.set_label("Face level [m+NAP]")
+
+#     plt.show()
+# %%
+
 
 
 # For finalizing the FM-model, we also need the coupling to the other modules. Therefore, we will do that first.
@@ -775,7 +854,7 @@ if TwoD:
 # 
 # These files can, for example, be obtained by sc
 
-# In[40]:
+# %%
 
 
 if RTC:
@@ -790,7 +869,7 @@ if RTC:
 
 # If PID controllers are present, they need settings that are not included in the HyDAMO DAMO2.2 data. We define those in a dictionary. They can be specified for each structure - in that case the key of the dictionary should match the key in the HyDAMO DAMO2.2 'sturing'-object. If no separate settings are provided the 'global' settings are used.
 
-# In[41]:
+# %%
 
 
 if RTC:
@@ -811,7 +890,7 @@ if RTC:
 
 # The function 'from_hydamo' converts the controllers that are specified in the HyDAMO DAMO2.2 data. The extra input consists of the settings for PID controllers (see above) and a dataframe with time series for the time controllers.
 
-# In[42]:
+# %%
 
 
 if RTC:
@@ -826,7 +905,7 @@ if RTC:
 
 # Additional controllers, that are not included in D-HyDAMO DAMO2.2 might be specified like this:
 
-# In[43]:
+# %%
 
 
 if RTC:
@@ -835,7 +914,7 @@ if RTC:
     )
 
 
-# In[44]:
+# %%
 
 
 if RTC:
@@ -868,14 +947,14 @@ if RTC:
 
 # Note that the provided complex controllers use observation points that are not yet in the model. As opposed to delft3dfmpy, it is now possible to add observation points in stages. So we add the missing point now:
 
-# In[45]:
+# %%
 
 
 # ## Add a rainfall runoff model
 
 # RR has not changed yet compared to delft3dfmpy. Initialize a model:
 
-# In[46]:
+# %%
 
 
 if RR:
@@ -900,7 +979,7 @@ if RR:
 
 # Load data and settings. RR-parameters can be derived from a raster (using zonal statistics per catchment), or provided as a standard number. Rasters can be in any format that is accepted by the package rasterio: https://gdal.org/drivers/raster/index.html. All common GIS-formats (.asc, .tif) are accepted.
 
-# In[47]:
+# %%
 
 
 if RR:
@@ -918,7 +997,7 @@ if RR:
 
 # A different meteo-station can be assigned to each catchment, of a different shape can be provided. Here, 'meteo_areas' are assumed equal to the catchments.
 
-# In[48]:
+# %%
 
 
 if RR:
@@ -973,7 +1052,7 @@ if RR:
 # 
 # And surface elevation needs to be in m+NAP.
 
-# In[49]:
+# %%
 
 
 if RR:
@@ -998,7 +1077,7 @@ if RR:
 
 # ## Paved nodes
 
-# In[50]:
+# %%
 
 
 if RR:    
@@ -1011,7 +1090,7 @@ if RR:
 # For paved areas, two options are allowed.
 # 1) simply assign a paved noded to the catchment area that is paved in the landuse map.
 
-# In[51]:
+# %%
 
 
 # if RR:
@@ -1031,7 +1110,7 @@ if RR:
 # 
 # For every overflow, a paved node is created, containing the fraction of the sewer area. The paved area of the catchment that intersects the sewer-area is corrected for this; for the remaining paved area a seperate paved node is created.|
 
-# In[52]:
+# %%
 
 
 if RR:
@@ -1040,7 +1119,7 @@ if RR:
     hydamo.overflows.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
 
 
-# In[53]:
+# %%
 
 
 if RR:
@@ -1060,13 +1139,13 @@ if RR:
 
 # ## Greenhouse nodes
 
-# In[54]:
+# %%
 
 
 roof_storage = 5.0 # [mm] 
 
 
-# In[55]:
+# %%
 
 
 if RR:
@@ -1079,7 +1158,7 @@ if RR:
 
 # As opposed to Sobek, in D-Hydro open water is merely an interface for precpitation and evaporation. No management and water levels are included.
 
-# In[56]:
+# %%
 
 
 # RR
@@ -1093,7 +1172,7 @@ if RR:
 
 # They are different for the (paved) case with and without overflows. For the extra paved nodes, also a boundary should be created. Without overflows:
 
-# In[57]:
+# %%
 
 
 # if RR:
@@ -1102,7 +1181,7 @@ if RR:
 
 # And with overflows:
 
-# In[58]:
+# %%
 
 
 if RR:
@@ -1129,7 +1208,7 @@ if RR:
 # 
 # Extracting meteo-data from rasters can be time consuming. If precip_file and evap_file are specified, meteo-files are copied from an existing location.
 
-# In[59]:
+# %%
 
 
 if RR:
@@ -1143,7 +1222,7 @@ if RR:
 
 # Add the main parameters:
 
-# In[60]:
+# %%
 
 
 if RR:   
@@ -1163,7 +1242,7 @@ if RR:
 # 2) timeseries: lateral_discharges can be a dataframe with the code of the lateral as column headers and timesteps as index
 # 3) constant: lateral_discharges can be a pandas Series with the code of the lateral as the index. This is the case in the example when RR=False.
 
-# In[61]:
+# %%
 
 
 if RR:
@@ -1183,7 +1262,7 @@ else:
 
 # ### Plot the RR model
 
-# In[62]:
+# %%
 
 
 def node_geometry(dict):
@@ -1212,7 +1291,7 @@ def node_geometry(dict):
     return ((gpd.GeoDataFrame(geoms, columns=["geometry"])), gpd.GeoDataFrame(links, columns=["geometry"]))
 
 
-# In[63]:
+# %%
 
 
 if RR:
@@ -1257,7 +1336,7 @@ if RR:
 
 # Call a function to convert the dataframes to Hydrolib-core classes:
 
-# In[64]:
+# %%
 
 
 models = Df2HydrolibModel(hydamo, assign_default_profiles=True)
@@ -1265,7 +1344,7 @@ models = Df2HydrolibModel(hydamo, assign_default_profiles=True)
 
 # And add the classes to the file structure. Each class requires a different approach, and at the moment Hydrolib-core is still in development. The code below is subject to change in future releases.
 
-# In[65]:
+# %%
 
 
 fm.geometry.structurefile = [StructureModel(structure=models.structures)]
@@ -1293,7 +1372,7 @@ for ifield, onedfield in enumerate(models.onedfieldmodels):
     # fm.geometry.inifieldfile.initial[ifield].datafile = OneDFieldModel(global_=onedfield)
 
     # this is a workaround to do the same
-    onedfield_filepath = output_path / "fm" / "initialwaterdepth.ini"
+    onedfield_filepath = output_path / "fm" / Path("initialwaterdepth.ini") # 
     onedfieldmodel = OneDFieldModel(global_=onedfield)
     onedfieldmodel.save(filepath=onedfield_filepath)
     fm.geometry.inifieldfile.initial[ifield].datafile = DiskOnlyFileModel(
@@ -1303,7 +1382,7 @@ for ifield, onedfield in enumerate(models.onedfieldmodels):
 
 # Add some setttings to the MDU that are recommened by Deltares.
 
-# In[66]:
+# %%
 
 fm.geometry.uniformwidth1d = 1.0 # default  breedte 
 fm.geometry.bedlevtype = 1      # 1: at cell center (tiles xz,yz,bl,bob=max(bl)), 2: at face (tiles xu,yu,blu,bob=blu), 3: at face (using mean node values), 4: at face 
@@ -1330,7 +1409,7 @@ fm.output.rstinterval  = [86400.0, fm.time.tstart, fm.time.tstop]           # Re
 fm.output.hisinterval = [300., fm.time.tstart, fm.time.tstop]  # History output, given as 'interval' 'start period' 'end period' [s].
 fm.output.wrimap_flow_analysis = 1 # write information for flow analysis
 
-# In[67]:
+# %%
 
 # check the timesteps:
 timesteps = []
@@ -1352,7 +1431,7 @@ dimr.save(recurse=True)
 
 # The writers for RR and RTC are not yet available in the HYDROLIB-core library. We use the original delft3dfmpy writer for RR and a custom writer for RTC:
 
-# In[68]:
+# %%
 
 
 if RTC:
@@ -1361,7 +1440,7 @@ if RTC:
 
 # Note that with the WWTP-argument, the coordinates for a (fictional) WWTP are provided. From each paved node, a sewage link is connected to this WWTP.
 
-# In[69]:
+# %%
 
 
 if RR:
@@ -1371,13 +1450,13 @@ if RR:
 
 # A run.bat that will run DIMR is written by the following command. Adjust this with your local D-Hydro Suite version.
 
-# In[70]:
+# %%
 
 
 dimr = DIMRWriter(output_path=output_path, dimr_path=str(r"C:\Program Files\Deltares\D-HYDRO Suite 2023.03 1D2D\plugins\DeltaShell.Dimr\kernels\x64\dimr\scripts\run_dimr.bat"))
 
 
-# In[71]:
+# %%
 
 
 if not RR:
@@ -1386,31 +1465,31 @@ if not RTC:
     drtcmodel = None
 
 
-# In[72]:
+# %%
 
 
 dimr.write_dimrconfig(fm, rr_model=drrmodel, rtc_model=drtcmodel)
 
 
-# In[73]:
+# %%
 
 
 dimr.write_runbat()
 
 
-# In[74]:
+# %%
 
 
 print("Done!")
 
 
-# In[ ]:
+# %%
 
 
 
 
 
-# In[ ]:
+# %%
 
 
 
