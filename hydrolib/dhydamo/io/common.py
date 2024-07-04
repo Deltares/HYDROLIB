@@ -244,7 +244,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if layer_name.lower() not in map(str.lower, fiona.listlayers(gpkg_path)):
             raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
 
-        layer = gpd.read_file(gpkg_path, layer=layer_name)
+        layer = gpd.read_file(gpkg_path, layer=layer_name, engine='pyogrio')
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
 
@@ -301,7 +301,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if index_col is not None:
             dupes = gdf[gdf.duplicated(subset=index_col, keep="first")].copy()
             if len(dupes) > 0:
-                logger.warning(f"Index column '{index_col}' contains duplicates, making the index unique")
+                logger.warning(f"Index column '{index_col}' contains duplicates ({list(gdf[gdf[index_col].duplicated()].code.unique())}). Adding a suffix to make it unique.")
                 for dupe_id, group in dupes.groupby(by=index_col, sort=False):
                     gdf.loc[group.index, index_col] = [f"{dupe_id}_{i+1}" for i in range(len(group))]
 
@@ -496,7 +496,7 @@ class ExtendedDataFrame(pd.DataFrame):
         if layer_name.lower() not in map(str.lower, fiona.listlayers(gpkg_path)):
             raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
 
-        layer = gpd.read_file(gpkg_path, layer=layer_name)
+        layer = gpd.read_file(gpkg_path, layer=layer_name, engine='pyogrio')
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
         layer.drop("geometry", axis=1, inplace=True)

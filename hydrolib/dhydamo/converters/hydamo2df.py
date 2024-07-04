@@ -4,6 +4,7 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from pydantic import validate_arguments
+from typing import Union, Optional
 from shapely.geometry import Point
 
 from hydrolib.dhydamo.geometry.mesh import Network
@@ -99,14 +100,14 @@ class CrossSectionsIO:
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def profiles(
         self,
-        crosssections: ExtendedGeoDataFrame = None,
-        crosssection_roughness: ExtendedDataFrame = None,
-        profile_groups: ExtendedDataFrame = None,
-        profile_lines: ExtendedGeoDataFrame = None,
-        param_profile: ExtendedDataFrame = None,
-        param_profile_values: ExtendedDataFrame = None,
-        branches: Union[ExtendedGeoDataFrame, None] = None,
-        roughness_variant: RoughnessVariant = None,
+        crosssections: Optional[ExtendedGeoDataFrame] = None,
+        crosssection_roughness: Optional[ExtendedDataFrame] = None,
+        profile_groups: Optional[ExtendedDataFrame] = None,
+        profile_lines: Optional[ExtendedGeoDataFrame] = None,
+        param_profile: Optional[ExtendedDataFrame] = None,
+        param_profile_values: Optional[ExtendedDataFrame] = None,
+        branches: ExtendedGeoDataFrame = None,
+        roughness_variant: RoughnessVariant=None,
     ) -> None:
         """
         Method to add cross section from hydamo files. Two files
@@ -114,7 +115,7 @@ class CrossSectionsIO:
         parametrised file (normgeparametriseerd). The
         hierarchical order is 1. dwarsprofiel, 2. normgeparametriseerd.
         Each branch will be assigned a profile following this order. If parametrised
-        and standard are not given, branches can be without cross section. In that case
+        and standard are not given, branches can be wit hout cross section. In that case
         a standard profile should be assigned
         """
         dp_branches = None
@@ -124,13 +125,13 @@ class CrossSectionsIO:
             groupidx = [
                 idx
                 for idx, group in profile_groups.iterrows()
-                if ("brugid" in profile_groups.columns) & (group.brugid is not None)
+                if ("brugid" in profile_groups.columns) & (not pd.isnull(group.brugid))
             ]
 
             groupidx = groupidx + [
                 idx
                 for idx, group in profile_groups.iterrows()
-                if ("stuwid" in profile_groups.columns) & (group.stuwid is not None)
+                if ("stuwid" in profile_groups.columns) & (not pd.isnull(group.stuwid))
             ]
 
             # index of the lines that are associated to these groups
@@ -213,14 +214,17 @@ class CrossSectionsIO:
             branchdata = self.crosssections.hydamo.branches.loc[
                 list(param_profiles_converted.keys())
             ]
-            branchdata["chainage"] = branchdata.length / 2.0
+            branchdata["chainage_upper"] = 0.05 * branchdata.length
+            branchdata["chainage_lower"] = 0.95 * branchdata.length
+
 
             # Add cross sections
             for branchid, css in param_profiles_converted.items():
-                chainage = branchdata.at[branchid, "chainage"]
+                chainage_upper = branchdata.at[branchid, "chainage_upper"]
+                chainage_lower = branchdata.at[branchid, "chainage_lower"]
 
                 if css["type"] == "rectangle":
-                    name = self.add_rectangle_definition(
+                    name = self.crosssections.add_rectangle_definition(
                         height=css["height"],
                         width=css["width"],
                         closed=css["closed"],
@@ -229,7 +233,7 @@ class CrossSectionsIO:
                     )
 
                 if css["type"] == "trapezium":
-                    name = self.add_trapezium_definition(
+                    name = self.crosssections.add_trapezium_definition(
                         slope=css["slope"],
                         maximumflowwidth=css["maximumflowwidth"],
                         bottomwidth=css["bottomwidth"],
@@ -241,9 +245,16 @@ class CrossSectionsIO:
                 # Add location
                 self.crosssections.add_crosssection_location(
                     branchid=branchid,
-                    chainage=chainage,
+                    chainage=chainage_upper,
                     definition=name,
-                    shift=css["bottomlevel"],
+                    shift=css["bottomlevel_upper"],
+                )
+
+                self.crosssections.add_crosssection_location(
+                    branchid=branchid,
+                    chainage=chainage_lower,
+                    definition=name,
+                    shift=css["bottomlevel_lower"],
                 )
 
         nnocross = len(self.crosssections.get_branches_without_crosssection())
@@ -324,9 +335,9 @@ class ExternalForcingsIO:
     def laterals(
         self,
         locations: ExtendedGeoDataFrame,
-        overflows: ExtendedGeoDataFrame = None,
-        lateral_discharges=None,
-        rr_boundaries: dict = None,
+        overflows: Optional[ExtendedGeoDataFrame] = None,
+        lateral_discharges: Optional[Union[pd.DataFrame, pd.Series]]=None,
+        rr_boundaries: Optional[dict] = None,
     ) -> None:
         """
         Process laterals
@@ -521,12 +532,12 @@ class StructuresIO:
     def weirs(
         self,
         weirs: ExtendedGeoDataFrame = None,
-        profile_groups: ExtendedDataFrame = None,
-        profile_lines: ExtendedGeoDataFrame = None,
-        profiles: ExtendedGeoDataFrame = None,
+        profile_groups: Optional[ExtendedDataFrame] = None,
+        profile_lines: Optional[ExtendedGeoDataFrame] = None,
+        profiles: Optional[ExtendedGeoDataFrame] = None,
         opening: ExtendedDataFrame = None,
         management_device: ExtendedDataFrame = None,
-        usevelocityheight: str = "true",
+        usevelocityheight: Optional[str] = "true",
     ) -> None:
         """
         Method to convert HyDAMO weirs to DFlowFM structures: regular weirs, orifices and universal weirs.
@@ -575,7 +586,7 @@ class StructuresIO:
                 weir_mandev.overlaatonderlaat.to_string(index=False).lower()
                 == "onderlaat"
             ):
-                if "maximaaldebiet" not in weir_mandev or weir_mandev.maximaaldebiet.values[0] is None:
+                if "maximaaldebiet" not in weir_mandev or pd.isnull(weir_mandev.maximaaldebiet.values[0]):
                     limitflow = "false"
                     maxq = 0.0
                 else:
@@ -600,11 +611,11 @@ class StructuresIO:
                 )
             else:
                 if weir_opening.empty:
-                    print(f'No opening associated with {weir.code}.')
+                    print(f'Skipping {weir.code} because there is no associated opening.')
                 elif weir_mandev.empty:
-                    print(f'No management device associated with {weir.code}.')
+                    print(f'Skipping {weir.code} because there is no associated management device.')
                 else:
-                    print(f'Conversion failed for {weir.code}.')
+                    print(f'Skipping {weir.code} - conversion failed. Wrong type for soortregelmiddel? It is now {weir_mandev.overlaatonderlaat.to_string(index=False).lower()}.')
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
@@ -630,7 +641,7 @@ class StructuresIO:
                     ]
                     yzvalues = np.c_[length, xyz[:, -1] - np.min(xyz[:, -1])]
 
-            if not hasattr(uweir, 'laagstedoorstroomhoogte') or uweir.laagstedoorstroomhoogte is None or np.isnan(uweir.laagstedoorstroomhoogte):
+            if not hasattr(uweir, 'laagstedoorstroomhoogte') or pd.isnull(uweir.laagstedoorstroomhoogte):
                 kruinhoogte = np.min(xyz[:,-1])
             else:
                 kruinhoogte = uweir.laagstedoorstroomhoogte
@@ -772,7 +783,7 @@ class StructuresIO:
     def culverts(
         self,
         culverts: ExtendedGeoDataFrame,
-        management_device: ExtendedDataFrame = None,
+        management_device: Optional[ExtendedDataFrame] = None,
     ) -> None:
         """
         Method to convert HyDAMO culverts to DFlowFM culverts. Devices like a valve and a slide can be schematized from the management_device object.
@@ -780,6 +791,10 @@ class StructuresIO:
 
         Parameters corrspond to the HyDAMO DAMO2.2 objects.
         """
+        if management_device is not None:
+            if 'soortafsluitmiddel' not in management_device.columns:
+               management_device['soortafsluitmiddel'] = management_device['soortregelmiddel']
+
         for culvert in culverts.itertuples():
             # Generate cross section definition name
             if culvert.vormkoker.lower() == "rond" or culvert.vormkoker.lower() == "ellipsvormig":
@@ -804,9 +819,15 @@ class StructuresIO:
                 )
 
             # check whether an afsluitmiddel is present and take action dependent on its settings
-            mandev = management_device[
-                management_device.duikersifonhevelid == culvert.globalid
-            ]
+            if management_device is not None:
+                mandev = management_device[
+                    management_device.duikersifonhevelid == culvert.globalid
+                ]
+                if 'soortafsluitmiddel' not in mandev:
+                    mandev.loc[mandev.index,'soortafsluitmiddel'] = mandev['soortregelmiddel']
+            else:
+                mandev = pd.DataFrame()
+
             if mandev.empty:
                 allowedflowdir = "both"
                 valveonoff = 0
@@ -816,14 +837,14 @@ class StructuresIO:
                 losscoeff = None
             else:
                 for _, i in mandev.iterrows():
-                    if i["soortregelmiddel"] == "terugslagklep":
+                    if i["soortafsluitmiddel"] == "terugslagklep":
                         allowedflowdir = "positive"
                         valveonoff = 0
                         numlosscoeff = None
                         valveopeningheight = 0
                         relopening = None
                         losscoeff = None
-                    elif i["soortregelmiddel"] == "schuif":
+                    elif i["soortafsluitmiddel"] == "schuif":
                         allowedflowdir = "positive"
                         valveonoff = 1
                         valveopeningheight = float(i["hoogteopening"])
@@ -832,7 +853,7 @@ class StructuresIO:
                         losscoeff = [float(i["afvoercoefficient"])]
                     else:
                         raise NotImplementedError(
-                            f'Type of closing device for culvert {culvert.code} is not implemented; only "schuif" and "terugslagklep" are allowed.'
+                            f'Type of management device for culvert {culvert.code} is not implemented; only "schuif" and "terugslagklep" are allowed.'
                         )
 
             # check if a separate name field is present

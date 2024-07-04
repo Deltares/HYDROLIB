@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 
 import geopandas as gpd
 import numpy as np
@@ -9,9 +9,8 @@ import pandas as pd
 import shapely
 from pydantic import validate_arguments
 from scipy.spatial import KDTree
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, Point, Polygon, MultiPolygon
 from tqdm.auto import tqdm
-
 from hydrolib import dhydamo
 from hydrolib.dhydamo.converters.hydamo2df import (
     CrossSectionsIO,
@@ -284,7 +283,7 @@ class HyDAMO:
 
         # RR catchments
         self.catchments = ExtendedGeoDataFrame(
-            geotype=Polygon,
+            geotype=Union[Polygon, MultiPolygon],
             required_columns=["code", "geometry", "globalid", "lateraleknoopid"],
             related={
                 "laterals": {
@@ -373,7 +372,7 @@ class HyDAMO:
         # nan values for branch_offset.
         drop_idx = extendedgdf[pd.isnull(extendedgdf.branch_offset)].index.values
         drop_list = [(extendedgdf, drop_idx)]
-        print(f"dropping objects: {drop_idx}")
+        print(f"dropping objects with indices: {drop_idx}")
 
         # Find out which labels need to be dropped from related objects
         if drop_related and extendedgdf.related is not None:
@@ -389,7 +388,7 @@ class HyDAMO:
         drop_related = source.loc[drop_idx, via].values
         drop_idx = target[target[on].isin(drop_related)].index.values
         drop_list.append((target, drop_idx))
-        print(f"  - dropping objects from '{target_str}': {drop_idx}")
+        print(f"  - dropping objects from '{target_str}' with indices: {drop_idx}")
 
         if coupled_to is not None:
             for next_target_str, next_relation in coupled_to.items():
@@ -1194,8 +1193,8 @@ class CrossSections:
             # the GUI cannot cope with identical y-coordinates. Add 1 cm to a 2nd duplicate.
             yz[:, 0] = np.round(yz[:, 0], 3)
             for i in range(1, yz.shape[0]):
-                if yz[i, 0] == yz[i - 1, 0]:
-                    yz[i, 0] += 0.01
+                if yz[i, 0] <= yz[i - 1, 0]:
+                    yz[i, 0] = yz[i-1,0] + 0.01
 
             # determine thalweg
             if branches is not None:
@@ -1303,14 +1302,8 @@ class CrossSections:
                 )
 
             # Determine characteristics
-            botlev = (
-                values[
-                    values.soortparameter == "bodemhoogte benedenstrooms"
-                ].waarde.values[0]
-                + values[
-                    values.soortparameter == "bodemhoogte benedenstrooms"
-                ].waarde.values[0]
-            ) / 2.0
+            botlev_upper = values[ values.soortparameter == "bodemhoogte bovenstrooms" ].waarde.values[0]
+            botlev_lower = values[ values.soortparameter == "bodemhoogte benedenstrooms" ].waarde.values[0]            
 
             if pd.isnull(
                 values[values.soortparameter == "taludhelling linkerzijde"].waarde
@@ -1322,13 +1315,13 @@ class CrossSections:
                     values[
                         values.soortparameter == "hoogte insteek linkerzijde"
                     ].waarde.values[0]
-                    - botlev
+                    - (botlev_upper + botlev_lower)/2.
                 )
                 dh2 = (
                     values[
                         values.soortparameter == "hoogte insteek rechterzijde"
                     ].waarde.values[0]
-                    - botlev
+                    - (botlev_upper + botlev_lower)/2.
                 )
                 height = (dh1 + dh2) / 2.0
                 # Determine maximum flow width and slope (both needed for output)
@@ -1376,7 +1369,8 @@ class CrossSections:
                     "thalweg": 0.0,
                     "typeruwheid": values.typeruwheid.values[0],
                     "ruwheid": roughness,
-                    "bottomlevel": botlev,
+                    "bottomlevel_upper": botlev_upper,
+                    "bottomlevel_lower": botlev_lower,
                 }
             elif css_type == "rectangle":
                 cssdct[branch[0].Index] = {
@@ -1392,7 +1386,8 @@ class CrossSections:
                     "thalweg": 0.0,
                     "typeruwheid": values.typeruwheid.values[0],
                     "ruwheid": roughness,
-                    "bottomlevel": botlev,
+                    "bottomlevel_upper": botlev_upper,
+                    "bottomlevel_lower": botlev_lower,
                 }
 
         return cssdct
@@ -1699,7 +1694,7 @@ class Structures:
     def add_rweir(
         self,
         id: str = None,
-        name: str = None,
+        name: Union[str, float, None] = None,
         branchid: str = None,
         chainage: float = None,
         crestlevel: float = None,
@@ -1734,7 +1729,7 @@ class Structures:
     def add_orifice(
         self,
         id: str = None,
-        name: str = None,
+        name:  Union[str, float, None] = None,
         branchid: str = None,
         chainage: float = None,
         crestlevel: float = None,
@@ -1743,10 +1738,10 @@ class Structures:
         usevelocityheight: str = "true",
         allowedflowdir: str = "both",
         gateloweredgelevel: float = None,
-        uselimitflowpos: bool = None,
-        limitflowpos: str = None,
-        uselimitflowneg: bool = None,
-        limitflowneg: str = None,
+        uselimitflowpos: str = None,
+        limitflowpos: float = None,
+        uselimitflowneg: str = None,
+        limitflowneg: float = None,
     ) -> None:
         """
         Function to add a orifice. Arguments correspond to the required input of DFlowFM.
@@ -1779,7 +1774,7 @@ class Structures:
     def add_uweir(
         self,
         id: str = None,
-        name: str = None,
+        name:  Union[str, float, None] = None,
         branchid: str = None,
         chainage: float = None,
         crestlevel: float = None,
@@ -1820,7 +1815,7 @@ class Structures:
     def add_bridge(
         self,
         id: str = None,
-        name: str = None,
+        name:  Union[str, float, None] = None,
         branchid: str = None,
         chainage: float = None,
         length: float = None,
@@ -1861,7 +1856,7 @@ class Structures:
     def add_culvert(
         self,
         id: str = None,
-        name: str = None,
+        name:  Union[str, float, None] = None,
         branchid: str = None,
         chainage: float = None,
         leftlevel: float = None,
@@ -1932,7 +1927,7 @@ class Structures:
     def add_pump(
         self,
         id: str = None,
-        name: str = None,
+        name:  Union[str, float, None] = None,
         branchid: str = None,
         chainage: float = None,
         orientation: str = "positive",
@@ -1967,7 +1962,7 @@ class Structures:
         self.pumps_df = pd.concat([self.pumps_df, dct], ignore_index=True)
 
     @validate_arguments
-    def add_compound(self, id: str = None, structureids: list = None) -> None:
+    def add_compound(self, id:  Union[str, float, None] = None, structureids: list = None) -> None:
         structurestring = ";".join([f"{s}" for s in structureids])
         numstructures = len(structureids)
         dct = pd.DataFrame(

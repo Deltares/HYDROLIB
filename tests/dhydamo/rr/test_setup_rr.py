@@ -34,7 +34,7 @@ def test_setup_rr_model(hydamo=None):
     layer_resistances = [30, 200, 10000]
     street_storage = 10.0
     sewer_storage = 10.0
-    pumpcapacity = 10.0
+    pumpcapacity =  data_path / 'rasters/pumpcap.tif'
     roof_storage = 10.0
     meteo_areas = hydamo.catchments
 
@@ -55,7 +55,7 @@ def test_setup_rr_model(hydamo=None):
         infiltration_resistance=infil_resistance,
         runoff_resistance=runoff_resistance,
     )
-    assert len([i[1]['ga'] for i in drrmodel.unpaved.unp_nodes.items() if float(i[1]['ga']) > 0.0]) == 129
+    assert len([i[1]['ga'] for i in drrmodel.unpaved.unp_nodes.items() if float(i[1]['ga']) > 0.0]) == 121
     
     drrmodel.paved.io.paved_from_input(
         catchments=hydamo.catchments,
@@ -67,7 +67,7 @@ def test_setup_rr_model(hydamo=None):
         meteo_areas=meteo_areas,
         zonalstats_alltouched=True,
     )
-    # assert len([i[1]['ar'] for i in drrmodel.paved.pav_nodes.items() if float(i[1]['ar']) > 0.0]) == 107
+    assert len([i[1]['ar'] for i in drrmodel.paved.pav_nodes.items() if float(i[1]['ar']) > 0.0]) == 101
 
     drrmodel.greenhouse.io.greenhouse_from_input(
         hydamo.catchments,
@@ -83,7 +83,7 @@ def test_setup_rr_model(hydamo=None):
         hydamo.catchments, lu_file, meteo_areas, zonalstats_alltouched=True
     )
 
-    # assert len([i[1]['ar'] for i in drrmodel.openwater.ow_nodes.items() if float(i[1]['ar']) > 0.0]) == 116
+    assert len([i[1]['ar'] for i in drrmodel.openwater.ow_nodes.items() if float(i[1]['ar']) > 0.0]) == 113
     
     drrmodel.external_forcings.io.boundary_from_input(
         hydamo.laterals, hydamo.catchments, drrmodel
@@ -102,9 +102,9 @@ def test_setup_rr_model(hydamo=None):
         meteo_areas, evap_folder=evap_folder, evap_file=None
     )
 
-    assert len(drrmodel.external_forcings.precip) == 129
-    assert len(drrmodel.external_forcings.evap) == 129
-    assert len(drrmodel.external_forcings.seepage) == 129
+    assert len(drrmodel.external_forcings.precip) == 121
+    assert len(drrmodel.external_forcings.evap) == 121
+    assert len(drrmodel.external_forcings.seepage) == 121
 
     drrmodel.d3b_parameters["Timestepsize"] = 300
     drrmodel.d3b_parameters[

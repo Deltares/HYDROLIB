@@ -32,14 +32,12 @@ import warnings
 from platform import python_version
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-
-
 # %%
 os.chdir(r'D:\4390.10\HYDROLIB_nf_nv\hydrolib/notebooks')
 
 ## In not installed, add a path from where hydrolib it can be imported
 #sys.path.insert(0, "d:/Documents/GitHub/HYDROLIB")
-sys.path.insert(0, r"..\..\\")
+sys.path.insert(0, r"..\..\\")  
 
 # NOTE: core and dhydamo need to be in the same folder to be imported correctly
 # and from hydrolib-core
@@ -60,7 +58,7 @@ from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
 from hydrolib.dhydamo.geometry import mesh
 from hydrolib.dhydamo.geometry.mesh2d_gridgeom import Mesh2D_GG, Rectangular
 from hydrolib.dhydamo.geometry.gridgeom.links1d2d import Links1d2d
-
+from hydrolib.dhydamo.io.common import ExtendedDataFrame
 
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.core.drtc import DRTCModel
@@ -94,6 +92,7 @@ gpkg_file = str(data_path / "Example_model.gpkg")
 # initialize a hydamo object
 hydamo = HyDAMO(extent_file=data_path / "Oostrumschebeek_extent.shp")
 
+
 # show content
 hydamo.branches.show_gpkg(gpkg_file)
 
@@ -121,14 +120,21 @@ hydamo.profile.drop("code", axis=1, inplace=True)
 hydamo.profile["code"] = hydamo.profile["profiellijnid"]
 hydamo.snap_to_branch_and_drop(hydamo.profile, hydamo.branches, snap_method="intersecting", drop_related=True)
 
-# read structures
-hydamo.culverts.read_gpkg_layer(gpkg_file, layer_name="DuikerSifonHevel", index_col="code")
+hydamo.param_profile.read_gpkg_layer(gpkg_file, layer_name = 'hydroobject_normgp')
+hydamo.param_profile_values.read_gpkg_layer(gpkg_file, layer_name = 'normgeparamprofielwaarde')
+# # read structures
+# culverts = gpd.read_file(gpkg_file, layer='Duikersifonhevel')
+# culverts.index = culverts.code
+# culverts.loc['B_11547', 'code'] = 'B_11954'
+# culverts.to_file(gpkg_file, layer='DuikerSifonHevel2', index=False, overwrite=True)
+hydamo.culverts.read_gpkg_layer(gpkg_file, layer_name="DuikerSifonHevel2", index_col="code")
+
 # hydamo.culverts.snap_to_branch(hydamo.branches, snap_method="ends", maxdist=5)
 # hydamo.culverts.dropna(axis=0, inplace=True, subset=["branch_offset"])
 hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name="Stuw", index_col="code")
 # hydamo.weirs.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
 # hydamo.weirs.dropna(axis=0, inplace=True, subset=["branch_offset"])
-hydamo.weirs.geometry= hydamo.weirs.geometry
+# hydamo.weirs.geomet.geometry
 hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
 hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
 # idx = hydamo.management_device[hydamo.management_device["duikersifonhevelid"].notnull()].index
@@ -247,7 +253,6 @@ hydamo.structures.convert.weirs(
     opening=hydamo.opening,    
     management_device=hydamo.management_device
 )
-
 hydamo.structures.convert.culverts(hydamo.culverts, management_device=hydamo.management_device)
 
 hydamo.structures.convert.bridges(
@@ -380,8 +385,8 @@ structures = hydamo.structures.as_dataframe(
     orifices=True,
     pumps=True,
 )
-
-objects = pd.concat([structures, hydamo.observationpoints.observation_points], axis=0)
+hydamo.observationpoints.observation_points['id'] = hydamo.observationpoints.observation_points['name']
+objects = pd.concat([structures, hydamo.observationpoints.observation_points], axis=0, ignore_index=True)
 
 # %%
 
@@ -673,7 +678,7 @@ if TwoD:
         print("Nodes after clipping:", network._mesh2d.mesh2d_node_x.size)       
     elif TwoD_option == 'GG':
         print("Nodes before clipping:", len(mesh_GG.meshgeom.get_values('nodex')))
-        mesh_GG.clip_mesh_by_polygon(hydamo.branches.unary_union.buffer(10.))
+        mesh_GG.clip_mesh_by_polygon(hydamo.branches.unary_union.buffer(1.))
         print("Nodes after clipping:",  len(mesh_GG.meshgeom.get_values('nodex')))      
 # Alternatively, the mesh can be read from a netcdf file:
 
@@ -769,7 +774,7 @@ if TwoD:
 
 # plot the network
 
-if True:
+if TwoD and plotting:
     fig, axs = plt.subplots(figsize=(13.5, 6), ncols=1, constrained_layout=True)
     plot_network(network, ax=axs)
     # plot_network(network, ax=axs[1], links1d2d_kwargs=dict(lw=3, color="k"))
@@ -863,7 +868,7 @@ if RTC:
         fm,
         output_path=output_path,
         rtc_timestep=60.0,
-        complex_controllers_folder=data_path / "complex_controllers"  # location where user defined XLM-code should be located
+        complex_controllers_folder=None #data_path / "complex_controllers"  # location where user defined XLM-code should be located
     )
 
 
@@ -874,12 +879,18 @@ if RTC:
 
 if RTC:
     pid_settings = {}
+    interval_settings = {}
+    
     pid_settings["global"] = {
         "ki": 0.001,
         "kp": 0.00,
         "kd": 0.0,
         "maxspeed": 0.00033,
     }
+    interval_settings["global"] = {
+        "deadband": 0.2,
+        "maxspeed": 0.00033,
+    }    
     pid_settings["kst_pid"] = {
             "ki": 0.001,
             "kp": 0.0,
@@ -898,7 +909,9 @@ if RTC:
         timeseries = pd.read_csv(data_path / "timecontrollers.csv")
         timeseries.index = timeseries.Time        
 
-        drtcmodel.from_hydamo(pid_settings=pid_settings, timeseries=timeseries)
+        hydamo.management.drop('kst_tc', inplace=True)
+        # drtcmodel.from_hydamo(pid_settings=pid_settings, interval_settings=interval_settings, timeseries=timeseries)
+        drtcmodel.from_hydamo(pid_settings=pid_settings)#, timeseries=timeseries)
 # For weir with id S_96840 a time controller is added for the crest level from the HyDAMO data
 # For weir with id BV_152054 a PID controller is added from the HyDAMO data
 
@@ -908,42 +921,60 @@ if RTC:
 # %%
 
 
-if RTC:
-    drtcmodel.add_time_controller(
-        structure_id="S_96548", steering_variable="Crest level (s)", data=timeseries.loc[:,'S_96548']
-    )
+# if RTC:
+#     drtcmodel.add_time_controller(
+#         structure_id="S_96548", steering_variable="Crest level (s)", data=timeseries.loc[:,'S_96548']
+#     )
 
 
 # %%
 
 
 if RTC:
-    drtcmodel.add_pid_controller(structure_id='S_96544', 
-                                observation_location='ObsS_96544', 
-                                steering_variable='Crest level (s)', 
-                                target_variable='Water level (op)', 
-                                setpoint=13.2,
-                                upper_bound=13.4,
-                                lower_bound=12.8,
-                                pid_settings=pid_settings['global'])
+    pass
+    # series = pd.Series(np.sin(np.linspace(2, 8, 120) * -1) + 13.0)
+    # series.index = [pd.Timestamp("2016-06-01 00:00:00") + pd.Timedelta(hours=i) for i in range(120)]
+    # drtcmodel.add_pid_controller(structure_id='S_96544', 
+    #                             observation_location='ObsS_96544', 
+    #                             steering_variable='Crest level (s)', 
+    #                             target_variable='Water level (op)', 
+    #                             setpoint=series,
+    #                             ki = 0.001,
+    #                             kp =0.,
+    #                             kd =0,
+    #                             max_speed = 0.00033,
+    #                             upper_bound=13.4,
+    #                             lower_bound=12.8,
+    #                             interpolation_option = 'LINEAR',
+    #                             extrapolation_option = "BLOCK"
+    #                             )
     
-    drtcmodel.add_pid_controller(structure_id='orifice_test', 
-                                observation_location='ObsO_test', 
-                                steering_variable='Gate lower edge level (s)', 
-                                target_variable='Discharge (op)', 
-                                setpoint=13.2,
-                                upper_bound=13.4,
-                                lower_bound=12.8,
-                                pid_settings=pid_settings['global'])
+    # drtcmodel.add_interval_controller(structure_id='orifice_test', 
+    #                             observation_location='ObsO_test', 
+    #                             steering_variable='Gate lower edge level (s)', 
+    #                             target_variable='Discharge (op)', 
+    #                             setpoint=13.2,
+    #                             setting_below=12.8,
+    #                             setting_above=13.4,
+    #                             max_speed=0.00033,
+    #                             deadband=0.1,
+    #                             interpolation_option = 'LINEAR',
+    #                             extrapolation_option = "BLOCK"
+    #                             )
+    
 
-    drtcmodel.add_pid_controller(structure_id='113GIS', 
-                                observation_location='ObsP_113GIS', 
-                                steering_variable='Capacity (p)', 
-                                target_variable='Water level (op)', 
-                                setpoint=0.3,
-                                upper_bound=0.4,
-                                lower_bound=0.2,
-                                pid_settings=pid_settings['global'])
+    # drtcmodel.add_pid_controller(structure_id='113GIS', 
+    #                             observation_location='ObsP_113GIS', 
+    #                             steering_variable='Capacity (p)', 
+    #                             target_variable='Water level (op)', 
+    #                             setpoint=0.3,
+    #                             ki = 0.001,
+    #                             kp =0.,
+    #                             kd =0,
+    #                             max_speed = 0.00033,
+    #                             upper_bound=0.4,
+    #                             lower_bound=0.2
+    #                             )
 
 # Note that the provided complex controllers use observation points that are not yet in the model. As opposed to delft3dfmpy, it is now possible to add observation points in stages. So we add the missing point now:
 
@@ -1294,7 +1325,7 @@ def node_geometry(dict):
 # %%
 
 
-if RR:
+if RR and plotting:
     ## plt.rcParams['axes.edgecolor'] = 'w'
     import matplotlib.patches as mpatches
 
@@ -1387,7 +1418,6 @@ for ifield, onedfield in enumerate(models.onedfieldmodels):
 fm.geometry.uniformwidth1d = 1.0 # default  breedte 
 fm.geometry.bedlevtype = 1      # 1: at cell center (tiles xz,yz,bl,bob=max(bl)), 2: at face (tiles xu,yu,blu,bob=blu), 3: at face (using mean node values), 4: at face 
 fm.geometry.changestructuredimensions = 0   # Change the structure dimensions in case these are inconsistent with the channel dimensions.
-
 fm.numerics.cflmax = 0.7 # Maximum Courant nr.
 # fm.numerics.epsmaxlev = 0.0001 # stop criterion for non-linear solver
 # fm.numerics.epsmaxlevm = 0.0001 # stop criterion for Nested Newton loop
@@ -1450,10 +1480,10 @@ if RR:
 
 # A run.bat that will run DIMR is written by the following command. Adjust this with your local D-Hydro Suite version.
 
-# %%
+# %%pip 
 
 
-dimr = DIMRWriter(output_path=output_path, dimr_path=str(r"C:\Program Files\Deltares\D-HYDRO Suite 2023.03 1D2D\plugins\DeltaShell.Dimr\kernels\x64\dimr\scripts\run_dimr.bat"))
+dimr = DIMRWriter(output_path=output_path, dimr_path=str(r"C:\Program Files\Deltares\D-HYDRO Suite 2024.01 1D2D\plugins\DeltaShell.Dimr\kernels\x64\dimr\scripts\run_dimr.bat"))
 
 
 # %%

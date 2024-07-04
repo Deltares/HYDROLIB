@@ -75,7 +75,8 @@ class DIMRWriter:
         configfile = ET.parse(self.template_dir / "dimr_config.xml")
 
         myroot = configfile.getroot()
-        myroot[1][1].text = "fm"
+        #myroot[1][1].text = "fm"
+        myroot[1][1].text = fm.filepath.parts[-2]
         myroot[1][2].text = fm.filepath.name
 
         # control blocks
@@ -97,7 +98,7 @@ class DIMRWriter:
             timertc = ET.SubElement(startgrouprtc, gn_brackets + "time")
             timertc.text = f"{0} {rtc_model.time_settings['step']} {fm.time.tstop}"
             timertc.tail = "\n"
-            if hasattr(rtc_model, "pid_controllers"):
+            if bool(rtc_model.pid_controllers) or bool(rtc_model.interval_controllers):
                 couplerrtcrr = ET.SubElement(startgrouprtc, gn_brackets + "coupler")
                 couplerrtcrr.attrib = {"name": "flow_to_rtc"}
                 couplerrtcrr.tail = "\n"
@@ -219,22 +220,25 @@ class DIMRWriter:
             targetrtcfm.text = "DFM"
             targetrtcfm.tail = "\n"
 
+            rtcdict = {
+                      "Crest level (s)": ["weirs","crestLevel"],
+                      "Gate lower edge level (s)": ["orifices","gateLowerEdgeLevel"],
+                      "Capacity (p)": ["pumps","capacity"]
+                      }
+
+
             for i in rtc_model.all_controllers.keys():
+                svar=rtc_model.all_controllers[i]['steering_variable']
+
                 item = ET.SubElement(couplerrtcfm, gn_brackets + "item")
                 item.text = ""
                 item.tail = "\n"
 
                 source = ET.SubElement(item, gn_brackets + "sourceName")
-                source.text = f"[Output]{i}/{rtc_model.all_controllers[i]['steering_variable']}"
+                source.text = f"[Output]{i}/{svar}"
                 source.tail = "\n"
                 target = ET.SubElement(item, gn_brackets + "targetName")
-                if rtc_model.all_controllers[i]['steering_variable'] == 'Crest level (s)':                    
-                    target.text = f"weirs/{i}/crestLevel"                    
-                elif rtc_model.all_controllers[i]['steering_variable'] == 'Gate lower edge level (s)':                
-                    target.text = f"orifices/{i}/gateLowerEdgeLevel"
-                elif rtc_model.all_controllers[i]['steering_variable'] == 'Capacity (p)':                
-                    target.text = f"pumps/{i}/capacity"
-                
+                target.text = f"{rtcdict[svar][0]}/{i}/{rtcdict[svar][1]}"
                 target.tail = "\n"
 
             # check if there are user-specified controller that should be included
@@ -279,7 +283,7 @@ class DIMRWriter:
 
             # the Fm to RTC coupler is not always needed. It is for PID controllers.
             coupler_exists = False
-            if hasattr(rtc_model, "pid_controllers"):
+            if bool(rtc_model.pid_controllers) or bool(rtc_model.interval_controllers):
                 couplerfmrtc = ET.Element(gn_brackets + "coupler")
                 couplerfmrtc.attrib = {"name": "flow_to_rtc"}
                 couplerfmrtc.tail = "\n"
@@ -312,6 +316,20 @@ class DIMRWriter:
 
                     target = ET.SubElement(item, gn_brackets + "targetName")
                     target.text = f"[Input]{rtc_model.pid_controllers[i]['observation_point']}/{rtc_model.pid_controllers[i]['target_variable']}"
+                    target.tail = "\n"
+
+                # Loop through all interval controllers
+                for i in rtc_model.interval_controllers.keys():
+                    item = ET.SubElement(couplerfmrtc, gn_brackets + "item")
+                    item.text = ""
+                    item.tail = "\n"
+
+                    source = ET.SubElement(item, gn_brackets + "sourceName")
+                    source.text = f"observations/{rtc_model.interval_controllers[i]['observation_point']}/water_level"
+                    source.tail = "\n"
+
+                    target = ET.SubElement(item, gn_brackets + "targetName")
+                    target.text = f"[Input]{rtc_model.interval_controllers[i]['observation_point']}/{rtc_model.interval_controllers[i]['target_variable']}"
                     target.tail = "\n"
 
                 coupler_exists = True

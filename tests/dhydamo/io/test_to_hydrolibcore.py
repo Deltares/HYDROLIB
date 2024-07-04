@@ -180,6 +180,7 @@ def setup_model(hydamo=None, full_test=False):
 
 
 def test_convert_to_hydrolibmodel():
+    print('test')
     hydamo, fm = setup_model()
 
     models = Df2HydrolibModel(hydamo)

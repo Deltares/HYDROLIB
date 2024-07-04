@@ -56,7 +56,12 @@ def test_setup_rtc_model(hydamo=None):
         observation_location="ObsS_96544",
         lower_bound=18.0,
         upper_bound=18.4,
-        pid_settings=pid_settings["global"],
+        ki = 0.001,
+        kp =0.,
+        kd =0,
+        max_speed = 0.00033,
+        interpolation_option = 'LINEAR',
+        extrapolation_option = "BLOCK"
     )
 
     assert len(drtcmodel.pid_controllers) == 4
@@ -68,5 +73,20 @@ def test_setup_rtc_model(hydamo=None):
     )
 
     assert len(drtcmodel.time_controllers) == 2
+    
+    drtcmodel.add_interval_controller(structure_id='orifice_test', 
+                                observation_location='ObsO_test', 
+                                steering_variable='Gate lower edge level (s)', 
+                                target_variable='Discharge (op)', 
+                                setpoint=13.2,
+                                setting_below=12.8,
+                                setting_above=13.4,
+                                max_speed=0.00033,
+                                deadband=0.1,
+                                interpolation_option = 'LINEAR',
+                                extrapolation_option = "BLOCK"
+                                )
+    assert len(drtcmodel.interval_controllers) == 1
+
 
     return drtcmodel

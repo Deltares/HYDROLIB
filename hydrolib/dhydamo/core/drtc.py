@@ -2,7 +2,7 @@ import logging
 import shutil
 import os
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 import pandas as pd
 from pydantic import validate_arguments
 from datetime import datetime as dt
@@ -152,12 +152,13 @@ class DRTCModel:
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def from_hydamo(
-        self, pid_settings: dict, timeseries: Union[pd.DataFrame, pd.Series]
+        self, pid_settings: Optional[dict]=None, interval_settings: Optional[dict]=None, timeseries: Optional[pd.DataFrame]=None
     ) -> None:
         """Function to convert HyDAMO management data to controller-dictionaries. So far only time- and PID-controllers are implemented. PID settings can be specified globally or per structdure.
 
         Args:
-            pid_settings (dict): RTC settings (for PID controllers) that are not in the HyDAMO format.
+            pid_settings (dict): RTC settings for PID controllers that are not in the HyDAMO format.
+            interval_settings (dict): RTC settings for interval controllers that are not in the HyDAMO format.
             timeseries (pandas.Series): timeseries that are input to timecontrollers.
 
         Raises:
@@ -166,7 +167,7 @@ class DRTCModel:
         """
         for _, management in self.hydamo.management.iterrows():
             # first get the structure ID through the coupled items. It can so far be three different structure types.
-            if management.regelmiddelid is not None:
+            if not pd.isnull(management.regelmiddelid):
                 opening_id = self.hydamo.management_device[
                     self.hydamo.management_device.globalid == management.regelmiddelid
                 ].kunstwerkopeningid.values[0]
@@ -194,7 +195,7 @@ class DRTCModel:
                         f"Management with id {management.id} could not be connnected to a structure."
                     )
                 struc_id = weir.id.values[0]
-            elif management.pompid is not None:
+            elif not pd.isnull(management.pompid):
                 logger.info(
                     f"Management for pump {management.pompid} is included in FM."
                 )
@@ -222,29 +223,64 @@ class DRTCModel:
                     f"Invalid value for target variable of {struc_id}: {management.doelvariabele}."
                 )
 
-            #  if the ID is not specified separately, use the global settings
-            if management.id not in pid_settings:
-                settings = pid_settings["global"]
-            else:
-                settings = pid_settings[management.id]
+          
 
+            
             if management.typecontroller == "PID":
+                #  if the ID is not specified separately, use the global settings
+                if pid_settings is None:
+                    raise ValueError(f'{management.code} contains a PID controller, but no pid_settings are provided. Please do so.')
+                if management.id not in pid_settings:
+                    ki = pid_settings["global"]["ki"]
+                    kp = pid_settings["global"]["kp"]
+                    kd = pid_settings["global"]["kd"]
+                    max_speed = pid_settings["global"]["maxspeed"]
+                else:
+                    ki = pid_settings[management.id]['ki']
+                    kp = pid_settings[management.id]['kp']
+                    kd = pid_settings[management.id]['kd']
+                    max_speed = pid_settings[management.id]['maxspeed']
+
                 self.add_pid_controller(
                     structure_id=struc_id,
                     steering_variable=steering_variable,
                     target_variable=target_variable,
-                    pid_settings=settings,
+                    ki=ki,
+                    kp=kp,
+                    kd=kd,
+                    max_speed=max_speed,
                     setpoint=management.streefwaarde,
                     lower_bound=management.ondergrens,
                     upper_bound=management.bovengrens,
                     observation_location=management.meetlocatieid,
                 )
 
+            elif management.typecontroller == "interval":
+                if interval_settings is None:
+                    raise ValueError(f'{management.code} contains an interval controller, but no interval_settings are provided. Please do so.')
+                
+                if management.id not in interval_settings:
+                    deadband = interval_settings["global"]["deadband"]
+                    max_speed = interval_settings["global"]["maxspeed"]
+                else:
+                    deadband = interval_settings[management.id]['deadband']
+                    max_speed = interval_settings[management.id]['maxspeed']
+
+                self.add_interval_controller(
+                    structure_id=struc_id,
+                    steering_variable=steering_variable,
+                    target_variable=target_variable,
+                    daedband=deadband,
+                    setting_above=management.bovengrens,
+                    setting_below=management.ondergrens,
+                    max_speed=max_speed,
+                    setpoint=management.streefwaarde,
+                    observation_location=management.meetlocatieid,
+                )
+
             elif management.typecontroller == "time":
                 if timeseries is None:
-                    raise ValueError(
-                        "No time series were provided for time controllers"
-                    )
+                     raise ValueError(f'{management.code} contains a time controller, but no time series are provided. Please do so.')
                 else:
                     data = timeseries.loc[:, struc_id]
                     self.add_time_controller(
@@ -263,6 +299,8 @@ class DRTCModel:
         structure_id: str = None,
         steering_variable: str = None,
         data: pd.Series = None,
+        interpolation_option: str = 'LINEAR',
+        extrapolation_option: str = 'BLOCK',
     ) -> None:
         """Functon to add a time controller to a certain structure.
 
@@ -270,44 +308,109 @@ class DRTCModel:
             structure_id (str): structure id.
             steering_variable (str): variable that is controlled, usually crest level.
             data (pd.Series): timeseries.
+            interpolation_option (str): interpolation option used.
+            extrapolation_option (str): extrapolation option used.
         """
         self.time_controllers[structure_id] = {
+            "type": "Time",
             "data": data,
             "steering_variable": steering_variable,
+            "interpolation_option": interpolation_option,
+            "extrapolation_option": extrapolation_option,
         }
 
-    @validate_arguments
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def add_pid_controller(
         self,
         structure_id: str = None,
         steering_variable: str = None,
         target_variable: str = None,
-        pid_settings: dict = None,
-        setpoint: Union[float, str] = None,
+        setpoint: Union[float, str, pd.Series] = None,
         lower_bound: Union[float, str] = None,
         upper_bound: Union[float, str] = None,
         observation_location: str = None,
+        ki: float = 0.001,
+        kp: float = 0.0,
+        kd: float = 0.0,
+        max_speed: float=0.00033,        
+        interpolation_option: str = 'LINEAR',
+        extrapolation_option: str = 'BLOCK',
     ) -> None:
         """Function a add PID controller.
 
         Args:
             structure_id (str): structure iD.
             steering_variable (str): variable to be controlled, usually crest level.
-            target_variable (str): target variable (usually water level)
-            pid_settings (dict): settings of the controller (ki, kp, kd, max_speed)
-            setpoint (Union[float, str]): setpoint value
+            target_variable (str): target variable (usually water level)            
+            setpoint (Union[float, str, pd.Series]): setpoint value or timeseries of setpointvalue
             lower_bound (Union[float, str]): lowest value to be allowed
             upper_bound (Union[float, str]): highest value to be allowed
             observation_location (str): id of the observation point
+            ki (float): gain factor ki
+            kp (float): faimn factor kp
+            kd (float): gain factor kd
+            max_speed (float): maximum speed to change target variable
+            interpolation_option (str): interpolation option used
+            extrapolation_option (str): extrapolation option used
         """
-        self.pid_controllers[structure_id] = {
-            "settings": pid_settings,
+        self.pid_controllers[structure_id] = {     
+            "type": "PID",       
             "steering_variable": steering_variable,
             "target_variable": target_variable,
             "setpoint": setpoint,
             "observation_point": observation_location,
             "lower_bound": lower_bound,
-            "upper_bound": upper_bound,
+            "upper_bound": upper_bound,            
+            "ki": ki,       
+            "kp": kp,       
+            "kd": kd,       
+            'max_speed': max_speed, 
+            "interpolation_option": interpolation_option,
+            "extrapolation_option": extrapolation_option,            
+        }
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def add_interval_controller(
+        self,
+        structure_id: str = None,
+        steering_variable: str = None,
+        target_variable: str = None,
+        deadband: Union[float,str] = None,
+        setpoint: Union[float, str, pd.Series] = None,
+        setting_below: Union[float, str] = None,
+        setting_above: Union[float, str] = None,
+        max_speed: Union[float, str] = None,
+        observation_location: str = None,
+        interpolation_option: str = 'LINEAR',
+        extrapolation_option: str = 'BLOCK',
+    ) -> None:
+        """Function to add an Interval controller.
+
+        Args:
+            structure_id (str): structure iD.
+            steering_variable (str): variable to be controlled, usually crest level.
+            target_variable (str): target variable (usually water level)
+            deadband (float): deadband around the setpoint
+            setpoint (Union[float, str, pd.Series]): setpoint value (or timeseries of setpointvalue)
+            setting_below (Union[float,str]): value of target variable below setpoint
+            setting_above (Union[float, str]): value of target variable above setpoint
+            max_speed (Union[float,str]): maximum speed to change target variable
+            observation_location (str): id of the observation point
+            interpolation_option (str): interpolation option used
+            extrapolation_option (str): extrapolation option used
+        """
+        self.interval_controllers[structure_id] = {
+            "type": 'Interval', 
+            "steering_variable": steering_variable,
+            "target_variable": target_variable,
+            "setpoint": setpoint,
+            "observation_point": observation_location,
+            "setting_below": setting_below,
+            "setting_above": setting_above,
+            "max_speed": max_speed,
+            "deadband": deadband,
+            "interpolation_option": interpolation_option,
+            "extrapolation_option": extrapolation_option,
         }
 
     @staticmethod
@@ -392,8 +495,9 @@ class DRTCModel:
         configfile = ET.parse(self.template_dir / "rtcToolsConfig_empty.xml")
         myroot = configfile.getroot()
 
-        self.all_controllers = self.time_controllers
+        self.all_controllers = self.time_controllers.copy()
         self.all_controllers.update(self.pid_controllers)
+        self.all_controllers.update(self.interval_controllers)
 
         for ikey, key in enumerate(self.all_controllers.keys()):
 
@@ -407,9 +511,7 @@ class DRTCModel:
             myroot[1].tail = "\n"
             myroot[1].text = "\n"
 
-            if "settings" in controller.keys():
-
-                settings = controller["settings"]
+            if controller['type'] == "PID":                
 
                 # rule type (PID)
                 b = ET.SubElement(a, gn_brackets + "pid")
@@ -432,19 +534,19 @@ class DRTCModel:
 
                 f = ET.SubElement(b, gn_brackets + "settingMaxSpeed")
                 f.tail = "\n        "
-                f.text = str(settings["maxspeed"])
+                f.text = str(controller["max_speed"])
 
                 g = ET.SubElement(b, gn_brackets + "kp")
                 g.tail = "\n        "
-                g.text = str(settings["kp"])
+                g.text = str(controller["kp"])
 
                 h = ET.SubElement(b, gn_brackets + "ki")
                 h.tail = "\n        "
-                h.text = str(settings["ki"])
+                h.text = str(controller["ki"])
 
                 i = ET.SubElement(b, gn_brackets + "kd")
                 i.tail = "\n        "
-                i.text = str(settings["kd"])
+                i.text = str(controller["kd"])
 
                 # input
                 j = ET.SubElement(b, gn_brackets + "input")
@@ -459,11 +561,18 @@ class DRTCModel:
                     + "/"
                     + controller["target_variable"]
                 )
-
-                l = ET.SubElement(j, gn_brackets + "setpointValue")
-                l.tail = "\n        "
-                l.text = str(controller["setpoint"])
-
+                 
+                # If setpoint varies in time 
+                if type(controller["setpoint"]) == pd.Series:
+                    l = ET.SubElement(j, gn_brackets + "setpointSeries")
+                    l.tail = "\n        "
+                    l.text = "[SP]" + "Control group " + str(key) + "/PID Rule"
+                # Else fixed setpoint
+                else:
+                    l = ET.SubElement(j, gn_brackets + "setpointValue")
+                    l.tail = "\n        "
+                    l.text = str(controller["setpoint"])
+                
                 # output
                 m = ET.SubElement(b, gn_brackets + "output")
                 m.tail = "\n      "
@@ -480,8 +589,72 @@ class DRTCModel:
                 q = ET.SubElement(m, gn_brackets + "differentialPart")
                 q.tail = "\n        "
                 q.text = "[DP]" + "Control group " + str(key) + "/PID Rule"
+            
+            elif controller['type'] == 'Interval':
+                # Interval RTC
+                # rule type (Interval) 
+                b = ET.SubElement(a, gn_brackets + "interval")
+                b.tail = "\n    "
+                b.text = "\n        "
+                b.set("id", "[IntervalRule]" + "Control group " + str(key) + "/Interval Rule")
+
+                # standard settings
+                d = ET.SubElement(b, gn_brackets + "settingBelow")
+                d.tail = "\n        "
+                d.text = str(controller["setting_below"])
+
+                e = ET.SubElement(b, gn_brackets + "settingAbove")
+                e.tail = "\n        "
+                e.text = str(controller["setting_above"])
+
+                f = ET.SubElement(b, gn_brackets + "settingMaxSpeed")
+                f.tail = "\n        "
+                f.text = str(controller["max_speed"])
+
+                g = ET.SubElement(b, gn_brackets + "deadbandSetpointAbsolute")
+                g.tail = "\n        "
+                g.text = str(controller["deadband"])
+
+                # input
+                j = ET.SubElement(b, gn_brackets + "input")
+                j.tail = "\n        "
+                j.text = "\n          "
+
+                k = ET.SubElement(j, gn_brackets + "x") # leave ref = "EXPLICIT" out for now
+                #k.set('ref','EXPLICIT')
+                k.tail = "\n          "
+                k.text = (
+                    "[Input]"
+                    + controller["observation_point"]
+                    + "/"
+                    + controller["target_variable"]
+                )
+                # If setpoint varies in time 
+                # if type(controller["setpoint"]) == pd.Series:
+                l = ET.SubElement(j, gn_brackets + "setpoint")
+                l.tail = "\n        "
+                l.text = "[SP]" + "Control group " + str(key) + "/Interval Rule"
+                # # Else fixed setpoint
+                # else:
+                #     l = ET.SubElement(j, gn_brackets + "setpointValue")
+                #     l.tail = "\n        "
+                #     l.text = str(controller["setpoint"])
+
+                # output
+                m = ET.SubElement(b, gn_brackets + "output")
+                m.tail = "\n      "
+                m.text = "\n          "
+
+                o = ET.SubElement(m, gn_brackets + "y")
+                o.tail = "\n          "
+                o.text = "[Output]" + str(key) + "/" + controller["steering_variable"]
+
+                p = ET.SubElement(m, gn_brackets + "status")
+                p.tail = "\n          "
+                p.text = "[Status]" + "Control group " + str(key) + "/Interval Rule"
+            # Add time rule
             else:
-                # rule type (timeabsolujte)
+                # rule type (timeabsolute)
                 b = ET.SubElement(a, gn_brackets + "timeAbsolute")
                 b.tail = "\n    "
                 b.text = "\n        "
@@ -568,14 +741,13 @@ class DRTCModel:
         a6.text = "false"
         a6.tail = "\n    "
 
-        # weir dependable data
+          # weir dependable data
         for ikey, key in enumerate(self.all_controllers.keys()):
 
             controller = self.all_controllers[key]
 
             # te importeren data
-
-            if "settings" in controller.keys():
+            if controller['type'] == 'PID': # TODO: mark the difference between interval and PID
                 a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
                 a.tail = "\n    "
                 if ikey == len(self.all_controllers) - 1:
@@ -605,6 +777,106 @@ class DRTCModel:
                 e = ET.SubElement(b, gn_brackets + "unit")
                 e.text = "m"
                 e.tail = "\n      "
+
+                # If a time dependent setpoint is required, add the Time Rule
+                if type(controller['setpoint']) == pd.Series: 
+                    a2 = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
+                    a2.tail = "\n    "
+                    if ikey == len(self.all_controllers) - 1:
+                        a2.tail = "\n  "
+                    a2.text = "\n      "
+                    myroot[0].text = "\n    "
+
+                    if controller['type'] =='PID':
+                        a2.set("id", f"[SP]Control group {key}/PID Rule")
+                        b2 = ET.SubElement(a2, gn_brackets + "PITimeSeries")
+                        b2.tail = "\n    "
+                        b2.text = "\n        "
+
+                        c2 = ET.SubElement(b2, gn_brackets + "locationId")
+                        c2.text = f"[PID]Control group {key}/PID Rule"
+                        c2.tail = "\n        "
+                    
+                    elif controller['type'] == 'Interval':
+                        a2.set("id", "[SP] Interval Rule")
+                        b2 = ET.SubElement(a2, gn_brackets + "PITimeSeries")
+                        b2.tail = "\n    "
+                        b2.text = "\n        "
+
+                        c2 = ET.SubElement(b2, gn_brackets + "locationId")
+                        c2.text = f"[IntervalRule]Control group {key}/Interval Rule"
+                        c2.tail = "\n        "
+
+                    d2 = ET.SubElement(b2, gn_brackets + "parameterId")
+                    d2.text = "SP"
+                    d2.tail = "\n        "
+
+                    e2 = ET.SubElement(b2, gn_brackets + "interpolationOption")
+                    e2.text = controller['interpolation_option']
+                    e2.tail = "\n      "
+
+                    e2 = ET.SubElement(b2, gn_brackets + "extrapolationOption")
+                    e2.text = controller['extrapolation_option'] # Changed from Block: HL
+                    e2.tail = "\n      "
+            elif controller['type'] == 'Interval': # TODO: mark the difference between interval and PID
+                a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
+                a.tail = "\n    "
+                if ikey == len(self.all_controllers) - 1:
+                    a.tail = "\n  "
+                a.text = "\n      "
+                myroot[0].text = "\n    "
+                a.set(
+                    "id",
+                    "[Input]"
+                    + controller["observation_point"]
+                    + "/"
+                    + controller["target_variable"],
+                )
+
+                b = ET.SubElement(a, gn_brackets + "OpenMIExchangeItem")
+                b.tail = "\n    "
+                b.text = "\n        "
+
+                c = ET.SubElement(b, gn_brackets + "elementId")
+                c.text = controller["observation_point"]
+                c.tail = "\n        "
+
+                d = ET.SubElement(b, gn_brackets + "quantityId")
+                d.text = controller["target_variable"]
+                d.tail = "\n        "
+
+                e = ET.SubElement(b, gn_brackets + "unit")
+                e.text = "m"
+                e.tail = "\n      "
+
+                a2 = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
+                a2.tail = "\n    "
+                if ikey == len(self.all_controllers) - 1:
+                    a2.tail = "\n  "
+                a2.text = "\n      "
+                myroot[0].text = "\n    "                
+                
+                a2.set("id", f"[SP]Control group {key}/Interval Rule")
+                b3 = ET.SubElement(a2, gn_brackets + "PITimeSeries")
+                b3.tail = "\n    "
+                b3.text = "\n        "
+
+                c3 = ET.SubElement(b3, gn_brackets + "locationId")
+                c3.text = f"[IntervalRule]Control group {key}/Interval Rule"
+                c3.tail = "\n        "
+
+                d3 = ET.SubElement(b3, gn_brackets + "parameterId")
+                d3.text = "SP"
+                d3.tail = "\n        "
+
+                e3 = ET.SubElement(b3, gn_brackets + "interpolationOption")
+                e3.text = controller['interpolation_option']
+                e3.tail = "\n      "
+
+                f3 = ET.SubElement(b3, gn_brackets + "extrapolationOption")
+                f3.text = controller['extrapolation_option'] # Changed from Block: HL
+                f3.tail = "\n      "
+
             else:
                 a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
                 a.tail = "\n    "
@@ -626,11 +898,11 @@ class DRTCModel:
                 d.tail = "\n        "
 
                 e = ET.SubElement(b, gn_brackets + "interpolationOption")
-                e.text = "LINEAR"
+                e.text = controller['interpolation_option']
                 e.tail = "\n      "
 
                 e = ET.SubElement(b, gn_brackets + "extrapolationOption")
-                e.text = "BLOCK"
+                e.text = controller['extrapolation_option'] # Changed from Block: HL
                 e.tail = "\n      "
 
             # te exporteren data:
@@ -661,13 +933,20 @@ class DRTCModel:
         for ikey, key in enumerate(self.all_controllers.keys()):
             controller = self.all_controllers[key]
 
-            if "settings" in controller:
+            if controller['type'] == 'PID':
                 i = ET.SubElement(myroot[1], gn_brackets + "timeSeries")
                 i.set("id", "[IP]Control group " + str(key) + "/PID Rule")
                 i.tail = "\n    "
 
                 j = ET.SubElement(myroot[1], gn_brackets + "timeSeries")
                 j.set("id", "[DP]Control group " + str(key) + "/PID Rule")
+                j.tail = "\n    "
+                if ikey == len(self.all_controllers):
+                    j.tail = "\n  "
+
+            elif controller['type'] == 'Interval': # Change slightly when working with Interval rule
+                j = ET.SubElement(myroot[1], gn_brackets + "timeSeries")
+                j.set("id", "[Status]Control group " + str(key) + "/Interval Rule")
                 j.tail = "\n    "
                 if ikey == len(self.all_controllers):
                     j.tail = "\n  "
@@ -698,7 +977,7 @@ class DRTCModel:
 
             controller = self.all_controllers[key]
 
-            if "settings" not in controller.keys():
+            if controller['type'] == 'Time':
                 # te importeren data
                 dates = pd.to_datetime(controller["data"].index).strftime("%Y-%m-%d")
                 times = pd.to_datetime(controller["data"].index).strftime("%H:%M:%S")
@@ -748,6 +1027,122 @@ class DRTCModel:
                         "value": str(controller["data"].values[i]),
                     }
                     k.tail = "\n"
+            elif controller['type'] == "Interval":
+                if type(controller['setpoint']) == float:
+                    controller['setpoint'] = pd.Series([controller['setpoint'],controller['setpoint']], index=[self.time_settings['start'],self.time_settings['end']])
+
+                # te importeren data
+                dates = pd.to_datetime( controller["setpoint"].index).strftime("%Y-%m-%d")
+                times = pd.to_datetime(controller["setpoint"].index).strftime("%H:%M:%S")
+                timestep = (pd.to_datetime(f'{dates[1]} {times[1]}') - pd.to_datetime(f'{dates[0]} {times[0]}')).total_seconds()
+                # timestep = (
+                #     pd.to_datetime(controller["setpoint"].index)[1]
+                #     - pd.to_datetime(controller["setpoint"].index)[0]
+                # ).total_seconds()
+                a = ET.SubElement(myroot, gn_brackets + "series")
+                a.text = ""
+                a.tail = "\n "
+                b = ET.SubElement(a, gn_brackets + "header")
+                b.text = ""
+                b.tail = "\n "
+                c = ET.SubElement(b, gn_brackets + "type")
+                c.text = "instantaneous"
+                c.tail = "\n"
+
+                d = ET.SubElement(b, gn_brackets + "locationId")
+                d.text = f"[IntervalRule]Control group {key}/Interval Rule"
+                d.tail = "\n"
+
+                e = ET.SubElement(b, gn_brackets + "parameterId")
+                e.text = "SP"
+                e.tail = "\n"
+                f = ET.SubElement(b, gn_brackets + "timeStep")
+                f.attrib = {
+                    "unit": "minute",
+                    "multiplier": str(int(timestep / 60.0)),
+                    "divider": str(1),
+                }
+                f.tail = "\n"
+                g = ET.SubElement(b, gn_brackets + "startDate")
+                g.attrib = {"date": dates[0], "time": times[0]}
+                g.tail = "\n"
+                h = ET.SubElement(b, gn_brackets + "endDate")
+                h.attrib = {"date": dates[-1], "time": times[-1]}
+                h.tail = "\n"
+                i = ET.SubElement(b, gn_brackets + "missVal")
+                i.text = "-999.0"
+                i.tail = "\n"
+                j = ET.SubElement(b, gn_brackets + "stationName")
+                j.text = ""
+                j.tail = "\n"
+                for i in range(len(controller["setpoint"])):
+                    k = ET.SubElement(a, gn_brackets + "event")
+                    k.attrib = {
+                        "date": dates[i],
+                        "time": times[i],
+                        "value": str(controller["setpoint"].values[i]),
+                    }
+                    k.tail = "\n"
+
+            # Create a timeseries import if a time-dependent setpoint is used
+            elif controller['type'] == 'PID' and type(controller['setpoint']) == pd.Series:
+                # te importeren data
+                dates = pd.to_datetime(controller["setpoint"].index).strftime("%Y-%m-%d")
+                times = pd.to_datetime(controller["setpoint"].index).strftime("%H:%M:%S")
+                timestep = (
+                    pd.to_datetime(controller["setpoint"].index)[1]
+                    - pd.to_datetime(controller["setpoint"].index)[0]
+                ).total_seconds()
+                a = ET.SubElement(myroot, gn_brackets + "series")
+                a.text = ""
+                a.tail = "\n "
+                b = ET.SubElement(a, gn_brackets + "header")
+                b.text = ""
+                b.tail = "\n "
+                c = ET.SubElement(b, gn_brackets + "type")
+                c.text = "instantaneous"
+                c.tail = "\n"
+
+                if controller['type'] =='PID':
+                    d = ET.SubElement(b, gn_brackets + "locationId")
+                    d.text = f"[PID]Control group {key}/PID Rule"
+                    d.tail = "\n"
+                elif controller['type'] == 'Interval':
+                    d = ET.SubElement(b, gn_brackets + "locationId")
+                    d.text = f"[IntervalRule]Control group {key}/Interval Rule"
+                    d.tail = "\n"
+
+                e = ET.SubElement(b, gn_brackets + "parameterId")
+                e.text = "SP"
+                e.tail = "\n"
+                f = ET.SubElement(b, gn_brackets + "timeStep")
+                f.attrib = {
+                    "unit": "minute",
+                    "multiplier": str(int(timestep / 60.0)),
+                    "divider": str(1),
+                }
+                f.tail = "\n"
+                g = ET.SubElement(b, gn_brackets + "startDate")
+                g.attrib = {"date": dates[0], "time": times[0]}
+                g.tail = "\n"
+                h = ET.SubElement(b, gn_brackets + "endDate")
+                h.attrib = {"date": dates[-1], "time": times[-1]}
+                h.tail = "\n"
+                i = ET.SubElement(b, gn_brackets + "missVal")
+                i.text = "-999.0"
+                i.tail = "\n"
+                j = ET.SubElement(b, gn_brackets + "stationName")
+                j.text = ""
+                j.tail = "\n"
+                for i in range(len(controller["setpoint"])):
+                    k = ET.SubElement(a, gn_brackets + "event")
+                    k.attrib = {
+                        "date": dates[i],
+                        "time": times[i],
+                        "value": str(controller["setpoint"].values[i]),
+                    }
+                    k.tail = "\n"
+
         if self.complex_controllers is not None:
             for ctl in self.complex_controllers["timeseries"]:
                 myroot.append(ET.fromstring(ctl))
@@ -782,8 +1177,10 @@ class DRTCModel:
             a.text = ""
             a.tail = "\n   "
             b = ET.SubElement(a, gn_brackets + "vector")
-            if "settings" in controller:
-                b.text = str(controller["setpoint"])
+            if controller['type'] == 'PID':
+                b.text = str(controller["upper_bound"])
+            elif controller['type'] == 'Interval':
+                b.text = str(max(controller['setting_above'], controller['setting_below'])) # Take the maximum value as a starting value            
             else:
                 b.text = str(controller["data"].values[0])
             b.tail = "\n "

@@ -5,9 +5,9 @@
       <timeSeriesFile>timeseries_import.xml</timeSeriesFile>
       <useBinFile>false</useBinFile>
     </PITimeSeriesFile>
-    <timeSeries id="[Input]ObsS_96684_1/Water level (op)">
+    <timeSeries id="[Input]ObsS_96684/Water level (op)">
       <OpenMIExchangeItem>
-        <elementId>ObsS_96684_1</elementId>
+        <elementId>ObsS_96684</elementId>
         <quantityId>Water level (op)</quantityId>
         <unit>m</unit>
       </OpenMIExchangeItem>

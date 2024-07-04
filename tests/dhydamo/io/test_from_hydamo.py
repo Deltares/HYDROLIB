@@ -15,9 +15,6 @@ hydamo_data_path = (
     Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
 )
 
-print(hydamo_data_path)
-
-
 def _check_related(hydamo, hydamo_name):
     # assert type of object
     extendedgdf = getattr(hydamo, hydamo_name)
@@ -63,7 +60,7 @@ def test_hydamo_related():
     hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
     hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
     hydamo.boundary_conditions.read_gpkg_layer(gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code")
-    hydamo.catchments.read_gpkg_layer(gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code")
+    hydamo.catchments.read_gpkg_layer(gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code", check_geotype=False)
     hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
     hydamo.sewer_areas.read_shp(hydamo_data_path / 'rioleringsgebieden.shp', index_col='code', column_mapping={'Code':'code', 'Berging_mm':'riool_berging_mm', 'POC_m3s':'riool_poc_m3s' })
     hydamo.overflows.read_shp(hydamo_data_path / 'overstorten.shp', column_mapping={'codegerela': 'codegerelateerdobject'})
@@ -182,10 +179,10 @@ def test_hydamo_object_from_gpkg():
 
     # Read catchments
     hydamo.catchments.read_gpkg_layer(
-        gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code"
+        gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code", check_geotype=False,
     )
-    assert len(hydamo.catchments) == 129
-    assert hydamo.catchments.oppervlakt.sum() == 2872.9925
+    assert len(hydamo.catchments) == 121
+    assert hydamo.catchments.oppervlakt.sum() == 2661.5
 
     # Read laterals
     hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
@@ -400,7 +397,7 @@ def test_storagenodes():
     assert len(hydamo.storagenodes.storagenodes.keys()) == 1
 
 
-def test_convert_boundararies():
+def test_convert_boundaries():
     hydamo = test_hydamo_object_from_gpkg()
 
     fm = FMModel()
