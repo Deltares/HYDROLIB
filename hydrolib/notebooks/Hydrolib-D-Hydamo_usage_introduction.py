@@ -32,15 +32,6 @@ import warnings
 from platform import python_version
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-# %%
-os.chdir(r'D:\4390.10\HYDROLIB_nf_nv\hydrolib/notebooks')
-
-## In not installed, add a path from where hydrolib it can be imported
-#sys.path.insert(0, "d:/Documents/GitHub/HYDROLIB")
-sys.path.insert(0, r"..\..\\")  
-
-# NOTE: core and dhydamo need to be in the same folder to be imported correctly
-# and from hydrolib-core
 from hydrolib.core.dimr.models import DIMR, FMComponent
 from hydrolib.core.dflowfm.inifield.models import IniFieldModel, DiskOnlyFileModel
 from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
@@ -52,6 +43,7 @@ from hydrolib.core.dflowfm.bc.models import ForcingModel
 from hydrolib.core.dflowfm.friction.models import FrictionModel
 from hydrolib.core.dflowfm.obs.models import ObservationPointModel
 
+sys.path.insert(0, r".")  
 # Importing relevant classes from Hydrolib-dhydamo
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
@@ -67,11 +59,11 @@ from hydrolib.dhydamo.io.drrwriter import DRRWriter
 from hydrolib.dhydamo.geometry.viz import plot_network
 
 # path to the package containing the dummy-data
-data_path = Path("../tests/data").resolve()
+data_path = Path("hydrolib/tests/data").resolve()
 assert data_path.exists()
 
 # path to write the models
-output_path = Path("../tests/model").resolve()
+output_path = Path("hydrolib/tests/model").resolve()
 # assert output_path.exists()
 
 plotting = False
@@ -79,7 +71,7 @@ plotting = False
 TwoD = True
 TwoD_option = 'GG' # MK (meshkernel) or GG (gridgeom)
 RR = True
-RTC = True
+RTC =True
 
 # ## Read HyDAMO DAMO2.2 data
 
@@ -624,7 +616,7 @@ hydamo.external_forcings.set_initial_waterdepth(1.5)
 
 # 2d mesh extent
 if TwoD:
-    extent = gpd.read_file(r"..\tests\data\2D_extent.shp").unary_union
+    extent = gpd.read_file(data_path / "2D_extent.shp").unary_union
     network = fm.geometry.netfile.network
     cellsize=25.
     rasterpath = data_path / 'rasters/AHN_2m_clipped_filled.tif'
@@ -696,6 +688,11 @@ if TwoD:
 
     if TwoD_option == 'MK':
         mesh.mesh2d_altitude_from_raster(network, rasterpath, "face", "mean", fill_value=-999)
+        # mesh.links1d2d_add_links_1d_to_2d(network)
+        mesh.links1d2d_add_links_2d_to_1d_lateral(network, max_length=50.)
+        # mesh.links1d2d_add_links_2d_to_1d_embedded(network)
+        mesh.links1d2d_remove_1d_endpoints(network)
+
     elif TwoD_option == 'GG':
         mesh_GG.altitude_from_raster(rasterpath)
 
@@ -712,10 +709,6 @@ if TwoD:
         polygon = hydamo.culverts.unary_union.buffer(1.)
         links1d2d.remove_links1d2d_within_polygon(polygon)
 
-        # mesh.links1d2d_add_links_1d_to_2d(network)
-        # mesh.links1d2d_add_links_2d_to_1d_lateral(network, max_length=50.)
-        # # mesh.links1d2d_add_links_2d_to_1d_embedded(network)
-        # mesh.links1d2d_remove_1d_endpoints(network)
 
         # add the gridgeom mesh to the fm-network
         links1d2d.convert_to_hydrolib()   
@@ -777,7 +770,7 @@ if TwoD:
 if TwoD and plotting:
     fig, axs = plt.subplots(figsize=(13.5, 6), ncols=1, constrained_layout=True)
     plot_network(network, ax=axs)
-    # plot_network(network, ax=axs[1], links1d2d_kwargs=dict(lw=3, color="k"))
+    plot_network(network, ax=axs[1], links1d2d_kwargs=dict(lw=3, color="k"))
     for ax in [axs]:
         ax.set_aspect(1.0)
         ax.plot(*buffer.exterior.coords.xy, color="k", lw=0.5)

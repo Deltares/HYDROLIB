@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "hydrolib-core"
+name = "hydrolib-test"
 version = "0.6.0"
 description = "Python wrappers around D-HYDRO Suite."
 authors = ["Deltares"]
@@ -17,10 +17,7 @@ homepage = "https://deltares.github.io/HYDROLIB-core"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-numpy = "^1.21"
-pydantic = "~1.10"
-lxml = "^4.6"
-meshkernel = "^3.0.0"
+hydrolib-core = "^0.7.0"
 geopandas = "0.13.1"
 contextily = "^1.4.0"
 rasterstats = "^0.19.0"
@@ -29,11 +26,11 @@ tqdm = "^4.66.1"
 dask = "2023.5.0"
 xarray = "2023.1.0"
 traitlets = "5.9.0"
-poetry2conda = "^0.3.0"
 netcdf4 = "1.6.4"
 pyogrio = "^0.9.0"
 
 [tool.poetry.dev-dependencies]
+poetry2conda = "^0.3.0"
 pytest = "^6.2"
 black = "^22.1"
 isort = "^5.8"

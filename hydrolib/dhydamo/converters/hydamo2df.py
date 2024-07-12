@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Union
 import numpy as np
 import pandas as pd
-from pydantic import validate_arguments
+from pydantic.v1 import validate_arguments
 from typing import Union, Optional
 from shapely.geometry import Point
 

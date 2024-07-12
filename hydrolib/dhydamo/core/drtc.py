@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Union, Optional
 import pandas as pd
-from pydantic import validate_arguments
+from pydantic.v1 import validate_arguments
 from datetime import datetime as dt
 import xml.etree.ElementTree as ET
 

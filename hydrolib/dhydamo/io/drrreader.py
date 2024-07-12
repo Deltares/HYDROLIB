@@ -6,7 +6,7 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
-from pydantic import validate_arguments, StrictFloat, StrictInt, StrictStr
+from pydantic.v1 import validate_arguments, StrictFloat, StrictInt, StrictStr
 from rasterstats import zonal_stats
 from rasterio.transform import from_origin
 from tqdm.auto import tqdm

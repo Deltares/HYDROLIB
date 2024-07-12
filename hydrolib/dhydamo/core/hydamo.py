@@ -7,7 +7,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
-from pydantic import validate_arguments
+from pydantic.v1 import validate_arguments
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, Point, Polygon, MultiPolygon
 from tqdm.auto import tqdm

@@ -3,7 +3,7 @@ import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Union
-from pydantic import validate_arguments
+from pydantic.v1 import validate_arguments
 
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.core.drr import DRRModel
@@ -44,7 +44,7 @@ class DIMRWriter:
             f.write("set OMP_NUM_THREADS=2\n")
             f.write('call "' + str(self.run_dimr) + '"\n')
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    #@validate_arguments(config=dict(arbitrary_types_allowed=True))
     def write_dimrconfig(
         self, fm: FMModel, rr_model: DRRModel = None, rtc_model: DRTCModel = None
     ) -> None:

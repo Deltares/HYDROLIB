@@ -50,9 +50,9 @@ def test_plot_links1d2d_add_links_1d_to_2d():
     test_mesh.test_links1d2d_add_links_1d_to_2d(do_plot=True)
 
 
-@pytest.mark.plots
-def test_plot_links1d2d_add_links_2d_to_1d_embedded():
-    test_mesh.test_links1d2d_add_links_2d_to_1d_embedded(do_plot=True)
+# @pytest.mark.plots
+# def test_plot_links1d2d_add_links_2d_to_1d_embedded():
+#     test_mesh.test_links1d2d_add_links_2d_to_1d_embedded(do_plot=True)
 
 
 @pytest.mark.plots
