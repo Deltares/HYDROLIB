@@ -684,7 +684,7 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
     # ) == np.round(np.float32(outcome), 2)
 
 
-def test_mesh1d_add_branches_from_gdf(do_plot=True):
+def test_mesh1d_add_branches_from_gdf(do_plot=False):
     # Create full HyDAMO object (use from other test)
     hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
 
