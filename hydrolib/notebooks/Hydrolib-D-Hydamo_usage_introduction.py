@@ -142,7 +142,7 @@ hydamo.snap_to_branch_and_drop(hydamo.weirs, hydamo.branches, snap_method="overa
 hydamo.pumpstations.read_gpkg_layer(gpkg_file, layer_name="Gemaal", index_col="code")
 # hydamo.pumpstations.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
 # hydamo.pumpstations.dropna(axis=0, inplace=True, subset=["branch_offset"])
-hydamo.pumpstations.geometry = hydamo.pumpstations.geometry
+#hydamo.pumpstations.geometry = hydamo.pumpstations.geometry
 hydamo.pumps.read_gpkg_layer(gpkg_file, layer_name="Pomp", index_col="code")
 hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
 hydamo.snap_to_branch_and_drop(hydamo.pumpstations, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
@@ -150,7 +150,7 @@ hydamo.snap_to_branch_and_drop(hydamo.pumpstations, hydamo.branches, snap_method
 hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
 # hydamo.bridges.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
 # hydamo.bridges.dropna(axis=0, inplace=True, subset=["branch_offset"])
-hydamo.bridges.geometry = hydamo.bridges.geometry
+#hydamo.bridges.geometry = hydamo.bridges.geometry
 hydamo.snap_to_branch_and_drop(hydamo.bridges, hydamo.branches, snap_method="overal", maxdist=1100, drop_related=True)
 
 # read boundaries

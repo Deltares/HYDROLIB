@@ -11,16 +11,7 @@ import xml.etree.ElementTree as ET
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 
-# TODO: these classes are generated from XSD-files, but still to figure out how to use them
-# from hydrolib.core.io.rtc.rtcruntimeconfig.models import *
-# from hydrolib.core.io.rtc.rtctoolsconfig.models import *
-# from hydrolib.core.io.rtc.rtcdataconfig.models import *
-# from hydrolib.core.io.rtc.pi_timeseries.models import *
-# from hydrolib.core.io.rtc.pi_state.models import *
-# from hydrolib.core.io.rtc.rtcobjectiveconfig.models import *
-
 logger = logging.getLogger(__name__)
-
 
 class DRTCModel:
     """Main class to generate RTC-module files."""
@@ -31,8 +22,11 @@ class DRTCModel:
         hydamo: HyDAMO,
         fm: FMModel,
         output_path: Union[str, Path] = None,
+        rtc_onlytimeseries: bool = False,
+        rtc_timeseriesdata: pd.DataFrame=None,
         complex_controllers_folder: Union[str, Path] = None,
         rtc_timestep: Union[int, float] = 60,
+        
     ) -> None:
         """Initialization of the DRTCModel class. (empty) lists/dicts and filepaths are initialized. Also, complex controllers are parsed. Template files are (already) copied to the output folder.
 
@@ -40,6 +34,8 @@ class DRTCModel:
             hydamo (instance of HyDAMO): data structure containing the HyDAMO DAMO2.2
             fm (instance of FMModel): model structure set up for Hydrolib-core
             output_path (str or Windows-path, optional): path where the rtc-files are placed. Defaults to None.
+            rtc_onlytimeseries (bool): defines the rtc mode: only time series or actual controllers. Defaults to False (actual controllers)
+            rtc_timeseriesdata (pd.DataFrame): timeseries in case they are used instead of controllers. Defaults to None.
             complex_controllers_folder (Path or str, optional): Path where users can put xml-files that will be imported in the RTC-model. Defaults to None.
             rtc_timestep (Union[int, float], optional): Time step of the RTC model. Defaults to 60 seconds.
         """
@@ -64,12 +60,13 @@ class DRTCModel:
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # parse user-provided controllers
-        if complex_controllers_folder is not None:
-            self.complex_controllers = self.parse_complex_controller(
-                complex_controllers_folder
-            )
-        else:
-            self.complex_controllers = None
+        if not rtc_onlytimeseries:
+            if complex_controllers_folder is not None:
+                self.complex_controllers = self.parse_complex_controller(
+                    complex_controllers_folder
+                )
+            else:
+                self.complex_controllers = None
 
         # copy files from the template RTC-folder
         self.template_dir = Path(os.path.dirname(__file__)) / ".." / "resources" / "RTC"
@@ -82,6 +79,42 @@ class DRTCModel:
         ]
         for file in generic_files:
             shutil.copy(self.template_dir / file, self.output_path / file)
+
+        if rtc_onlytimeseries:                    
+            for name, data in rtc_timeseriesdata.items():
+                if name in hydamo.structures.rweirs_df.id.to_list():
+                    steering_var = "Crest level (s)"
+                if name in hydamo.structures.orifices_df.id.to_list():
+                    steering_var = 'Gate lower edge level (s)'
+                if name in hydamo.structures.pumps_df.id.to_list():
+                    steering_var = 'Capacity (p)'       
+                self.add_time_controller(
+                    structure_id=name, steering_variable=steering_var, data=data
+                )  
+            self.check_timeseries(rtc_timeseriesdata)    
+            self.complex_controllers  = None
+    
+    @validate_arguments
+    def check_timeseries(self, timeseries):
+        hydamo_controllers = self.hydamo.management[~self.hydamo.management.regelmiddelid.isnull()].regelmiddelid
+        for controller in hydamo_controllers:
+            mandev = self.hydamo.management_device[self.hydamo.management_device.globalid ==controller]
+            if ~mandev.kunstwerkopeningid.isnull().values[0]:
+                ko = self.hydamo.opening[self.hydamo.opening.globalid ==mandev.kunstwerkopeningid.values[0]]                
+                weir = self.hydamo.weirs[self.hydamo.weirs.globalid ==ko.stuwid.values[0]].code.values[0]                
+                if weir not in timeseries.columns:
+                    print(f'For {weir} a controller is defined in hydamo.management, but no timeseries is provided for it.')
+            elif ~mandev.duikersifonhevelid.isnull().values[0]:
+                dsh = self.hydamo.culvert[self.hydamo.culvert.globalid ==mandev.duikersifonhevelid.values[0]].code
+                if dsh not in timeseries.columns:
+                    print(f'For {dsh} a controller is defined in hydamo.management, but no timeseries is provided for it.')
+            else:
+                print(f'{mandev.code} is not associated with a management_device or culvert.')
+        hydamo_pumps = self.hydamo.management[~self.hydamo.management.pompid.isnull()].pompid
+        for pump in hydamo_pumps:            
+            pmp = self.hydamo.pumps[self.hydamo.pumps.globalid ==pump].code.values[0]
+            if pmp not in timeseries.columns:
+                print(f'For {pmp} a controller is defined in hydamo.management, but no timeseries is provided for it.')
 
     @staticmethod
     @validate_arguments
@@ -747,7 +780,7 @@ class DRTCModel:
             controller = self.all_controllers[key]
 
             # te importeren data
-            if controller['type'] == 'PID': # TODO: mark the difference between interval and PID
+            if controller['type'] == 'PID': 
                 a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
                 a.tail = "\n    "
                 if ikey == len(self.all_controllers) - 1:
@@ -818,7 +851,7 @@ class DRTCModel:
                     e2 = ET.SubElement(b2, gn_brackets + "extrapolationOption")
                     e2.text = controller['extrapolation_option'] # Changed from Block: HL
                     e2.tail = "\n      "
-            elif controller['type'] == 'Interval': # TODO: mark the difference between interval and PID
+            elif controller['type'] == 'Interval': 
                 a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
                 a.tail = "\n    "
                 if ikey == len(self.all_controllers) - 1:
@@ -1035,10 +1068,7 @@ class DRTCModel:
                 dates = pd.to_datetime( controller["setpoint"].index).strftime("%Y-%m-%d")
                 times = pd.to_datetime(controller["setpoint"].index).strftime("%H:%M:%S")
                 timestep = (pd.to_datetime(f'{dates[1]} {times[1]}') - pd.to_datetime(f'{dates[0]} {times[0]}')).total_seconds()
-                # timestep = (
-                #     pd.to_datetime(controller["setpoint"].index)[1]
-                #     - pd.to_datetime(controller["setpoint"].index)[0]
-                # ).total_seconds()
+                
                 a = ET.SubElement(myroot, gn_brackets + "series")
                 a.text = ""
                 a.tail = "\n "

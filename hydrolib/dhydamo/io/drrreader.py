@@ -143,7 +143,7 @@ class UnpavedIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning("No rasterdata available for catchment %s" % cat.code)
+                logger.warning(f"No rasterdata available for catchment {cat.code}.")
                 continue
             tm = [
                 m
@@ -406,7 +406,7 @@ class PavedIO:
                     all_touched=all_touched,
                 )[0]
                 if 14.0 not in pixels:
-                    logger.warning("%s/%s: no paved area in sewer area!" % (sew.code))
+                    logger.warning(f"No paved area in sewer area {sew.code}.")
                     continue
                 pav_pixels = pixels[14.0]
                 pav_area += pav_pixels * px_area
@@ -503,17 +503,16 @@ class PavedIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning("No rasterdata available for catchment %s" % cat.code)
+                logger.warning(f"No rasterdata available for catchment {cat.code}.")
                 continue
             if sewer_areas is not None:
                 if cat.geometry.intersects(sewer_areas.unary_union):
                     area_outside_sewer = cat.geometry.difference(
                         sewer_areas.unary_union
                     )
-                    if area_outside_sewer.area == 0.0:
+                    if area_outside_sewer.area == 0:
                         logger.info(
-                            "No paved area outside sewer area in catchments %s"
-                            % cat.code
+                            f"No paved area outside sewer area in catchments {cat.code}."
                         )
                         pav_area = 0.0
                     else:
@@ -660,7 +659,7 @@ class GreenhouseIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning("No rasterdata available for catchment %s" % cat.code)
+                logger.warning(f"No rasterdata available for catchment {cat.code}.")
                 continue
 
             # find corresponding meteo-station
@@ -967,7 +966,7 @@ class ExternalForcingsIO:
             if boundary_nodes[boundary_nodes["code"] == cat.lateraleknoopcode].empty:
                 # raise IndexError(f'{cat.code} not connected to a boundary node. Skipping.')
                 logger.warning(
-                    "%s not connected to a boundary node. Skipping." % cat.code
+                    f"{cat.code} not connected to a boundary node. Skipping."
                 )
                 continue
             bnd_drr.at[cat.code, "id"] = str(cat.lateraleknoopcode)

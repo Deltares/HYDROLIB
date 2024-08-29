@@ -119,7 +119,7 @@ class GeometryList(GeometryListMK):
         if is_multi:
             return MultiPolygon(polygons)
         else:
-            return polygons[0]
+            return polygons[0] if len(polygons)==1 else None
 
     def _to_linestring(
         self, geometries: List[GeometryListMK], is_multi: bool

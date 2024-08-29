@@ -268,48 +268,12 @@ def points_in_polygon(points, polygon):
     polygon : shapely.geometry.Polygon
         Polygon (can have holes)
     """
-    # First select points in square box around polygon
-    # ptx, pty = points.T
-    # mainindex = possibly_intersecting(
-    #     dataframebounds=np.c_[[ptx, pty, ptx, pty]], geometry=polygon
-    # )
-    # boxpoints = points[mainindex]
-    # extp = path.Path(polygon.exterior)
-    # intps = [path.Path(interior) for interior in polygon.interiors]
-
+   
     points =gpd.points_from_xy(points[:,0], points[:,1])
-    # polygon = polygon.difference(Point(201000, 395000).buffer(1000))
     index = points.sindex.query(polygon, predicate="intersects")
     mainindex = np.full(points.shape, False)
     mainindex[index] = True
     
-    # import matplotlib.pyplot as plt
-    # fig, ax = plt.subplots()
-    # gpd.GeoSeries([polygon2]).plot(ax=ax)
-    # gpd.GeoSeries(points[mainindex]).plot(ax=ax, color="red", markersize=1)
-    # plt.show()
-
-    # # create first index. Everything within exterior is True
-    # # index = extp.contains_points(boxpoints)
-    # index = np.array(pd.Series([Point(p) for p in boxpoints]).map(lambda p:polygon.intersects(p)))
-    # intps = [intp for intp in polygon.interiors]
-    # # set points in holes also to nan
-    # if intps:
-    #     subset = boxpoints[index]
-    #     # Start with all False
-    #     subindex = np.zeros(len(subset), dtype=bool)
-
-    #     for intp in intps:
-    #         # update mask, set to True where point in interior
-    #         # subindex = subindex | intp.contains_points(subset)
-    #         subindex = subindex | np.array(pd.Series([Point(p) for p in boxpoints]).map(lambda p:polygon.intersects(p)))
-    #     # Everything within interiors should be True
-    #     # So, set everything within interiors (subindex == True), to True
-    #     index[np.where(index)[0][subindex]] = False
-
-    # # Set index in main index to False
-    # mainindex[np.where(mainindex)[0][~index]] = False
-
     return mainindex
 
 

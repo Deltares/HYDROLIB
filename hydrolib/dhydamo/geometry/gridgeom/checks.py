@@ -19,7 +19,7 @@ def warn_dataframe_not_empty(dataframe):
     if not dataframe.empty:
         logger.warning('The dataframe is not empty. The data are overwritten.')
 
-def check_dictionary(dct, required, choice=[]):
+def check_dictionary(dct, required, choice=None):
     if required is not None:
         if isinstance(required, str):
             required = [required]
@@ -27,7 +27,7 @@ def check_dictionary(dct, required, choice=[]):
             if not key in dct.keys():
                 raise KeyError(f'Key "{key}" missing from dictionary.')
 
-    if any(choice):
+    if choice is not None:
         for i, option in enumerate(choice):
             if not isinstance(option, (list, set)):
                 choice[i] = [option]
