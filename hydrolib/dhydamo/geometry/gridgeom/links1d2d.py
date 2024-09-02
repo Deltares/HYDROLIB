@@ -39,7 +39,7 @@ class Links1d2d:
         branchid : str or list
             ID's of branches for which the connection from 1d to 2d is made.
         """
-        logger.info(f"Generating links from 1d to 2d based on distance.")
+        logger.info("Generating links from 1d to 2d based on distance.")
 
         # Create KDTree for faces
         faces2d = np.c_[
@@ -219,7 +219,7 @@ class Links1d2d:
         # Find the nearest node with the KDTree
         nodes1d = self.mesh1d['nodes1d'] #mesh1d.get_nodes()
         get_nearest = KDTree(nodes1d)
-        distance, idx_nearest = get_nearest.query(
+        _, idx_nearest = get_nearest.query(
             [float(pt) for pt in np.array(bc["geometry"].coords[:][0])][0:2]
         )
         node_id = idx_nearest + 1

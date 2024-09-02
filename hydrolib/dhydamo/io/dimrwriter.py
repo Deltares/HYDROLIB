@@ -75,7 +75,6 @@ class DIMRWriter:
         configfile = ET.parse(self.template_dir / "dimr_config.xml")
 
         myroot = configfile.getroot()
-        #myroot[1][1].text = "fm"
         myroot[1][1].text = fm.filepath.parts[-2]
         myroot[1][2].text = fm.filepath.name
 

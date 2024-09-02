@@ -98,7 +98,7 @@ def from_netcdf_old(meshgeom, path, only2d=False):
         meshgeom.set_values(f'node{dim}', data)
 
     # Set links
-    meshgeom.allocate(f'edge_nodes')
+    meshgeom.allocate('edge_nodes')
     meshgeom.set_values('edge_nodes', links.ravel() + 1)
 
     ds.close()

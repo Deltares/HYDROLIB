@@ -3,22 +3,6 @@ import sys
 import os
 FMT = "%(asctime)s - %(name)s - %(module)s - %(levelname)s - %(message)s"
 
-# def initialize_logger(logfile='dhydamo.log', level=logging.INFO, include_console=False):
-#
-#     handlers = [logging.FileHandler(logfile, mode='w')]
-#     if include_console:
-#         handlers += [logging.StreamHandler()]
-#
-#     logging.basicConfig(
-#         format='%(asctime)s.%(msecs)03d %(levelname)s: %(message)s (%(name)s)',
-#         datefmt='%H:%M:%S',
-#         level=level,
-#         handlers=handlers
-#     )
-#
-#     logging.info("Running delft3dfmpy model generator.")
-#     return logging
-
 def initialize_logger(name='delft3dfmpy', path=None, log_level=20, fmt=FMT):
     """Set-up the logging on sys.stdout"""
     logger = logging.getLogger(name)
@@ -34,9 +18,8 @@ def initialize_logger(name='delft3dfmpy', path=None, log_level=20, fmt=FMT):
 
 def add_filehandler(logger, path, log_level=20, fmt=FMT):
     """Add file handler to logger."""
-    if os.path.dirname(path) != "":
-        if not os.path.isdir(os.path.dirname(path)):
-            os.makedirs(os.path.dirname(path))
+    if os.path.dirname(path) != "" and not os.path.isdir(os.path.dirname(path)):
+        os.makedirs(os.path.dirname(path))
     isfile = os.path.isfile(path)
     if isfile:
         os.remove(path)

@@ -442,7 +442,7 @@ class PavedIO:
                             ov.code, "street_storage"
                         ] = f'{str_stors_sa[isew]["mean"]:.2f}'
                     else:
-                        raise ValueError(f'street_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int).')
+                        raise ValueError('Street_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int).')
                     
                     # three options: it can be an attribute of a sewer area, a uniform value or a raster
                     if sew.riool_berging_mm is None or np.isnan(sew.riool_berging_mm) or not isinstance(sew.riool_berging_mm, float):  
@@ -453,7 +453,7 @@ class PavedIO:
                             ov.code, "sewer_storage"
                             ] = f'{sew_stors_sa[isew]["mean"]:.2f}'
                         else:
-                            raise ValueError(f'sewer_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int).')                            
+                            raise ValueError('Sewer_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int).')                            
                     else:                                     
                         paved_drr.at[ov.code, "sewer_storage"] = f'{sew.riool_berging_mm:.2f}'
                     
@@ -468,7 +468,7 @@ class PavedIO:
                             ov.code, "pump_capacity"
                             ] = f'{pump_caps_sa[isew]["mean"] * (float(pav_area) * ov.fractie) / (1000. * 3600.):.8f}'
                          else:
-                            raise ValueError(f'pump_capacity has the wrong datatype. It should be a filename (Path or string) or number (float or int).')        
+                            raise ValueError('Pump_capacity has the wrong datatype. It should be a filename (Path or string) or number (float or int).')        
                     else:
                         # use the attribute value
                         paved_drr.at[ov.code, "pump_capacity"] = f'{sew.riool_poc_m3s * ov.fractie:.8f}'

@@ -247,12 +247,7 @@ def extend_linestring(line, near_pt, length):
     segmentlength = (dx ** 2 + dy ** 2) ** 0.5
     dx /= segmentlength * length
     dy /= segmentlength * length
-
-    # if nearest_end[0] == 0:
-    #     coords = LineString[(x0 - dx, y0 - dy)] + coords
-    # else:
-    #     coords = coords + [(x0 - dx, y0 - dy)]
-
+    
     return LineString([(x0, y0), (x0 - dx, y0 - dy)])
 
 
@@ -274,74 +269,6 @@ def points_in_polygon(points, polygon):
     mainindex = np.full(points.shape, False)
     mainindex[index] = True
     
-    return mainindex
-
-
-# def points_in_polygon(points, polygon):
-#     """
-#     Determine points that are inside a polygon, taking
-#     holes into account.
-
-#     Parameters
-#     ----------
-#     points : numpy.array
-#         Nx2 - array
-#     polygon : shapely.geometry.Polygon
-#         Polygon (can have holes)
-#     """
-#     # First select points in square box around polygon
-#     ptx, pty = points.T
-#     mainindex = possibly_intersecting(
-#         dataframebounds=np.c_[[ptx, pty, ptx, pty]], geometry=polygon
-#     )
-#     boxpoints = points[mainindex]
-
-#     index = np.array(pd.Series([Point(p) for p in boxpoints]).map(lambda p:polygon.intersects(p)))
-
-#     ints = [interior for interior in polygon.interiors]
-    
-#     tempindex = mainindex
-#     for i,index in enumerate(mainindex):
-#         if Point(points[i]).within(polygon.exterior):
-#             tempindex[i] = False
-#     if ints:              
-#         subset=points[mainindex]    
-#         subindex = np.zeros(len(subset), dtype=bool)
-#         for inter in ints:
-#             for i,index in enumerate(subindex):
-#                 if Point(points[i]).within(inter):
-#                     subindex[i] = True
-            
-#         # Everything within interiors should be True
-#         # So, set everything within interiors (subindex == True), to True
-#         tempindex[np.where(tempindex)[0][subindex]] = False
-
-#     mainindex[np.where(mainindex)[0][~tempindex]] = False
-#     return mainindex
-    
-    # extp = path.Path(polygon.exterior)
-    #
-
-    # # create first index. Everything within exterior is True
-    # index = extp.contains_points(boxpoints)
-
-    # # set points in holes also to nan
-    # if intps:
-    #     subset = boxpoints[index]
-    #     # Start with all False
-    #     subindex = np.zeros(len(subset), dtype=bool)
-
-    #     for intp in intps:
-    #         # update mask, set to True where point in interior
-    #         subindex = subindex | intp.contains_points(subset)
-
-    #     # Everything within interiors should be True
-    #     # So, set everything within interiors (subindex == True), to True
-    #     index[np.where(index)[0][subindex]] = False
-
-    # # Set index in main index to False
-    # mainindex[np.where(mainindex)[0][~index]] = False
-
     return mainindex
 
 
@@ -397,8 +324,7 @@ class RasterPart:
             self.upperright[1],
             (self.ymax - self.ymin),
             endpoint=False,
-        )[::-1]
-        # TODO: FIX y-DIRECTION
+        )[::-1]        
         return x, y
 
     def read(self, layeridx):
@@ -476,7 +402,6 @@ def raster_in_parts(f, ncols, nrows, facedata=None):
 
     pts = facedata[["facex", "facey"]].values
 
-    parts = []
     pl = ProgressLogger(logger, nx * ny, 10)
 
     for i, (ix, iy) in enumerate(product(range(nx), range(ny))):
@@ -518,7 +443,6 @@ def rasterize_cells(facedata, prt):
     maskIm = PIL.Image.new("I", (prt.shape[1], prt.shape[0]), 0)
     todraw = PIL.ImageDraw.Draw(maskIm)
 
-    cellnumber = np.zeros(prt.shape)
     cellsize = abs(prt.f.transform.a)
 
     for row in facedata.itertuples():
@@ -578,8 +502,6 @@ def raster_stats_fine_cells(rasterpath, facedata, stats=["mean"]):
     check_geodateframe_rasterstats(facedata)
 
     # Open raster file
-    first = True
-    i = 0
     with rasterio.open(rasterpath, "r") as f:
 
         # Split file in parts based on shape
@@ -595,8 +517,7 @@ def raster_stats_fine_cells(rasterpath, facedata, stats=["mean"]):
 
             # Rasterize the cells in the part
             cellidx_sel = rasterize_cells(facedata.loc[prt.idx], prt)
-            cellidx_sel[~valid] = 0
-            valid = cellidx_sel != 0
+            cellidx_sel[~valid] = 0            
 
             for cell_idx in np.unique(cellidx_sel):
                 if cell_idx == 0:
@@ -644,8 +565,6 @@ def waterdepth_ahn(dempath, facedata, outpath, column):
     with rasterio.open(dempath, "r") as f:
         first = True
         out_meta = f.meta.copy()
-
-        cell_area = abs(f.transform.a * f.transform.e)
 
         # Split file in parts based on shape
         parts = raster_in_parts(f, ncols=250, nrows=250, facedata=facedata)

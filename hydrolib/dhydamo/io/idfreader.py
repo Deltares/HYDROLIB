@@ -61,9 +61,7 @@ def _check_cellsizes(cellsizes):
             # all ndarrays
             dx0, dy0 = cellsizes[0]
             for dx, dy in cellsizes[1:]:
-                if np.allclose(dx0, dx) and np.allclose(dy0, dy):
-                    pass
-                else:
+                if ~np.allclose(dx0, dx) or ~np.allclose(dy0, dy):
                     raise ValueError(msg)
         except ValueError:
             # some ndarrays, some floats
@@ -560,13 +558,7 @@ def decompose(path, pattern=None):
         d["name"] = "_".join(d.values())
     else:
         dims.remove("name")
-
-    # TODO: figure out what to with user specified variables
-    # basically type inferencing via regex?
-    # if purely numerical \d* -> int or float
-    #    if \d*\.\d* -> float
-    # else: keep as string
-
+    
     # String -> type conversion
     if "layer" in d.keys():
         d["layer"] = int(d["layer"])

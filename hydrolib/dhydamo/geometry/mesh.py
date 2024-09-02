@@ -501,7 +501,7 @@ def links1d2d_add_links_2d_to_1d_embedded(
     faces2d = np.stack(
         [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
     )
-    # mpgl = _geomlist_from_polygon(*faces2d.T.copy())
+    
     mpgl = mk.GeometryList(*faces2d.T.copy())
     idx = np.zeros(len(faces2d), dtype=bool)
     for subarea in common.as_polygon_list(area):

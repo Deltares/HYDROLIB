@@ -3229,7 +3229,7 @@ testing = ["pytest", "pytest-benchmark"]
 name = "poetry-semver"
 version = "0.1.0"
 description = "A semantic versioning library for Python"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 files = [
@@ -3241,7 +3241,7 @@ files = [
 name = "poetry2conda"
 version = "0.3.0"
 description = "Convert pyproject.toml to environment.yaml"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.6,<4.0"
 files = [
@@ -4669,7 +4669,7 @@ test = ["pytest"]
 name = "toml"
 version = "0.10.2"
 description = "Python Library for Tom's Obvious, Minimal Language"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 files = [
@@ -5040,4 +5040,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "9fea7475b5ba1ce3cd0684b9d12db80f049f1543884c87fbd113cd6e0ec8f934"
+content-hash = "3958f30cc469b1880d2c109cda8982b1ff7a5fdc8d8e5cd1dacf23bc905390c2"

@@ -26,8 +26,6 @@ import matplotlib.pyplot as plt
 from shapely.geometry import Point, Polygon
 import matplotlib.pyplot as plt
 import contextily as cx
-import os
-import sys
 import warnings
 from platform import python_version
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -35,11 +33,10 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 from hydrolib.core.dimr.models import DIMR, FMComponent
 from hydrolib.core.dflowfm.inifield.models import IniFieldModel, DiskOnlyFileModel
 from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
-from hydrolib.core.dflowfm.structure.models import *
-from hydrolib.core.dflowfm.crosssection.models import *
+from hydrolib.core.dflowfm.structure.models import StructureModel
+from hydrolib.core.dflowfm.crosssection.models import CrossLocModel,CrossDefModel
 from hydrolib.core.dflowfm.ext.models import ExtModel
 from hydrolib.core.dflowfm.mdu.models import FMModel
-from hydrolib.core.dflowfm.bc.models import ForcingModel
 from hydrolib.core.dflowfm.friction.models import FrictionModel
 from hydrolib.core.dflowfm.obs.models import ObservationPointModel
 
@@ -50,7 +47,6 @@ from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
 from hydrolib.dhydamo.geometry import mesh
 from hydrolib.dhydamo.geometry.mesh2d_gridgeom import Mesh2D_GG, Rectangular
 from hydrolib.dhydamo.geometry.gridgeom.links1d2d import Links1d2d
-from hydrolib.dhydamo.io.common import ExtendedDataFrame
 
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.core.drtc import DRTCModel
@@ -64,7 +60,7 @@ assert data_path.exists()
 
 # path to write the models
 output_path = Path("hydrolib/tests/model").resolve()
-# assert output_path.exists()
+assert output_path.exists()
 
 plotting = False
 
@@ -104,8 +100,6 @@ hydamo.profile.read_gpkg_layer(
     index_col="code"
 )
 hydamo.profile_roughness.read_gpkg_layer(gpkg_file, layer_name="RuwheidProfiel")
-# hydamo.profile.snap_to_branch(hydamo.branches, snap_method="intersecting")
-# hydamo.profile.dropna(axis=0, inplace=True, subset=["branch_offset"])
 hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name="profiellijn")
 hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name="profielgroep")
 hydamo.profile.drop("code", axis=1, inplace=True)
@@ -114,43 +108,21 @@ hydamo.snap_to_branch_and_drop(hydamo.profile, hydamo.branches, snap_method="int
 
 hydamo.param_profile.read_gpkg_layer(gpkg_file, layer_name = 'hydroobject_normgp')
 hydamo.param_profile_values.read_gpkg_layer(gpkg_file, layer_name = 'normgeparamprofielwaarde')
-# # read structures
-# culverts = gpd.read_file(gpkg_file, layer='Duikersifonhevel')
-# culverts.index = culverts.code
-# culverts.loc['B_11547', 'code'] = 'B_11954'
-# culverts.to_file(gpkg_file, layer='DuikerSifonHevel2', index=False, overwrite=True)
 hydamo.culverts.read_gpkg_layer(gpkg_file, layer_name="DuikerSifonHevel2", index_col="code")
 
-# hydamo.culverts.snap_to_branch(hydamo.branches, snap_method="ends", maxdist=5)
-# hydamo.culverts.dropna(axis=0, inplace=True, subset=["branch_offset"])
 hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name="Stuw", index_col="code")
-# hydamo.weirs.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
-# hydamo.weirs.dropna(axis=0, inplace=True, subset=["branch_offset"])
-# hydamo.weirs.geomet.geometry
 hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
 hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-# idx = hydamo.management_device[hydamo.management_device["duikersifonhevelid"].notnull()].index
-# for i in idx:
-#     globid = hydamo.culverts[
-#         hydamo.culverts.code == hydamo.management_device.duikersifonhevelid.loc[i]
-#     ].globalid.values[0]
-#     hydamo.management_device.at[i, "duikersifonhevelid"] = globid
 hydamo.snap_to_branch_and_drop(hydamo.culverts, hydamo.branches, snap_method="ends", maxdist=5, drop_related=True)
 
 hydamo.snap_to_branch_and_drop(hydamo.weirs, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
 
 hydamo.pumpstations.read_gpkg_layer(gpkg_file, layer_name="Gemaal", index_col="code")
-# hydamo.pumpstations.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
-# hydamo.pumpstations.dropna(axis=0, inplace=True, subset=["branch_offset"])
-#hydamo.pumpstations.geometry = hydamo.pumpstations.geometry
 hydamo.pumps.read_gpkg_layer(gpkg_file, layer_name="Pomp", index_col="code")
 hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
 hydamo.snap_to_branch_and_drop(hydamo.pumpstations, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
 
 hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
-# hydamo.bridges.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
-# hydamo.bridges.dropna(axis=0, inplace=True, subset=["branch_offset"])
-#hydamo.bridges.geometry = hydamo.bridges.geometry
 hydamo.snap_to_branch_and_drop(hydamo.bridges, hydamo.branches, snap_method="overal", maxdist=1100, drop_related=True)
 
 # read boundaries
@@ -169,7 +141,6 @@ for ind, cat in hydamo.catchments.iterrows():
     ].code.values[0]
 hydamo.laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=5000)
 # %%
-
 
 # plot the model objects
 if plotting:
@@ -454,22 +425,13 @@ if plotting:
 
 # %%
 
-
 j = 0
 hydamo.branches["order"] = np.nan
+hydamo.branches.loc['W_242209_0', 'naam'] = None
 for i in hydamo.branches.naam.unique():
-    if i != None:
-        if (
-            all(
-                x in missing
-                for x in hydamo.branches.loc[
-                    hydamo.branches.loc[:, "naam"] == i, "code"
-                ]
-            )
-            == False
-        ):
-            hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "order"] = int(j)
-            j = j + 1
+    if i is not None and not all( x in missing for x in hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "code"]):
+        hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "order"] = int(j)
+        j = j + 1
 
 
 # Retentiebekken Rosmolen has a name, and therefore an ordernumber, but cannot be interpolated. Set the order to 0, so it gets a default profile.
@@ -479,7 +441,6 @@ for i in hydamo.branches.naam.unique():
 
 # branch W_1386_0 has a name, but is  single side branch, it's order is no use. Reset it.
 hydamo.branches.loc[hydamo.branches.code == 'W_1386_0', 'order']  = -1
-
 
 # We assign these orders, now as column in the hydamo.branches dataframe, to the network.
 

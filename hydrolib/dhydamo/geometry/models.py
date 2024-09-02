@@ -38,7 +38,7 @@ class GeometryList(GeometryListMK):
         # Extract coordinates from geometry
         x_crds, y_crds = np.array(geometry.coords[:]).T
         gl = cls(x_coordinates=x_crds, y_coordinates=y_crds)
-        return glmk
+        return gl
 
     @classmethod
     def from_linestring(cls, linestring: LineString):
