@@ -596,7 +596,7 @@ class DRTCModel:
                 )
                  
                 # If setpoint varies in time 
-                if type(controller["setpoint"]) == pd.Series:
+                if isinstance(controller["setpoint"], pd.Series):
                     l = ET.SubElement(j, gn_brackets + "setpointSeries")
                     l.tail = "\n        "
                     l.text = "[SP]" + "Control group " + str(key) + "/PID Rule"
@@ -1061,7 +1061,7 @@ class DRTCModel:
                     }
                     k.tail = "\n"
             elif controller['type'] == "Interval":
-                if type(controller['setpoint']) == float:
+                if isinstance(controller['setpoint'], float):
                     controller['setpoint'] = pd.Series([controller['setpoint'],controller['setpoint']], index=[self.time_settings['start'],self.time_settings['end']])
 
                 # te importeren data
@@ -1115,7 +1115,7 @@ class DRTCModel:
                     k.tail = "\n"
 
             # Create a timeseries import if a time-dependent setpoint is used
-            elif controller['type'] == 'PID' and type(controller['setpoint']) == pd.Series:
+            elif controller['type'] == 'PID' and isinstance(controller['setpoint'], pd.Series):
                 # te importeren data
                 dates = pd.to_datetime(controller["setpoint"].index).strftime("%Y-%m-%d")
                 times = pd.to_datetime(controller["setpoint"].index).strftime("%H:%M:%S")

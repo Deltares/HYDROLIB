@@ -288,7 +288,7 @@ class meshgeom(Structure):
         if isinstance(branchid, str):
             branchid = [branchid]
         # Get the ids (integers) of the branch names given by the user
-        branchidx = np.where(np.isin(self.description1d['network_branch_ids'], branchid))[0] + 1
+        branchidx = np.nonzero(np.isin(self.description1d['network_branch_ids'], branchid))[0] + 1
         # Select which of the nodes are in the branches
         idx = np.isin(self.get_values('branchidx'), branchidx)
         
@@ -340,7 +340,7 @@ class meshgeom(Structure):
                 faces = [None] * len(face_nodes)
                 for n in unique:
                     ncells = nodes[face_nodes[(nanvalues == n), :n] - 1]
-                    where = np.where(nanvalues == n)[0]
+                    where = np.nonzero(nanvalues == n)[0]
                     for i, cell in zip(where, ncells):
                         faces[i] = cell
 

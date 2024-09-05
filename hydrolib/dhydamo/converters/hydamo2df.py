@@ -12,7 +12,6 @@ from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
 
-
 class RoughnessVariant(Enum):
     HIGH = "High"
     LOW = "Low"
@@ -100,14 +99,14 @@ class CrossSectionsIO:
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def profiles(
         self,
+        branches: ExtendedGeoDataFrame, # = None,
+        roughness_variant: RoughnessVariant,# =None,
         crosssections: Optional[ExtendedGeoDataFrame] = None,
         crosssection_roughness: Optional[ExtendedDataFrame] = None,
         profile_groups: Optional[ExtendedDataFrame] = None,
         profile_lines: Optional[ExtendedGeoDataFrame] = None,
         param_profile: Optional[ExtendedDataFrame] = None,
-        param_profile_values: Optional[ExtendedDataFrame] = None,
-        branches: ExtendedGeoDataFrame = None,
-        roughness_variant: RoughnessVariant=None,
+        param_profile_values: Optional[ExtendedDataFrame] = None,        
     ) -> None:
         """
         Method to add cross section from hydamo files. Two files
@@ -387,7 +386,7 @@ class ExternalForcingsIO:
                     )
                     continue
                 else:
-                    if type(lateral_discharges) == pd.Series:
+                    if isinstance(lateral_discharges, pd.Series):
                         series = lateral_discharges.loc[lateral.code]
 
                         # Add to dictionary
@@ -956,8 +955,8 @@ class StructuresIO:
 
             # assert sum(sturingidx) == 1
 
-            branch_id = pumpstations.iloc[np.where(gemaalidx)[0][0]]["branch_id"]
-            branch_offset = pumpstations.iloc[np.where(gemaalidx)[0][0]][
+            branch_id = pumpstations.iloc[np.nonzero(gemaalidx)[0][0]]["branch_id"]
+            branch_offset = pumpstations.iloc[np.nonzero(gemaalidx)[0][0]][
                 "branch_offset"
             ]
             # Get the control by index

@@ -24,7 +24,7 @@ def check_dictionary(dct, required, choice=None):
         if isinstance(required, str):
             required = [required]
         for key in required:
-            if not key in dct.keys():
+            if key not in dct.keys():
                 raise KeyError(f'Key "{key}" missing from dictionary.')
 
     if choice is not None:

@@ -116,9 +116,7 @@ def mesh2d_add_rectilinear(
                     [getattr(existing_mesh2d, var), getattr(new_mesh2d, var)]
                 ),
             )        
-        # Process merged mesh
-        # network._mesh2d._process(existing_mesh2d)
-        #mesh22d_add'
+        
 
 def mesh2d_from_netcdf(network: Network, path: Union[Path, str]) -> None:
     reader = UgridReader(path)
@@ -325,19 +323,10 @@ def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: lis
     """
     j = 0
     branches["order"] = np.nan
-    for i in branches[order_attribute].unique():
-        if i != None:
-            if (
-                all(
-                    x in missing
-                    for x in branches.loc[
-                        branches.loc[:, order_attribute] == i, "code"
-                    ]
-                )
-                == False
-            ):
-                branches.loc[branches.loc[:, order_attribute] == i, "order"] = int(j)
-                j = j + 1
+    for value in branches[order_attribute].unique():
+        if value is not None and ~all(x in missing for x in branches.loc[branches.loc[:, order_attribute] == value, "code"]):
+            branches.loc[branches.loc[:, order_attribute] == i, "order"] = int(j)
+            j = j + 1
     for exception in exceptions:
         branches.loc[branches.code == exception, 'order']  = -1
 
@@ -439,7 +428,7 @@ def links1d2d_add_links_1d_to_2d(
     )
     lengths = np.hypot(nodes1d[:, 0] - faces2d[:, 0], nodes1d[:, 1] - faces2d[:, 1])
     keep = np.concatenate(
-        [np.arange(npresent), np.where(lengths < max_length)[0] + npresent]
+        [np.arange(npresent), np.nonzero(lengths < max_length)[0] + npresent]
     )
     _filter_links_on_idx(network, keep)
 
@@ -532,7 +521,7 @@ def links1d2d_add_links_2d_to_1d_embedded(
     nodes2d = np.stack(
         [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
     )
-    where = np.where(idx)[0]
+    where = np.nonzero(idx)[0]
     for i, face_crds in enumerate(nodes2d[network._mesh2d.mesh2d_face_nodes[idx]]):
         if not mls_prep.intersects(LineString(face_crds)):
             idx[where[i]] = False

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Union, Optional
 
@@ -71,7 +71,7 @@ class HyDAMO:
         # versioning info
         self.version = {
             "number": dhydamo.__version__,
-            "date": datetime.strftime(datetime.utcnow(), "%Y-%m-%dT%H:%M:%S.%fZ"),
+            "date": datetime.strftime(datetime.now(timezone.utc), "%Y-%m-%dT%H:%M:%S.%fZ"),
             "dimr_version": "Deltares, DIMR_EXE Version 2.00.00.140737 (Win64) (Win64)",
             "suite_version": "D-HYDRO Suite 2022.04 1D2D,",
         }
@@ -838,7 +838,7 @@ class Network:
             + 1
         )
         pt_branch_id = self.mesh1d.get_values("branchidx", as_array=True)
-        idx = np.where(pt_branch_id == branchidx)
+        idx = np.nonzero(pt_branch_id == branchidx)
 
         # Find nearest offset
         offsets = self.mesh1d.get_values("branchoffset", as_array=True)[idx]

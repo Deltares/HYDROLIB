@@ -32,7 +32,7 @@ f_open = open
 
 def _all_equal(seq, elem):
     """Raise an error if not all elements of a list are equal"""
-    if not seq.count(seq[0]) == len(seq):
+    if seq.count(seq[0]) != len(seq):
         raise ValueError(f"All {elem} must be the same, found: {set(seq)}")
 
 def _check_cellsizes(cellsizes):
@@ -54,7 +54,7 @@ def _check_cellsizes(cellsizes):
     if len(cellsizes) == 1:
         return None
     try:
-        if not (cellsizes.count(cellsizes[0]) == len(cellsizes)):
+        if (cellsizes.count(cellsizes[0]) != len(cellsizes)):
             raise ValueError(msg)
     except ValueError:  # contains ndarrays
         try:
