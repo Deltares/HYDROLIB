@@ -325,21 +325,21 @@ def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: lis
     branches["order"] = np.nan
     for value in branches[order_attribute].unique():
         if value is not None and ~all(x in missing for x in branches.loc[branches.loc[:, order_attribute] == value, "code"]):
-            branches.loc[branches.loc[:, order_attribute] == i, "order"] = int(j)
+            branches.loc[branches.loc[:, order_attribute] == value, "order"] = int(j)
             j = j + 1
     for exception in exceptions:
         branches.loc[branches.code == exception, 'order']  = -1
 
     interpolation = []
-    for i in branches.order.unique():
-        if i > 0:
+    for ordernr in branches.order.unique():
+        if ordernr > 0:
             mesh1d_set_branch_order(
                 network,
-                branches.code[branches.order == i].to_list(),
-                idx=int(i),
+                branches.code[branches.order == ordernr].to_list(),
+                idx=int(ordernr),
             )
             interpolation = (
-                interpolation + branches.code[branches.order == i].to_list()
+                interpolation + branches.code[branches.order == ordernr].to_list()
             )
     missing_after_interpolation = np.setdiff1d(missing, interpolation)
     return(missing_after_interpolation)
