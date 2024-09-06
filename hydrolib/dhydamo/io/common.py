@@ -17,9 +17,9 @@ logger = logging.getLogger()
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
     # normal properties
-    _metadata = ["required_columns", "geotype"] + gpd.GeoDataFrame._metadata
+    _metadata = ["required_columns", "geotype", "related"] + gpd.GeoDataFrame._metadata
 
-    def __init__(self, geotype, required_columns=None, logger=logging, *args, **kwargs):
+    def __init__(self, geotype, required_columns=None, related=None, logger=logging, *args, **kwargs):
         # Check type
         if required_columns is None:
             required_columns = []
@@ -36,6 +36,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         self.required_columns = required_columns[:]
         self.geotype = geotype
+        self.related = deepcopy(related)
 
     def copy(self, deep=True):
         """
@@ -208,6 +209,10 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         )
         for laynum, layer_name in enumerate(layerlist):
             layer = gpd.read_file(gpkg_path, layer=layer_name)
+            if layer.empty:
+                logger.warning(f'Layer "{layer_name}" is empty.')
+                continue
+
             nfields = len(layer.columns)
             nfeatures = layer.shape[0]
             geom_type = layer.geom_type.iloc[0]
@@ -236,7 +241,10 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if isinstance(gpkg_path, Path):
             gpkg_path = str(gpkg_path)
 
-        layer = gpd.read_file(gpkg_path, layer=layer_name)
+        if layer_name.lower() not in map(str.lower, fiona.listlayers(gpkg_path)):
+            raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
+
+        layer = gpd.read_file(gpkg_path, layer=layer_name, engine='pyogrio')
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
 
@@ -246,68 +254,27 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             if groupby_column not in columns:
                 raise ValueError("Groupby column not found in feature list.")
 
+            if order_column is None or order_column not in columns:
+                raise ValueError("Order column not found in feature list.")
+
             # Check if the geometry is as expected
-            if not isinstance(layer.geometry.iloc[0], Point):
+            geom_types = layer.geometry.geom_type.unique()
+            if len(geom_types) != 1 or geom_types[0] != "Point":
                 raise ValueError("Can only group Points to LineString")
 
-            # Get the values from the column that is grouped
-            columnid = columns.index(groupby_column)
-            groupbyvalues = layer[groupby_column]
-
-            order = layer[order_column]
-
-            # Create empty dict for lines
-            branches, counts = np.unique(groupbyvalues, return_counts=True)
-            lines = {branch: [0] * count for branch, count in zip(branches, counts)}
-
-            # Since the order does not always start at 1, find the starting number per group
-            startnr = {branch: layer.shape[0] + 1 for branch in branches}
-            for branch, volgnr in zip(groupbyvalues, order):
-                startnr[branch] = min(volgnr, startnr[branch])
-
-            # Determine relative order of points in profile (required if the point numbering is not subsequent)
-            order_rel = []
-            for branch, volgnr in zip(groupbyvalues, order):
-                lst_volgnr = [x[1] for x in zip(groupbyvalues, order) if x[0] == branch]
-                lst_volgnr.sort()
-                for i, x in enumerate(lst_volgnr):
-                    if volgnr == x:
-                        order_rel.append(i)
-
-            # Filter branches with too few points
-            singlepoint = counts < 2
-
-            # Assign points
-            for point, volgnr, branch, volgnr_rel in zip(
-                layer.geometry, order, groupbyvalues, order_rel
-            ):
-                # lines[branch][volgnr - startnr[branch]] = point
-                lines[branch][volgnr_rel] = point
-
             # Group geometries to lines
-            for branch in branches[~singlepoint]:
-                if any(isinstance(pt, int) for pt in lines[branch]):
-                    print(
-                        f'Points are not properly assigned for branch "{branch}". Check the input file.'
-                    )
-                    lines[branch] = [
-                        pt for pt in lines[branch] if not isinstance(pt, int)
-                    ]
-                lines[branch] = LineString(lines[branch])
+            geometries = []
+            fields = []
+            for groupname, group in layer.groupby(groupby_column, sort=False):
+                # Filter branches with too few points
+                if len(group) < 2:
+                    logger.warning(f'Ignoring {groupby_column} "{groupname}": contains less than two points.')
+                    continue
 
-            # Set order for branches with single point to 0, so features are not loaded
-            for branch in branches[singlepoint]:
-                order[groupbyvalues.index(branch)] = 0
-
-            # Read fields at first occurence
-            startnrs = [startnr[branch] for branch in groupbyvalues]
-            idx = [
-                nr for nr, (i, volgnr) in enumerate(zip(order, startnrs)) if i == volgnr
-            ]
-            fields = layer.iloc[idx, :]
-
-            # Get geometries in correct order for featuresF
-            geometries = [lines[row[columnid]] for _, row in fields.iterrows()]
+                # Determine relative order of points in profile
+                group = group.sort_values(order_column)
+                geometries.append(LineString(group.geometry.tolist()))
+                fields.append(group.iloc[0, :]) 
 
         else:
             fields = layer
@@ -319,16 +286,24 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if column_mapping is not None:
             gdf.rename(columns=column_mapping, inplace=True)
 
-        # add a letter to 'exploded' multipolygons
-        if "MultiPolygon" in list(gdf.geometry.type):
-            gdf = gdf.explode()
-            for ftc in gdf[id_col].unique():
-                if len(gdf[gdf[id_col] == ftc]) > 1:
-                    gdf.loc[gdf[id_col] == ftc, id_col] = [
-                        f"{i}_{n}"
-                        for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
-                    ]
-                    print(f"{ftc} is MultiPolygon; split into single parts.")
+        # # add a letter to 'exploded' multipolygons
+        # if "MultiPolygon" in list(gdf.geometry.type):
+        #     gdf = gdf.explode(index_parts=True)
+        #     for ftc in gdf[id_col].unique():
+        #         if len(gdf[gdf[id_col] == ftc]) > 1:
+        #             gdf.loc[gdf[id_col] == ftc, id_col] = [
+        #                 f"{i}_{n}"
+        #                 for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
+        #             ]
+        #             print(f"{ftc} is MultiPolygon; split into single parts.")
+
+        # Enforce a unique index column
+        if index_col is not None:
+            dupes = gdf[gdf.duplicated(subset=index_col, keep="first")].copy()
+            if len(dupes) > 0:
+                logger.warning(f"Index column '{index_col}' contains duplicates ({list(gdf[gdf[index_col].duplicated()].code.unique())}). Adding a suffix to make it unique.")
+                for dupe_id, group in dupes.groupby(by=index_col, sort=False):
+                    gdf.loc[group.index, index_col] = [f"{dupe_id}_{i+1}" for i in range(len(group))]
 
         # Add data to class GeoDataFrame
         self.set_data(
@@ -518,7 +493,10 @@ class ExtendedDataFrame(pd.DataFrame):
         if isinstance(gpkg_path, Path):
             gpkg_path = str(gpkg_path)
 
-        layer = gpd.read_file(gpkg_path, layer=layer_name)
+        if layer_name.lower() not in map(str.lower, fiona.listlayers(gpkg_path)):
+            raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
+
+        layer = gpd.read_file(gpkg_path, layer=layer_name, engine='pyogrio')
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
         layer.drop("geometry", axis=1, inplace=True)

@@ -416,7 +416,7 @@ class DRRWriter:
                         f.write("TBLE\n")
                         for row in self.rrmodel.external_forcings.seepage[dct["sp"]][
                             "seepage"
-                        ].iteritems():
+                        ].items():
                             f.write(
                                 "'"
                                 + row[0].strftime("%Y/%m/%d;%H:%M:%S")
@@ -450,7 +450,7 @@ class DRRWriter:
                             + dct["id"]
                             + "' ss 0 qc 0 "
                             + dct["qc"]
-                            + " 0 qo 1 0 ms '"
+                            + " 0 qo 2 2 ms '"
                             + dct["ms"]
                             + "' is "
                             + dct["is"]
@@ -585,7 +585,7 @@ class DRRWriter:
                 df[ms[0]] = pd.Series(ms[1]["precip"])
 
             f = open(filepath, "w")
-            f.write("*Name of this file: c:\Result\1058\DEFAULT.BUI\n")
+            f.write("*Name of this file: c:\\Result\\1058\\DEFAULT.BUI\n")
             f.close()
             f = open(filepath, "a")
             f.write("*Date and time of construction: 00/00/2000 00:00:00.\n")

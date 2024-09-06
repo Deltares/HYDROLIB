@@ -16,6 +16,7 @@ from hydrolib.core.dflowfm.crosssection.models import (
     RectangleCrsDef,
     YZCrsDef,
     CrossSection,
+    ZWCrsDef,
 )
 from hydrolib.core.dflowfm.ext.models import Boundary, Lateral
 from hydrolib.core.dflowfm.bc.models import (
@@ -223,6 +224,12 @@ class Df2HydrolibModel:
         self._clear_comments(cs)
         self.crossdefs += cs
 
+        # Trapezium
+        cs_zw = _get_cstype_part_of_dict("zw")
+        cs = [ZWCrsDef(**cs) for cs in cs_zw.values()]
+        self._clear_comments(cs)
+        self.crossdefs += cs
+
     def boundaries_to_dhydro(self) -> None:
         """Convert dataframe of boundaries to ext and bc models"""
         for bound in self.hydamo.external_forcings.boundary_nodes.values():
@@ -259,9 +266,10 @@ class Df2HydrolibModel:
 
     def laterals_to_dhydro(self) -> None:
         """Convert dataframe of laterals to ext and bc models"""
-        for key, lateral in self.hydamo.external_forcings.lateral_nodes.items():
+                
+        for key, lateral in self.hydamo.external_forcings.lateral_nodes.items():                    
             if isinstance(lateral["discharge"], str):
-                # realtime boundary
+                # realtime boundary                
                 lat_ext = Lateral(
                     id=key,
                     name=key,
@@ -273,7 +281,7 @@ class Df2HydrolibModel:
                 )
             else:
                 # time series or constant value
-                if isinstance(lateral["discharge"], pd.Series):
+                if isinstance(lateral["discharge"], pd.Series):                    
                     lat_bc = TimeSeries(
                         name=key,
                         function="timeseries",
@@ -287,7 +295,7 @@ class Df2HydrolibModel:
                         datablock=list(map(list, zip(lateral["time"], lateral["value"]))),
                     )
                     self.laterals_bc.append(lat_bc)
-                elif isinstance(lateral["discharge"], float):
+                elif isinstance(lateral["discharge"], float):                    
                     lat_bc = Constant(
                         name=key,
                         function="constant",
@@ -295,8 +303,7 @@ class Df2HydrolibModel:
                         unit="m3/s",
                         datablock=[[lateral["discharge"]]],
                     )
-                self.forcingmodel.forcing.append(lat_bc)
-
+                self.forcingmodel.forcing.append(lat_bc)                
                 lat_ext = Lateral(
                     id=key,
                     name=key,
@@ -305,8 +312,7 @@ class Df2HydrolibModel:
                     branchId=lateral["branchid"],
                     chainage=lateral["chainage"],
                     discharge=self.forcingmodel,
-                )
-
+                )            
             self.laterals_ext.append(lat_ext)
 
     def friction_definitions_to_dhydro(self):

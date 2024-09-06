@@ -67,8 +67,8 @@
     <sourceComponent>DFM</sourceComponent>
     <targetComponent>Real_Time_Control</targetComponent>
     <item>
-      <sourceName>observations/ObsS_96684_1/water_level</sourceName>
-      <targetName>[Input]ObsS_96684_1/Water level (op)</targetName>
+      <sourceName>observations/ObsS_96684/water_level</sourceName>
+      <targetName>[Input]ObsS_96684/Water level (op)</targetName>
     </item>
     <logger>
       <workingDir>.</workingDir>

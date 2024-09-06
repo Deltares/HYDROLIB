@@ -1,17 +1,16 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
-from pydantic import validate_arguments
+from pydantic.v1 import validate_arguments
 from scipy.spatial import KDTree
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, Point, Polygon, MultiPolygon
 from tqdm.auto import tqdm
-
 from hydrolib import dhydamo
 from hydrolib.dhydamo.converters.hydamo2df import (
     CrossSectionsIO,
@@ -72,7 +71,7 @@ class HyDAMO:
         # versioning info
         self.version = {
             "number": dhydamo.__version__,
-            "date": datetime.strftime(datetime.utcnow(), "%Y-%m-%dT%H:%M:%S.%fZ"),
+            "date": datetime.strftime(datetime.now(timezone.utc), "%Y-%m-%dT%H:%M:%S.%fZ"),
             "dimr_version": "Deltares, DIMR_EXE Version 2.00.00.140737 (Win64) (Win64)",
             "suite_version": "D-HYDRO Suite 2022.04 1D2D,",
         }
@@ -84,21 +83,61 @@ class HyDAMO:
                 "code",
                 "geometry"
             ],
+            related=None
         )
 
         self.profile = ExtendedGeoDataFrame(
             geotype=LineString,
             required_columns=["code", "geometry", "globalid", "profiellijnid"],
+            related={
+                "profile_roughness": {
+                    "via": "globalid",
+                    "on": "profielpuntid",
+                    "coupled_to": None
+                },
+                "profile_line": {
+                    "via": "profiellijnid",
+                    "on": "globalid",
+                    "coupled_to": {
+                        "profile_group": {
+                            "via": "profielgroepid",
+                            "on": "globalid",
+                            "coupled_to": None
+                        }
+                    }
+                }
+            }
         )
         self.profile_roughness = ExtendedDataFrame(
-            required_columns=["code", "profielpuntid"]
+            required_columns=["profielpuntid"]
         )
 
         self.profile_line = ExtendedGeoDataFrame(
-            geotype=LineString, required_columns=["globalid", "profielgroepid"]
+            geotype=LineString,
+            required_columns=["globalid", "profielgroepid"],
+            related={
+                "profile_group": {
+                    "via": "profielgroepid",
+                    "on": "globalid",
+                    "coupled_to": None
+                },
+                "profile": {
+                    "via": "globalid",
+                    "on": "profiellijnid",
+                    "coupled_to": {
+                        "profile_roughness": {
+                            "via": "globalid",
+                            "on": "profielpuntid",
+                            "coupled_to": None
+                        }
+                    }
+                }
+            }
         )
 
-        self.profile_group = ExtendedDataFrame(required_columns=[])
+        self.profile_group = ExtendedDataFrame(
+            required_columns=[]
+        )
 
         self.param_profile = ExtendedDataFrame(
             required_columns=["globalid", "normgeparamprofielid", "hydroobjectid"]
@@ -125,6 +164,19 @@ class HyDAMO:
                 "soortstuw",
                 "afvoercoefficient",
             ],
+            related={
+                "opening": {
+                    "via": "globalid",
+                    "on": "stuwid",
+                    "coupled_to": {
+                        "management_device": {
+                            "via": "globalid",
+                            "on": "kunstwerkopeningid",
+                            "coupled_to": None
+                        }
+                    }
+                }
+            }
         )
 
         # opening
@@ -142,7 +194,9 @@ class HyDAMO:
         )
 
         # opening
-        self.closing_device = ExtendedDataFrame(required_columns=["code"])
+        self.closing_device = ExtendedDataFrame(
+            required_columns=["code"]
+        )
 
         # opening
         self.management_device = ExtendedDataFrame(
@@ -162,6 +216,7 @@ class HyDAMO:
                 "ruwheid",
                 "typeruwheid",
             ],
+            related=None
         )
 
         # Culverts
@@ -181,11 +236,13 @@ class HyDAMO:
                 "typeruwheid",
                 "ruwheid",
             ],
-        )
-
-        # Laterals
-        self.laterals = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["globalid", "geometry"]
+            related={
+                "management_device": {
+                    "via": "globalid",
+                    "on": "duikersifonhevelid",
+                    "coupled_to": None
+                }
+            }
         )
 
         # Gemalen
@@ -196,6 +253,19 @@ class HyDAMO:
                 "globalid",
                 "geometry",
             ],
+            related={
+                "pumps": {
+                    "via": "globalid",
+                    "on": "gemaalid",
+                    "coupled_to": {
+                        "management": {
+                            "via": "globalid",
+                            "on": "pompid",
+                            "coupled_to": None
+                        }
+                    }
+                }
+            }
         )
         self.pumps = ExtendedDataFrame(
             required_columns=["code", "globalid", "gemaalid", "maximalecapaciteit"]
@@ -206,29 +276,61 @@ class HyDAMO:
 
         # Hydraulische randvoorwaarden
         self.boundary_conditions = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["code", "typerandvoorwaarde", "geometry"]
+            geotype=Point,
+            required_columns=["code", "typerandvoorwaarde", "geometry"],
+            related=None
         )
 
         # RR catchments
         self.catchments = ExtendedGeoDataFrame(
-            geotype=Polygon,
+            geotype=Union[Polygon, MultiPolygon],
             required_columns=["code", "geometry", "globalid", "lateraleknoopid"],
+            related={
+                "laterals": {
+                    "via": "lateraleknoopid",
+                    "on": "globalid",
+                    "coupled_to": None
+                }
+            }
         )
 
         # Laterals
         self.laterals = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["code", "geometry", "globalid"]
+            geotype=Point,
+            required_columns=["code", "geometry", "globalid"],
+            related={
+                "catchments": {
+                    "via": "globalid",
+                    "on": "lateraleknoopid",
+                    "coupled_to": None
+                }
+            }
         )
 
         # RR overflows
         self.overflows = ExtendedGeoDataFrame(
             geotype=Point,
             required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
+            related={
+                "sewer_areas": {
+                    "via": "codegerelateerdobject",
+                    "on": "code",
+                    "coupled_to": None
+                }
+            }
         )
 
         # RR sewer areas
         self.sewer_areas = ExtendedGeoDataFrame(
-            geotype=Polygon, required_columns=["code", "geometry"]
+            geotype=Polygon,
+            required_columns=["code", "geometry"],
+            related={
+                "overflows": {
+                    "via": "code",
+                    "on": "codegerelateerdobject",
+                    "coupled_to": None
+                }
+            }
         )
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -260,6 +362,37 @@ class HyDAMO:
 
         return pd.DataFrame.from_dict(dictionary, orient="index")
 
+    def snap_to_branch_and_drop(self, extendedgdf, branches, snap_method: str, maxdist=5, drop_related=True):
+        """Snap the geometries to the branch and drop loose objects"""
+
+        # Snap the extended geodataframe to branches
+        extendedgdf.snap_to_branch(branches, snap_method, maxdist=maxdist)
+
+        # Determine which labels need to be drop for the first object based on
+        # nan values for branch_offset.
+        drop_idx = extendedgdf[pd.isnull(extendedgdf.branch_offset)].index.values
+        drop_list = [(extendedgdf, drop_idx)]
+        print(f"dropping objects with indices: {drop_idx}")
+
+        # Find out which labels need to be dropped from related objects
+        if drop_related and extendedgdf.related is not None:
+            for target_str, relation in extendedgdf.related.items():
+                self._recursive_drop_related(drop_list, extendedgdf, drop_idx, target_str, **relation)
+
+        # Drop the relevant rows with the list of labels
+        for source, drop_idx in drop_list:
+            source.drop(labels=drop_idx, inplace=True)
+
+    def _recursive_drop_related(self, drop_list, source, drop_idx, target_str, via, on, coupled_to):
+        target = getattr(self, target_str)
+        drop_related = source.loc[drop_idx, via].values
+        drop_idx = target[target[on].isin(drop_related)].index.values
+        drop_list.append((target, drop_idx))
+        print(f"  - dropping objects from '{target_str}' with indices: {drop_idx}")
+
+        if coupled_to is not None:
+            for next_target_str, next_relation in coupled_to.items():
+                return self._recursive_drop_related(drop_list, target, drop_idx, next_target_str, **next_relation)
 
 class Network:
     def __init__(self, hydamo: HyDAMO) -> None:
@@ -705,7 +838,7 @@ class Network:
             + 1
         )
         pt_branch_id = self.mesh1d.get_values("branchidx", as_array=True)
-        idx = np.where(pt_branch_id == branchidx)
+        idx = np.nonzero(pt_branch_id == branchidx)
 
         # Find nearest offset
         offsets = self.mesh1d.get_values("branchoffset", as_array=True)[idx]
@@ -1060,15 +1193,15 @@ class CrossSections:
             # the GUI cannot cope with identical y-coordinates. Add 1 cm to a 2nd duplicate.
             yz[:, 0] = np.round(yz[:, 0], 3)
             for i in range(1, yz.shape[0]):
-                if yz[i, 0] == yz[i - 1, 0]:
-                    yz[i, 0] += 0.01
+                if yz[i, 0] <= yz[i - 1, 0]:
+                    yz[i, 0] = yz[i-1,0] + 0.01
 
             # determine thalweg
             if branches is not None:
                 branche_geom = branches[branches.code == css.branch_id].geometry.values
 
                 if css.geometry.intersection(branche_geom[0]).geom_type == "MultiPoint":
-                    thalweg_xyz = css.geometry.intersection(branche_geom[0])[0].coords[
+                    thalweg_xyz = css.geometry.intersection(branche_geom[0]).geoms[0].coords[
                         :
                     ][0]
                 else:
@@ -1169,14 +1302,8 @@ class CrossSections:
                 )
 
             # Determine characteristics
-            botlev = (
-                values[
-                    values.soortparameter == "bodemhoogte benedenstrooms"
-                ].waarde.values[0]
-                + values[
-                    values.soortparameter == "bodemhoogte benedenstrooms"
-                ].waarde.values[0]
-            ) / 2.0
+            botlev_upper = values[ values.soortparameter == "bodemhoogte bovenstrooms" ].waarde.values[0]
+            botlev_lower = values[ values.soortparameter == "bodemhoogte benedenstrooms" ].waarde.values[0]            
 
             if pd.isnull(
                 values[values.soortparameter == "taludhelling linkerzijde"].waarde
@@ -1188,13 +1315,13 @@ class CrossSections:
                     values[
                         values.soortparameter == "hoogte insteek linkerzijde"
                     ].waarde.values[0]
-                    - botlev
+                    - (botlev_upper + botlev_lower)/2.
                 )
                 dh2 = (
                     values[
                         values.soortparameter == "hoogte insteek rechterzijde"
                     ].waarde.values[0]
-                    - botlev
+                    - (botlev_upper + botlev_lower)/2.
                 )
                 height = (dh1 + dh2) / 2.0
                 # Determine maximum flow width and slope (both needed for output)
@@ -1242,7 +1369,8 @@ class CrossSections:
                     "thalweg": 0.0,
                     "typeruwheid": values.typeruwheid.values[0],
                     "ruwheid": roughness,
-                    "bottomlevel": botlev,
+                    "bottomlevel_upper": botlev_upper,
+                    "bottomlevel_lower": botlev_lower,
                 }
             elif css_type == "rectangle":
                 cssdct[branch[0].Index] = {
@@ -1258,7 +1386,8 @@ class CrossSections:
                     "thalweg": 0.0,
                     "typeruwheid": values.typeruwheid.values[0],
                     "ruwheid": roughness,
-                    "bottomlevel": botlev,
+                    "bottomlevel_upper": botlev_upper,
+                    "bottomlevel_lower": botlev_lower,
                 }
 
         return cssdct
@@ -1427,14 +1556,14 @@ class ExternalForcings:
             ]
         )
         get_nearest = KDTree(nodes1d[:, 0:2])
-        distance, idx_nearest = get_nearest.query(pt)
+        _, idx_nearest = get_nearest.query(pt.coords[:])
         nodeid = f"{float(nodes1d[idx_nearest,0]):12.6f}_{float(nodes1d[idx_nearest,1]):12.6f}"
 
         # Convert time to minutes
         if isinstance(series, pd.Series):
             times = ((series.index - series.index[0]).total_seconds() / 60.0).tolist()
             values = series.values.tolist()
-            startdate = pd.datetime.strftime(series.index[0], "%Y-%m-%d %H:%M:%S")
+            startdate = series.index[0].strftime("%Y-%m-%d %H:%M:%S")
         else:
             times = None
             values = series
@@ -1506,7 +1635,7 @@ class ExternalForcings:
                 (discharge.index - discharge.index[0]).total_seconds() / 60.0
             ).tolist()
             values = discharge.values.tolist()
-            startdate = pd.datetime.strftime(discharge.index[0], "%Y-%m-%d %H:%M:%S")
+            startdate = discharge.index[0].strftime("%Y-%m-%d %H:%M:%S")
         else:
             times = None
             values = None
@@ -1565,7 +1694,7 @@ class Structures:
     def add_rweir(
         self,
         id: str = None,
-        name: str = None,
+        name: Union[str, float, None] = None,
         branchid: str = None,
         chainage: float = None,
         crestlevel: float = None,
@@ -1600,7 +1729,7 @@ class Structures:
     def add_orifice(
         self,
         id: str = None,
-        name: str = None,
+        name:  Union[str, float, None] = None,
         branchid: str = None,
         chainage: float = None,
         crestlevel: float = None,
@@ -1609,10 +1738,10 @@ class Structures:
         usevelocityheight: str = "true",
         allowedflowdir: str = "both",
         gateloweredgelevel: float = None,
-        uselimitflowpos: bool = None,
-        limitflowpos: str = None,
-        uselimitflowneg: bool = None,
-        limitflowneg: str = None,
+        uselimitflowpos: str = None,
+        limitflowpos: float = None,
+        uselimitflowneg: str = None,
+        limitflowneg: float = None,
     ) -> None:
         """
         Function to add a orifice. Arguments correspond to the required input of DFlowFM.
@@ -1645,7 +1774,7 @@ class Structures:
     def add_uweir(
         self,
         id: str = None,
-        name: str = None,
+        name:  Union[str, float, None] = None,
         branchid: str = None,
         chainage: float = None,
         crestlevel: float = None,
@@ -1686,7 +1815,7 @@ class Structures:
     def add_bridge(
         self,
         id: str = None,
-        name: str = None,
+        name:  Union[str, float, None] = None,
         branchid: str = None,
         chainage: float = None,
         length: float = None,
@@ -1727,7 +1856,7 @@ class Structures:
     def add_culvert(
         self,
         id: str = None,
-        name: str = None,
+        name:  Union[str, float, None] = None,
         branchid: str = None,
         chainage: float = None,
         leftlevel: float = None,
@@ -1798,7 +1927,7 @@ class Structures:
     def add_pump(
         self,
         id: str = None,
-        name: str = None,
+        name:  Union[str, float, None] = None,
         branchid: str = None,
         chainage: float = None,
         orientation: str = "positive",
@@ -1833,7 +1962,7 @@ class Structures:
         self.pumps_df = pd.concat([self.pumps_df, dct], ignore_index=True)
 
     @validate_arguments
-    def add_compound(self, id: str = None, structureids: list = None) -> None:
+    def add_compound(self, id:  Union[str, float, None] = None, structureids: list = None) -> None:
         structurestring = ";".join([f"{s}" for s in structureids])
         numstructures = len(structureids)
         dct = pd.DataFrame(
@@ -1970,7 +2099,7 @@ class ObservationPoints:
             columns={"branch_id": "branchid", "branch_offset": "chainage"}, inplace=True
         )
 
-        obs = obs1d.append(obs2d, sort=True) if locationTypes is not None else obs1d
+        obs = pd.concat([obs1d, obs2d], sort=True) if locationTypes is not None else obs1d
 
         obs.dropna(how="all", axis=1, inplace=True)
 
@@ -1978,9 +2107,7 @@ class ObservationPoints:
         if self.observation_points.empty:
             self.observation_points = obs
         else:
-            self.observation_points = self.observation_points.append(
-                obs, ignore_index=True
-            )
+            self.observation_points = pd.concat([self.observation_points, obs], ignore_index=True)
 
 
 class StorageNodes:

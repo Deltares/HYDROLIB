@@ -6,10 +6,11 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
-from pydantic import validate_arguments
+from pydantic.v1 import validate_arguments, StrictFloat, StrictInt, StrictStr
 from rasterstats import zonal_stats
+from rasterio.transform import from_origin
 from tqdm.auto import tqdm
-
+from hydrolib.dhydamo.io import idfreader
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
@@ -23,12 +24,12 @@ class UnpavedIO:
     def unpaved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: Union[str, Path],
-        surface_level: Union[str, Path],
-        soiltype: Union[str, Path],
-        surface_storage,  #:Union[Stricttr, float, int],
-        infiltration_capacity,  #:Union[str, float, int],
-        initial_gwd,  #:Union[str, float, int],
+        landuse: Union[StrictStr, Path],
+        surface_level: Union[StrictStr, Path],
+        soiltype: Union[StrictStr, Path],
+        surface_storage: Union[StrictStr, Path, float],
+        infiltration_capacity: Union[StrictStr, Path, float],
+        initial_gwd: Union[StrictStr, Path, float],
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,
     ):
@@ -142,7 +143,7 @@ class UnpavedIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning("No rasterdata available for catchment %s" % cat.code)
+                logger.warning(f"No rasterdata available for catchment {cat.code}.")
                 continue
             tm = [
                 m
@@ -202,8 +203,8 @@ class UnpavedIO:
         catchments: ExtendedGeoDataFrame,
         depths: list,
         resistance: list,
-        infiltration_resistance: Union[int, float] = None,
-        runoff_resistance: Union[int, float] = None,
+        infiltration_resistance: float = None,
+        runoff_resistance: float = None,
     ) -> None:
         """Generate an Ernst definition for an unpaved node.
 
@@ -218,11 +219,7 @@ class UnpavedIO:
             infiltration_resistance = 300.0
         if runoff_resistance is None:
             runoff_resistance = 1.0
-        if isinstance(infiltration_resistance, int):
-            infiltration_resistance = float(infiltration_resistance)
-        if isinstance(runoff_resistance, int):
-            runoff_resistance = float(runoff_resistance)
-
+        
         ernst_drr = ExtendedDataFrame(required_columns=["id"])
         ernst_drr.set_data(
             pd.DataFrame(
@@ -237,8 +234,8 @@ class UnpavedIO:
             ernst_drr.at[cat.code, "id"] = str(cat.code)
             ernst_drr.at[cat.code, "cvo"] = " ".join([str(res) for res in resistance])
             ernst_drr.at[cat.code, "lv"] = " ".join([str(depth) for depth in depths])
-            ernst_drr.at[cat.code, "cvi"] = str(infiltration_resistance)
-            ernst_drr.at[cat.code, "cvs"] = str(runoff_resistance)
+            ernst_drr.at[cat.code, "cvi"] = f'{infiltration_resistance:.2f}'
+            ernst_drr.at[cat.code, "cvs"] = f'{runoff_resistance:.2f}'
 
         [self.unpaved.add_ernst_def(**ernst) for ernst in ernst_drr.to_dict("records")]
 
@@ -251,11 +248,11 @@ class PavedIO:
     def paved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: Union[Path, str],
-        surface_level: Union[Path, str],
-        street_storage,  #:Union[str, float, int],
-        sewer_storage,  #:Union[str, float, int],
-        pump_capacity,  #:Union[str, float, int],
+        landuse: Union[StrictStr, Path],
+        surface_level: Union[StrictStr, Path],
+        street_storage:Union[StrictStr, Path, float],
+        sewer_storage:Union[StrictStr, Path,  float],
+        pump_capacity:Union[StrictStr, Path, float],
         meteo_areas: ExtendedGeoDataFrame,
         overflows: ExtendedGeoDataFrame = None,
         sewer_areas: ExtendedGeoDataFrame = None,
@@ -297,7 +294,7 @@ class PavedIO:
             all_touched=all_touched,
         )
 
-        if isinstance(street_storage, str):
+        if isinstance(street_storage, (Path, str)):
             strs_rast, strs_affine = self.paved.drrmodel.read_raster(
                 street_storage, static=True
             )
@@ -308,9 +305,8 @@ class PavedIO:
                 stats="mean",
                 all_touched=True,
             )
-        elif isinstance(street_storage, int):
-            street_storage = float(street_storage)
-        if isinstance(sewer_storage, str):
+        
+        if isinstance(sewer_storage, (Path, str)):
             sews_rast, sews_affine = self.paved.drrmodel.read_raster(
                 sewer_storage, static=True
             )
@@ -321,9 +317,9 @@ class PavedIO:
                 stats="mean",
                 all_touched=True,
             )
-        elif isinstance(sewer_storage, int):
-            sewer_storage = float(sewer_storage)
-        if isinstance(pump_capacity, str):
+        
+        if isinstance(pump_capacity,  (Path, str)):
+            # raster of POC in mm/h
             pump_rast, pump_affine = self.paved.drrmodel.read_raster(
                 pump_capacity, static=True
             )
@@ -334,9 +330,7 @@ class PavedIO:
                 stats="mean",
                 all_touched=True,
             )
-        elif isinstance(pump_capacity, int):
-            pump_capacity = float(pump_capacity)
-
+        
         def update_dict(dict1, dict2):
             for i in dict2.keys():
                 if i in dict1:
@@ -349,8 +343,8 @@ class PavedIO:
         px_area = lu_affine[0] * -lu_affine[4]
         paved_drr = ExtendedDataFrame(required_columns=["id"])
         if sewer_areas is not None:
-            # if the parameters area rasters, do the zonal statistics per sewage area as well.
-            if isinstance(street_storage, str):
+            # if the parameters ara rasters, do the zonal statistics per sewage area as well.
+            if isinstance(street_storage,(Path, str)):
                 str_stors_sa = zonal_stats(
                     sewer_areas,
                     strs_rast,
@@ -358,7 +352,7 @@ class PavedIO:
                     stats="mean",
                     all_touched=True,
                 )
-            if isinstance(sewer_storage, str):
+            if isinstance(sewer_storage, (Path, str)):
                 sew_stors_sa = zonal_stats(
                     sewer_areas,
                     sews_rast,
@@ -366,7 +360,7 @@ class PavedIO:
                     stats="mean",
                     all_touched=True,
                 )
-            if isinstance(pump_capacity, str):
+            if isinstance(pump_capacity, (Path, str)):
                 pump_caps_sa = zonal_stats(
                     sewer_areas,
                     pump_rast,
@@ -398,7 +392,8 @@ class PavedIO:
                 ),
                 index_col="id",
             )
-            paved_drr.index = catchments.code.append(overflows.code)
+            paved_drr.index = pd.concat([catchments.code, overflows.code], ignore_index=True)
+
 
             # find the paved area in the sewer areas
             for isew, sew in enumerate(sewer_areas.itertuples()):
@@ -411,7 +406,7 @@ class PavedIO:
                     all_touched=all_touched,
                 )[0]
                 if 14.0 not in pixels:
-                    logger.warning("%s/%s: no paved area in sewer area!" % (sew.code))
+                    logger.warning(f"No paved area in sewer area {sew.code}.")
                     continue
                 pav_pixels = pixels[14.0]
                 pav_area += pav_pixels * px_area
@@ -436,27 +431,48 @@ class PavedIO:
                     paved_drr.at[ov.code, "id"] = str(ov.code)
                     paved_drr.at[ov.code, "area"] = str(pav_area * ov.fractie)
                     paved_drr.at[ov.code, "surface_level"] = f"{elev:.2f}"
+                    
                     # if a float is given, a standard value is passed. If a string is given, a rastername is assumed to zonal statistics are applied.
-                    if isinstance(street_storage, float):
+                    if isinstance(street_storage,  float):
                         paved_drr.at[
                             ov.code, "street_storage"
                         ] = f"{street_storage:.2f}"
-                    else:
+                    elif isinstance(street_storage, (Path, str)):
                         paved_drr.at[
                             ov.code, "street_storage"
                         ] = f'{str_stors_sa[isew]["mean"]:.2f}'
-                    if isinstance(sewer_storage, float):
-                        paved_drr.at[ov.code, "sewer_storage"] = f"{sewer_storage:.2f}"
                     else:
-                        paved_drr.at[
+                        raise ValueError('Street_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int).')
+                    
+                    # three options: it can be an attribute of a sewer area, a uniform value or a raster
+                    if sew.riool_berging_mm is None or np.isnan(sew.riool_berging_mm) or not isinstance(sew.riool_berging_mm, float):  
+                        if isinstance(sewer_storage, float):
+                            paved_drr.at[ov.code, "sewer_storage"] = f"{sewer_storage:.2f}"   
+                        elif isinstance(sewer_storage, (Path, str)):
+                            paved_drr.at[
                             ov.code, "sewer_storage"
-                        ] = f'{sew_stors_sa[isew]["mean"]:.2f}'
-                    if isinstance(pump_capacity, float):
-                        paved_drr.at[ov.code, "pump_capacity"] = f"{pump_capacity}"
-                    else:
-                        paved_drr.at[
+                            ] = f'{sew_stors_sa[isew]["mean"]:.2f}'
+                        else:
+                            raise ValueError('Sewer_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int).')                            
+                    else:                                     
+                        paved_drr.at[ov.code, "sewer_storage"] = f'{sew.riool_berging_mm:.2f}'
+                    
+                    # three options: it can be an attribute of a sewer area, a uniform value or a raster
+                    if sew.riool_poc_m3s is None or np.isnan(sew.riool_poc_m3s) or not isinstance(sew.riool_poc_m3s, float):                    
+                         if isinstance(pump_capacity, float):
+                            # convert the value from mm/h to m3/s
+                            paved_drr.at[ov.code, "pump_capacity"] = f"{pump_capacity * (float(pav_area) * ov.fractie) / (1000. * 3600.):.8f}"   
+                         elif isinstance(pump_capacity, (Path, str)):
+                            # convert the value (extracted from the raster) from mm/h to m3/s
+                            paved_drr.at[
                             ov.code, "pump_capacity"
-                        ] = f'{pump_caps_sa[isew]["mean"]:.2f}'
+                            ] = f'{pump_caps_sa[isew]["mean"] * (float(pav_area) * ov.fractie) / (1000. * 3600.):.8f}'
+                         else:
+                            raise ValueError('Pump_capacity has the wrong datatype. It should be a filename (Path or string) or number (float or int).')        
+                    else:
+                        # use the attribute value
+                        paved_drr.at[ov.code, "pump_capacity"] = f'{sew.riool_poc_m3s * ov.fractie:.8f}'
+                                              
                     paved_drr.at[ov.code, "meteo_area"] = str(ms)
                     paved_drr.at[ov.code, "px"] = f"{ov.geometry.coords[0][0]+10:.0f}"
                     paved_drr.at[ov.code, "py"] = f"{ov.geometry.coords[0][1]:.0f}"
@@ -487,17 +503,16 @@ class PavedIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning("No rasterdata available for catchment %s" % cat.code)
+                logger.warning(f"No rasterdata available for catchment {cat.code}.")
                 continue
             if sewer_areas is not None:
                 if cat.geometry.intersects(sewer_areas.unary_union):
                     area_outside_sewer = cat.geometry.difference(
                         sewer_areas.unary_union
                     )
-                    if area_outside_sewer.area == 0.0:
+                    if area_outside_sewer.area == 0:
                         logger.info(
-                            "No paved area outside sewer area in catchments %s"
-                            % cat.code
+                            f"No paved area outside sewer area in catchments {cat.code}."
                         )
                         pav_area = 0.0
                     else:
@@ -557,11 +572,12 @@ class PavedIO:
                     cat.code, "sewer_storage"
                 ] = f'{sew_stors[num]["mean"]:.2f}'
             if isinstance(pump_capacity, float):
-                paved_drr.at[cat.code, "pump_capacity"] = f"{pump_capacity}"
+                paved_drr.at[cat.code, "pump_capacity"] = f'{(pump_capacity * float(pav_area)) / (1000. * 3600.):.8f}'
             else:
                 paved_drr.at[
                     cat.code, "pump_capacity"
-                ] = f'{pump_caps[num]["mean"]:.2f}'
+                ] = f'{pump_caps[num]["mean"] * (float(pav_area)) / (1000. * 3600.):.8f}'
+            
             paved_drr.at[cat.code, "meteo_area"] = str(ms)
             paved_drr.at[
                 cat.code, "px"
@@ -581,7 +597,7 @@ class GreenhouseIO:
         catchments: ExtendedGeoDataFrame,
         landuse: Union[Path, str],
         surface_level: Union[Path, str],
-        roof_storage,  #:Union[str, float, int],
+        roof_storage: Union[StrictStr,float],
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,
     ) -> None:
@@ -610,16 +626,14 @@ class GreenhouseIO:
             catchments, rast, affine=affine, stats="median", all_touched=all_touched
         )
         # optional rasters
-        if isinstance(roof_storage, str):
+        if isinstance(roof_storage, (Path, str)):
             rast, affine = self.greenhouse.drrmodel.read_raster(
                 roof_storage, static=True
             )
             roofstors = zonal_stats(
                 catchments, rast, affine=affine, stats="mean", all_touched=True
             )
-        elif isinstance(roof_storage, int):
-            roof_storage = float(roof_storage)
-
+        
         # get raster cellsize
         px_area = lu_affine[0] * -lu_affine[4]
 
@@ -645,7 +659,7 @@ class GreenhouseIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning("No rasterdata available for catchment %s" % cat.code)
+                logger.warning(f"No rasterdata available for catchment {cat.code}.")
                 continue
 
             # find corresponding meteo-station
@@ -754,17 +768,28 @@ class ExternalForcingsIO:
             catchments (ExtendedGeoDataFrame): catchment areas
             seepage_folder (str): folder where the seepage rasters are stored
         """
-        warnings.filterwarnings("ignore")
+        warnings.filterwarnings("ignore")        
         file_list = os.listdir(seepage_folder)
-        file_list = [file for file in file_list if file.lower().endswith("_l1.idf")]
+        file_list = [file for file in file_list if file.lower()]        
         times = []
+        convert_units=False
         arr = np.zeros((len(file_list), len(catchments.code)))
         for ifile, file in tqdm(
             enumerate(file_list), total=len(file_list), desc="Reading seepage files"
         ):
-            array, affine, time = self.external_forcings.drrmodel.read_raster(
-                os.path.join(seepage_folder, file)
-            )
+            if file.endswith('.idf'):
+                dataset = idfreader.open(os.path.join(seepage_folder, file))                
+                array = dataset[0, 0, :, :].values
+                header = idfreader.header(os.path.join(seepage_folder, file), pattern=None)
+                affine = from_origin(
+                    header["xmin"], header["ymax"], header["dx"], header["dx"]
+                )
+                time = header['time']
+                convert_units=True
+            else:
+                array, affine, time = self.external_forcings.drrmodel.read_raster(
+                    os.path.join(seepage_folder, file)
+                )
             times.append(time)
             stats = zonal_stats(
                 catchments, array, affine=affine, stats="mean", all_touched=True
@@ -774,11 +799,13 @@ class ExternalForcingsIO:
             arr, columns=["sep_" + str(cat) for cat in catchments.code]
         )
         result.index = times
-        # convert units
-        result_mmd = (result / (1e-3 * (affine[0] * -affine[4]))) / (
-            (times[2] - times[1]).total_seconds() / 86400.0
-        )
-        [self.external_forcings.add_seepage(*sep) for sep in result_mmd.iteritems()]
+        if convert_units:
+            # if an NHI model (IDF files) is used, convert units from m3 to mm/d
+            result = (result / (1e-3 * (affine[0] * -affine[4]))) / (
+                    (times[2] - times[1]).total_seconds() / 86400.0
+            )
+        [self.external_forcings.add_seepage(*sep) for sep in result.items()]
+
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def precip_from_input(
@@ -816,7 +843,7 @@ class ExternalForcingsIO:
                 arr, columns=["ms_" + str(area) for area in areas.code]
             )
             result.index = times
-            [self.external_forcings.add_precip(*prec) for prec in result.iteritems()]
+            [self.external_forcings.add_precip(*prec) for prec in result.items()]
         else:
             self.external_forcings.precip = str(precip_file)
 
@@ -859,7 +886,7 @@ class ExternalForcingsIO:
                 arr, columns=["ms_" + str(area) for area in areas.code]
             )
             result.index = times
-            [self.external_forcings.add_evap(*evap) for evap in result.iteritems()]
+            [self.external_forcings.add_evap(*evap) for evap in result.items()]
         else:
             self.external_forcings.evap = str(evap_file)
 
@@ -931,7 +958,7 @@ class ExternalForcingsIO:
             index_col="id",
         )
         if overflows is not None:
-            bnd_drr.index = catchments.code.append(overflows.code)
+            bnd_drr.index = pd.concat([catchments.code, overflows.code], ignore_index=True)
         else:
             bnd_drr.index = catchments.code
         for num, cat in enumerate(catchments.itertuples()):
@@ -939,7 +966,7 @@ class ExternalForcingsIO:
             if boundary_nodes[boundary_nodes["code"] == cat.lateraleknoopcode].empty:
                 # raise IndexError(f'{cat.code} not connected to a boundary node. Skipping.')
                 logger.warning(
-                    "%s not connected to a boundary node. Skipping." % cat.code
+                    f"{cat.code} not connected to a boundary node. Skipping."
                 )
                 continue
             bnd_drr.at[cat.code, "id"] = str(cat.lateraleknoopcode)

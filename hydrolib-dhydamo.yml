@@ -1,0 +1,25 @@
+name: hydrolib-dhydamo
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - pandas=1.5
+  - pydantic=1.10
+  - pip
+  - scipy
+  - jupyter
+  - xarray
+  - contextily
+  - rasterstats
+  - tqdm
+  - geopandas
+  - black
+  - pytest
+  - typing-extensions
+  - netcdf4
+  - lxml
+  - dask
+  -matplotlib
+  - pip:
+      - meshkernel==3.0.0

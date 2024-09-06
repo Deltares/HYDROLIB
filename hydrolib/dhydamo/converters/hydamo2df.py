@@ -3,14 +3,14 @@ from enum import Enum
 from typing import Union
 import numpy as np
 import pandas as pd
-from pydantic import validate_arguments
+from pydantic.v1 import validate_arguments
+from typing import Union, Optional
 from shapely.geometry import Point
 
 from hydrolib.dhydamo.geometry.mesh import Network
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
-
 
 class RoughnessVariant(Enum):
     HIGH = "High"
@@ -99,14 +99,14 @@ class CrossSectionsIO:
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def profiles(
         self,
-        crosssections: ExtendedGeoDataFrame = None,
-        crosssection_roughness: ExtendedDataFrame = None,
-        profile_groups: ExtendedDataFrame = None,
-        profile_lines: ExtendedGeoDataFrame = None,
-        param_profile: ExtendedDataFrame = None,
-        param_profile_values: ExtendedDataFrame = None,
-        branches: Union[ExtendedGeoDataFrame, None] = None,
-        roughness_variant: RoughnessVariant = None,
+        branches: ExtendedGeoDataFrame, # = None,
+        roughness_variant: RoughnessVariant,# =None,
+        crosssections: Optional[ExtendedGeoDataFrame] = None,
+        crosssection_roughness: Optional[ExtendedDataFrame] = None,
+        profile_groups: Optional[ExtendedDataFrame] = None,
+        profile_lines: Optional[ExtendedGeoDataFrame] = None,
+        param_profile: Optional[ExtendedDataFrame] = None,
+        param_profile_values: Optional[ExtendedDataFrame] = None,        
     ) -> None:
         """
         Method to add cross section from hydamo files. Two files
@@ -114,7 +114,7 @@ class CrossSectionsIO:
         parametrised file (normgeparametriseerd). The
         hierarchical order is 1. dwarsprofiel, 2. normgeparametriseerd.
         Each branch will be assigned a profile following this order. If parametrised
-        and standard are not given, branches can be without cross section. In that case
+        and standard are not given, branches can be wit hout cross section. In that case
         a standard profile should be assigned
         """
         dp_branches = None
@@ -124,13 +124,13 @@ class CrossSectionsIO:
             groupidx = [
                 idx
                 for idx, group in profile_groups.iterrows()
-                if ("brugid" in profile_groups.columns) & (group.brugid is not None)
+                if ("brugid" in profile_groups.columns) & (not pd.isnull(group.brugid))
             ]
 
             groupidx = groupidx + [
                 idx
                 for idx, group in profile_groups.iterrows()
-                if ("stuwid" in profile_groups.columns) & (group.stuwid is not None)
+                if ("stuwid" in profile_groups.columns) & (not pd.isnull(group.stuwid))
             ]
 
             # index of the lines that are associated to these groups
@@ -213,14 +213,17 @@ class CrossSectionsIO:
             branchdata = self.crosssections.hydamo.branches.loc[
                 list(param_profiles_converted.keys())
             ]
-            branchdata["chainage"] = branchdata.length / 2.0
+            branchdata["chainage_upper"] = 0.05 * branchdata.length
+            branchdata["chainage_lower"] = 0.95 * branchdata.length
+
 
             # Add cross sections
             for branchid, css in param_profiles_converted.items():
-                chainage = branchdata.at[branchid, "chainage"]
+                chainage_upper = branchdata.at[branchid, "chainage_upper"]
+                chainage_lower = branchdata.at[branchid, "chainage_lower"]
 
                 if css["type"] == "rectangle":
-                    name = self.add_rectangle_definition(
+                    name = self.crosssections.add_rectangle_definition(
                         height=css["height"],
                         width=css["width"],
                         closed=css["closed"],
@@ -229,7 +232,7 @@ class CrossSectionsIO:
                     )
 
                 if css["type"] == "trapezium":
-                    name = self.add_trapezium_definition(
+                    name = self.crosssections.add_trapezium_definition(
                         slope=css["slope"],
                         maximumflowwidth=css["maximumflowwidth"],
                         bottomwidth=css["bottomwidth"],
@@ -241,9 +244,16 @@ class CrossSectionsIO:
                 # Add location
                 self.crosssections.add_crosssection_location(
                     branchid=branchid,
-                    chainage=chainage,
+                    chainage=chainage_upper,
                     definition=name,
-                    shift=css["bottomlevel"],
+                    shift=css["bottomlevel_upper"],
+                )
+
+                self.crosssections.add_crosssection_location(
+                    branchid=branchid,
+                    chainage=chainage_lower,
+                    definition=name,
+                    shift=css["bottomlevel_lower"],
                 )
 
         nnocross = len(self.crosssections.get_branches_without_crosssection())
@@ -324,9 +334,9 @@ class ExternalForcingsIO:
     def laterals(
         self,
         locations: ExtendedGeoDataFrame,
-        overflows: ExtendedGeoDataFrame = None,
-        lateral_discharges=None,
-        rr_boundaries: dict = None,
+        overflows: Optional[ExtendedGeoDataFrame] = None,
+        lateral_discharges: Optional[Union[pd.DataFrame, pd.Series]]=None,
+        rr_boundaries: Optional[dict] = None,
     ) -> None:
         """
         Process laterals
@@ -354,7 +364,8 @@ class ExternalForcingsIO:
 
         latdct = {}
         if overflows is not None:
-            locations = locations.append(overflows)
+            locations = pd.concat([locations, overflows], ignore_index=True)
+
 
         # Get time series and add to dictionary
         # for nidx, lateral in zip(nearest_idx, locations.itertuples()):
@@ -375,7 +386,7 @@ class ExternalForcingsIO:
                     )
                     continue
                 else:
-                    if type(lateral_discharges) == pd.Series:
+                    if isinstance(lateral_discharges, pd.Series):
                         series = lateral_discharges.loc[lateral.code]
 
                         # Add to dictionary
@@ -520,12 +531,12 @@ class StructuresIO:
     def weirs(
         self,
         weirs: ExtendedGeoDataFrame = None,
-        profile_groups: ExtendedDataFrame = None,
-        profile_lines: ExtendedGeoDataFrame = None,
-        profiles: ExtendedGeoDataFrame = None,
+        profile_groups: Optional[ExtendedDataFrame] = None,
+        profile_lines: Optional[ExtendedGeoDataFrame] = None,
+        profiles: Optional[ExtendedGeoDataFrame] = None,
         opening: ExtendedDataFrame = None,
         management_device: ExtendedDataFrame = None,
-        usevelocityheight: str = "true",
+        usevelocityheight: Optional[str] = "true",
     ) -> None:
         """
         Method to convert HyDAMO weirs to DFlowFM structures: regular weirs, orifices and universal weirs.
@@ -536,7 +547,7 @@ class StructuresIO:
         """
 
         index = np.zeros((len(weirs.code)))
-        if (profile_groups is not None) & ("stuwid" in profile_groups):
+        if (profile_groups is not None)&("stuwid" in profile_groups):
             index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
 
         rweirs = weirs[index == 0]
@@ -573,28 +584,36 @@ class StructuresIO:
                 weir_mandev.overlaatonderlaat.to_string(index=False).lower()
                 == "onderlaat"
             ):
-                if "maximaaldebiet" not in weir_mandev:
+                if "maximaaldebiet" not in weir_mandev or pd.isnull(weir_mandev.maximaaldebiet.values[0]):
                     limitflow = "false"
                     maxq = 0.0
                 else:
                     limitflow = "true"
+                    maxq = float(weir_mandev.maximaaldebiet.values[0])
                 self.structures.add_orifice(
                     id=weir.code,
                     name=name,
                     branchid=weir.branch_id,
                     chainage=weir.branch_offset,
-                    crestlevel=weir_opening.laagstedoorstroomhoogte.values[0],
-                    crestwidth=weir_opening.laagstedoorstroombreedte.values[0],
+                    crestlevel=float(weir_opening.laagstedoorstroomhoogte.values[0]),
+                    crestwidth=float(weir_opening.laagstedoorstroombreedte.values[0]),
                     corrcoeff=weir.afvoercoefficient,
                     allowedflowdir="both",
                     usevelocityheight=usevelocityheight,
-                    gateloweredgelevel=weir_opening.laagstedoorstroomhoogte.values[0]
-                    + weir_mandev.hoogteopening.values[0],
+                    gateloweredgelevel=float(weir_opening.laagstedoorstroomhoogte.values[0])
+                    + float(weir_mandev.hoogteopening.values[0]),
                     uselimitflowpos=limitflow,
                     limitflowpos=maxq,
                     uselimitflowneg=limitflow,
                     limitflowneg=maxq,
                 )
+            else:
+                if weir_opening.empty:
+                    print(f'Skipping {weir.code} because there is no associated opening.')
+                elif weir_mandev.empty:
+                    print(f'Skipping {weir.code} because there is no associated management device.')
+                else:
+                    print(f'Skipping {weir.code} - conversion failed. Wrong type for soortregelmiddel? It is now {weir_mandev.overlaatonderlaat.to_string(index=False).lower()}.')
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
@@ -620,6 +639,14 @@ class StructuresIO:
                     ]
                     yzvalues = np.c_[length, xyz[:, -1] - np.min(xyz[:, -1])]
 
+            if not hasattr(uweir, 'laagstedoorstroomhoogte') or pd.isnull(uweir.laagstedoorstroomhoogte):
+                kruinhoogte = np.min(xyz[:,-1])
+            else:
+                kruinhoogte = uweir.laagstedoorstroomhoogte
+
+            
+                
+
             if len(prof) == 0:
                 # return an error it is still not found
                 raise ValueError(f"{uweir.code} is not found in any cross-section.")
@@ -628,11 +655,9 @@ class StructuresIO:
                 name=name,
                 branchid=uweir.branch_id,
                 chainage=uweir.branch_offset,
-                crestlevel=uweir.laagstedoorstroomhoogte,
-                crestwidth=uweir.kruinbreedte,
+                crestlevel=kruinhoogte,                
                 dischargecoeff=uweir.afvoercoefficient,
-                allowedflowdir="both",
-                usevelocityheight=usevelocityheight,
+                allowedflowdir="both",                
                 numlevels=counts,
                 yvalues=" ".join([f"{yz[0]:7.3f}" for yz in yzvalues]),
                 zvalues=" ".join([f"{yz[1]:7.3f}" for yz in yzvalues]),
@@ -756,7 +781,7 @@ class StructuresIO:
     def culverts(
         self,
         culverts: ExtendedGeoDataFrame,
-        management_device: ExtendedDataFrame = None,
+        management_device: Optional[ExtendedDataFrame] = None,
     ) -> None:
         """
         Method to convert HyDAMO culverts to DFlowFM culverts. Devices like a valve and a slide can be schematized from the management_device object.
@@ -764,16 +789,20 @@ class StructuresIO:
 
         Parameters corrspond to the HyDAMO DAMO2.2 objects.
         """
+        if management_device is not None:
+            if 'soortafsluitmiddel' not in management_device.columns:
+               management_device['soortafsluitmiddel'] = management_device['soortregelmiddel']
+
         for culvert in culverts.itertuples():
             # Generate cross section definition name
-            if culvert.vormkoker == "Rond" or culvert.vormkoker == "Ellipsvormig":
+            if culvert.vormkoker.lower() == "rond" or culvert.vormkoker.lower() == "ellipsvormig":
                 crosssection = {"shape": "circle", "diameter": culvert.hoogteopening}
             elif (
-                culvert.vormkoker == "Rechthoekig"
-                or culvert.vormkoker == "Onbekend"
-                or culvert.vormkoker == "Eivormig"
-                or culvert.vormkoker == "Muilprofiel"
-                or culvert.vormkoker == "Heulprofiel"
+                culvert.vormkoker.lower() == "rechthoekig"
+                or culvert.vormkoker.lower() == "onbekend"
+                or culvert.vormkoker.lower() == "eivormig"
+                or culvert.vormkoker.lower() == "muilprofiel"
+                or culvert.vormkoker.lower() == "heulprofiel"
             ):
                 crosssection = {
                     "shape": "rectangle",
@@ -788,9 +817,15 @@ class StructuresIO:
                 )
 
             # check whether an afsluitmiddel is present and take action dependent on its settings
-            mandev = management_device[
-                management_device.duikersifonhevelid == culvert.globalid
-            ]
+            if management_device is not None:
+                mandev = management_device[
+                    management_device.duikersifonhevelid == culvert.globalid
+                ]
+                if 'soortafsluitmiddel' not in mandev:
+                    mandev.loc[mandev.index,'soortafsluitmiddel'] = mandev['soortregelmiddel']
+            else:
+                mandev = pd.DataFrame()
+
             if mandev.empty:
                 allowedflowdir = "both"
                 valveonoff = 0
@@ -800,9 +835,14 @@ class StructuresIO:
                 losscoeff = None
             else:
                 for _, i in mandev.iterrows():
-                    if i["soortregelmiddel"] == "terugslagklep":
+                    if i["soortafsluitmiddel"] == "terugslagklep":
                         allowedflowdir = "positive"
-                    elif i["soortregelmiddel"] == "schuif":
+                        valveonoff = 0
+                        numlosscoeff = None
+                        valveopeningheight = 0
+                        relopening = None
+                        losscoeff = None
+                    elif i["soortafsluitmiddel"] == "schuif":
                         allowedflowdir = "positive"
                         valveonoff = 1
                         valveopeningheight = float(i["hoogteopening"])
@@ -810,8 +850,8 @@ class StructuresIO:
                         relopening = [float(i["hoogteopening"]) / culvert.hoogteopening]
                         losscoeff = [float(i["afvoercoefficient"])]
                     else:
-                        print(
-                            f'Type of closing device for culvert {culvert.code} is not implemented; only "schuif" and "terugslagklep" are allowed.'
+                        raise NotImplementedError(
+                            f'Type of management device for culvert {culvert.code} is not implemented; only "schuif" and "terugslagklep" are allowed.'
                         )
 
             # check if a separate name field is present
@@ -915,8 +955,8 @@ class StructuresIO:
 
             # assert sum(sturingidx) == 1
 
-            branch_id = pumpstations.iloc[np.where(gemaalidx)[0][0]]["branch_id"]
-            branch_offset = pumpstations.iloc[np.where(gemaalidx)[0][0]][
+            branch_id = pumpstations.iloc[np.nonzero(gemaalidx)[0][0]]["branch_id"]
+            branch_offset = pumpstations.iloc[np.nonzero(gemaalidx)[0][0]][
                 "branch_offset"
             ]
             # Get the control by index
@@ -1035,15 +1075,15 @@ class StructuresIO:
                             offset = self.structures.pumps_df[
                                 self.structures.pumps_df.id == struc
                             ].chainage.values[0]
-                    elif not self.structures.rweirs_df.empty:
+                    if not self.structures.rweirs_df.empty:
                         if struc in list(self.structures.rweirs_df.id):
                             branch = self.structures.rweirs_df[
                                 self.structures.rweirs_df.id == struc
                             ].branchid.values[0]
                             offset = self.structures.rweirs_df[
                                 self.structures.rweirs_df.id == struc
-                            ].chainage.values[0]
-                    elif not self.structures.uweirs_df.empty:
+                            ].chainage.values[0]                        
+                    if not self.structures.uweirs_df.empty:
                         if struc in list(self.structures.uweirs_df.id):
                             branch = self.structures.uweirs_df[
                                 self.structures.uweirs_df.id == struc
@@ -1051,7 +1091,7 @@ class StructuresIO:
                             offset = self.structures.uweirs_df[
                                 self.structures.uweirs_df.id == struc
                             ].chainage.values[0]
-                    elif not self.structures.culverts_df.empty:
+                    if not self.structures.culverts_df.empty:
                         if struc in list(self.structures.culverts_df.id):
                             branch = self.structures.culverts_df[
                                 self.structures.culverts_df.id == struc
@@ -1059,24 +1099,22 @@ class StructuresIO:
                             offset = self.structures.culverts_df[
                                 self.structures.culverts_df.id == struc
                             ].chainage.values[0]
-                    elif not self.structures.bridges_df.empty:
+                    if not self.structures.bridges_df.empty:
                         if struc in list(self.structures.bridges_df.id):
                             branch = self.structures.bridges_df[
                                 self.structures.bridges_df.id == struc
                             ].branchid.values[0]
                             offset = self.structures.bridges_df[
-                                self.structures.pumpbridges_dfs_df.id == struc
+                                self.structures.bridges_df.id == struc
                             ].chainage.values[0]
-                    elif not self.structures.orifices_df.empty:
+                    if not self.structures.orifices_df.empty:
                         if struc in list(self.structures.orifices_df.id):
                             branch = self.structures.orifices_df[
                                 self.structures.orifices_df.id == struc
                             ].branchid.values[0]
                             offset = self.structures.orifices_df[
                                 self.structures.orifices_df.id == struc
-                            ].chainage.values[0]                    
-                    else:
-                        raise ValueError('ALl structure dataframes are empty. Convert individual structures first.')
+                            ].chainage.values[0]                                        
                 else:
                     # move a subsequent structure to the location of the first
                     if not self.structures.pumps_df.empty:
@@ -1093,7 +1131,7 @@ class StructuresIO:
                                 ].index,
                                 "chainage",
                             ] = offset
-                    elif not self.structures.rweirs_df.empty:
+                    if not self.structures.rweirs_df.empty:
                         if struc in list(self.structures.rweirs_df.id):
                             self.structures.rweirs_df.loc[
                                 self.structures.rweirs_df[
@@ -1107,7 +1145,7 @@ class StructuresIO:
                                 ].index,
                                 "chainage",
                             ] = offset
-                    elif not self.structures.uweirs_df.empty:
+                    if not self.structures.uweirs_df.empty:
                         if struc in list(self.structures.uweirs_df.id):
                             self.structures.uweirs_df.loc[
                                 self.structures.uweirs_df[
@@ -1121,7 +1159,7 @@ class StructuresIO:
                                 ].index,
                                 "chainage",
                             ] = offset
-                    elif not self.structures.culverts_df.empty:
+                    if not self.structures.culverts_df.empty:
                         if struc in list(self.structures.culverts_df.id):
                             self.structures.culverts_df.loc[
                                 self.structures.culverts_df[
@@ -1135,7 +1173,7 @@ class StructuresIO:
                                 ].index,
                                 "chainage",
                             ] = offset
-                    elif not self.structures.bridges_df.empty:
+                    if not self.structures.bridges_df.empty:
                         if struc in list(self.structures.bridges_df.id):
                             self.structures.bridges_df.loc[
                                 self.structures.bridges_df[
@@ -1149,7 +1187,7 @@ class StructuresIO:
                                 ].index,
                                 "chainage",
                             ] = offset
-                    elif not self.structures.orifices_df.empty:
+                    if not self.structures.orifices_df.empty:
                         if struc in list(self.structures.orifices_df.id):
                             self.structures.orifices_df.loc[
                                 self.structures.orifices_df[
