@@ -531,8 +531,8 @@ class StructuresIO:
     def weirs(
         self,
         weirs: ExtendedGeoDataFrame = None,
-        profile_groups: Optional[ExtendedDataFrame] = None,
-        profile_lines: Optional[ExtendedGeoDataFrame] = None,
+        profile_groups = None,
+        profile_lines = None,
         profiles: Optional[ExtendedGeoDataFrame] = None,
         opening: ExtendedDataFrame = None,
         management_device: ExtendedDataFrame = None,
