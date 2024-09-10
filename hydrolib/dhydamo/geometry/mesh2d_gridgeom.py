@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 
 class Mesh2D_GG:
 
-    def __init__(self):
+    def __init__(self, dll_path=None):
         self.fill_value_z = -999.0
         self.missing_z_value = None
-
+        self.dll_path = dll_path
         self.meshgeomdim = meshgeomdim(pointer(c_char()), 2, 0, 0, 0, 0, -1, -1, -1, -1, -1, 0)
         self.meshgeom = meshgeom(self.meshgeomdim)
 
@@ -124,7 +124,7 @@ class Mesh2D_GG:
 
         # Determine what the cells are
         logger.info('Finding cell faces within clipped nodes.')
-        self._find_cells(self.meshgeom)
+        self._find_cells(self.meshgeom, dll_path=self.dll_path)
 
         # Clean nodes, this function deletes nodes based on no longer existing cells
         face_nodes = self.meshgeom.get_values('face_nodes', as_array=True)
@@ -199,13 +199,13 @@ class Mesh2D_GG:
         return xnodes, ynodes, edge_nodes, face_nodes
 
     @staticmethod
-    def _find_cells(geometries, maxnumfacenodes=None):
+    def _find_cells(geometries, maxnumfacenodes=None, dll_path=None):
         """
         Determine what the cells are in a grid.
         """
 
         dimensions = geometries.meshgeomdim
-
+        os.add_dll_directory(dll_path)
         wrapperGridgeom = CDLL(os.path.join(os.path.dirname(__file__), '..', 'resources', 'lib', 'gridgeom', 'gridgeom.dll'))
         ierr = wrapperGridgeom.ggeo_deallocate()
         assert ierr == 0
@@ -392,7 +392,7 @@ class Mesh2D_GG:
 
     def geom_from_netcdf(self, file, only2d=False):
         gridio.from_netcdf_old(self.meshgeom, file, only2d=only2d)
-        self._find_cells(self.meshgeom)
+        self._find_cells(self.meshgeom, dll_path=self.dll_path)
 
     def faces_to_centroid(self):
         """
@@ -413,9 +413,10 @@ class Mesh2D_GG:
                                
 class Rectangular(Mesh2D_GG):
 
-    def __init__(self):
-        Mesh2D_GG.__init__(self)
+    def __init__(self, dll_path=None):
+        Mesh2D_GG.__init__(self,dll_path=dll_path)
         self.meshgeomdim.maxnumfacenodes = 4
+        self.dll_path=dll_path
         self.rotated = False
 
     def generate_grid(self, x0, y0, dx, dy, ncols, nrows, clipgeo=None, rotation=0):
@@ -476,7 +477,7 @@ class Rectangular(Mesh2D_GG):
         geometries.set_values('edge_nodes', np.ravel(edge_nodes).tolist())
 
         # Determine what the cells are
-        self._find_cells(geometries)
+        self._find_cells(geometries, dll_path=self.dll_path)
 
         # Clip
         if clipgeo is not None:
@@ -623,7 +624,7 @@ class Rectangular(Mesh2D_GG):
         gridio.from_netcdf_old(self.meshgeom, 'out_net.nc')
         
         # Find cells
-        self._find_cells(self.meshgeom)
+        self._find_cells(self.meshgeom, dll_path=self.dll_path)
     
         os.remove('out_net.nc')
         os.remove(temppath)

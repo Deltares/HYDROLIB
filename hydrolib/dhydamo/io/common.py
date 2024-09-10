@@ -499,7 +499,8 @@ class ExtendedDataFrame(pd.DataFrame):
         layer = gpd.read_file(gpkg_path, layer=layer_name, engine='pyogrio')
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
-        layer.drop("geometry", axis=1, inplace=True)
+        if 'geometry' in layer.columns:
+            layer.drop("geometry", axis=1, inplace=True)
 
         df = layer
         if column_mapping is not None:

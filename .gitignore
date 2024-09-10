@@ -14,7 +14,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -141,3 +140,4 @@ coverage-reports
 xunit-reports
 hydrolib/tests/model/*
 dimr_config.xml
+/hydrolib/notebooks/Hydrolib-D-Hydamo_usage_introduction.py
