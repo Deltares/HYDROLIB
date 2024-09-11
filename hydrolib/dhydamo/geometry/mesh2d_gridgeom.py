@@ -207,6 +207,7 @@ class Mesh2D_GG:
         dimensions = geometries.meshgeomdim
         os.add_dll_directory(dll_path)
         wrapperGridgeom = CDLL(os.path.join(os.path.dirname(__file__), '..', 'resources', 'lib', 'gridgeom', 'gridgeom.dll'))
+        # wrapperGridgeom = CDLL(os.path.join(dll_path, 'gridgeom.dll'))
         ierr = wrapperGridgeom.ggeo_deallocate()
         assert ierr == 0
 
@@ -599,13 +600,10 @@ class Rectangular(Mesh2D_GG):
 
         # Get dflow fm on system path
         if dflowfm_path is not None:
-            if not os.path.exists(os.path.join(dflowfm_path, 'dflowfm.exe')):
-                raise OSError('dflowfm.exe not found on given path')
-            dflowfm_path = os.path.join(dflowfm_path, 'dflowfm.exe')
-        else:
-            dflowfm_path = os.path.join(os.path.dirname(__file__), '..', 'resources', 'lib', 'dflowfm.exe')
-
-        # Construct statement
+            if not os.path.exists(dflowfm_path):
+                raise OSError('dflowfm not found on given path')        
+        
+        # Construct statement        
         statement = f'"{dflowfm_path}" --refine:hmin={dxmin}:dtmax={dtmax}:connect=1:outsidecell=1 {temppath} temp_ascgrid.asc'
         if debug:
             statement += ' > log.txt'
