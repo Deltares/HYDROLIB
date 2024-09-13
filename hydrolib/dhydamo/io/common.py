@@ -150,7 +150,10 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # Copy content
         for col, values in gdf.items():
-            self[col] = values.values
+            if str(values.dtype) == "geometry":
+                self.set_geometry(values.values, inplace=True)
+            else:
+                self[col] = values.values
 
         if index_col is None:
             self.index = gdf.index

@@ -338,7 +338,7 @@ class Df2HydrolibModel:
         if hasattr(self.hydamo.observationpoints, 'observation_points'):
             obspoints = [
                 ObservationPoint(**obs)
-                for obs in self.hydamo.observationpoints.observation_points.to_dict(
+                for obs in self.hydamo.observationpoints.observation_points.drop(columns="geometry").to_dict(
                     "records"
                 )
             ]
@@ -374,13 +374,13 @@ class Df2HydrolibModel:
             inifield = InitialField(
                 quantity="waterdepth",
                 datafiletype="1dField",
-                unit="m",
+                # unit="m",
                 datafile="initialwaterdepth.ini",
             )
             if depth.geometry is None:
                 onedfield = OneDFieldGlobal(
                     quantity="waterdepth",
-                    locationtype=depth.locationtype,
+                    # locationtype=depth.locationtype,
                     unit="m",
                     value=str(depth.waterdepth),
                 )

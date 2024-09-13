@@ -1233,7 +1233,7 @@ class CrossSections:
                 "typeruwheid": roughness[
                     roughness["profielpuntid"] == css.globalid
                 ].typeruwheid.values[0],
-                "ruwheid": float(ruwheid),
+                "ruwheid": float(ruwheid.iloc[0]),
             }
 
         return cssdct
@@ -2072,11 +2072,11 @@ class ObservationPoints:
                 n for nn, n in enumerate(names) if locationTypes[nn] == "2d"
             ]
             obs2d["locationtype"] = "2d"
-            obs2d["geometry"] = [
+            obs2d = obs2d.set_geometry([
                 Point(*pt) if not isinstance(pt, Point) else pt
                 for ipt, pt in enumerate(crds)
                 if (locationTypes[ipt] == "2d")
-            ]
+            ])
             obs2d["x"] = [pt.coords[0][0] for pt in obs2d["geometry"]]
             obs2d["y"] = [pt.coords[0][1] for pt in obs2d["geometry"]]
             names1d = [n for n_i, n in enumerate(names) if locationTypes[n_i] == "1d"]
@@ -2087,9 +2087,9 @@ class ObservationPoints:
 
         obs1d = gpd.GeoDataFrame()
         obs1d["name"] = names1d
-        obs1d["geometry"] = [
+        obs1d = obs1d.set_geometry([
             Point(*pt) if not isinstance(pt, Point) else pt for pt in crds1d
-        ]
+        ])
         obs1d["locationtype"] = "1d"
         find_nearest_branch(
             self.hydamo.branches, obs1d, method="overal", maxdist=snap_distance
