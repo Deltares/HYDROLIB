@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union
 
 import geopandas as gpd
 import numpy as np
@@ -487,9 +487,9 @@ class Network:
         options 'min' (minimum), 'max' (maximum), 'mean' (average).
         """
         assert resolve_at_bifurcation_method in ["min", "max", "mean"], (
-            f"Incorrect value for "
-            f"'resolve_at_bifurcation_method' supplied. "
-            f"Either use 'min', 'max' or 'mean'"
+            "Incorrect value for "
+            "'resolve_at_bifurcation_method' supplied. "
+            "Either use 'min', 'max' or 'mean'"
         )
         bedlevels_crs_branches = self.hydamo.crosssections.get_bottom_levels()
         branch_order = self.mesh1d.get_values("nbranchorder", as_array=True)
@@ -741,8 +741,8 @@ class Network:
         """
         # Get all network data
         branch_ids = self.mesh1d.description1d["network_branch_ids"]
-        node_ids = self.mesh1d.description1d["network_node_ids"]
-        branch_edge_nodes_idx = self.mesh1d.get_values("nedge_nodes", as_array=True)
+        # node_ids = self.mesh1d.description1d["network_node_ids"]
+        # branch_edge_nodes_idx = self.mesh1d.get_values("nedge_nodes", as_array=True)
         # Collect all node ids per branch and all branches per node id
         self.make_nodes_to_branch_map()
         self.make_branches_to_node_map()
@@ -1323,7 +1323,7 @@ class CrossSections:
                     ].waarde.values[0]
                     - (botlev_upper + botlev_lower)/2.
                 )
-                height = (dh1 + dh2) / 2.0
+                # height = (dh1 + dh2) / 2.0
                 # Determine maximum flow width and slope (both needed for output)
                 maxflowwidth = (
                     values[values.soortparameter == "bodembreedte"].waarde.values[0]
@@ -1422,7 +1422,7 @@ class ExternalForcings:
             name = "wlevpoly{:04d}".format(len(self.initial_waterlevel_polygons) + 1)
 
         # Add to geodataframe
-        if polygon == None:
+        if polygon is None:
             new_df = pd.DataFrame(
                 {
                     "waterlevel": level,
@@ -1465,7 +1465,7 @@ class ExternalForcings:
         if name is None:
             name = "wlevpoly{:04d}".format(len(self.initial_waterdepth_polygons) + 1)
         # Add to geodataframe
-        if polygon == None:
+        if polygon is None:
             new_df = pd.DataFrame(
                 {
                     "waterdepth": depth,
@@ -1577,7 +1577,6 @@ class ExternalForcings:
             "time": times,
             "time_unit": f"minutes since {startdate}",
             "value_unit": unit,
-            "value": values,
             "nodeid": nodeid,
         }
 

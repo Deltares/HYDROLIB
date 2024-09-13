@@ -812,7 +812,7 @@ class DRTCModel:
                 e.tail = "\n      "
 
                 # If a time dependent setpoint is required, add the Time Rule
-                if type(controller['setpoint']) == pd.Series: 
+                if type(controller['setpoint']) is pd.Series: 
                     a2 = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
                     a2.tail = "\n    "
                     if ikey == len(self.all_controllers) - 1:

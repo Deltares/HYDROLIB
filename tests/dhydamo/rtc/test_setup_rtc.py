@@ -1,11 +1,8 @@
 import sys
 
 sys.path.insert(0, r".")
-import os
 import pandas as pd
 from pathlib import Path
-from hydrolib.dhydamo.io.drrwriter import DRRWriter
-from tests.dhydamo.io import test_from_hydamo
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
 

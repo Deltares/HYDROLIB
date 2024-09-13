@@ -6,11 +6,10 @@ import numpy as np
 import pytest
 from meshkernel.py_structures import DeleteMeshOption
 from shapely.affinity import translate
-from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box
+from shapely.geometry import LineString, MultiPolygon, Polygon, box
 
 sys.path.append(".")
 from hydrolib.core.dflowfm.mdu.models import FMModel
-from hydrolib.core.dflowfm.net.models import Branch
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import common, mesh, viz
 from hydrolib.dhydamo.geometry.models import GeometryList
@@ -23,7 +22,7 @@ hydamo_data_path = (
 
 def test_create_2d_rectilinear(do_plot=False):
     # Define polygon
-    bbox = (1.0, -2.0, 3.0, 4.0)
+    # bbox = (1.0, -2.0, 3.0, 4.0)
 
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network

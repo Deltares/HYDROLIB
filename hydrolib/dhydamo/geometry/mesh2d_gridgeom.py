@@ -10,7 +10,6 @@ from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import KDTree, Voronoi
 from shapely.geometry import (
     LineString, MultiLineString, MultiPolygon, Point, Polygon, box)
-from shapely.ops import unary_union
 from shapely.prepared import prep
 
 from hydrolib.dhydamo.geometry.gridgeom import geometry
@@ -331,7 +330,7 @@ class Mesh2D_GG:
                             poly = poly.buffer(0.001)
                         if isinstance(poly, MultiPolygon):
                             logger.warning('Got multipolygon when clipping voronoi polygon. Only adding coordinates for largest of the polygons.')
-                            poly = poly[np.argmax([p.area for p in as_polygon_list(poly)])]
+                            poly = poly[np.argmax([p.area for p in geometry.as_polygon_list(poly)])]
                         crds = np.vstack(poly.exterior.coords[:])
                     data.append({'geometry': poly, 'crds': crds})
                     

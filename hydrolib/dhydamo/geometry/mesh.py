@@ -723,9 +723,9 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
         [network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1
     )[network._link1d2d.link1d2d[:, 0]]
 
-    faces2d = np.stack(
-        [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
-    )[network._link1d2d.link1d2d[:, 1]]
+    # faces2d = np.stack(
+    #     [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
+    # )[network._link1d2d.link1d2d[:, 1]]
 
     # Select 1d nodes that are only present in a single edge
     edge_nodes = network._mesh1d.network1d_edge_nodes

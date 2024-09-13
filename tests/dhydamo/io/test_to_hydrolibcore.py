@@ -1,7 +1,6 @@
 import sys
 
 sys.path.insert(0, r".")
-import os
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -14,18 +13,12 @@ from hydrolib.core.dflowfm.structure.models import StructureModel
 from hydrolib.core.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
 from hydrolib.core.dflowfm.ext.models import ExtModel
 from hydrolib.core.dflowfm.mdu.models import FMModel
-from hydrolib.core.dflowfm.bc.models import ForcingModel
 from hydrolib.core.dflowfm.friction.models import FrictionModel
 from hydrolib.core.dflowfm.obs.models import ObservationPointModel
 
 # Importing relevant classes from Hydrolib-dhydamo
-from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
 from hydrolib.dhydamo.geometry import mesh
-from hydrolib.dhydamo.core.drr import DRRModel
-from hydrolib.dhydamo.core.drtc import DRTCModel
-from hydrolib.dhydamo.io.drrwriter import DRRWriter
-from hydrolib.dhydamo.geometry.viz import plot_network
 from pathlib import Path
 
 from tests.dhydamo.io import test_from_hydamo

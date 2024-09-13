@@ -4,7 +4,7 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from pydantic.v1 import validate_arguments
-from typing import Union, Optional
+from typing import Optional
 from shapely.geometry import Point
 
 from hydrolib.dhydamo.geometry.mesh import Network

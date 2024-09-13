@@ -1,9 +1,6 @@
-import os
-import sys
 from pathlib import Path
 
 from hydrolib.dhydamo.core.drr import DRRModel
-from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.io.drrwriter import DRRWriter
 from tests.dhydamo.io import test_from_hydamo
 

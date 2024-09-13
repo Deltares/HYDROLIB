@@ -6,7 +6,6 @@ from typing import Union
 import pandas as pd
 import rasterio
 from pydantic.v1 import validate_arguments
-from rasterio.transform import from_origin
 
 from hydrolib.dhydamo.io import drrreader
 

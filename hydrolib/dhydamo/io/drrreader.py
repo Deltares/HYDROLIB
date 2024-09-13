@@ -6,7 +6,7 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
-from pydantic.v1 import validate_arguments, StrictFloat, StrictInt, StrictStr
+from pydantic.v1 import validate_arguments, StrictStr
 from rasterstats import zonal_stats
 from rasterio.transform import from_origin
 from tqdm.auto import tqdm
@@ -935,7 +935,7 @@ class ExternalForcingsIO:
                 if float(val["ar"]) > 0.0
             ]:
                 occurs = True
-            if occurs == False:
+            if not occurs:
                 not_occurring.append(cat.lateraleknoopcode)
 
         for i in not_occurring:

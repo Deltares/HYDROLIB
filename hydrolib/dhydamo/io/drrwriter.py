@@ -1,6 +1,5 @@
 # coding: latin-1
 import csv
-import datetime
 import logging
 import os
 import re
@@ -8,7 +7,7 @@ import shutil
 
 import numpy as np
 import pandas as pd
-from shapely.geometry import LineString, Point, box
+from shapely.geometry import Point
 
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 

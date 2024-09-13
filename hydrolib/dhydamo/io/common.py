@@ -6,8 +6,7 @@ from typing import Union
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from shapely import wkb
-from shapely.geometry import LineString, MultiPolygon, Point, Polygon
+from shapely.geometry import LineString, MultiPolygon, Polygon
 
 from hydrolib.dhydamo.geometry import spatial
 
@@ -85,7 +84,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # Only keep required columns
         if filter_cols:
-            logger.info(f"Filtering required column keys")
+            logger.info("Filtering required column keys")
             gdf.drop(
                 columns=gdf.columns[~gdf.columns.isin(self.required_columns)],
                 inplace=True,
@@ -93,7 +92,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # filter out rows on key/value pairs if required
         if filter_rows is not None:
-            logger.info(f"Filter rows using key value pairs")
+            logger.info("Filter rows using key value pairs")
             filter = (gdf[list(filter_rows)] == pd.Series(filter_rows)).all(axis=1)
             gdf = gdf[filter]
 
@@ -139,7 +138,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if proj_crs is not None:
             self.check_projection(proj_crs)
         else:
-            logger.debug(f"No projected CRS is given in ini-file")
+            logger.debug("No projected CRS is given in ini-file")
 
     def set_data(self, gdf, index_col=None, check_columns=True, check_geotype=True):
         if not self.empty:
@@ -204,7 +203,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         layerlist = gpd.list_layers(gpkg_path).name.tolist()
         print(f"Content of gpkg-file {gpkg_path}, containing {len(layerlist)} layers:")
         print(
-            f"\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS"
+            "\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS"
         )
         for laynum, layer_name in enumerate(layerlist):
             layer = gpd.read_file(gpkg_path, layer=layer_name)
@@ -336,7 +335,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if crs_out != self.crs:
             self.to_crs(crs_out, inplace=True)
         else:
-            logger.info(f"OSM data has same projection as projected crs in ini-file")
+            logger.info("OSM data has same projection as projected crs in ini-file")
 
     def branch_to_prof(
         self, offset=0.0, vertex_end=False, rename_col=None, prefix="", suffix=""
@@ -361,7 +360,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                 gdf_out[rename_col] = [
                     f"{prefix}{g[1][rename_col]}{suffix}" for g in self.iterrows()
                 ]
-            except:
+            except Exception:
                 raise ValueError(f"Column rename with '{rename_col}' did not succeed.")
 
         return gdf_out
@@ -375,7 +374,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if col1 or col2 in self.columns.values:
             try:
                 self[rename_col] = self[col1] + self[col2]
-            except:
+            except Exception:
                 raise ValueError(
                     f"Merge of two profile columns'{col1}' and '{col2}' did not succeed."
                 )
