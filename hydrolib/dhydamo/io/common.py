@@ -3,7 +3,6 @@ import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Union
-import fiona
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -202,7 +201,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if isinstance(gpkg_path, Path):
             gpkg_path = str(gpkg_path)
 
-        layerlist = fiona.listlayers(gpkg_path)
+        layerlist = gpd.list_layers(gpkg_path).name.tolist()
         print(f"Content of gpkg-file {gpkg_path}, containing {len(layerlist)} layers:")
         print(
             f"\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS"
@@ -241,7 +240,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if isinstance(gpkg_path, Path):
             gpkg_path = str(gpkg_path)
 
-        if layer_name.lower() not in map(str.lower, fiona.listlayers(gpkg_path)):
+        if layer_name.lower() not in map(str.lower, gpd.list_layers(gpkg_path).name.tolist()):
             raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
 
         layer = gpd.read_file(gpkg_path, layer=layer_name, engine='pyogrio')
@@ -493,7 +492,7 @@ class ExtendedDataFrame(pd.DataFrame):
         if isinstance(gpkg_path, Path):
             gpkg_path = str(gpkg_path)
 
-        if layer_name.lower() not in map(str.lower, fiona.listlayers(gpkg_path)):
+        if layer_name.lower() not in map(str.lower, gpd.list_layers(gpkg_path).name.tolist()):
             raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
 
         layer = gpd.read_file(gpkg_path, layer=layer_name, engine='pyogrio')
