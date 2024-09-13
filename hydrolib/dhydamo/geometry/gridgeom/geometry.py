@@ -18,7 +18,6 @@ from shapely.geometry import (
     Point,
 )
 
-from hydrolib.dhydamo.geometry.gridgeom import checks
 from hydrolib.dhydamo.geometry.gridgeom.logging import ProgressLogger
 
 logger = logging.getLogger(__name__)

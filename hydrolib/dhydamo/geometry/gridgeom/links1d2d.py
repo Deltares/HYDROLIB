@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, Point, Polygon
-from scipy.spatial import KDTree
 import logging
 import geopandas as gpd
 from tqdm.auto import tqdm
