@@ -435,13 +435,10 @@ def links1d2d_add_links_1d_to_2d(
     
 def _filter_links_on_idx(network: Network, keep: np.ndarray) -> None:
     # Select the remaining links
-    network._link1d2d.link1d2d = network._link1d2d.link1d2d[keep]
-    network._link1d2d.link1d2d_contact_type = network._link1d2d.link1d2d_contact_type[
-        keep
-    ]
-    network._link1d2d.link1d2d_id = network._link1d2d.link1d2d_id[keep]
-    network._link1d2d.link1d2d_long_name = network._link1d2d.link1d2d_long_name[keep]
-
+    contacts = network._link1d2d.meshkernel.contacts_get()
+    contacts.mesh1d_indices = contacts.mesh1d_indices[keep]
+    contacts.mesh2d_indices = contacts.mesh2d_indices[keep]
+    network._link1d2d.meshkernel.contacts_set(contacts)
 
 def links1d2d_add_links_2d_to_1d_embedded(
     network: Network,
