@@ -194,7 +194,7 @@ def raster_in_parts(
 def rasterize_cells(facedata, prt):
     # Initialize mask
     # Create mask
-    maskIm = PIL.Image.new("I", (prt.shape[1], prt.shape[0]), 0)
+    maskIm = PIL.Image.new("I", (int(prt.shape[1]), int(prt.shape[0])), 0)
     todraw = PIL.ImageDraw.Draw(maskIm)
 
     cellsize = abs(prt.f.transform.a)
