@@ -126,7 +126,7 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
         dy=1,
         deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
     )
-    # assert len(network._mesh2d.mesh2d_face_x) == 149
+    assert len(network._mesh2d.mesh2d_face_x) == 149
 
     x = np.linspace(0, 20, 101)
     river = LineString(np.c_[x, np.sin(x / 3) + 5]).buffer(0.5)
@@ -201,6 +201,7 @@ def test_2d_clip_outside_polygon(do_plot=False):
     )
 
     mesh.mesh2d_clip(network, clipgeo, deletemeshoption= DeleteMeshOption.INSIDE_AND_INTERSECTED, inside=False)
+    assert len(network._mesh2d.mesh2d_face_x) == 284
 
     # Plot to verify
     if do_plot:
@@ -212,7 +213,6 @@ def test_2d_clip_outside_polygon(do_plot=False):
             ax.plot(*hole.coords.xy, color="r", ls="--")
         plt.show()
 
-    # assert len(network._mesh2d.mesh2d_face_x) == 284
 
 def test_2d_clip_inside_multipolygon(do_plot=False):
     # Define polygon
@@ -220,14 +220,22 @@ def test_2d_clip_inside_multipolygon(do_plot=False):
     network = fmmodel.geometry.netfile.network
 
     rectangle = box(-10, -10, 10, 10)
-
-    dmo = DeleteMeshOption.INSIDE_NOT_INTERSECTED
-    mesh.mesh2d_add_rectilinear(network, rectangle, dx=1, dy=1, deletemeshoption=dmo)
+    mesh.mesh2d_add_rectilinear(
+        network,
+        rectangle,
+        dx=1,
+        dy=1,
+        deletemeshoption=DeleteMeshOption.INSIDE_NOT_INTERSECTED
+    )
 
     clipgeo = MultiPolygon([box(-6, -1, -4, 2), box(4, 5, 7.2, 7.2)])
-
-    mesh.mesh2d_clip(network, clipgeo, deletemeshoption=dmo,  inside=True)
-    # assert len(network._mesh2d.mesh2d_node_x) == 437
+    mesh.mesh2d_clip(
+        network,
+        clipgeo,
+        deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
+        inside=True,
+    )
+    assert len(network._mesh2d.mesh2d_node_x) == 337
 
     # Plot to verify
     if do_plot:

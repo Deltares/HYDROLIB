@@ -15,7 +15,7 @@ from shapely.geometry import (
 )
 from shapely.prepared import prep
 
-from hydrolib.core.dflowfm.net.models import Branch, Network
+from hydrolib.core.dflowfm.net.models import Branch, Mesh2d, Network
 from hydrolib.core.dflowfm.net.reader import UgridReader
 from hydrolib.dhydamo.geometry import common, rasterstats, spatial
 from hydrolib.dhydamo.geometry.models import GeometryList
@@ -60,32 +60,31 @@ def mesh2d_add_rectilinear(
         _type_: _description_
     """
 
-    # Loop over polygons if a MultiPolygon is given
-    plist = common.as_polygon_list(polygon)
-    if len(plist) > 1:
-        for part in plist:            
-            xmin, ymin, xmax, ymax = part.bounds
-            rows = int((ymax - ymin) / dy)
-            columns = int((xmax - xmin) / dx)
-            if rows > 0 and columns > 0:
-                mesh2d_add_rectilinear(network, part, dx, dy, deletemeshoption)
-        return None
-
+    # Loop over polygons and create a grid for each polygon bounds
+    mesh2d_hc = Mesh2d(meshkernel=mk.MeshKernel())
+    polygon_list = GeometryList.from_geometry(polygon)
+    for part in polygon_list.geoms:
+        xmin, ymin, xmax, ymax = part.bounds
+        rows = int((ymax - ymin) / dy)
+        columns = int((xmax - xmin) / dx)
+        if rows > 0 and columns > 0:
+            mesh2d_hc.create_rectilinear(extent=part.bounds, dx=dx, dy=dy)
 
     # Store present 2d mesh (to be able to add)
     existing_mesh2d = network._mesh2d.get_mesh2d()
 
     # Create new network
-    network.mesh2d_create_rectilinear_within_extent(
-        extent=polygon.bounds,
-        dx=dx,
-        dy=dy,
+    mesh2d_output = mesh2d_hc.get_mesh2d()
+    network._mesh2d._set_mesh2d(
+        mesh2d_output.node_x,
+        mesh2d_output.node_y,
+        mesh2d_output.edge_nodes,
     )
 
     # Clip and clean
     mesh2d_clip(
         network=network,
-        polygon=GeometryList.from_geometry(polygon),
+        polygon=polygon_list,
         deletemeshoption=deletemeshoption,
         inside=False,
     )
@@ -172,7 +171,28 @@ def mesh2d_clip(
     elif isinstance(polygon, (Polygon, MultiPolygon)):
         polygon = GeometryList.from_geometry(polygon)
 
-    network.mesh2d_clip_mesh(polygon, deletemeshoption, inside)
+    # network.mesh2d_clip_mesh(polygon, deletemeshoption, inside)
+    if inside:
+        # Clip each single polygon
+        for part in polygon.geoms:
+            network._mesh2d.clip(_geomlist_from_polygon(part), deletemeshoption, inside)
+    else:
+        # Keep exterior
+        clip_pol_ext = _geomlist_from_multipolygon(polygon, "exterior")
+        if clip_pol_ext.x_coordinates.size > 0:
+            network._mesh2d.meshkernel.mesh2d_delete(
+                geometry_list=clip_pol_ext,
+                delete_option=deletemeshoption,
+                invert_deletion=True,
+            )
+        # Clip interior
+        clip_pol_int = _geomlist_from_multipolygon(polygon, "interior")
+        if clip_pol_int.x_coordinates.size > 0:
+            network._mesh2d.meshkernel.mesh2d_delete(
+                geometry_list=clip_pol_int,
+                delete_option=deletemeshoption,
+                invert_deletion=False,
+            )
 
     # Remove hanging edges
     network._mesh2d.meshkernel.mesh2d_delete_hanging_edges()
@@ -183,6 +203,37 @@ def _geomlist_from_polygon(polygon: Polygon) -> mk.GeometryList:
         gl = GeometryList()
         gl = gl.from_geometry(polygon)
         return(mk.GeometryList(gl.x_coordinates, gl.y_coordinates, gl.values, gl.geometry_separator, gl.inner_outer_separator))
+
+def _geomlist_from_multipolygon(polygons: List[Polygon], mode: str) -> mk.GeometryList:
+    poly_separator = -999
+    x_crds, y_crds = [], []
+    for polygon in polygons.geoms:
+        x_geom, y_geom = [], []
+        if mode == "exterior":
+            x_ext, y_ext = np.array(polygon.exterior.coords[:]).T
+            x_geom.append(x_ext)
+            y_geom.append(y_ext)
+        elif mode == "interior":
+            for int_geom in polygon.interiors:
+                x_int, y_int = np.array(int_geom.coords[:]).T
+                x_geom.append(x_int)
+                y_geom.append(y_int)
+        else:
+            raise ValueError(f"Expected mode to be either 'interior' or 'exterior' (got: '{mode}')")
+
+        for xc, yc in zip(x_geom, y_geom):
+            if len(x_crds) > 0:
+                x_crds.append([poly_separator])
+                y_crds.append([poly_separator])
+            x_crds.append(xc)
+            y_crds.append(yc)
+
+    if len(x_crds) > 0 and len(y_crds) > 0:
+        x_crds = np.concatenate(x_crds)
+        y_crds = np.concatenate(y_crds)
+    gl = mk.GeometryList(x_coordinates=x_crds, y_coordinates=y_crds, inner_outer_separator=-998)
+
+    return gl
 
 def mesh2d_refine(
     network: Network, polygon: Union[Polygon, MultiPolygon], steps: int
