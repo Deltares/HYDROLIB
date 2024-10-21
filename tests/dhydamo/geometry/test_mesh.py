@@ -33,7 +33,7 @@ def test_create_2d_rectilinear(do_plot=False):
         network,
         polygon,
         dx=5,
-        dy=5,        
+        dy=5,
         deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED
     )
 
@@ -48,6 +48,7 @@ def test_create_2d_rectilinear(do_plot=False):
 
     if do_plot:
         viz.plot_network(network)
+        plt.show()
 
 
 def _get_circle_polygon(
@@ -73,7 +74,7 @@ def test_create_2d_rectilinear_within_circle(do_plot=False):
         network,
         circle,
         dx=2,
-        dy=2,        
+        dy=2,
         deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
     )
 
@@ -107,6 +108,7 @@ def test_create_2d_triangular_within_circle(do_plot=False):
         ax.plot(*circle.exterior.coords.xy, color="red", ls="--")
         plt.show()
 
+
 def test_create_2d_rectangular_from_multipolygon(do_plot=False):
     # Define polygon
     fmmodel = FMModel()
@@ -132,14 +134,14 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
     # Refine along river
     refinement = river.buffer(1.0)
     mesh.mesh2d_refine(network, refinement, steps=1)
-    
+
     # Clip river
     mesh.mesh2d_clip(
         network=network,
         polygon=GeometryList.from_geometry(river),
         deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED, #ALL_NODES,
     )
-    
+
     # Plot to verify
     if do_plot:
         _, ax = plt.subplots()
@@ -173,7 +175,7 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
     # Refine mesh
     mesh.mesh2d_refine(network, refinement_box, steps=1)
 
-    # # Plot to verify
+    # Plot to verify
     if do_plot:
         _, ax = plt.subplots()
         ax.set_aspect(1.0)
@@ -182,6 +184,7 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
         ax.plot(*circle2.exterior.coords.xy, color="k", ls="--")
         ax.plot(*refinement_box.exterior.coords.xy, color="g", ls="--")
         plt.show()
+
 
 def test_2d_clip_outside_polygon(do_plot=False):
     # Define polygon
@@ -199,7 +202,6 @@ def test_2d_clip_outside_polygon(do_plot=False):
 
     mesh.mesh2d_clip(network, clipgeo, deletemeshoption= DeleteMeshOption.INSIDE_AND_INTERSECTED, inside=False)
 
-    
     # Plot to verify
     if do_plot:
         _, ax = plt.subplots()
@@ -211,7 +213,6 @@ def test_2d_clip_outside_polygon(do_plot=False):
         plt.show()
 
     # assert len(network._mesh2d.mesh2d_face_x) == 284
-
 
 def test_2d_clip_inside_multipolygon(do_plot=False):
     # Define polygon
@@ -231,7 +232,6 @@ def test_2d_clip_inside_multipolygon(do_plot=False):
     # Plot to verify
     if do_plot:
         _, ax = plt.subplots()
-
         ax.set_aspect(1.0)
         viz.plot_network(network, ax=ax)
         for polygon in clipgeo.geoms:
@@ -333,7 +333,7 @@ def test_linkd1d2d_remove_links_within_polygon(do_plot=False):
 
     # Generate all links
     mesh.links1d2d_add_links_1d_to_2d(network)
-    
+
     # Plot to verify
     if do_plot:
         _, ax = plt.subplots(figsize=(5, 5))
@@ -426,7 +426,7 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
     centerline = LineString([(xcenter, -1e6), (xcenter, 1e6)]).buffer(cellsize / 2)
     parts = extent2d.difference(centerline).geoms
 
-    network = fm.geometry.netfile.network    
+    network = fm.geometry.netfile.network
     mesh.mesh2d_add_rectilinear(
         network=network, polygon=parts[1], dx=cellsize, dy=cellsize * 1.5
     )
