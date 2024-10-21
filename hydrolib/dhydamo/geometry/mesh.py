@@ -83,7 +83,7 @@ def mesh2d_add_rectilinear(
     )
 
     # Clip and clean
-    mesh2d_clip(        
+    mesh2d_clip(
         network=network,
         polygon=GeometryList.from_geometry(polygon),
         deletemeshoption=deletemeshoption,
@@ -115,8 +115,8 @@ def mesh2d_add_rectilinear(
                 np.concatenate(
                     [getattr(existing_mesh2d, var), getattr(new_mesh2d, var)]
                 ),
-            )        
-        
+            )
+
 
 def mesh2d_from_netcdf(network: Network, path: Union[Path, str]) -> None:
     reader = UgridReader(path)
@@ -202,10 +202,10 @@ def mesh2d_refine(
                 "Refining within polygons with holes does not work. Remove holes before using this function (e.g., polygon = Polygon(polygon.exterior))."
             )
 
-    
-    for polygon in common.as_polygon_list(polygon):        
+    for polygon in common.as_polygon_list(polygon):
         network.mesh2d_refine_mesh(_geomlist_from_polygon(polygon), level=steps)
-        
+
+
 def mesh1d_add_branch_from_linestring(
     network: Network,
     linestring: LineString,
@@ -307,7 +307,7 @@ def mesh1d_add_branches_from_gdf(
         network.mesh1d_add_branch(branch, name=branchname)
 
 
-def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: list, order_attribute:str, network: Network, exceptions:list=None)-> list:    
+def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: list, order_attribute:str, network: Network, exceptions:list=None)-> list:
     """
     mesh1d_order_numbers_from_attribute Method to allocate order numbers to branches based on a common attribute.
 
@@ -317,7 +317,7 @@ def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: lis
         order_attribute (str): _description_. Attribute of branches based on which order numbers are allocated.
         network: FM network geometry to which the order numbers should be written
         exceptions (list, optional): List of branch code that should not be given an order number. Defaults to None.
-    
+
     Returns:
         missing_after_interpolation (list): list of branches that still do not have a cross section
     """
@@ -344,6 +344,7 @@ def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: lis
     missing_after_interpolation = np.setdiff1d(missing, interpolation)
     return(missing_after_interpolation)
 
+
 def mesh1d_set_branch_order(network: Network, branchids: list, idx: int = None) -> None:
     """
     Group branch ids so that the cross sections are
@@ -369,6 +370,7 @@ def mesh1d_set_branch_order(network: Network, branchids: list, idx: int = None) 
         branchorder[branchidx] = idx
     # Save
     network._mesh1d.network1d_branch_order = branchorder
+
 
 def links1d2d_add_links_1d_to_2d(
     network: Network,
@@ -405,7 +407,7 @@ def links1d2d_add_links_1d_to_2d(
 
     # If a 'within' polygon was provided, convert it to a geometrylist
     geometrylist = _geomlist_from_polygon(within)
-    
+
     # Get the nodes for the specific branch ids
     node_mask = network._mesh1d.get_node_mask(branchids)
 
@@ -432,13 +434,14 @@ def links1d2d_add_links_1d_to_2d(
     )
     _filter_links_on_idx(network, keep)
 
-    
+
 def _filter_links_on_idx(network: Network, keep: np.ndarray) -> None:
     # Select the remaining links
     contacts = network._link1d2d.meshkernel.contacts_get()
     contacts.mesh1d_indices = contacts.mesh1d_indices[keep]
     contacts.mesh2d_indices = contacts.mesh2d_indices[keep]
     network._link1d2d.meshkernel.contacts_set(contacts)
+
 
 def links1d2d_add_links_2d_to_1d_embedded(
     network: Network,
@@ -487,11 +490,11 @@ def links1d2d_add_links_2d_to_1d_embedded(
     faces2d = np.stack(
         [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
     )
-    
+
     mpgl = mk.GeometryList(*faces2d.T.copy())
     idx = np.zeros(len(faces2d), dtype=bool)
     for subarea in common.as_polygon_list(area):
-    
+
         # Create a list of coordinate lists
         # Add exterior
         gl_sa = mk.GeometryList()
@@ -507,9 +510,9 @@ def links1d2d_add_links_2d_to_1d_embedded(
             y_crds.append(y_int)
         gl_sa.x_coordinates=np.concatenate(x_crds)
         gl_sa.y_coordinates=np.concatenate(y_crds)
-        
+
         subarea = gl_sa
-         
+
         idx |= (
             network.meshkernel.polygon_get_included_points(subarea, mpgl).values == 1
         )
@@ -565,7 +568,6 @@ def links1d2d_add_links_2d_to_1d_lateral(
         max_length (float, optional): Max edge length. Defaults to None.
     """
 
-    
     geometrylist = network.meshkernel.mesh2d_get_mesh_boundaries_as_polygons()
     mpboundaries = GeometryList(**geometrylist.__dict__).to_geometry()
     if within is not None:
@@ -605,7 +607,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
     # Create multilinestring
     if isinstance(mpboundaries, Polygon):
         multilinestring = MultiLineString([mpboundaries.exterior])
-    else: 
+    else:
         multilinestring = MultiLineString([poly.exterior for poly in mpboundaries.geoms])
 
     # Find the links that intersect the boundary close to the origin
@@ -740,7 +742,7 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
             keep[index] = False
 
     _filter_links_on_idx(network, keep)
-    
+
 
 def mesh2d_altitude_from_raster(
     network,
