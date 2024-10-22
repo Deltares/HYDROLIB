@@ -104,6 +104,6 @@ contextily = { channel = "conda-forge" }
 
 [tool.pytest.ini_options]
 markers = [
-  "plots: tests that open plot windows",
-  "slow_test: tests that are known to run slowly",
+  "plot: tests that open plot windows",
+  "slow: tests that are known to run slowly",
 ]
