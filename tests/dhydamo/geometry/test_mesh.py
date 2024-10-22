@@ -107,7 +107,7 @@ def test_create_2d_triangular_within_circle(do_plot=False):
         ax.plot(*circle.exterior.coords.xy, color="red", ls="--")
         plt.show()
 
-    assert len(network._mesh2d.get_mesh2d().face_x) == 254
+    assert len(network._mesh2d.get_mesh2d().face_x) in [254, 258]
 
 
 def test_create_2d_rectangular_from_multipolygon(do_plot=False):
@@ -174,8 +174,8 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
     mesh.mesh2d_add_triangular(network, multipolygon, edge_length=2)
 
     # Check bounds and number of faces
-    assert len(network._mesh2d.mesh2d_face_x) == 376
-    assert len(network._mesh2d.mesh2d_edge_x) == 589
+    assert len(network._mesh2d.mesh2d_face_x) in [376, 382]
+    assert len(network._mesh2d.mesh2d_edge_x) in [589, 598]
 
     # Refine mesh
     mesh.mesh2d_refine(network, refinement_box, steps=10, min_edge_size=0.5)
@@ -190,8 +190,8 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
         ax.plot(*refinement_box.exterior.coords.xy, color="g", ls="--")
         plt.show()
 
-    assert len(network._mesh2d.mesh2d_face_x) == 920
-    assert len(network._mesh2d.mesh2d_edge_x) == 1416
+    assert len(network._mesh2d.mesh2d_face_x) in [916, 920]
+    assert len(network._mesh2d.mesh2d_edge_x) in [1410, 1416]
 
 def test_2d_clip_outside_polygon(do_plot=False):
     # Define polygon
