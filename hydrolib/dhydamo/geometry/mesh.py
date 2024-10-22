@@ -171,11 +171,10 @@ def mesh2d_clip(
     elif isinstance(polygon, (Polygon, MultiPolygon)):
         polygon = GeometryList.from_geometry(polygon)
 
-    # network.mesh2d_clip_mesh(polygon, deletemeshoption, inside)
     if inside:
         # Clip each single polygon
         for part in polygon.geoms:
-            network._mesh2d.clip(_geomlist_from_polygon(part), deletemeshoption, inside)
+            network.mesh2d_clip_mesh(_geomlist_from_polygon(part), deletemeshoption, inside)
     else:
         # Keep exterior
         clip_pol_ext = _geomlist_from_multipolygon(polygon, "exterior")
