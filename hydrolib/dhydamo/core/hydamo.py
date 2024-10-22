@@ -1557,7 +1557,7 @@ class ExternalForcings:
         )
         get_nearest = KDTree(nodes1d[:, 0:2])
         _, idx_nearest = get_nearest.query(pt.coords[:])
-        nodeid = f"{float(nodes1d[idx_nearest,0]):12.6f}_{float(nodes1d[idx_nearest,1]):12.6f}"
+        nodeid = f"{float(nodes1d[idx_nearest[0],0]):12.6f}_{float(nodes1d[idx_nearest[0],1]):12.6f}"
 
         # Convert time to minutes
         if isinstance(series, pd.Series):
