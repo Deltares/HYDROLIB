@@ -235,7 +235,10 @@ def _geomlist_from_multipolygon(polygons: List[Polygon], mode: str) -> mk.Geomet
     return gl
 
 def mesh2d_refine(
-    network: Network, polygon: Union[Polygon, MultiPolygon], steps: int
+    network: Network,
+    polygon: Union[Polygon, MultiPolygon],
+    steps: int,
+    min_edge_size: float = 10.0,
 ) -> None:
     """Refine mesh 2d within (list of) polygon or multipolygon, with a certain
     number of refinement steps.
@@ -244,6 +247,7 @@ def mesh2d_refine(
         network (Network): Network for which the mesh is clipped
         polygon (Union[GeometryList, Union[Polygon, MultiPolygon]]): Polygon within which the mesh is clipped
         steps (int): Number of steps in the refinement
+        min_edge_size (float): Minimum edge size. Default is 10.0.
     """
     # Check if any polygon contains holes (does not work)
     for polygon in common.as_polygon_list(polygon):
@@ -253,7 +257,11 @@ def mesh2d_refine(
             )
 
     for polygon in common.as_polygon_list(polygon):
-        network.mesh2d_refine_mesh(_geomlist_from_polygon(polygon), level=steps)
+        network.mesh2d_refine_mesh(
+            _geomlist_from_polygon(polygon),
+            level=steps,
+            min_edge_size=min_edge_size,
+        )
 
 
 def mesh1d_add_branch_from_linestring(

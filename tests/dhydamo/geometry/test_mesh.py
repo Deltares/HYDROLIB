@@ -89,7 +89,6 @@ def test_create_2d_rectilinear_within_circle(do_plot=False):
     assert len(network._mesh2d.mesh2d_face_x) == 88
 
 
-@pytest.mark.xfail
 def test_create_2d_triangular_within_circle(do_plot=False):
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -107,6 +106,8 @@ def test_create_2d_triangular_within_circle(do_plot=False):
         viz.plot_network(network, ax=ax)
         ax.plot(*circle.exterior.coords.xy, color="red", ls="--")
         plt.show()
+
+    assert len(network._mesh2d.get_mesh2d().face_x) == 254
 
 
 def test_create_2d_rectangular_from_multipolygon(do_plot=False):
@@ -134,7 +135,9 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
 
     # Refine along river
     refinement = river.buffer(1.0)
-    mesh.mesh2d_refine(network, refinement, steps=1)
+    mesh.mesh2d_refine(network, refinement, steps=1, min_edge_size=0.5)
+
+    assert len(network._mesh2d.mesh2d_face_x) == 411
 
     # Clip river
     mesh.mesh2d_clip(
@@ -154,10 +157,9 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
         ax.plot(*refinement.exterior.coords.xy, color="g", ls="--")
         plt.show()
 
-    assert len(network._mesh2d.mesh2d_face_x) == 112
+    assert len(network._mesh2d.mesh2d_face_x) == 303
 
 
-@pytest.mark.xfail
 def test_create_2d_triangular_from_multipolygon(do_plot=False):
     # Define polygon
     fmmodel = FMModel()
@@ -176,7 +178,7 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
     assert len(network._mesh2d.mesh2d_edge_x) == 589
 
     # Refine mesh
-    mesh.mesh2d_refine(network, refinement_box, steps=1)
+    mesh.mesh2d_refine(network, refinement_box, steps=1, min_edge_size=0.5)
 
     # Plot to verify
     if do_plot:
@@ -188,6 +190,8 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
         ax.plot(*refinement_box.exterior.coords.xy, color="g", ls="--")
         plt.show()
 
+    assert len(network._mesh2d.mesh2d_face_x) == 674
+    assert len(network._mesh2d.mesh2d_edge_x) == 1041
 
 def test_2d_clip_outside_polygon(do_plot=False):
     # Define polygon
