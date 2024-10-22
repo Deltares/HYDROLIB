@@ -107,6 +107,7 @@ def test_create_2d_triangular_within_circle(do_plot=False):
         ax.plot(*circle.exterior.coords.xy, color="red", ls="--")
         plt.show()
 
+    # Triangular grids lead to different grids on windows vs macos/linux
     assert len(network._mesh2d.get_mesh2d().face_x) in [254, 258]
 
 
@@ -174,6 +175,7 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
     mesh.mesh2d_add_triangular(network, multipolygon, edge_length=2)
 
     # Check bounds and number of faces
+    # Triangular grids lead to different grids on windows vs macos/linux
     assert len(network._mesh2d.mesh2d_face_x) in [376, 382]
     assert len(network._mesh2d.mesh2d_edge_x) in [589, 598]
 
@@ -190,6 +192,8 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
         ax.plot(*refinement_box.exterior.coords.xy, color="g", ls="--")
         plt.show()
 
+    # Check bounds and number of faces
+    # Triangular grids lead to different grids on windows vs macos/linux
     assert len(network._mesh2d.mesh2d_face_x) in [916, 920]
     assert len(network._mesh2d.mesh2d_edge_x) in [1410, 1416]
 
