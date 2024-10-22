@@ -126,6 +126,7 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
         dy=1,
         deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
     )
+
     assert len(network._mesh2d.mesh2d_face_x) == 149
 
     x = np.linspace(0, 20, 101)
@@ -152,6 +153,8 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
         ax.plot(*river.exterior.coords.xy, color="r", ls="--")
         ax.plot(*refinement.exterior.coords.xy, color="g", ls="--")
         plt.show()
+
+    assert len(network._mesh2d.mesh2d_face_x) == 112
 
 
 @pytest.mark.xfail
@@ -201,7 +204,6 @@ def test_2d_clip_outside_polygon(do_plot=False):
     )
 
     mesh.mesh2d_clip(network, clipgeo, deletemeshoption= DeleteMeshOption.INSIDE_AND_INTERSECTED, inside=False)
-    assert len(network._mesh2d.mesh2d_face_x) == 284
 
     # Plot to verify
     if do_plot:
@@ -212,6 +214,8 @@ def test_2d_clip_outside_polygon(do_plot=False):
         for hole in clipgeo.interiors:
             ax.plot(*hole.coords.xy, color="r", ls="--")
         plt.show()
+
+    assert len(network._mesh2d.mesh2d_face_x) == 284
 
 
 def test_2d_clip_inside_multipolygon(do_plot=False):
@@ -235,7 +239,6 @@ def test_2d_clip_inside_multipolygon(do_plot=False):
         deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
         inside=True,
     )
-    assert len(network._mesh2d.mesh2d_node_x) == 337
 
     # Plot to verify
     if do_plot:
@@ -245,6 +248,8 @@ def test_2d_clip_inside_multipolygon(do_plot=False):
         for polygon in clipgeo.geoms:
             ax.plot(*polygon.exterior.coords.xy, color="r", ls="--")
         plt.show()
+
+    assert len(network._mesh2d.mesh2d_node_x) == 337
 
 
 def test_1d_add_branch_from_linestring(do_plot=False):
