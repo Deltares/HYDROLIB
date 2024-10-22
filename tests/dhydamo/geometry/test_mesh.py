@@ -135,7 +135,7 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
 
     # Refine along river
     refinement = river.buffer(1.0)
-    mesh.mesh2d_refine(network, refinement, steps=1, min_edge_size=0.5)
+    mesh.mesh2d_refine(network, refinement, steps=10, min_edge_size=0.5)
 
     assert len(network._mesh2d.mesh2d_face_x) == 411
 
@@ -178,7 +178,7 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
     assert len(network._mesh2d.mesh2d_edge_x) == 589
 
     # Refine mesh
-    mesh.mesh2d_refine(network, refinement_box, steps=1, min_edge_size=0.5)
+    mesh.mesh2d_refine(network, refinement_box, steps=10, min_edge_size=0.5)
 
     # Plot to verify
     if do_plot:
@@ -190,8 +190,8 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
         ax.plot(*refinement_box.exterior.coords.xy, color="g", ls="--")
         plt.show()
 
-    assert len(network._mesh2d.mesh2d_face_x) == 674
-    assert len(network._mesh2d.mesh2d_edge_x) == 1041
+    assert len(network._mesh2d.mesh2d_face_x) == 920
+    assert len(network._mesh2d.mesh2d_edge_x) == 1416
 
 def test_2d_clip_outside_polygon(do_plot=False):
     # Define polygon
