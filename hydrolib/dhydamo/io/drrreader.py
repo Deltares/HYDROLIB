@@ -506,9 +506,9 @@ class PavedIO:
                 logger.warning(f"No rasterdata available for catchment {cat.code}.")
                 continue
             if sewer_areas is not None:
-                if cat.geometry.intersects(sewer_areas.unary_union):
+                if cat.geometry.intersects(sewer_areas.union_all()):
                     area_outside_sewer = cat.geometry.difference(
-                        sewer_areas.unary_union
+                        sewer_areas.union_all()
                     )
                     if area_outside_sewer.area == 0:
                         logger.info(

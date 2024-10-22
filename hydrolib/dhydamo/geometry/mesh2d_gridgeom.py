@@ -302,7 +302,7 @@ class Mesh2D_GG:
             border = box(xy[:, 0].min(), xy[:, 1].min(), xy[:, 0].max(), xy[:, 1].max()).buffer(1000).exterior
             borderpts = [border.interpolate(dist).coords[0] for dist in np.linspace(0, border.length, max(20, border.length//100))]
             vor = Voronoi(points=xy.tolist()+borderpts)
-            clippoly = facedata.unary_union
+            clippoly = facedata.union_all()
             # Get lines
             lines = []
             for poly in geometry.as_polygon_list(clippoly):

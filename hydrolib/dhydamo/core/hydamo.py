@@ -64,7 +64,7 @@ class HyDAMO:
 
         # Read geometry to clip data
         if extent_file is not None:
-            self.clipgeo = gpd.read_file(extent_file).unary_union
+            self.clipgeo = gpd.read_file(extent_file).union_all()
         else:
             self.clipgeo = None
 

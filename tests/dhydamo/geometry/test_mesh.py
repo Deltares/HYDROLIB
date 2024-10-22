@@ -430,7 +430,7 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
 
     # Create HyDAMO object for extent
     hydamo = _prepare_hydamo()
-    extent2d = hydamo.branches.unary_union.buffer(200)
+    extent2d = hydamo.branches.union_all().buffer(200)
     # Shift extent 2 km to right, such that some cells will have no-data values
     extent2d = translate(extent2d, xoff=2000)
 
