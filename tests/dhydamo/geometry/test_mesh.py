@@ -144,7 +144,7 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
     mesh.mesh2d_clip(
         network=network,
         polygon=GeometryList.from_geometry(river),
-        deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED, #ALL_NODES,
+        deletemeshoption=DeleteMeshOption.FACES_WITH_INCLUDED_CIRCUMCENTERS,
     )
 
     # Plot to verify
@@ -158,7 +158,7 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
         ax.plot(*refinement.exterior.coords.xy, color="g", ls="--")
         plt.show()
 
-    assert len(network._mesh2d.mesh2d_face_x) == 303
+    assert len(network._mesh2d.mesh2d_face_x) == 341
 
 
 def test_create_2d_triangular_from_multipolygon(do_plot=False):
@@ -204,14 +204,24 @@ def test_2d_clip_outside_polygon(do_plot=False):
 
     rectangle = box(-10, -10, 10, 10)
 
-    dmo = DeleteMeshOption.INSIDE_NOT_INTERSECTED
-    mesh.mesh2d_add_rectilinear(network, rectangle, dx=1, dy=1, deletemeshoption=dmo)
+    mesh.mesh2d_add_rectilinear(
+        network, 
+        rectangle, 
+        dx=1, 
+        dy=1, 
+        deletemeshoption=DeleteMeshOption.INSIDE_NOT_INTERSECTED
+    )
 
     clipgeo = box(-8, -8, 8, 8).difference(
         MultiPolygon([box(-6, -1, -4, 2), box(4, 5, 7, 7)])
     )
 
-    mesh.mesh2d_clip(network, clipgeo, deletemeshoption= DeleteMeshOption.INSIDE_AND_INTERSECTED, inside=False)
+    mesh.mesh2d_clip(
+        network, 
+        clipgeo, 
+        deletemeshoption= DeleteMeshOption.FACES_WITH_INCLUDED_CIRCUMCENTERS, 
+        inside=False,
+    )
 
     # Plot to verify
     if do_plot:
@@ -223,7 +233,7 @@ def test_2d_clip_outside_polygon(do_plot=False):
             ax.plot(*hole.coords.xy, color="r", ls="--")
         plt.show()
 
-    assert len(network._mesh2d.mesh2d_face_x) == 284
+    assert len(network._mesh2d.mesh2d_face_x) == 244
 
 
 def test_2d_clip_inside_multipolygon(do_plot=False):
@@ -244,7 +254,7 @@ def test_2d_clip_inside_multipolygon(do_plot=False):
     mesh.mesh2d_clip(
         network,
         clipgeo,
-        deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
+        deletemeshoption=DeleteMeshOption.FACES_WITH_INCLUDED_CIRCUMCENTERS,
         inside=True,
     )
 
@@ -257,7 +267,7 @@ def test_2d_clip_inside_multipolygon(do_plot=False):
             ax.plot(*polygon.exterior.coords.xy, color="r", ls="--")
         plt.show()
 
-    assert len(network._mesh2d.mesh2d_node_x) == 337
+    assert len(network._mesh2d.mesh2d_node_x) == 357
 
 
 def test_1d_add_branch_from_linestring(do_plot=False):
@@ -461,6 +471,7 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
         fill_option=fill_option,
         fill_value=fill_value,
     )
+    mesh
 
 def test_mesh1d_add_branches_from_gdf(do_plot=False):
     # Create full HyDAMO object (use from other test)
