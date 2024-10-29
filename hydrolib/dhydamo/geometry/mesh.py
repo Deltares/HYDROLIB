@@ -91,31 +91,16 @@ def mesh2d_add_rectilinear(
 
     # Merge with existing network
     if existing_mesh2d.node_x.size > 0:
-        new_mesh2d = network._mesh2d.get_mesh2d()
-        # Modify count for indexing variables
-        new_mesh2d.edge_nodes += existing_mesh2d.edge_nodes.max() + 1
-        new_mesh2d.face_nodes += existing_mesh2d.edge_nodes.max() + 1
         # Add all variables to existing mesh
-        variables = [
-            "node_x",
-            "node_y",
-            "edge_nodes",
-            "face_nodes",
-            "nodes_per_face",
-            "edge_x",
-            "edge_y",
-            "face_x",
-            "face_y",
-        ]
-        for var in variables:
-            setattr(
-                existing_mesh2d,
-                var,
-                np.concatenate(
-                    [getattr(existing_mesh2d, var), getattr(new_mesh2d, var)]
-                ),
-            )
-
+        new_mesh2d = network._mesh2d.get_mesh2d()
+        network._mesh2d._set_mesh2d(
+            np.concatenate([existing_mesh2d.node_x, new_mesh2d.node_x]),
+            np.concatenate([existing_mesh2d.node_y, new_mesh2d.node_y]),
+            np.concatenate([
+                existing_mesh2d.edge_nodes,
+                new_mesh2d.edge_nodes + existing_mesh2d.edge_nodes.max() + 1,
+            ]),
+        )
 
 def mesh2d_from_netcdf(network: Network, path: Union[Path, str]) -> None:
     reader = UgridReader(path)
