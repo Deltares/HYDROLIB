@@ -430,12 +430,12 @@ def _prepare_hydamo(culverts: bool = False):
 @pytest.mark.parametrize(
     "where,fill_option,fill_value,outcome",
     [
-        ("face", "interpolate", 10.0, 8629.457),
-        ("face", "fill_value", 10.0, 8629.457),
-        ("face", "nearest", None, 9050.679),
-        ("node", "interpolate", 10.0, 6541.38),
-        ("node", "fill_value", 10.0, 6526.393),
-        ("node", "nearest", None, 6978.605),
+        ("face", "interpolate", 10.0, 8716.507),
+        ("face", "fill_value", 10.0, 8716.507),
+        ("face", "nearest", None, 9138.830),
+        ("node", "interpolate", 10.0, 6355.084),
+        ("node", "fill_value", 10.0, 6340.100),
+        ("node", "nearest", None, 6782.621),
     ],
 )
 def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
@@ -458,8 +458,17 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
     parts = extent2d.difference(centerline).geoms
 
     network = fm.geometry.netfile.network
+    mesh.mesh2d_add_triangular(
+        network=network, 
+        polygon=parts[0], 
+        edge_length=cellsize,
+    )
     mesh.mesh2d_add_rectilinear(
-        network=network, polygon=parts[1], dx=cellsize, dy=cellsize * 1.5
+        network=network, 
+        polygon=parts[1], 
+        dx=cellsize, 
+        dy=cellsize * 1.5,
+        deletemeshoption=DeleteMeshOption.FACES_WITH_INCLUDED_CIRCUMCENTERS,
     )
 
     # Derive z-values from ahn
@@ -471,7 +480,9 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
         fill_option=fill_option,
         fill_value=fill_value,
     )
-    mesh
+
+    test_val = getattr(network._mesh2d, f"mesh2d_{where}_z").sum()
+    assert round(float(test_val), 3) == round(float(outcome), 3)
 
 def test_mesh1d_add_branches_from_gdf(do_plot=False):
     # Create full HyDAMO object (use from other test)
