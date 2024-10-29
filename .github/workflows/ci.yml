@@ -15,25 +15,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install poetry
+        run: pipx install poetry
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'poetry'
 
-      - name: Run image
-        uses: abatilo/actions-poetry@v2
-        with:
-          poetry-version: 1.8
-
-      - name: Set Poetry config
-        run: |
-          poetry config virtualenvs.in-project false
-          poetry config virtualenvs.path ~/.virtualenvs
-
       - name: Install Dependencies
         run: poetry install
-        if: steps.cache.outputs.cache-hit != 'true'
 
       - name: Test with pytest
         run: poetry run pytest -v -m "not slow and not plot" --cov . --cov-report xml:coverage-reports/coverage-hydrolib.xml --junitxml=xunit-reports/xunit-result-hydrolib.xml
