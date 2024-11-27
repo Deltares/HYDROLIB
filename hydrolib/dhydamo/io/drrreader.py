@@ -32,6 +32,8 @@ class UnpavedIO:
         initial_gwd: Union[StrictStr, Path, float],
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,
+        paved_areas: dict = None,
+        greenhouse_areas: ExtendedGeoDataFrame = None
     ):
         """Generate contents of an unpaved node from raster data
 
@@ -125,6 +127,7 @@ class UnpavedIO:
             ),
             index_col="id",
         )
+
         unpaved_drr.index = catchments.code
         # HyDAMO Crop code; hydamo name, sobek index, sobek name:
         # 1 aardappelen   3 potatoes
@@ -151,10 +154,16 @@ class UnpavedIO:
                 if m.geometry.contains(cat.geometry.centroid)
             ]
             ms = meteo_areas.iloc[0, :][0] if tm == [] else tm[0].code
-            # find corresponding meteo-station
-            # ms = [ms for ms in meteo_areas.itertuples() if ms.geometry.contains(cat.geometry.centroid)]
-            # ms = ms[0] if ms != [] else meteo_areas.iloc[0,:][0]
             mapping = np.zeros(16, dtype=int)
+            
+            # subtract greenhouse area from most occurring land use if no greenhouse area is in the landuse map
+            if greenhouse_areas is not None:
+                if cat.geometry.intersects(greenhouse_areas.geometry).any():
+                    area = greenhouse_areas[cat.geometry.intersects(greenhouse_areas.geometry)].geometry.area
+                    if 15 not in lu_counts[num]:    
+                        maxind = np.argmax(list(lu_counts[num].values()))                
+                        lu_counts[num][list(lu_counts[num].keys())[maxind]] = np.max([0., (lu_counts[num][list(lu_counts[num].keys())[maxind]] - np.round(area/px_area)).values[0]])
+            
             for i in range(1, 13):
                 if i in lu_counts[num]:
                     mapping[sobek_indices[i - 1] - 1] = lu_counts[num][i] * px_area
@@ -257,6 +266,7 @@ class PavedIO:
         overflows: ExtendedGeoDataFrame = None,
         sewer_areas: ExtendedGeoDataFrame = None,
         zonalstats_alltouched: bool = None,
+        unpaved_areas: dict = None
     ) -> None:
         """Generate contents of RR paved nodes
 
@@ -506,7 +516,9 @@ class PavedIO:
                 logger.warning(f"No rasterdata available for catchment {cat.code}.")
                 continue
             if sewer_areas is not None:
+                # part of the catchment that is also in a sewer area
                 if cat.geometry.intersects(sewer_areas.union_all()):
+                    # the part of the catchment OUTSIDE the sewer area
                     area_outside_sewer = cat.geometry.difference(
                         sewer_areas.union_all()
                     )
@@ -516,6 +528,7 @@ class PavedIO:
                         )
                         pav_area = 0.0
                     else:
+                        # the paved ara in the catchment OUTSIDE the sewer area
                         pixels = zonal_stats(
                             area_outside_sewer,
                             lu_rast,
@@ -528,6 +541,7 @@ class PavedIO:
                         else:
                             pav_area = 0.0
                 else:
+                    # all of the catchment is outside the sewer area
                     pixels = zonal_stats(
                                 cat.geometry,
                                 lu_rast,
@@ -540,6 +554,7 @@ class PavedIO:
                     else:
                         pav_area = 0.0
             else:
+                # there is no sewer area at all
                 pav_area = (
                     str(lu_counts[num][14.0] * px_area)
                     if 14.0 in lu_counts[num]
@@ -599,12 +614,17 @@ class GreenhouseIO:
         surface_level: Union[Path, str],
         roof_storage: Union[StrictStr,float],
         meteo_areas: ExtendedGeoDataFrame,
-        zonalstats_alltouched: bool = None,
+        zonalstats_alltouched: bool = None,        
+        greenhouse_areas: ExtendedGeoDataFrame=None,
+        greenhouse_laterals: ExtendedGeoDataFrame=None,
+        basin_storage_class: int=2    
     ) -> None:
         """Generate contents of an RR greenhouse node
 
         Args:
             catchments (ExtendedGeoDataFrame): catchment areas
+            greenhouuse_areas (ExtendedGeoDataFrame): known set of greenhouse areas with attiributes
+            greenhouse_laterals (ExtendedGeoDataFrame) : known set of outlet points for greenhouses
             landuse (str): filename of land use raster
             surface_level (str): filename of surface level raster
             roofstorage (Union): float for spatially uniform sewer storage (mm), or raster for distributed values
@@ -625,6 +645,11 @@ class GreenhouseIO:
         mean_elev = zonal_stats(
             catchments, rast, affine=affine, stats="median", all_touched=all_touched
         )
+        if greenhouse_areas is not None:
+            mean_elev_gh = zonal_stats(
+                greenhouse_areas, rast, affine=affine, stats="median", all_touched=all_touched
+            )
+            
         # optional rasters
         if isinstance(roof_storage, (Path, str)):
             rast, affine = self.greenhouse.drrmodel.read_raster(
@@ -633,14 +658,25 @@ class GreenhouseIO:
             roofstors = zonal_stats(
                 catchments, rast, affine=affine, stats="mean", all_touched=True
             )
-        
+            if greenhouse_areas is not None:
+                roofstors_gh = zonal_stats(
+                    greenhouse_areas, rast, affine=affine, stats="mean", all_touched=True
+                )
+
         # get raster cellsize
         px_area = lu_affine[0] * -lu_affine[4]
+
+
+        numgh = catchments.shape[0]
+        indexgh = catchments.code
+        if greenhouse_areas is not None:
+            numgh = numgh + greenhouse_areas.shape[0]
+            indexgh = indexgh + greenhouse_areas.code
 
         gh_drr = ExtendedDataFrame(required_columns=["id"])
         gh_drr.set_data(
             pd.DataFrame(
-                np.zeros((len(catchments), 8)),
+                np.zeros((numgh, 8)),
                 columns=[
                     "id",
                     "area",
@@ -655,7 +691,41 @@ class GreenhouseIO:
             ),
             index_col="id",
         )
-        gh_drr.index = catchments.code
+        gh_drr.index = indexgh
+        if greenhouse_areas is not None:
+            for num, gh in enumerate(greenhouse_areas.itertuples()):
+                # find corresponding meteo-station
+                if mean_elev_gh[num]["median"] is None:
+                    logger.warning(f"No rasterdata available for catchment {gh.code}.")
+                    continue
+                tm = [
+                    m
+                    for m in meteo_areas.itertuples()
+                    if m.geometry.contains(gh.geometry.centroid)
+                ]
+                ms = meteo_areas.iloc[0, :][0] if tm == [] else tm[0].code
+
+                elev = mean_elev_gh[num]["median"]
+                gh_drr.at[gh.code, "id"] = str(gh.code)
+                gh_drr.at[gh.code, "area"] = gh.geometry.area
+                gh_drr.at[gh.code, "surface_level"] = f"{elev:.2f}"
+                if hasattr(gh, 'roof_storage_mm') & (~(np.isnan(gh.roof_storage_mm))):
+                    gh_drr.at[gh.code, "roof_storage"] = f"{gh.roof_storage_mm:.2f}"                                                 
+                if isinstance(roof_storage, float):
+                    gh_drr.at[gh.code, "roof_storage"] = f"{roof_storage:.2f}"
+                else:
+                    gh_drr.at[gh.code, "roof_storage"] = f'{roofstors_gh[num]["mean"]:.2f}'
+                if hasattr(gh, 'basin_storage_class') & (~(np.isnan(gh.basin_storage_class))):
+                    gh_drr.at[gh.code, 'basin_storage_class'] = f"{gh.basin_storage_class:g}"
+                else:
+                    gh_drr.at[gh.code, "basin_storage_class"] = f'{basin_storage_class:g}'
+                gh_drr.at[gh.code, "meteo_area"] = str(ms)
+                gh_drr.at[gh.code, "px"] = f"{gh.geometry.centroid.coords[0][0]:.0f}"
+                gh_drr.at[gh.code, "py"] = f"{gh.geometry.centroid.coords[0][1]:.0f}"
+                latcode = greenhouse_laterals[greenhouse_laterals.codegerelateerdobject == gh.code].code.values[0]
+                gh_drr.at[gh.code, "boundary_node"] = str(latcode)           
+            [self.greenhouse.add_greenhouse(**gh) for gh in gh_drr.to_dict("records")]
+
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
@@ -680,12 +750,12 @@ class GreenhouseIO:
                 gh_drr.at[cat.code, "roof_storage"] = f"{roof_storage:.2f}"
             else:
                 gh_drr.at[cat.code, "roof_storage"] = f'{roofstors[num]["mean"]:.2f}'
+            gh_drr.at[cat.code, "basin_storage_class"] = f'{basin_storage_class:g}'
             gh_drr.at[cat.code, "meteo_area"] = str(ms)
             gh_drr.at[cat.code, "px"] = f"{cat.geometry.centroid.coords[0][0]+20:.0f}"
             gh_drr.at[cat.code, "py"] = f"{cat.geometry.centroid.coords[0][1]:.0f}"
             gh_drr.at[cat.code, "boundary_node"] = cat.lateraleknoopcode
         [self.greenhouse.add_greenhouse(**gh) for gh in gh_drr.to_dict("records")]
-
 
 class OpenwaterIO:
     def __init__(self, openwater):
@@ -897,6 +967,7 @@ class ExternalForcingsIO:
         catchments: ExtendedGeoDataFrame,
         drrmodel,
         overflows: ExtendedGeoDataFrame = None,
+        greenhouse_laterals: ExtendedGeoDataFrame=None
     ) -> None:
         """Generate RR-boundary nodes to link to RR-nodes and to FM-laterals.
 
@@ -905,6 +976,7 @@ class ExternalForcingsIO:
             catchments (ExtendedGeoDataFrame): catchment areas associated with them
             drrmodel (_type_): drrmodel object
             overflows (ExtendedGeoDataFrame, optional): overflow locations, if applicable. Defaults to None.
+            greenhouse_laterals (ExtendedGeoDataFrame, optional): overflow locations, if applicable. Defaults to None.
 
         """
         # find the catchments that have no area attached and no nodes that will be attached to the boundary
@@ -945,11 +1017,12 @@ class ExternalForcingsIO:
                 inplace=True,
             )
 
+        numlats = len(catchments)
         if overflows is not None:
-            numlats = len(catchments) + len(overflows)
-        else:
-            numlats = len(catchments)
-
+            numlats = numlats + len(overflows)
+        if greenhouse_laterals is not None:
+            numlats = numlats + len(greenhouse_laterals)
+            
         bnd_drr = ExtendedDataFrame(required_columns=["id"])
         bnd_drr.set_data(
             pd.DataFrame(
@@ -957,10 +1030,13 @@ class ExternalForcingsIO:
             ),
             index_col="id",
         )
+        index = catchments.code
         if overflows is not None:
-            bnd_drr.index = pd.concat([catchments.code, overflows.code], ignore_index=True)
-        else:
-            bnd_drr.index = catchments.code
+            index = pd.concat([index, overflows.code], ignore_index=True)
+        if greenhouse_laterals is not None:
+            index = pd.concat([index, greenhouse_laterals.code], ignore_index=True)
+        
+        bnd_drr.index = index
         for num, cat in enumerate(catchments.itertuples()):
             # print(num, cat.code)
             if boundary_nodes[boundary_nodes["code"] == cat.lateraleknoopcode].empty:
@@ -986,6 +1062,12 @@ class ExternalForcingsIO:
                 bnd_drr.at[ovf.code, "id"] = str(ovf.code)
                 bnd_drr.at[ovf.code, "px"] = str(ovf.geometry.coords[0][0])
                 bnd_drr.at[ovf.code, "py"] = str(ovf.geometry.coords[0][1])
+        if greenhouse_laterals is not None:
+            logger.info("Adding greenhouse_laterals to the boundary nodes.")
+            for num, gh in enumerate(greenhouse_laterals.itertuples()):
+                bnd_drr.at[gh.code, "id"] = str(gh.code)
+                bnd_drr.at[gh.code, "px"] = str(gh.geometry.coords[0][0])
+                bnd_drr.at[gh.code, "py"] = str(gh.geometry.coords[0][1])
         [
             self.external_forcings.add_boundary_node(**bnd)
             for bnd in bnd_drr.to_dict("records")

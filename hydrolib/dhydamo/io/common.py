@@ -108,15 +108,15 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if column_mapping is not None:
             gdf.rename(columns=column_mapping, inplace=True)
 
-        if "MultiPolygon" or "MultiLineString" in str(gdf.geometry.type):
-            gdf = gdf.explode()
-            for ftc in gdf[id_col].unique():
-                if len(gdf[gdf[id_col] == ftc]) > 1:
-                    gdf.loc[gdf[id_col] == ftc, id_col] = [
-                        f"{i}_{n}"
-                        for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
-                    ]
-                    print("%s is MultiPolygon; split into single parts." % ftc)
+        # if "MultiPolygon" or "MultiLineString" in str(gdf.geometry.type):
+        #     gdf = gdf.explode()
+        #     for ftc in gdf[id_col].unique():
+        #         if len(gdf[gdf[id_col] == ftc]) > 1:
+        #             gdf.loc[gdf[id_col] == ftc, id_col] = [
+        #                 f"{i}_{n}"
+        #                 for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
+        #             ]
+        #             print("%s is MultiPolygon; split into single parts." % ftc)
 
         # Check number of entries
         if gdf.empty:

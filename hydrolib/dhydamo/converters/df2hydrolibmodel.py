@@ -307,7 +307,7 @@ class Df2HydrolibModel:
                 lat_ext = Lateral(
                     id=key,
                     name=key,
-                    type=lateral["type"],
+                    # type=lateral["type"],
                     locationtype=lateral["locationtype"],
                     branchId=lateral["branchid"],
                     chainage=lateral["chainage"],

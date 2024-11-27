@@ -17,9 +17,12 @@ from hydrolib.dhydamo.converters.hydamo2df import (
     ExternalForcingsIO,
     RoughnessVariant,
     StructuresIO,
+    StorageNodesIO
 )
+from rasterstats import zonal_stats
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
+from hydrolib.dhydamo.core.drr import DRRModel
 
 logger = logging.getLogger(__name__)
 
@@ -333,6 +336,51 @@ class HyDAMO:
             }
         )
 
+        # RR overflows
+        self.overflows = ExtendedGeoDataFrame(
+            geotype=Point,
+            required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
+            related={
+                "sewer_areas": {
+                    "via": "codegerelateerdobject",
+                    "on": "code",
+                    "coupled_to": None
+                }
+            }
+        )
+
+        # RR greenhouse areas
+        self.greenhouse_areas = ExtendedGeoDataFrame(
+            geotype=Polygon,
+            required_columns=["code", "geometry"],
+            related={
+                "greenhouse_laterals": {
+                    "via": "code",
+                    "on": "codegerelateerdobject",
+                    "coupled_to": None
+                }
+            }
+        )
+
+         # RR overflows
+        self.greenhouse_laterals = ExtendedGeoDataFrame(
+            geotype=Point,
+            required_columns=["code", "geometry", "codegerelateerdobject"],
+            related={
+                "greenhouse_areas": {
+                    "via": "codegerelateerdobject",
+                    "on": "code",
+                    "coupled_to": None
+                }
+            }
+        )
+
+        # RR overflows
+        self.storage_areas = ExtendedGeoDataFrame(
+            geotype=Polygon,
+            required_columns=["code", "geometry"],            
+        )
+
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def list_to_str(self, lst: Union[list, np.ndarray]) -> str:
         """Converts list to string
@@ -393,6 +441,57 @@ class HyDAMO:
         if coupled_to is not None:
             for next_target_str, next_relation in coupled_to.items():
                 return self._recursive_drop_related(drop_list, target, drop_idx, next_target_str, **next_relation)
+            
+    def create_laterals(self, qspec_file=None):            
+        ## Specifieke afvoeren inlezen
+        if qspec_file is not None:
+            rr = DRRModel()
+            qspec, affine = rr.read_raster(qspec_file, static=True)
+            fill_value_specifieke_afvoeren = 0
+            qspec = np.where(qspec<0, fill_value_specifieke_afvoeren, qspec)
+
+            ## Afvoer per gebied bepalen met zonal stats
+            afvoer_per_gebied = zonal_stats(self.catchments, qspec, affine=affine, stats="mean", all_touched=True, nodata=-2147483647)   
+        
+        self.laterals = self.catchments.copy()
+
+        for num, cat in enumerate(self.catchments.itertuples()):
+            ## Koppelen van afvoeren met afwateringsgebieden
+            if qspec_file is not None:
+                q = afvoer_per_gebied[num]['mean'] # mm/d
+            else:
+                q = np.nan
+
+            area = cat.geometry.area           # m2
+            q_m3s = q*area/(1000*86400)        # van mm/d naar m3/s
+            self.laterals.at[cat.Index, 'afvoer'] = q_m3s          
+            knoopid = cat.lateraleknoopid
+        
+        
+            ## Afstand tussen watergang en afwateringsgebied. Als watergang in afwateringsgebied ligt is deze afstand 0.
+            distances = self.branches.distance(cat.geometry)
+            ## EÃ©n of meer watergangen in afwateringsgebied:
+            if sum(distances == 0) > 0:
+                ## Watergangen intersecten met afwateringsgebied
+                #wg = [watergang for watergang in watergangen.itertuples() if watergang.intersects(cat.geometry]
+                selectie = self.branches.intersection(cat.geometry)
+                ## Index van de watergang waarop je wilt snappen. Dit is de watergang die in het gebied ligt Ã©n het dichtst bij de centroid van het afwateringsgebied is.
+                index_watergang = selectie.distance(cat.geometry.centroid).idxmin() 
+                ## Combineer de ge intersecte watergangen met de index om het stuk watergang te vinden waarop mag worden gesnapt.
+                watergang = selectie.at[index_watergang]
+            ## No intersects 
+            else:
+                ## Vind de watergang die het dichtst bij de centroid van het gebied is
+                index_watergang = self.branches.distance(cat.geometry.centroid).idxmin()
+                ## Selecteer deze watergang om op te mogen snappen
+                watergang = self.branches.at[index_watergang, 'geometry']
+        
+            ## Snap de centroid van het afwateringsgebied op de geselecteerde watergang
+            lateral = watergang.interpolate(watergang.project(cat.geometry.centroid))
+            ## Schrijf de snap-locatie weg in de geodataframe
+            self.laterals.at[cat.Index, 'geometry'] = lateral
+            self.laterals.at[cat.Index, 'globalid'] = knoopid
+            self.laterals.at[cat.Index, 'code']= f'lat_{cat.code}'
 
 class Network:
     def __init__(self, hydamo: HyDAMO) -> None:
@@ -2114,11 +2213,16 @@ class StorageNodes:
         self.storagenodes = {}
 
         self.hydamo = hydamo
-
+        
+        self.convert = StorageNodesIO(self)
+    
     def add_storagenode(
         self,
         id,
-        nodeid,
+        xy=None,
+        branchid=None,
+        chainage=None,
+        nodeid=None,
         usestreetstorage="true",
         nodetype="unspecified",
         name=np.nan,
@@ -2131,19 +2235,51 @@ class StorageNodes:
         levels=np.nan,
         storagearea=np.nan,
         interpolate="linear",
+        network=None
     ):
+
+        if isinstance(xy, tuple):
+            xy = Point(*xy)
+        if xy is None and chainage is not None:
+            xy = self.hydamo.branches.loc[branchid].geometry.interpolate(chainage)            
+            
+        # Find the nearest node
+        if len(network._mesh1d.network1d_node_id) == 0:
+            raise KeyError(
+                "To find the closest node a 1d mesh should be created first."
+            )
+        nodes1d = np.asarray(
+            [
+                n
+                for n in zip(
+                    network._mesh1d.network1d_node_x,
+                    network._mesh1d.network1d_node_y,
+                    network._mesh1d.network1d_node_id,
+                )
+            ]
+        )
+        get_nearest = KDTree(nodes1d[:, 0:2])
+        _, idx_nearest = get_nearest.query(xy.coords[:])
+        nodeid = f"{float(nodes1d[idx_nearest[0],0]):12.6f}_{float(nodes1d[idx_nearest[0],1]):12.6f}"
+
         base = {
             "type": "storageNode",
             "id": id,
-            "name": id if np.isnan(name) else name,
+            "name": id if name is None else name,
             "useStreetStorage": usestreetstorage,
-            "nodeType": nodetype,
-            "nodeId": nodeid,
+            "nodeType": nodetype,            
             "useTable": usetable,
         }
+        if nodeid is None:
+            cds = {'branchid':branchid, 
+                   'chainage': chainage}
+        else:
+            cds = {'nodeid':nodeid}
+
         if usetable == "false":
             out = {
                 **base,
+                **cds,
                 "bedLevel": bedlevel,
                 "area": area,
                 "streetLevel": streetlevel,
@@ -2156,9 +2292,10 @@ class StorageNodes:
             ), "Number of levels does not equal number of storagearea"
             out = {
                 **base,
+                **cds,
                 "numLevels": len(levels.split()),
-                "levels": area,
-                "storageArea": streetlevel,
+                "levels": levels,
+                "storageArea": storagearea,
                 "interpolate": interpolate,
             }
         else:

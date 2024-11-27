@@ -335,6 +335,7 @@ class ExternalForcingsIO:
         self,
         locations: ExtendedGeoDataFrame,
         overflows: Optional[ExtendedGeoDataFrame] = None,
+        greenhouse_laterals: Optional[ExtendedGeoDataFrame] = None,
         lateral_discharges: Optional[Union[pd.DataFrame, pd.Series]]=None,
         rr_boundaries: Optional[dict] = None,
     ) -> None:
@@ -365,8 +366,9 @@ class ExternalForcingsIO:
         latdct = {}
         if overflows is not None:
             locations = pd.concat([locations, overflows], ignore_index=True)
-
-
+        if greenhouse_laterals is not None:
+            locations = pd.concat([locations, greenhouse_laterals], ignore_index=True)
+            
         # Get time series and add to dictionary
         # for nidx, lateral in zip(nearest_idx, locations.itertuples()):
         for lateral in locations.itertuples():
@@ -1209,8 +1211,8 @@ class StructuresIO:
 
 
 class StorageNodesIO:
-    def __init__(self, storage_nodes):
-        self.storage_nodes = {}
+    def __init__(self, storagenodes):
+        self.storagenodes = storagenodes        
 
     def storagenodes_from_datamodel(self, storagenodes):
         """ "From parsed data model of storage nodes"""
@@ -1227,4 +1229,25 @@ class StorageNodesIO:
                 streetlevel=storagenode.streetlevel,
                 streetstoragearea=storagenode.streetstoragearea,
                 storagetype=storagenode.storagetype,
+            )
+
+    def storagenodes_from_input(self, storagenodes=None, nodeid=None, xy=None, storagedata=None, usestreetstorage= True, network=None):
+        """ "From parsed data model of storage nodes"""
+          
+        for storagenode_idx, storagenode in storagenodes.iterrows():         
+            data = storagedata[storagedata.code == storagenode_idx]
+            
+            self.storagenodes.add_storagenode(
+                id=storagenode_idx,
+                name=storagenode.name if not None else storagenode.code,
+                usestreetstorage=usestreetstorage,
+                nodetype="unspecified",
+                nodeid=nodeid,
+                xy=xy,
+                branchid=storagenode.branch_id,
+                chainage=storagenode.branch_offset,
+                usetable="true",                
+                storagearea=' '.join(data.area.astype(str)),
+                levels=' '.join(data.level.astype(str)),
+                network=network
             )

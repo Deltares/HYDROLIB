@@ -367,7 +367,7 @@ def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: lis
     j = 0
     branches["order"] = np.nan
     for value in branches[order_attribute].unique():
-        if value is not None and ~all(x in missing for x in branches.loc[branches.loc[:, order_attribute] == value, "code"]):
+        if value is not None and not all(x in missing for x in branches.loc[branches.loc[:, order_attribute] == value, "code"]):
             branches.loc[branches.loc[:, order_attribute] == value, "order"] = int(j)
             j = j + 1
     for exception in exceptions:

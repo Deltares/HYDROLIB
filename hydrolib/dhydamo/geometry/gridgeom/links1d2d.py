@@ -23,6 +23,7 @@ class Links1d2d:
         # List for 1d 2d links
         self.nodes1d = []
         self.faces2d = []
+        #setattr(self.network._link1d2d, 'link1d2d', np.array([]))
 
     def generate_1d_to_2d(self, max_distance=np.inf, branchid=None):
         """
@@ -406,24 +407,25 @@ class Links1d2d:
         mk_faces = np.c_[self.network._mesh2d.mesh2d_face_x, self.network._mesh2d.mesh2d_face_y]
         distances, faces2d = KDTree(mk_faces).query(gr_faces)
         print(f'Max distance between faces: {distances.max()}') # error out if we do not find an exact match
-
-        self.network._link1d2d.link1d2d = np.append(
-            self.network._link1d2d.link1d2d,
-            np.c_[nodes1d, faces2d],
-            axis=0,
-        )
-        self.network._link1d2d.link1d2d_contact_type = np.append(
-            self.network._link1d2d.link1d2d_contact_type, 
-            np.full(nodes1d.size, 3)
-        )
-        self.network._link1d2d.link1d2d_id = np.append(
-           self.network._link1d2d.link1d2d_id,
-           np.array([f"{n1d:d}_{f2d:d}" for n1d, f2d in np.c_[nodes1d, faces2d]])
-        )
-        self.network._link1d2d.link1d2d_long_name = np.append(
-            self.network._link1d2d.link1d2d_long_name,
-            np.array([f"{n1d:d}_{f2d:d}" for n1d, f2d in np.c_[nodes1d, faces2d]])
-        )
+                
+        # #self.network._link1d2d.link1d2d = np.array([])
+        # self.network._link1d2d.link1d2d = np.append(
+        #     self.network._link1d2d.link1d2d,
+        #     np.c_[nodes1d, faces2d],
+        #     axis=0,
+        # )
+        # self.network._link1d2d.link1d2d_contact_type = np.append(
+        #     self.network._link1d2d.link1d2d_contact_type, 
+        #     np.full(nodes1d.size, 3)
+        # )
+        # self.network._link1d2d.link1d2d_id = np.append(
+        #    self.network._link1d2d.link1d2d_id,
+        #    np.array([f"{n1d:d}_{f2d:d}" for n1d, f2d in np.c_[nodes1d, faces2d]])
+        # )
+        # self.network._link1d2d.link1d2d_long_name = np.append(
+        #     self.network._link1d2d.link1d2d_long_name,
+        #     np.array([f"{n1d:d}_{f2d:d}" for n1d, f2d in np.c_[nodes1d, faces2d]])
+        # )
 
 
         

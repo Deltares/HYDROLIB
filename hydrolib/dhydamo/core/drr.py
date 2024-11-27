@@ -276,6 +276,7 @@ class Greenhouse:
         area: str,
         surface_level: str,
         roof_storage: str,
+        basin_storage_class: str,
         meteo_area: str,
         px: str,
         py: str,
@@ -303,6 +304,7 @@ class Greenhouse:
             "px": px,
             "py": py,
             "boundary_node": boundary_node,
+            "basin_storage_class": basin_storage_class,
         }
 
 
