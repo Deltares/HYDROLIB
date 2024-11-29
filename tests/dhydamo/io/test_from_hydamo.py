@@ -375,14 +375,37 @@ def test_observationpoints():
 
 def test_storagenodes():
     hydamo = test_hydamo_object_from_gpkg()
+
+    fm = FMModel()
+    
+    mesh.mesh1d_add_branches_from_gdf(
+        fm.geometry.netfile.network,
+        branches=hydamo.branches,
+        branch_name_col="code",
+        node_distance=20,
+        max_dist_to_struc=None,
+        structures=None,
+    )
+    
+    hydamo.storagenodes.add_storagenode(       
+        id='sto_test',
+        xy=(141001, 395030),                
+        name='sto_test',
+        usetable="true",
+        levels=' '.join(np.arange(17.1, 19.6, 0.1).astype(str)),
+        storagearea=' '.join(np.arange(100, 1000, 900/25.).astype(str)),
+        interpolate="linear",
+        network=fm.geometry.netfile.network
+    )
+    
     hydamo.storagenodes.add_storagenode(
-        "test",
-        "123_123",
+        id="test",
+        nodeid='199501.863000_395084.466000',                
         usestreetstorage="true",
         nodetype="unspecified",
-        name=np.nan,
+        name='sto_test',
         usetable="false",
-        bedlevel=12.0,
+        bedlevel=18.0,
         area=100,
         streetlevel=14.0,
         streetstoragearea=10.0,
@@ -392,7 +415,7 @@ def test_storagenodes():
         interpolate="linear",
     )
 
-    assert len(hydamo.storagenodes.storagenodes.keys()) == 1
+    assert len(hydamo.storagenodes.storagenodes.keys()) == 2
 
 
 def test_convert_boundaries():

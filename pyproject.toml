@@ -27,6 +27,11 @@ jupyter = ">=1.0"
 contextily = "^1.4"
 dask = ">=2023.5.0"
 pyogrio = "^0.9"
+folium = "^0.18.0"
+pillow = "^11.0.0"
+mplleaflet = "^0.0.5"
+ipython = "^8.29.0"
+xlrd = "^2.0.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

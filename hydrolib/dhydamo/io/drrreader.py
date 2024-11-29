@@ -31,8 +31,7 @@ class UnpavedIO:
         infiltration_capacity: Union[StrictStr, Path, float],
         initial_gwd: Union[StrictStr, Path, float],
         meteo_areas: ExtendedGeoDataFrame,
-        zonalstats_alltouched: bool = None,
-        paved_areas: dict = None,
+        zonalstats_alltouched: bool = None,        
         greenhouse_areas: ExtendedGeoDataFrame = None
     ):
         """Generate contents of an unpaved node from raster data
@@ -265,8 +264,8 @@ class PavedIO:
         meteo_areas: ExtendedGeoDataFrame,
         overflows: ExtendedGeoDataFrame = None,
         sewer_areas: ExtendedGeoDataFrame = None,
-        zonalstats_alltouched: bool = None,
-        unpaved_areas: dict = None
+        zonalstats_alltouched: bool = None
+        
     ) -> None:
         """Generate contents of RR paved nodes
 

@@ -2244,23 +2244,26 @@ class StorageNodes:
             xy = self.hydamo.branches.loc[branchid].geometry.interpolate(chainage)            
             
         # Find the nearest node
-        if len(network._mesh1d.network1d_node_id) == 0:
-            raise KeyError(
-                "To find the closest node a 1d mesh should be created first."
-            )
-        nodes1d = np.asarray(
-            [
-                n
-                for n in zip(
-                    network._mesh1d.network1d_node_x,
-                    network._mesh1d.network1d_node_y,
-                    network._mesh1d.network1d_node_id,
+        if nodeid is not None and not isinstance(nodeid, str):
+            raise ValueError('If a nodeid is provided, it should be of type string.')
+        if nodeid is None:
+            if len(network._mesh1d.network1d_node_id) == 0:
+                raise KeyError(
+                    "To find the closest node a 1d mesh should be created first."
                 )
-            ]
-        )
-        get_nearest = KDTree(nodes1d[:, 0:2])
-        _, idx_nearest = get_nearest.query(xy.coords[:])
-        nodeid = f"{float(nodes1d[idx_nearest[0],0]):12.6f}_{float(nodes1d[idx_nearest[0],1]):12.6f}"
+            nodes1d = np.asarray(
+                [
+                    n
+                    for n in zip(
+                        network._mesh1d.network1d_node_x,
+                        network._mesh1d.network1d_node_y,
+                        network._mesh1d.network1d_node_id,
+                    )
+                ]
+            )
+            get_nearest = KDTree(nodes1d[:, 0:2])
+            _, idx_nearest = get_nearest.query(xy.coords[:])
+            nodeid = f"{float(nodes1d[idx_nearest[0],0]):12.6f}_{float(nodes1d[idx_nearest[0],1]):12.6f}"
 
         base = {
             "type": "storageNode",
