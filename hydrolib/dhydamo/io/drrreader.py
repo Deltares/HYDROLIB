@@ -158,10 +158,16 @@ class UnpavedIO:
             # subtract greenhouse area from most occurring land use if no greenhouse area is in the landuse map
             if greenhouse_areas is not None:
                 if cat.geometry.intersects(greenhouse_areas.geometry).any():
-                    area = greenhouse_areas[cat.geometry.intersects(greenhouse_areas.geometry)].geometry.area
-                    if 15 not in lu_counts[num]:    
-                        maxind = np.argmax(list(lu_counts[num].values()))                
-                        lu_counts[num][list(lu_counts[num].keys())[maxind]] = np.max([0., (lu_counts[num][list(lu_counts[num].keys())[maxind]] - np.round(area/px_area)).values[0]])
+                    intersection_area = cat.geometry.intersection(greenhouse_areas.geometry).area
+                    intersection_area = intersection_area[intersection_area > 0.].values[0]                    
+                    if 15 in lu_counts[num]:
+                        # divide area to subtract between greenhouses and the most occurring area
+                        remainder = np.max([0., intersection_area - float(lu_counts[num][15]*px_area)])                                                
+                    else:    
+                        remainder = intersection_area
+                    maxind = np.argmax(list(lu_counts[num].values()))              
+                    print(f'Catchment {cat.code}: subtracting {remainder} m2 from class {maxind} for supplied greenhouse area.')  
+                    lu_counts[num][list(lu_counts[num].keys())[maxind]] = np.max([0., (lu_counts[num][list(lu_counts[num].keys())[maxind]] - np.round(remainder/px_area))])
             
             for i in range(1, 13):
                 if i in lu_counts[num]:
@@ -739,6 +745,15 @@ class GreenhouseIO:
             ]
             ms = meteo_areas.iloc[0, :][0] if tm == [] else tm[0].code
 
+            if greenhouse_areas is not None:
+                if cat.geometry.intersects(greenhouse_areas.geometry).any():
+                    intersection_area = cat.geometry.intersection(greenhouse_areas.geometry).area
+                    intersection_area = intersection_area[intersection_area > 0.].values[0]                    
+                    if 15 in lu_counts[num]:
+                        # divide area to subtract between greenhouses and the most occurring area                                                
+                        print(f'Catchment: {cat.code}: subtracting {np.min([(lu_counts[num][15]*px_area, intersection_area)])} m2 from greenhouse area in landuse map.')
+                        lu_counts[num][15] = np.max([0., (lu_counts[num][15] - np.round(intersection_area/px_area))])                                                               
+            
             elev = mean_elev[num]["median"]
             gh_drr.at[cat.code, "id"] = str(cat.code)
             gh_drr.at[cat.code, "area"] = (

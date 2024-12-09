@@ -350,7 +350,7 @@ def mesh1d_add_branches_from_gdf(
         network.mesh1d_add_branch(branch, name=branchname)
 
 
-def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: list, order_attribute:str, network: Network, exceptions:list=None)-> list:
+def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: list, order_attribute:str, network: Network, exceptions:list=[])-> list:
     """
     mesh1d_order_numbers_from_attribute Method to allocate order numbers to branches based on a common attribute.
 

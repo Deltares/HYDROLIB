@@ -2225,6 +2225,7 @@ class StorageNodes:
         nodeid=None,
         usestreetstorage="true",
         nodetype="unspecified",
+        manholeid=None,
         name=np.nan,
         usetable="false",
         bedlevel=np.nan,
@@ -2242,7 +2243,7 @@ class StorageNodes:
             xy = Point(*xy)
         if xy is None and chainage is not None:
             xy = self.hydamo.branches.loc[branchid].geometry.interpolate(chainage)            
-            
+        
         # Find the nearest node
         if nodeid is not None and not isinstance(nodeid, str):
             raise ValueError('If a nodeid is provided, it should be of type string.')
@@ -2265,6 +2266,9 @@ class StorageNodes:
             _, idx_nearest = get_nearest.query(xy.coords[:])
             nodeid = f"{float(nodes1d[idx_nearest[0],0]):12.6f}_{float(nodes1d[idx_nearest[0],1]):12.6f}"
 
+        if manholeid is None:
+            manholeid = nodeid
+        
         base = {
             "type": "storageNode",
             "id": id,
@@ -2272,6 +2276,7 @@ class StorageNodes:
             "useStreetStorage": usestreetstorage,
             "nodeType": nodetype,            
             "useTable": usetable,
+            "manholeId": manholeid
         }
         if nodeid is None:
             cds = {'branchid':branchid, 
@@ -2300,6 +2305,11 @@ class StorageNodes:
                 "levels": levels,
                 "storageArea": storagearea,
                 "interpolate": interpolate,
+                "bedLevel": -999.,
+                "area":-999.,
+                "streetLevel": -999.,
+                "streetStorageArea":-999.,
+                "storageType": storagetype,
             }
         else:
             raise ValueError(

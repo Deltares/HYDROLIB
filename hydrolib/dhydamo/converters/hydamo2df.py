@@ -559,7 +559,13 @@ class StructuresIO:
                 management_device.kunstwerkopeningid
                 == weir_opening.globalid.to_string(index=False)
             ]
-
+            if weir_opening.empty:
+                print(f'Skipping {weir.code} because there is no associated opening.')
+                continue
+            if weir_mandev.empty:
+                print(f'Skipping {weir.code} because there is no associated management device.')
+                continue
+                
             # check if a separate name field is present
             if "naam" in weirs:
                 name = weir.naam
@@ -609,13 +615,8 @@ class StructuresIO:
                     uselimitflowneg=limitflow,
                     limitflowneg=maxq,
                 )
-            else:
-                if weir_opening.empty:
-                    print(f'Skipping {weir.code} because there is no associated opening.')
-                elif weir_mandev.empty:
-                    print(f'Skipping {weir.code} because there is no associated management device.')
-                else:
-                    print(f'Skipping {weir.code} - conversion failed. Wrong type for soortregelmiddel? It is now {weir_mandev.overlaatonderlaat.to_string(index=False).lower()}.')
+            else:            
+                print(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
@@ -645,10 +646,7 @@ class StructuresIO:
                 kruinhoogte = np.min(xyz[:,-1])
             else:
                 kruinhoogte = uweir.laagstedoorstroomhoogte
-
             
-                
-
             if len(prof) == 0:
                 # return an error it is still not found
                 raise ValueError(f"{uweir.code} is not found in any cross-section.")
