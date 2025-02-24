@@ -222,7 +222,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             if "geometry" not in layer.columns:
                 geom_type = "None"
             print(
-                f"\t{laynum:5d}\t|\t{layer_name:30s}\t|\t{geom_type:12s}\t|\t{nfeatures:10d}\t|\t{nfields:10d}"
+                f"\t{laynum:5d}\t|\t{layer_name:30s}\t|\t{geom_type}\t|\t{nfeatures:10d}\t|\t{nfields:10d}"
             )
 
     def read_gpkg_layer(
