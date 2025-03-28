@@ -885,9 +885,11 @@ class ExternalForcingsIO:
         result.index = times
         if convert_units:
             # if an NHI model (IDF files) is used, convert units from m3 to mm/d
-            result = (result / (1e-3 * (affine[0] * -affine[4]))) / (
-                    (times[2] - times[1]).total_seconds() / 86400.0
-            )
+            # result = (result / (1e-3 * (affine[0] * -affine[4]))) / (
+            #         (times[2] - times[1]).total_seconds() / 86400.0
+            # )
+            # if an NHI model (IDF files) is used, convert units from m3/d to mm/d
+            result = (result / (1e-3 * (affine[0] * -affine[4])))
         [self.external_forcings.add_seepage(*sep) for sep in result.items()]
 
 
