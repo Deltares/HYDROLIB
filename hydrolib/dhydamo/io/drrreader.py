@@ -96,7 +96,7 @@ class UnpavedIO:
         if isinstance(initial_gwd, str):
             rast, affine = self.unpaved.drrmodel.read_raster(initial_gwd, static=True)
             ini_gwds = zonal_stats(
-                catchments, rast, affine=affine, stats="mean", all_touched=True
+                catchments, rast, affine=affine, stats="mean", all_touched=False
             )
         elif isinstance(initial_gwd, int):
             initial_gwd = float(initial_gwd)
