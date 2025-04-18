@@ -15,7 +15,7 @@ def plot_network(
         fig, ax = plt.subplots()
         autoscale = True
     else:
-        autoscale = False
+        autoscale = True
 
     if mesh1d_kwargs is None:
         mesh1d_kwargs = {"color": "C3", "lw": 1.0}

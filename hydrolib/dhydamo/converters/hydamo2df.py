@@ -547,76 +547,148 @@ class StructuresIO:
 
         Parameters corrspond to the HyDAMO DAMO2.2 objects. DFlowFM keyword 'usevelocityheight' can be specificied as a string, default is 'true'.
         """
-
+        # bypass HyDAMO and add stuwid directly to managment for use in RTC             
+        if not self.structures.hydamo.management.empty:
+            self.structures.hydamo.management['stuwid'] = None
+           
         index = np.zeros((len(weirs.code)))
-        if (profile_groups is not None)&("stuwid" in profile_groups):
+        if profile_groups is not None:            
             index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
 
         rweirs = weirs[index == 0]
-        for weir in rweirs.itertuples():
-            weir_opening = opening[opening.stuwid == weir.globalid]
-            weir_mandev = management_device[
-                management_device.kunstwerkopeningid
-                == weir_opening.globalid.to_string(index=False)
-            ]
-            if weir_opening.empty:
-                print(f'Skipping {weir.code} because there is no associated opening.')
-                continue
-            if weir_mandev.empty:
-                print(f'Skipping {weir.code} because there is no associated management device.')
-                continue
-                
+        for weir in rweirs.itertuples():            
+            weir_opening = opening[opening.stuwid == weir.globalid]          
+            
             # check if a separate name field is present
             if "naam" in weirs:
                 name = weir.naam
-            else:
+                if not name:
+                    name = weir.code
+            else: 
                 name = weir.code
-
-            if (
-                weir_mandev.overlaatonderlaat.to_string(index=False).lower()
-                == "overlaat"
-            ):
-                self.structures.add_rweir(
-                    id=weir.code,
-                    name=name,
-                    branchid=weir.branch_id,
-                    chainage=weir.branch_offset,
-                    crestlevel=weir_opening.laagstedoorstroomhoogte.values[0],
-                    crestwidth=weir_opening.laagstedoorstroombreedte.values[0],
-                    corrcoeff=weir.afvoercoefficient,
-                    allowedflowdir="both",
-                    usevelocityheight=usevelocityheight,
-                )
-
-            elif (
-                weir_mandev.overlaatonderlaat.to_string(index=False).lower()
-                == "onderlaat"
-            ):
-                if "maximaaldebiet" not in weir_mandev or pd.isnull(weir_mandev.maximaaldebiet.values[0]):
-                    limitflow = "false"
-                    maxq = 0.0
+            
+            if weir_opening.shape[0] > 1:
+                print(f'Weir {weir.code} contains {weir_opening.shape[0]} openings. Creating a compound structure with a fictional weir for each one.')                
+                cmp_list = []
+                for num_op, (_, op_row) in enumerate(weir_opening.iterrows()):
+                    weir_mandev = management_device[
+                        management_device.kunstwerkopeningid
+                        == op_row.globalid
+                    ]
+                    weir_id = f'{weir.code}_{num_op+1}'
+                    if not self.structures.hydamo.management.empty:
+                        if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).bool():
+                            idx = self.structures.hydamo.management[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze()].index.values[0]
+                            self.structures.hydamo.management.loc[idx, 'stuwid'] =weir_id
+                    if weir_mandev.overlaatonderlaat.squeeze().lower() == 'overlaat':                                    
+                        cmp_list.append(weir_id)
+                        self.structures.add_rweir(id=weir_id,
+                                                    name=name,
+                                                    branchid=weir.branch_id,
+                                                    chainage=weir.branch_offset,
+                                                    crestlevel=op_row.laagstedoorstroomhoogte,
+                                                    crestwidth=op_row.laagstedoorstroombreedte,
+                                                    corrcoeff=weir.afvoercoefficient,
+                                                    allowedflowdir="both",
+                                                    usevelocityheight=usevelocityheight,
+                                                 )
+                    elif weir_mandev.overlaatonderlaat.squeeze().lower() == 'onderlaat':
+                        cmp_list.append(weir_id)
+                        if "maximaaldebiet" not in weir_mandev or pd.isnull(weir_mandev.maximaaldebiet.values[0]):
+                            limitflow = "false"
+                            maxq = 0.0
+                        else:
+                            limitflow = "true"
+                            maxq = float(weir_mandev.maximaaldebiet.values[0])
+                        self.structures.add_orifice(
+                            id=weir_id,
+                            name=name,
+                            branchid=weir.branch_id,
+                            chainage=weir.branch_offset,
+                            crestlevel=float(weir_opening.laagstedoorstroomhoogte.values[0]),
+                            crestwidth=float(weir_opening.laagstedoorstroombreedte.values[0]),
+                            corrcoeff=weir.afvoercoefficient,
+                            allowedflowdir="both",
+                            usevelocityheight=usevelocityheight,
+                            gateloweredgelevel=float(weir_opening.laagstedoorstroomhoogte.values[0])
+                            + float(weir_mandev.hoogteopening.values[0]),
+                            uselimitflowpos=limitflow,
+                            limitflowpos=maxq,
+                            uselimitflowneg=limitflow,
+                            limitflowneg=maxq,
+                        )
+                    else: 
+                        print(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
+                self.structures.add_compound(id=f'cmp_{weir.code}', structureids =cmp_list)
+                # self.structures.rweirs_df.drop(weir.code)
+            else:
+                weir_id = weir.code                
+                weir_mandev = management_device[
+                        management_device.kunstwerkopeningid
+                        == weir_opening.globalid.values[0]
+                    ]
+                if not self.structures.hydamo.management.empty:
+                    if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).bool():
+                        idx = self.structures.hydamo.management[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze()].index.values[0]
+                        self.structures.hydamo.management.loc[idx, 'stuwid'] = weir_id
+                
+                if weir_opening.empty:
+                    print(f'Skipping {weir.code} because there is no associated opening.')
+                    continue
+                if weir_mandev.empty:
+                    print(f'Skipping {weir.code} because there is no associated management device.')
+                    continue               
+            
+                if isinstance(weir_mandev.overlaatonderlaat, pd.Series):
+                    overlaatonderlaat = weir_mandev.overlaatonderlaat.squeeze()
                 else:
-                    limitflow = "true"
-                    maxq = float(weir_mandev.maximaaldebiet.values[0])
-                self.structures.add_orifice(
-                    id=weir.code,
-                    name=name,
-                    branchid=weir.branch_id,
-                    chainage=weir.branch_offset,
-                    crestlevel=float(weir_opening.laagstedoorstroomhoogte.values[0]),
-                    crestwidth=float(weir_opening.laagstedoorstroombreedte.values[0]),
-                    corrcoeff=weir.afvoercoefficient,
-                    allowedflowdir="both",
-                    usevelocityheight=usevelocityheight,
-                    gateloweredgelevel=float(weir_opening.laagstedoorstroomhoogte.values[0])
-                    + float(weir_mandev.hoogteopening.values[0]),
-                    uselimitflowpos=limitflow,
-                    limitflowpos=maxq,
-                    uselimitflowneg=limitflow,
-                    limitflowneg=maxq,
-                )
-            else:            
-                print(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
+                    overlaatonderlaat = weir_mandev.overlaatonderlaat
+                
+                if (
+                    overlaatonderlaat.lower()
+                    == "overlaat"
+                ):
+                    self.structures.add_rweir(
+                        id=weir_id,
+                        name=name,
+                        branchid=weir.branch_id,
+                        chainage=weir.branch_offset,
+                        crestlevel=weir_opening.laagstedoorstroomhoogte.values[0],
+                        crestwidth=weir_opening.laagstedoorstroombreedte.values[0],
+                        corrcoeff=weir.afvoercoefficient,
+                        allowedflowdir="both",
+                        usevelocityheight=usevelocityheight,
+                    )
+
+                elif (
+                    overlaatonderlaat.lower()
+                    == "onderlaat"
+                ):
+                    if "maximaaldebiet" not in weir_mandev or pd.isnull(weir_mandev.maximaaldebiet.values[0]):
+                        limitflow = "false"
+                        maxq = 0.0
+                    else:
+                        limitflow = "true"
+                        maxq = float(weir_mandev.maximaaldebiet.values[0])
+                    self.structures.add_orifice(
+                        id=weir_id,
+                        name=name,
+                        branchid=weir.branch_id,
+                        chainage=weir.branch_offset,
+                        crestlevel=float(weir_opening.laagstedoorstroomhoogte.values[0]),
+                        crestwidth=float(weir_opening.laagstedoorstroombreedte.values[0]),
+                        corrcoeff=weir.afvoercoefficient,
+                        allowedflowdir="both",
+                        usevelocityheight=usevelocityheight,
+                        gateloweredgelevel=float(weir_opening.laagstedoorstroomhoogte.values[0])
+                        + float(weir_mandev.hoogteopening.values[0]),
+                        uselimitflowpos=limitflow,
+                        limitflowpos=maxq,
+                        uselimitflowneg=limitflow,
+                        limitflowneg=maxq,
+                    )
+                else:            
+                    print(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():

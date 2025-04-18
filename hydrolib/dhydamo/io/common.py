@@ -216,11 +216,16 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
             nfields = len(layer.columns)
             nfeatures = layer.shape[0]
-            geom_type = layer.geom_type.iloc[0]
-            if geom_type is None:
+            
+            if isinstance(layer, gpd.GeoDataFrame):
+                geom_type = layer.geom_type.iloc[0]
+                if geom_type is None:
+                    geom_type = "None"                
+            else:
                 geom_type = "None"
+                
             print(
-                f"\t{laynum:5d}\t|\t{layer_name:30s}\t|\t{geom_type:12s}\t|\t{nfeatures:10d}\t|\t{nfields:10d}"
+                f"\t{laynum:5d}\t|\t{layer_name:30s}\t|\t{geom_type}\t|\t{nfeatures:10d}\t|\t{nfields:10d}"
             )
 
     def read_gpkg_layer(

@@ -76,7 +76,7 @@ class HyDAMO:
             "number": dhydamo.__version__,
             "date": datetime.strftime(datetime.now(timezone.utc), "%Y-%m-%dT%H:%M:%S.%fZ"),
             "dimr_version": "Deltares, DIMR_EXE Version 2.00.00.140737 (Win64) (Win64)",
-            "suite_version": "D-HYDRO Suite 2022.04 1D2D,",
+            "suite_version": "D-HYDRO Suite 2024.03 1D2D,",
         }
 
         # Create standard dataframe for network, crosssections, orifices, weirs
@@ -163,8 +163,7 @@ class HyDAMO:
             required_columns=[
                 "code",
                 "geometry",
-                "globalid",
-                "soortstuw",
+                "globalid",                
                 "afvoercoefficient",
             ],
             related={
@@ -184,14 +183,10 @@ class HyDAMO:
 
         # opening
         self.opening = ExtendedDataFrame(
-            required_columns=[
-                "vormopening",
+            required_columns=[            
                 "globalid",
-                "hoogstedoorstroombreedte",
-                "hoogstedoorstroomhoogte",
                 "laagstedoorstroombreedte",
                 "laagstedoorstroomhoogte",
-                "vormopening",
                 "afvoercoefficient",
             ]
         )
@@ -203,7 +198,7 @@ class HyDAMO:
 
         # opening
         self.management_device = ExtendedDataFrame(
-            required_columns=["code", "soortregelbaarheid", "overlaatonderlaat"]
+            required_columns=["code", "overlaatonderlaat"]
         )
 
         # Bridges
@@ -2138,7 +2133,7 @@ class ObservationPoints:
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def add_points(
-        self, crds: list, names, locationTypes=None, snap_distance: float = 5.0
+        self, crds: list, names: list, locationTypes=None, snap_distance: float = 5.0
     ) -> None:
         """
         Method to add observation points to schematisation. Observation points can be of type '1d' or '2d'. 1d-points are snapped to the branch.
@@ -2162,7 +2157,7 @@ class ObservationPoints:
             crds = [crds]
 
         if locationTypes is not None:
-            if isinstance(names, str):
+            if isinstance(locationTypes, str):
                 locationTypes = [locationTypes]
 
             # split 1d and 2d points, as the first ones need to be snapped to branches
@@ -2264,6 +2259,8 @@ class StorageNodes:
             )
             get_nearest = KDTree(nodes1d[:, 0:2])
             _, idx_nearest = get_nearest.query(xy.coords[:])
+            # nodeid = nodes1d[idx_nearest, 2]
+            # nodeid = f'{nodeid[0]}'
             nodeid = f"{float(nodes1d[idx_nearest[0],0]):12.6f}_{float(nodes1d[idx_nearest[0],1]):12.6f}"
 
         if manholeid is None:

@@ -220,10 +220,18 @@ def _geomlist_from_multipolygon(polygons: List[Polygon], mode: str) -> mk.Geomet
     return gl
 
 def mesh2d_refine(
-    network: Network,
+    network: Network,    
     polygon: Union[Polygon, MultiPolygon],
     steps: int,
-    min_edge_size: float = 10.0,
+    refine_intersected: bool = True,
+    use_mass_center_when_refining: bool=True,
+    refinement_type: int=2,    
+    connect_hanging_nodes: bool=True,
+    account_for_samples_outside_face=True,
+    min_edge_size: float = 1.0,
+    smoothing_iterations: int = 5.0,
+    max_courant_time: float = 120.,
+    directional_refinement: bool=False
 ) -> None:
     """Refine mesh 2d within (list of) polygon or multipolygon, with a certain
     number of refinement steps.
@@ -232,21 +240,22 @@ def mesh2d_refine(
         network (Network): Network for which the mesh is clipped
         polygon (Union[GeometryList, Union[Polygon, MultiPolygon]]): Polygon within which the mesh is clipped
         steps (int): Number of steps in the refinement
-        min_edge_size (float): Minimum edge size. Default is 10.0.
+        min_edge_size (float): Minimum edge size. Default is 10.0.        
     """
-    # Check if any polygon contains holes (does not work)
-    for polygon in common.as_polygon_list(polygon):
-        if len(polygon.interiors) > 0:
-            raise NotImplementedError(
-                "Refining within polygons with holes does not work. Remove holes before using this function (e.g., polygon = Polygon(polygon.exterior))."
-            )
 
     for polygon in common.as_polygon_list(polygon):
         network.mesh2d_refine_mesh(
             _geomlist_from_polygon(polygon),
-            level=steps,
-            min_edge_size=min_edge_size,
-        )
+            level=steps,            
+            refine_intersected=refine_intersected,
+            use_mass_center_when_refining= use_mass_center_when_refining,
+            refinement_type=refinement_type,
+            connect_hanging_nodes=connect_hanging_nodes,
+            account_for_samples_outside_face=account_for_samples_outside_face,
+            min_edge_size=min_edge_size, 
+            smoothing_iterations=smoothing_iterations,
+            max_courant_time=max_courant_time,
+            directional_refinement=directional_refinement)                      
 
 
 def mesh1d_add_branch_from_linestring(
@@ -532,10 +541,13 @@ def links1d2d_add_links_2d_to_1d_embedded(
     # Create an array with 2d facecenters and check which intersect the (clipped) area
     faces2d = np.stack(
         [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
-    )
-
+    )    
     mpgl = mk.GeometryList(*faces2d.T.copy())
     idx = np.zeros(len(faces2d), dtype=bool)
+
+    # geometrylist = network.meshkernel.mesh2d_get_mesh_boundaries_as_polygons()
+    # mpgl = GeometryList(**geometrylist.__dict__).to_geometry()
+
     for subarea in common.as_polygon_list(area):
 
         # Create a list of coordinate lists
@@ -579,8 +591,8 @@ def links1d2d_add_links_2d_to_1d_embedded(
     node_mask = network._mesh1d.get_node_mask(branchids)
 
     # Generate links
-    network._link1d2d._link_from_2d_to_1d_embedded(node_mask, points=multipoint)
-
+    #network._link1d2d._link_from_2d_to_1d_embedded(node_mask, points=multipoint)
+    network._link1d2d._link_from_2d_to_1d_embedded(node_mask, polygons=subarea)
 
 def links1d2d_add_links_2d_to_1d_lateral(
     network: Network,

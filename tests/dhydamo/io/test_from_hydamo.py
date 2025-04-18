@@ -138,7 +138,7 @@ def test_hydamo_object_from_gpkg():
 
     # Read management device
     hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-    assert len(hydamo.management_device) == 28
+    assert len(hydamo.management_device) == 32
 
     hydamo.snap_to_branch_and_drop(hydamo.weirs, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
     assert len(hydamo.weirs) == 25
@@ -190,6 +190,8 @@ def test_hydamo_object_from_gpkg():
         ].code.values[0]
     hydamo.laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=5000)
 
+    hydamo.catchments['boundary_node'] = [hydamo.laterals[hydamo.laterals.globalid==c['lateraleknoopid']].code.values[0] for _,c in hydamo.catchments.iterrows()]
+
     assert len(hydamo.laterals) == 121
     assert np.round(hydamo.laterals.afvoer.mean()) == 0
 
@@ -203,15 +205,19 @@ def test_convert_structures(hydamo=None):
 
     # Convert
     hydamo.structures.convert.weirs(
-        hydamo.weirs,
-        hydamo.profile_group,
-        hydamo.profile_line,
-        hydamo.profile,
-        hydamo.opening,
-        hydamo.management_device,
+        weirs=hydamo.weirs,
+        profile_groups=hydamo.profile_group,
+        profile_lines=hydamo.profile_line,
+        profiles=hydamo.profile,
+        opening=hydamo.opening,
+        management_device=hydamo.management_device,
     )
-    # one weir is converted to an orifice
-    assert hydamo.structures.rweirs_df.shape[0] == hydamo.weirs.shape[0] - 2
+    # one weir is converted to an orifice, one tol a universal weir. w weirs have in total 4 extra openings, so fictional weirs are added.
+    assert hydamo.structures.rweirs_df.shape[0] == hydamo.weirs.shape[0] - 2 + 4
+
+    assert len(hydamo.structures.compounds_df)==2
+    
+    assert hydamo.structures.compounds_df[hydamo.structures.compounds_df.id=='cmp_S_98740'].structureids.squeeze() == 'S_98740_1;S_98740_2;S_98740_3;S_98740_4'
 
     hydamo.structures.convert.culverts(
         hydamo.culverts, management_device=hydamo.management_device
@@ -232,7 +238,6 @@ def test_convert_structures(hydamo=None):
 
     assert hydamo.structures.pumps_df.shape[0] == hydamo.pumps.shape[0]
     return hydamo
-
 
 def test_convert_crosssections():
     # initiate a hydamo object

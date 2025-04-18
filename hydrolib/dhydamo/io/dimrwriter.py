@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Union
 from pydantic.v1 import validate_arguments
-
+import netCDF4 as nc
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.core.dflowfm.mdu.models import FMModel
@@ -43,6 +43,25 @@ class DIMRWriter:
             f.write("@ echo off\n")
             f.write("set OMP_NUM_THREADS=2\n")
             f.write('call "' + str(self.run_dimr) + '"\n')
+
+    @validate_arguments
+    def add_crs(self) -> None:
+        """Reads the Netcdf file and addes the required attributes for a valid CRS."""        
+        netfile = list((self.output_path / 'fm').glob('*.nc'))[0]
+        netf = nc.Dataset(netfile, 'r+')
+        netf.Conventions =  'CF-1.8 UGRID-1.0 Deltares-0.10'
+        proj = netf.createVariable('projected_coordinate_system','i4')
+        proj.epsg = 28992
+        proj.grid_mapping_name = "Amersfoort / RD New" #"Rijksdriehoeksstelsel"
+        proj.longitude_of_prime_meridian = 0.0#; // double
+        proj.semi_major_axis = 6377397.155#; // double
+        proj.semi_minor_axis = 6356078.962818189#; // double
+        proj.inverse_flattening = 299.1528128#; // double
+        proj.proj4_params = "+prdoj=sterea +lat_0=52.1561605555556 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +units=m +no_defs";
+        proj.EPSG_code = "EPSG:28992"
+        proj.value = "value is equal to EPSG code"
+        proj.wkt = "PROJCS[\"Amersfoort / RD New\",\n    GEOGCS[\"Amersfoort\",\n        DATUM[\"Amersfoort\",\n            SPHEROID[\"Bessel 1841\",6377397.155,299.1528128,\n"             
+        netf.close()   
 
     #@validate_arguments(config=dict(arbitrary_types_allowed=True))
     def write_dimrconfig(

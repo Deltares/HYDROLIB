@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hydrolib"
-version = "0.3.1"
+version = "0.4.0"
 description = "HYDROLIB tools for hydrodynamic and hydrological modelling workflows"
 authors = ["Deltares"]
 maintainers = [
@@ -111,4 +111,5 @@ contextily = { channel = "conda-forge" }
 markers = [
   "plot: tests that open plot windows",
   "slow: tests that are known to run slowly",
+  "dll: tests that are dependent on Windows DLL's"
 ]

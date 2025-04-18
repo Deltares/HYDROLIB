@@ -204,7 +204,7 @@ class UnpavedIO:
                 cat.code, "px"
             ] = f"{cat.geometry.centroid.coords[0][0]-10:.0f}"
             unpaved_drr.at[cat.code, "py"] = f"{cat.geometry.centroid.coords[0][1]:.0f}"
-            unpaved_drr.at[cat.code, "boundary_node"] = str(cat.lateraleknoopcode)
+            unpaved_drr.at[cat.code, "boundary_node"] = cat.boundary_node
 
         [
             self.unpaved.add_unpaved(**unpaved)
@@ -603,7 +603,7 @@ class PavedIO:
                 cat.code, "px"
             ] = f"{cat.geometry.centroid.coords[0][0]+10:.0f}"
             paved_drr.at[cat.code, "py"] = f"{cat.geometry.centroid.coords[0][1]:.0f}"
-            paved_drr.at[cat.code, "boundary_node"] = cat.lateraleknoopcode
+            paved_drr.at[cat.code, "boundary_node"] = cat.boundary_node
         [self.paved.add_paved(**pav) for pav in paved_drr.to_dict("records")]
 
 
@@ -768,7 +768,7 @@ class GreenhouseIO:
             gh_drr.at[cat.code, "meteo_area"] = str(ms)
             gh_drr.at[cat.code, "px"] = f"{cat.geometry.centroid.coords[0][0]+20:.0f}"
             gh_drr.at[cat.code, "py"] = f"{cat.geometry.centroid.coords[0][1]:.0f}"
-            gh_drr.at[cat.code, "boundary_node"] = cat.lateraleknoopcode
+            gh_drr.at[cat.code, "boundary_node"] = cat.boundary_node
         [self.greenhouse.add_greenhouse(**gh) for gh in gh_drr.to_dict("records")]
 
 class OpenwaterIO:
@@ -834,7 +834,7 @@ class OpenwaterIO:
             ow_drr.at[cat.code, "meteo_area"] = str(ms)
             ow_drr.at[cat.code, "px"] = f"{cat.geometry.centroid.coords[0][0]-20:.0f}"
             ow_drr.at[cat.code, "py"] = f"{cat.geometry.centroid.coords[0][1]:.0f}"
-            ow_drr.at[cat.code, "boundary_node"] = cat.lateraleknoopcode
+            ow_drr.at[cat.code, "boundary_node"] = cat.boundary_node
         [self.openwater.add_openwater(**ow) for ow in ow_drr.to_dict("records")]
 
 
@@ -862,8 +862,8 @@ class ExternalForcingsIO:
             enumerate(file_list), total=len(file_list), desc="Reading seepage files"
         ):
             if file.endswith('.idf'):
-                dataset = idfreader.open(os.path.join(seepage_folder, file))                
-                array = dataset[0, 0, :, :].values
+                dataset = idfreader.open(os.path.join(seepage_folder, file))                                
+                array = dataset.squeeze().values
                 header = idfreader.header(os.path.join(seepage_folder, file), pattern=None)
                 affine = from_origin(
                     header["xmin"], header["ymax"], header["dx"], header["dx"]
@@ -997,36 +997,36 @@ class ExternalForcingsIO:
         not_occurring = []
         for cat in catchments.itertuples():
             occurs = False
-            if cat.lateraleknoopcode in [
+            if cat.boundary_node in [
                 val["boundary_node"]
                 for val in drrmodel.unpaved.unp_nodes.values()
                 if np.sum([float(d) for d in val["ar"].split(" ")]) > 0.0
             ]:
                 occurs = True
-            if cat.lateraleknoopcode in [
+            if cat.boundary_node in [
                 val["boundary_node"]
                 for val in drrmodel.paved.pav_nodes.values()
                 if float(val["ar"]) > 0.0
             ]:
                 occurs = True
-            if cat.lateraleknoopcode in [
+            if cat.boundary_node in [
                 val["boundary_node"]
                 for val in drrmodel.greenhouse.gh_nodes.values()
                 if float(val["ar"]) > 0.0
             ]:
                 occurs = True
-            if cat.lateraleknoopcode in [
+            if cat.boundary_node in [
                 val["boundary_node"]
                 for val in drrmodel.openwater.ow_nodes.values()
                 if float(val["ar"]) > 0.0
             ]:
                 occurs = True
             if not occurs:
-                not_occurring.append(cat.lateraleknoopcode)
+                not_occurring.append(cat.boundary_node)
 
         for i in not_occurring:
             catchments.drop(
-                catchments[catchments.lateraleknoopcode == i].code.iloc[0],
+                catchments[catchments.boundary_node == i].code.iloc[0],
                 axis=0,
                 inplace=True,
             )
@@ -1053,20 +1053,20 @@ class ExternalForcingsIO:
         bnd_drr.index = index
         for num, cat in enumerate(catchments.itertuples()):
             # print(num, cat.code)
-            if boundary_nodes[boundary_nodes["code"] == cat.lateraleknoopcode].empty:
+            if boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid].empty:
                 # raise IndexError(f'{cat.code} not connected to a boundary node. Skipping.')
                 logger.warning(
                     f"{cat.code} not connected to a boundary node. Skipping."
                 )
                 continue
-            bnd_drr.at[cat.code, "id"] = str(cat.lateraleknoopcode)
+            bnd_drr.at[cat.code, "id"] = f'lat_{cat.code}'
             bnd_drr.at[cat.code, "px"] = str(
-                boundary_nodes[boundary_nodes["code"] == cat.lateraleknoopcode][
+                boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid][
                     "geometry"
                 ].x.iloc[0]
             ).strip()
             bnd_drr.at[cat.code, "py"] = str(
-                boundary_nodes[boundary_nodes["code"] == cat.lateraleknoopcode][
+                boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid][
                     "geometry"
                 ].y.iloc[0]
             ).strip()

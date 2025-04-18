@@ -28,7 +28,7 @@ jobs:
         run: poetry install
 
       - name: Test with pytest
-        run: poetry run pytest -v -m "not slow and not plot" --cov . --cov-report xml:coverage-reports/coverage-hydrolib.xml --junitxml=xunit-reports/xunit-result-hydrolib.xml
+        run: poetry run pytest -v -m "not slow and not plot and not dll" --cov . --cov-report xml:coverage-reports/coverage-hydrolib.xml --junitxml=xunit-reports/xunit-result-hydrolib.xml
 
       #- name: Autoformat code if the check fails
       #  if: ${{ (matrix.os == 'ubuntu-latest') && (matrix.python-version == 3.8) }}

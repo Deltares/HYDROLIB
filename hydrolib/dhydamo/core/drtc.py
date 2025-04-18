@@ -201,16 +201,8 @@ class DRTCModel:
         for _, management in self.hydamo.management.iterrows():
             # first get the structure ID through the coupled items. It can so far be three different structure types.
             if not pd.isnull(management.regelmiddelid):
-                opening_id = self.hydamo.management_device[
-                    self.hydamo.management_device.globalid == management.regelmiddelid
-                ].kunstwerkopeningid.values[0]
-
-                weir_id = self.hydamo.opening[
-                    self.hydamo.opening.globalid == opening_id
-                ].stuwid.values[0]
-                weir_code = self.hydamo.weirs[
-                    self.hydamo.weirs.globalid == weir_id
-                ].code.values[0]
+                weir_code = management.stuwid
+                
                 if weir_code in list(self.hydamo.structures.rweirs_df.id):
                     weir = self.hydamo.structures.rweirs_df[
                         self.hydamo.structures.rweirs_df.id == weir_code
@@ -223,15 +215,15 @@ class DRTCModel:
                     weir = self.hydamo.structures.orifices_df[
                         self.hydamo.structures.orifices_df.id == weir_code
                     ]
-                else:
-                    raise ValueError(
-                        f"Management with id {management.id} could not be connnected to a structure."
+                else:                    
+                    print(
+                        f"Management for management_device {management.regelmiddelid} could not be connnected to a structure. Skipping it."
                     )
+                    continue
                 struc_id = weir.id.values[0]
             elif not pd.isnull(management.pompid):
-                logger.info(
-                    f"Management for pump {management.pompid} is included in FM."
-                )
+                if not self.hydamo.pumps.empty and management.pompid in list(self.hydamo.pumps.globalid):
+                    struc_id = self.hydamo.pumps[self.hydamo.pumps.globalid == management.pompid].code.values[0]                
             else:
                 raise ValueError(
                     "Only management_devices and pumps can be connected to a management object."
@@ -255,24 +247,21 @@ class DRTCModel:
                 raise ValueError(
                     f"Invalid value for target variable of {struc_id}: {management.doelvariabele}."
                 )
-
-          
-
-            
+  
             if management.typecontroller == "PID":
                 #  if the ID is not specified separately, use the global settings
                 if pid_settings is None:
                     raise ValueError(f'{management.code} contains a PID controller, but no pid_settings are provided. Please do so.')
-                if management.id not in pid_settings:
+                if struc_id not in pid_settings:
                     ki = pid_settings["global"]["ki"]
                     kp = pid_settings["global"]["kp"]
                     kd = pid_settings["global"]["kd"]
                     max_speed = pid_settings["global"]["maxspeed"]
                 else:
-                    ki = pid_settings[management.id]['ki']
-                    kp = pid_settings[management.id]['kp']
-                    kd = pid_settings[management.id]['kd']
-                    max_speed = pid_settings[management.id]['maxspeed']
+                    ki = pid_settings[struc_id]['ki']
+                    kp = pid_settings[struc_id]['kp']
+                    kd = pid_settings[struc_id]['kd']
+                    max_speed = pid_settings[struc_id]['maxspeed']
 
                 self.add_pid_controller(
                     structure_id=struc_id,
@@ -292,18 +281,18 @@ class DRTCModel:
                 if interval_settings is None:
                     raise ValueError(f'{management.code} contains an interval controller, but no interval_settings are provided. Please do so.')
                 
-                if management.id not in interval_settings:
+                if struc_id not in interval_settings:
                     deadband = interval_settings["global"]["deadband"]
                     max_speed = interval_settings["global"]["maxspeed"]
                 else:
-                    deadband = interval_settings[management.id]['deadband']
-                    max_speed = interval_settings[management.id]['maxspeed']
+                    deadband = interval_settings[struc_id]['deadband']
+                    max_speed = interval_settings[struc_id]['maxspeed']
 
                 self.add_interval_controller(
                     structure_id=struc_id,
                     steering_variable=steering_variable,
                     target_variable=target_variable,
-                    daedband=deadband,
+                    deadband=deadband,
                     setting_above=management.bovengrens,
                     setting_below=management.ondergrens,
                     max_speed=max_speed,

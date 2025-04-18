@@ -506,7 +506,7 @@ class DRRWriter:
             with open(filepath, "w") as f:
                 for _, dct in self.rrmodel.greenhouse.gh_nodes.items():                    
                     if float(dct["ar"]) > 0.0:
-                        area_string = ' '.join(['0' for _ in range(int(dct['basin_storage_class']))]+ [dct['ar']]+['0' for _ in range(10-(int(dct['basin_storage_class']))-1)])
+                        area_string = ' '.join(['0' for _ in range(int(dct['basin_storage_class'])-1)]+ [dct['ar']]+['0' for _ in range(10-(int(dct['basin_storage_class'])))])
                         f.write(
                             "GRHS id '"
                             + dct["id"]

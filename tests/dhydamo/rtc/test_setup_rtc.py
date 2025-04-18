@@ -44,7 +44,8 @@ def test_setup_rtc_model(hydamo=None):
 
         drtcmodel.from_hydamo(pid_settings=pid_settings, timeseries=timeseries)
 
-    assert len(drtcmodel.pid_controllers) == 3
+    assert len(drtcmodel.pid_controllers) == 2
+
     drtcmodel.add_pid_controller(
         structure_id="S_96544",
         steering_variable="Crest level (s)",
@@ -61,7 +62,7 @@ def test_setup_rtc_model(hydamo=None):
         extrapolation_option = "BLOCK"
     )
 
-    assert len(drtcmodel.pid_controllers) == 4
+    assert len(drtcmodel.pid_controllers) == 3
 
     drtcmodel.add_time_controller(
         structure_id="S_96548",

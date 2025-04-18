@@ -18,7 +18,7 @@ def test_setup_rr_model(hydamo=None):
         hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
 
     # all data and settings to create the RR-model
-    lu_file = data_path / "rasters" / "sobek_landuse.tif"
+    lu_file = data_path / "rasters" / "sobek_landuse2.tif"
     ahn_file = data_path / "rasters" / "AHN_2m_clipped_filled.tif"
     soil_file = data_path / "rasters" / "sobek_soil.tif"
     surface_storage = 10.0
