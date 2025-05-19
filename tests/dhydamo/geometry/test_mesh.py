@@ -1,13 +1,12 @@
 import sys
 from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from meshkernel.py_structures import DeleteMeshOption
+import meshkernel as mk
 from shapely.affinity import translate
 from shapely.geometry import LineString, MultiPolygon, Polygon, box
-
 sys.path.append(".")
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
@@ -122,7 +121,7 @@ def test_create_2d_triangular_within_circle(do_plot=False):
     
 
     # Triangular grids lead to different grids on windows vs macos/linux
-    # assert len(network._mesh2d.get_mesh2d().face_x) in [254, 258]
+    assert len(network._mesh2d.get_mesh2d().face_x) in [254, 258]
 
 
 def test_create_2d_rectangular_from_multipolygon(do_plot=False):
@@ -138,32 +137,23 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
     mesh.mesh2d_add_rectilinear(
         network,
         multipolygon,
-        dx=.25,
-        dy=.25,
+        dx=1,
+        dy=1,
         deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
     )
 
-    # assert len(network._mesh2d.mesh2d_face_x) == 149
+    assert len(network._mesh2d.mesh2d_face_x) == 149
 
     x = np.linspace(0, 20, 101)
     river = LineString(np.c_[x, np.sin(x / 3) + 5]).buffer(0.5)
 
     # Refine along river
     refinement = river.buffer(1.0)
-    mesh.mesh2d_refine(network,  refinement,
-                        steps=2, 
-                        refine_intersected=True,
-                        min_edge_size=0.05,                        
-                        use_mass_center_when_refining=True,
-                        refinement_type=2,
-                        connect_hanging_nodes=True,
-                        account_for_samples_outside_face=False, 
-                        smoothing_iterations=2.,
-                        max_courant_time=120.,
-                        directional_refinement=False
-                        )
-
-    # assert len(network._mesh2d.mesh2d_face_x) == 907
+    
+    refine_parameters = {'min_edge_size': 0.001}                    
+    mesh.mesh2d_refine(network,  refinement,2, refine_parameters)
+                      
+    assert len(network._mesh2d.mesh2d_face_x) == 907
 
     # # Clip river
     mesh.mesh2d_clip(
@@ -171,6 +161,8 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
         polygon=GeometryList.from_geometry(river),
         deletemeshoption=DeleteMeshOption.FACES_WITH_INCLUDED_CIRCUMCENTERS,
     )
+
+    assert len(network._mesh2d.mesh2d_face_x) == 637
 
     # Plot to verify
     if do_plot:
@@ -183,8 +175,6 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
         ax.plot(*refinement.exterior.coords.xy, color="g", ls="--")
         plt.show()
         fig.savefig(test_figure_path / 'test_create_2d_rectangular_from_multipolygon_mk.png')
-
-    # assert len(network._mesh2d.mesh2d_face_x) == 637
 
 
 def test_create_2d_triangular_from_multipolygon(do_plot=False):
@@ -206,16 +196,13 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
     assert len(network._mesh2d.mesh2d_edge_x) in [589, 598]
 
     # Refine mesh
+    refine_parameters= {'min_edge_size': 0.001}
     mesh.mesh2d_refine(network,
                         refinement_box, 
-                        steps=5, 
-                        refine_intersected=True,
-                        min_edge_size=0.000005,                        
-                        use_mass_center_when_refining=False,
-                        refinement_type=1,
-                        connect_hanging_nodes=True,
-                        account_for_samples_outside_face=False
-    )
+                        steps=2,
+                        refine_parameters=refine_parameters)                                               
+    
+    assert len(network._mesh2d.mesh2d_face_x) == 1334
 
     # Plot to verify
     if do_plot:
@@ -227,12 +214,6 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
         ax.plot(*refinement_box.exterior.coords.xy, color="g", ls="--")
         plt.show()
         fig.savefig(test_figure_path / 'test_create_2d_triangular_from_multipolygon_mk.png')
-
-    # Check bounds and number of faces
-    # Triangular grids lead to different grids on windows vs macos/linux
-    # assert len(network._mesh2d.mesh2d_face_x) in [916, 920]
-    # assert len(network._mesh2d.mesh2d_edge_x) in [1410, 1416]
-
 
 @pytest.mark.dll
 def test_2d_refine_ring_geometry(do_plot=False):
@@ -253,22 +234,19 @@ def test_2d_refine_ring_geometry(do_plot=False):
 
     donut = _get_circle_polygon(radius=9, hole_radius=7)
     
+    refinement = donut.buffer(2)        
+    uitknippen = donut.buffer(1)     
     
-    # Refine along river
-    refinement = donut.buffer(0.5)        
-    uitknippen = donut.buffer(0.25)        
+    refine_parameters = {'min_edge_size': 0.001}  
     mesh.mesh2d_refine(network,
                         refinement, 
-                        steps=5, 
-                        refine_intersected=False,
-                        min_edge_size=0.000005,                        
-                        use_mass_center_when_refining=True,
-                        refinement_type=2,
-                        connect_hanging_nodes=True,
-                        account_for_samples_outside_face=False
+                        steps=2,
+                        refine_parameters=refine_parameters                       
     )
-                        
-    mesh.mesh2d_clip(network, uitknippen)
+
+    assert len(network._mesh2d.mesh2d_face_x) == 80012
+    mesh.mesh2d_clip(network, uitknippen,  inside=True)
+    assert len(network._mesh2d.mesh2d_face_x) == 27534
 
     # Plot to verify
     if do_plot:
@@ -277,8 +255,7 @@ def test_2d_refine_ring_geometry(do_plot=False):
         viz.plot_network(network, ax=ax)
         ax.plot(*polygon.exterior.coords.xy, color="k", ls="--")        
         ax.plot(*donut.exterior.coords.xy, color="r", ls="--")
-        ax.plot(*donut.interiors[0].coords.xy, color="r", ls="--")
-        # ax.plot(*refinement.exterior.coords.xy, color="g", ls="--")
+        ax.plot(*donut.interiors[0].coords.xy, color="r", ls="--")        
         plt.show()
         fig.savefig(test_figure_path / 'test_2d_refine_ring_geometry_mk.png')
 
@@ -288,7 +265,7 @@ def test_2d_clip_outside_polygon(do_plot=False):
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
 
-    rectangle = box(-10, -10, 10, 10)
+    rectangle = box(-10, - 10, 10, 10)
 
     mesh.mesh2d_add_rectilinear(
         network, 
@@ -297,6 +274,8 @@ def test_2d_clip_outside_polygon(do_plot=False):
         dy=1, 
         deletemeshoption=DeleteMeshOption.INSIDE_NOT_INTERSECTED
     )
+
+    assert len(network._mesh2d.mesh2d_face_x) == 324
 
     clipgeo = box(-8, -8, 8, 8).difference(
         MultiPolygon([box(-6, -1, -4, 2), box(4, 5, 7, 7)])
@@ -309,6 +288,8 @@ def test_2d_clip_outside_polygon(do_plot=False):
         inside=False,
     )
 
+    assert len(network._mesh2d.mesh2d_face_x) == 244
+
     # Plot to verify
     if do_plot:
         fig, ax = plt.subplots()
@@ -319,8 +300,46 @@ def test_2d_clip_outside_polygon(do_plot=False):
             ax.plot(*hole.coords.xy, color="r", ls="--")
         plt.show()
         fig.savefig(test_figure_path / 'test_2d_clip_outside_polygon_mk.png')
-    assert len(network._mesh2d.mesh2d_face_x) == 244
+    
 
+def test_plot_2d_clip_inside_polygon_with_holes(do_plot=False):
+    # Define polygon
+    fmmodel = FMModel()
+    network = fmmodel.geometry.netfile.network
+
+    rectangle = box(-10, -10, 10, 10)
+    mesh.mesh2d_add_rectilinear(
+        network,
+        rectangle,
+        dx=1,
+        dy=1,
+        deletemeshoption=DeleteMeshOption.INSIDE_NOT_INTERSECTED
+    )
+
+    assert len(network._mesh2d.mesh2d_node_x) == 361
+    
+    hole = box(-2,-2,2,2)
+    clipgeo = box(-5,-5,5,5).difference(hole)
+    
+    mesh.mesh2d_clip(
+        network,
+        clipgeo,
+        deletemeshoption=DeleteMeshOption.FACES_WITH_INCLUDED_CIRCUMCENTERS,
+        inside=True,
+    )
+
+    assert len(network._mesh2d.mesh2d_node_x) == 305
+
+    # Plot to verify
+    if do_plot:
+        fig, ax = plt.subplots()
+        ax.set_aspect(1.0)
+        viz.plot_network(network, ax=ax)
+        ax.plot(*clipgeo.exterior.coords.xy, color="r", ls="--")
+        ax.plot(*clipgeo.interiors[0].coords.xy, color="r", ls="--")
+        plt.show()
+        fig.savefig(test_figure_path / 'test_2d_clip_inside_multipolygon_with_holes_mk.png')
+    
 
 def test_2d_clip_inside_multipolygon(do_plot=False):
     # Define polygon
@@ -336,6 +355,8 @@ def test_2d_clip_inside_multipolygon(do_plot=False):
         deletemeshoption=DeleteMeshOption.INSIDE_NOT_INTERSECTED
     )
 
+    assert len(network._mesh2d.mesh2d_node_x) == 361
+
     clipgeo = MultiPolygon([box(-6, -1, -4, 2), box(4, 5, 7.2, 7.2)])
     mesh.mesh2d_clip(
         network,
@@ -343,6 +364,8 @@ def test_2d_clip_inside_multipolygon(do_plot=False):
         deletemeshoption=DeleteMeshOption.FACES_WITH_INCLUDED_CIRCUMCENTERS,
         inside=True,
     )
+    
+    assert len(network._mesh2d.mesh2d_node_x) == 357
 
     # Plot to verify
     if do_plot:
@@ -353,9 +376,7 @@ def test_2d_clip_inside_multipolygon(do_plot=False):
             ax.plot(*polygon.exterior.coords.xy, color="r", ls="--")
         plt.show()
         fig.savefig(test_figure_path / 'test_2d_clip_inside_multipolygon_mk.png')
-    assert len(network._mesh2d.mesh2d_node_x) == 357
-
-
+    
 def test_1d_add_branch_from_linestring(do_plot=False):
     # Define polygon
     fmmodel = FMModel()
@@ -366,6 +387,8 @@ def test_1d_add_branch_from_linestring(do_plot=False):
 
     # a multilinestring does not work...
     mesh.mesh1d_add_branch_from_linestring(network, branch, node_distance=3)
+    
+    assert len(network._mesh1d.mesh1d_node_x) == 8
 
     # Plot to verify
     if do_plot:
@@ -408,6 +431,8 @@ def test_links1d2d_add_links_1d_to_2d(do_plot=False):
     # Generate all links
     mesh.links1d2d_add_links_1d_to_2d(network)
 
+    assert len(network._link1d2d.link1d2d_id) == 8
+
     # Plot to verify
     if do_plot:
         fig, ax = plt.subplots(figsize=(5, 5))
@@ -430,7 +455,9 @@ def test_links1d2d_add_links_2d_to_1d_lateral(do_plot=False):
     # Generate all links
     mesh.links1d2d_add_links_2d_to_1d_lateral(network)
 
-    # Plot the final result verify
+    assert len(network._link1d2d.link1d2d_id) == 34
+    
+    # Plot to verify
     if do_plot:
         fig, ax = plt.subplots(figsize=(5, 5))
 
@@ -449,7 +476,9 @@ def test_links1d2d_add_links_2d_to_1d_embedded(do_plot=False):
 
     mesh.links1d2d_add_links_2d_to_1d_embedded(network)
     
-    # Plot the final result verify
+    assert len(network._link1d2d.link1d2d_id) == 38
+
+    # Plot to verify
     if do_plot:
         fig, ax = plt.subplots(figsize=(5, 5))
 
@@ -588,7 +617,8 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
         fill_value=fill_value,
     )
 
-    test_val = getattr(network._mesh2d, f"mesh2d_{where}_z").sum()
+    assert round(getattr(network._mesh2d, f"mesh2d_{where}_z").sum(),1) == round(outcome,1)
+    #test_val = getattr(network._mesh2d, f"mesh2d_{where}_z").sum()
     # assert round(float(test_val), 3) == round(float(outcome), 3)
 
 def test_mesh1d_add_branches_from_gdf(do_plot=False):
@@ -599,7 +629,7 @@ def test_mesh1d_add_branches_from_gdf(do_plot=False):
 
     network = fm.geometry.netfile.network
 
-    structures = structures = hydamo.structures.as_dataframe(
+    structures = hydamo.structures.as_dataframe(
         rweirs=True,
         bridges=False,
         uweirs=False,
@@ -616,6 +646,13 @@ def test_mesh1d_add_branches_from_gdf(do_plot=False):
         max_dist_to_struc=None,
         structures=structures,
     )
+
+    # number of network nodes
+    assert len(network._mesh1d.network1d_node_x) == 59
+    
+    # number of mesh nodes
+    assert len(network._mesh1d.mesh1d_node_x) == 1421
+
     # Plot to verify
     if do_plot:
         _, ax = plt.subplots()
@@ -624,4 +661,5 @@ def test_mesh1d_add_branches_from_gdf(do_plot=False):
         viz.plot_network(network, ax=ax)
         ax.autoscale_view()
         plt.show()
+
 

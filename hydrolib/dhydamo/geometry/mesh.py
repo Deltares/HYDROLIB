@@ -169,7 +169,7 @@ def mesh2d_clip(
                 delete_option=deletemeshoption,
                 invert_deletion=True,
             )
-        # Clip interior
+        # # Clip interior
         clip_pol_int = _geomlist_from_multipolygon(polygon, "interior")
         if clip_pol_int.x_coordinates.size > 0:
             network._mesh2d.meshkernel.mesh2d_delete(
@@ -179,8 +179,7 @@ def mesh2d_clip(
             )
 
     # Remove hanging edges
-    network._mesh2d.meshkernel.mesh2d_delete_hanging_edges()
-    #network._mesh2d._process(network._mesh2d.meshkernel.mesh2d_get())
+    network._mesh2d.meshkernel.mesh2d_delete_hanging_edges()    
     network._mesh2d.meshkernel.mesh2d_get()
 
 def _geomlist_from_polygon(polygon: Polygon) -> mk.GeometryList:
@@ -223,15 +222,7 @@ def mesh2d_refine(
     network: Network,    
     polygon: Union[Polygon, MultiPolygon],
     steps: int,
-    refine_intersected: bool = True,
-    use_mass_center_when_refining: bool=True,
-    refinement_type: int=2,    
-    connect_hanging_nodes: bool=True,
-    account_for_samples_outside_face=True,
-    min_edge_size: float = 1.0,
-    smoothing_iterations: int = 5.0,
-    max_courant_time: float = 120.,
-    directional_refinement: bool=False
+    refine_parameters: dict=None,
 ) -> None:
     """Refine mesh 2d within (list of) polygon or multipolygon, with a certain
     number of refinement steps.
@@ -240,22 +231,29 @@ def mesh2d_refine(
         network (Network): Network for which the mesh is clipped
         polygon (Union[GeometryList, Union[Polygon, MultiPolygon]]): Polygon within which the mesh is clipped
         steps (int): Number of steps in the refinement
-        min_edge_size (float): Minimum edge size. Default is 10.0.        
+        parameters (MeshRefinementParameters, optional): parameters to be used in the refinement. Defaults to None. 
     """
+    parameters = mk.MeshRefinementParameters(   
+                refine_intersected=True,
+                use_mass_center_when_refining=True,
+                min_edge_size=1.0,
+                refinement_type=2,
+                connect_hanging_nodes=True,
+                account_for_samples_outside_face=True,
+                max_refinement_iterations=1,
+                smoothing_iterations=5,
+                max_courant_time=120.0,
+                directional_refinement=False
+    )
+    if refine_parameters is not None:
+        for key in refine_parameters.keys():
+            setattr(parameters, key, refine_parameters[key])
 
     for polygon in common.as_polygon_list(polygon):
         network.mesh2d_refine_mesh(
             _geomlist_from_polygon(polygon),
             level=steps,            
-            refine_intersected=refine_intersected,
-            use_mass_center_when_refining= use_mass_center_when_refining,
-            refinement_type=refinement_type,
-            connect_hanging_nodes=connect_hanging_nodes,
-            account_for_samples_outside_face=account_for_samples_outside_face,
-            min_edge_size=min_edge_size, 
-            smoothing_iterations=smoothing_iterations,
-            max_courant_time=max_courant_time,
-            directional_refinement=directional_refinement)                      
+            parameters=parameters)                      
 
 
 def mesh1d_add_branch_from_linestring(
@@ -577,6 +575,7 @@ def links1d2d_add_links_2d_to_1d_embedded(
         [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
     )
     where = np.nonzero(idx)[0]
+    
     for i, face_crds in enumerate(nodes2d[network._mesh2d.mesh2d_face_nodes[idx]]):
         if not mls_prep.intersects(LineString(face_crds)):
             idx[where[i]] = False
