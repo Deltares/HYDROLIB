@@ -21,6 +21,7 @@ hydamo_data_path = (
 test_figure_path = (
     Path(__file__).parent / ".." / ".." / "figures"
 )
+test_figure_path.mkdir(parents=True, exist_ok=True)
 
 def test_create_2d_rectilinear(do_plot=False):
     # Define polygon
