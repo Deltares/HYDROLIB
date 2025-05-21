@@ -552,8 +552,9 @@ class StructuresIO:
             self.structures.hydamo.management['stuwid'] = None
            
         index = np.zeros((len(weirs.code)))
-        if profile_groups is not None:            
-            index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
+        if profile_groups is not None:
+            if hasattr(profile_groups,  'stuwid'):
+                index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
 
         rweirs = weirs[index == 0]
         for weir in rweirs.itertuples():            
@@ -576,7 +577,7 @@ class StructuresIO:
                         == op_row.globalid
                     ]
                     weir_id = f'{weir.code}_{num_op+1}'
-                    if not self.structures.hydamo.management.empty:
+                    if (not self.structures.hydamo.management.empty) & (hasattr(self.structures.hydamo.management, 'regelmiddelid')):
                         if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).bool():
                             idx = self.structures.hydamo.management[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze()].index.values[0]
                             self.structures.hydamo.management.loc[idx, 'stuwid'] =weir_id
@@ -622,23 +623,26 @@ class StructuresIO:
                 self.structures.add_compound(id=f'cmp_{weir.code}', structureids =cmp_list)
                 # self.structures.rweirs_df.drop(weir.code)
             else:
+                if weir_opening.empty:
+                    print(f'Skipping {weir.code} because there is no associated opening.')
+                    continue
+              
                 weir_id = weir.code                
                 weir_mandev = management_device[
                         management_device.kunstwerkopeningid
                         == weir_opening.globalid.values[0]
                     ]
-                if not self.structures.hydamo.management.empty:
-                    if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).bool():
-                        idx = self.structures.hydamo.management[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze()].index.values[0]
-                        self.structures.hydamo.management.loc[idx, 'stuwid'] = weir_id
                 
-                if weir_opening.empty:
-                    print(f'Skipping {weir.code} because there is no associated opening.')
-                    continue
                 if weir_mandev.empty:
                     print(f'Skipping {weir.code} because there is no associated management device.')
                     continue               
             
+                if (not self.structures.hydamo.management.empty) & hasattr(self.structures.hydamo.management, 'regelmiddelid'):
+                    if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).bool():
+                        idx = self.structures.hydamo.management[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze()].index.values[0]
+                        self.structures.hydamo.management.loc[idx, 'stuwid'] = weir_id
+                
+               
                 if isinstance(weir_mandev.overlaatonderlaat, pd.Series):
                     overlaatonderlaat = weir_mandev.overlaatonderlaat.squeeze()
                 else:
@@ -996,75 +1000,78 @@ class StructuresIO:
 
         Parameters corrspond to the HyDAMO DAMO2.2 objects.
         """
-
-        # DAMO contains m3/min, while D-Hydro needs m3/s
-        pumps["maximalecapaciteit"] /= 60
-
+        
         # Add sturing to pumps
-        for pump in pumps.itertuples():
-            # Find sturing for pump
-            sturingidx = (management.pompid == pump.globalid).values
-
-            # find gemaal for pump
-            gemaalidx = (pumpstations.globalid == pump.gemaalid).values
-
-            # so first check if there are multiple pumps with one 'sturing'
-            if sum(sturingidx) != 1:
-                raise IndexError(
-                    f"Multiple or no management rules found in hydamo.management for pump {pump.code}."
-                )
-
-            # If there als multiple pumping stations connected to one pump, raise an error
-            if sum(gemaalidx) != 1:
-                raise IndexError(
-                    f"Multiple or no pump stations (gemalen) found for pump {pump.code}."
-                )
-
-            # Find the idx if the pumping station connected to the pump
-            # gemaalidx = gemalen.iloc[np.where(gemaalidx)[0][0]]['code']
-            # Find the control for the pumping station (and thus for the pump)
-            # @sturingidx = (sturing.codegerelateerdobject == gemaalidx).values
-
-            # assert sum(sturingidx) == 1
-
-            branch_id = pumpstations.iloc[np.nonzero(gemaalidx)[0][0]]["branch_id"]
-            branch_offset = pumpstations.iloc[np.nonzero(gemaalidx)[0][0]][
-                "branch_offset"
-            ]
-            # Get the control by index
-            pump_control = management.iloc[np.where(sturingidx)[0][0]]
-
-            # if (
-            #     pump_control.doelvariabele != 1
-            #     and pump_control.doelvariabele != "waterstand"
-            # ):
-            #     raise NotImplementedError(
-            #         "Sturing not implemented for anything else than water level (1)."
-            #     )
-
-            # Add levels for suction side
-            startlevelsuctionside = [pump_control["bovengrens"]]
-            stoplevelsuctionside = [pump_control["ondergrens"]]
-
-            if "naam" in pumps:
-                name = pump.name
+        for pumpstation in pumpstations.itertuples():
+            
+            # find pumps for gemaal
+            pumps_subset = pumps[pumps.gemaalid == pumpstation.globalid]
+            if pumps_subset.empty:
+                print(f'Skipping {pumpstation.code} because there is no associated pump.')                
+                continue
+            
+            if "naam" in pumpstation:
+                name = pumpstation.name
             else:
-                name = pump.code
-            self.structures.add_pump(
-                id=pump.code,
-                name=name,
-                branchid=branch_id,
-                chainage=branch_offset,
-                orientation="positive",
-                numstages=1,
-                controlside="suctionside",
-                capacity=pump.maximalecapaciteit,
-                startlevelsuctionside=startlevelsuctionside,
-                stoplevelsuctionside=stoplevelsuctionside,
-                startleveldeliveryside=startlevelsuctionside,
-                stopleveldeliveryside=stoplevelsuctionside,
-            )
+                name = pumpstation.code 
+            if pumps_subset.shape[0] > 1:
+                # more than one pump
+                cmp_list = []
+                for ipump, (_,pump) in enumerate(pumps_subset.iterrows()): 
+                
+                    pump_control = management[management.pompid== pump.globalid]
+                    if pump_control.empty:
+                        continue
+                        raise IndexError(f'No management found for {pump.code}')
+                
+                    startlevelsuctionside = [pump_control["bovengrens"]]
+                    stoplevelsuctionside = [pump_control["ondergrens"]]
 
+                    pumpid = f'{pumpstation.code}_{ipump+1}'
+                    cmp_list.append(pumpid)
+              
+                    self.structures.add_pump(
+                        id=pumpid,
+                        name=name,
+                        branchid=pumpstation.branch_id,
+                        chainage=pumpstation.branch_offset,
+                        orientation="positive",
+                        numstages=1,
+                        controlside="suctionside",
+                        capacity=pump.maximalecapaciteit/60.,
+                        startlevelsuctionside=startlevelsuctionside,
+                        stoplevelsuctionside=stoplevelsuctionside,
+                        startleveldeliveryside=startlevelsuctionside,
+                        stopleveldeliveryside=stoplevelsuctionside,
+                    )
+                self.structures.add_compound(id=f'cmp_{pumpstation.code}', structureids =cmp_list)
+
+            else:
+                #  only one pump
+                pump_control = management[management.pompid== pumps_subset.globalid.values[0]]
+                if pump_control.empty:
+                    print(f'Skipping {pumpstation.code} because there is no associated management.')
+                
+                startlevelsuctionside = [pump_control["bovengrens"]]
+                stoplevelsuctionside = [pump_control["ondergrens"]]
+
+                           
+                # the pumpstation has only one pump
+                self.structures.add_pump(
+                    id=pumpstation.code,
+                    name=name,
+                    branchid=pumpstation.branch_id,
+                    chainage=pumpstation.branch_offset,
+                    orientation="positive",
+                    numstages=1,
+                    controlside="suctionside",
+                    capacity=pumps_subset.maximalecapaciteit.values[0]/60.,
+                    startlevelsuctionside=startlevelsuctionside,
+                    stoplevelsuctionside=stoplevelsuctionside,
+                    startleveldeliveryside=startlevelsuctionside,
+                    stopleveldeliveryside=stoplevelsuctionside,
+                )
+                
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def pumps_from_datamodel(self, pumps: pd.DataFrame) -> None:
         """From parsed data model of pumps"""

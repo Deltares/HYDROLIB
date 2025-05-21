@@ -30,10 +30,6 @@ def test_plot_create_2d_triangular_from_multipolygon():
     test_mesh.test_create_2d_triangular_from_multipolygon(do_plot=True)
 
 @pytest.mark.plot
-def test_plot_create_2d_triangular_from_multipolygon():
-    test_mesh.test_create_2d_triangular_from_multipolygon(do_plot=True)
-
-@pytest.mark.plot
 def test_2d_refine_ring_geometry():
     test_mesh.test_2d_refine_ring_geometry(do_plot=True)
 
@@ -47,6 +43,9 @@ def test_plot_2d_clip_outside_polygon():
 def test_plot_2d_clip_inside_multipolygon():
     test_mesh.test_2d_clip_inside_multipolygon(do_plot=True)
 
+@pytest.mark.plot
+def test_plot_2d_clip_inside_polygon_with_holes():
+    test_mesh.test_plot_2d_clip_inside_polygon_with_holes(do_plot=True)
 
 @pytest.mark.plot
 def test_plot_1d_add_branch_from_linestring():

@@ -24,7 +24,7 @@ class Links1d2d:
         # List for 1d 2d links
         self.nodes1d = []
         self.faces2d = []
-        #setattr(self.network._link1d2d, 'link1d2d', np.array([]))
+        # setattr(self.network._link1d2d, 'link1d2d', np.array([]))
 
     def generate_1d_to_2d(self, max_distance=np.inf, branchid=None):
         """
