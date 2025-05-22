@@ -2,6 +2,7 @@ import numpy as np
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, Point, Polygon
 import logging
+import meshkernel as mk
 import geopandas as gpd
 from tqdm.auto import tqdm
 from hydrolib.dhydamo.geometry.gridgeom import geometry
@@ -23,7 +24,7 @@ class Links1d2d:
         # List for 1d 2d links
         self.nodes1d = []
         self.faces2d = []
-        #setattr(self.network._link1d2d, 'link1d2d', np.array([]))
+        # setattr(self.network._link1d2d, 'link1d2d', np.array([]))
 
     def generate_1d_to_2d(self, max_distance=np.inf, branchid=None):
         """
@@ -407,11 +408,19 @@ class Links1d2d:
         mk_faces = np.c_[self.network._mesh2d.mesh2d_face_x, self.network._mesh2d.mesh2d_face_y]
         distances, faces2d = KDTree(mk_faces).query(gr_faces)
         print(f'Max distance between faces: {distances.max()}') # error out if we do not find an exact match
-                
-        # #self.network._link1d2d.link1d2d = np.array([])
+        
+        contacts = self.network._link1d2d.meshkernel.contacts_get()
+        contacts.mesh1d_indices = contacts.mesh1d_indices#[keep]
+        contacts.mesh2d_indices = contacts.mesh2d_indices#[keep]        
+       
+        contacts =  mk.Contacts(nodes1d, faces2d)
+        self.network._link1d2d.meshkernel.contacts_set(contacts)
+    	
+        # npresent = len(self.network._link1d2d.link1d2d)
+        # new_links = np.c_[nodes1d, faces2d]
         # self.network._link1d2d.link1d2d = np.append(
         #     self.network._link1d2d.link1d2d,
-        #     np.c_[nodes1d, faces2d],
+        #     new_links,
         #     axis=0,
         # )
         # self.network._link1d2d.link1d2d_contact_type = np.append(
