@@ -29,11 +29,12 @@ def test_plot_create_2d_rectangular_from_multipolygon():
 def test_plot_create_2d_triangular_from_multipolygon():
     test_mesh.test_create_2d_triangular_from_multipolygon(do_plot=True)
 
+
 @pytest.mark.plot
 def test_2d_refine_ring_geometry():
     test_mesh.test_2d_refine_ring_geometry(do_plot=True)
 
-test_2d_refine_ring_geometry
+
 @pytest.mark.plot
 def test_plot_2d_clip_outside_polygon():
     test_mesh.test_2d_clip_outside_polygon(do_plot=True)
@@ -43,9 +44,11 @@ def test_plot_2d_clip_outside_polygon():
 def test_plot_2d_clip_inside_multipolygon():
     test_mesh.test_2d_clip_inside_multipolygon(do_plot=True)
 
+
 @pytest.mark.plot
 def test_plot_2d_clip_inside_polygon_with_holes():
     test_mesh.test_plot_2d_clip_inside_polygon_with_holes(do_plot=True)
+
 
 @pytest.mark.plot
 def test_plot_1d_add_branch_from_linestring():
@@ -53,20 +56,34 @@ def test_plot_1d_add_branch_from_linestring():
 
 
 @pytest.mark.plot
-def test_plot_links1d2d_add_links_1d_to_2d(): 
+def test_plot_links1d2d_add_links_1d_to_2d():
     test_mesh.test_links1d2d_add_links_1d_to_2d(do_plot=True)
+
 
 @pytest.mark.plot
 def test_plot_links1d2d_add_links_2d_to_1d_lateral():
     test_mesh.test_links1d2d_add_links_2d_to_1d_lateral(do_plot=True)
 
+
 @pytest.mark.plot
 def test_plot_links1d2d_add_links_2d_to_1d_embedded():
     test_mesh.test_links1d2d_add_links_2d_to_1d_embedded(do_plot=True)
 
+
+@pytest.mark.plot
+def test_plot_links1d2d_add_links_2d_to_1d_embedded_within():
+    test_mesh.test_links1d2d_add_links_2d_to_1d_embedded_within(do_plot=True)
+
+
+@pytest.mark.plot
+def test_plot_links1d2d_add_links_2d_to_1d_embedded_branchids():
+    test_mesh.test_links1d2d_add_links_2d_to_1d_embedded(do_plot=True)
+
+
 @pytest.mark.plot
 def test_plot_linkd1d2d_remove_links_within_polygon():
     test_mesh.test_linkd1d2d_remove_links_within_polygon(do_plot=True)
+
 
 @pytest.mark.plot
 def test_plot_mesh1d_add_branches_from_gdf():
