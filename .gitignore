@@ -141,3 +141,6 @@ xunit-reports
 hydrolib/tests/model/*
 dimr_config.xml
 /hydrolib/notebooks/Hydrolib-D-Hydamo_usage_introduction.py
+
+# resources
+hydrolib/dhydamo/resources/lib
