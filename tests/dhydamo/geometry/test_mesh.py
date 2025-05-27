@@ -1,10 +1,10 @@
 import sys
 from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from meshkernel.py_structures import DeleteMeshOption
-import meshkernel as mk
 from shapely.affinity import translate
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box
 
@@ -219,7 +219,6 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
         fig.savefig(test_figure_path / "test_create_2d_triangular_from_multipolygon_mk.png")
 
 
-@pytest.mark.dll
 def test_2d_refine_ring_geometry(do_plot=False):
     # Define polygon
     fmmodel = FMModel()
@@ -692,7 +691,7 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
 
 def test_mesh1d_add_branches_from_gdf(do_plot=False):
     # Create full HyDAMO object (use from other test)
-    hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
+    hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
 
     fm = FMModel()
 

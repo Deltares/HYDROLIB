@@ -36,7 +36,7 @@ def _recursive_check_related(hydamo, source_str, target_str, via, on, coupled_to
     if coupled_to is not None:
         for next_target_str, next_relation in coupled_to.items():
             return _recursive_check_related(hydamo, target_str, next_target_str, **next_relation)
-            
+
 def test_hydamo_related():
     # all data is contained in one geopackage called 'Example model'
     gpkg_file = hydamo_data_path / "Example_model.gpkg"
@@ -76,13 +76,11 @@ def test_hydamo_related():
     _check_related(hydamo, "overflows")
     _check_related(hydamo, "sewer_areas")
 
-def test_hydamo_object_from_gpkg():
+def _hydamo_object_from_gpkg():
     # initialize a hydamo object
     extent_file = hydamo_data_path / "OLO_stroomgebied_incl.maas.shp"
     assert extent_file.exists()
     hydamo = HyDAMO(extent_file=extent_file)
-
-    assert np.round(hydamo.clipgeo.area) == 139373665
 
     # all data is contained in one geopackage called 'Example model'
     gpkg_file = hydamo_data_path / "Example_model.gpkg"
@@ -92,8 +90,6 @@ def test_hydamo_object_from_gpkg():
     hydamo.branches.read_gpkg_layer(
         str(gpkg_file), layer_name="HydroObject", index_col="code"
     )
-    assert len(hydamo.branches) == 61
-    assert np.round(hydamo.branches.length.sum()) == 28371
 
     hydamo.profile.read_gpkg_layer(
         gpkg_file,
@@ -103,10 +99,7 @@ def test_hydamo_object_from_gpkg():
         id_col="code",
     )
 
-    assert len(hydamo.profile) == 359
-    assert hydamo.profile.geom_type.values[0] == "LineString"
-
-    #     # read roughness
+    # read roughness
     hydamo.profile_roughness.read_gpkg_layer(gpkg_file, layer_name="RuwheidProfiel")
 
     hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name="profiellijn")
@@ -116,17 +109,7 @@ def test_hydamo_object_from_gpkg():
     len_profile_before = len(hydamo.profile)
     hydamo.snap_to_branch_and_drop(hydamo.profile, hydamo.branches, snap_method="intersecting", drop_related=True)
 
-    # seven profiles are too far from a branch and are dropped
-    assert len_profile_before - len(hydamo.profile) == 7
-
-    # the dataset contains two profile groups (a bridge and a uweir)
-    assert hydamo.profile_group.shape == (2, 4)
-    # a profile_lines' profielgroepid's should correspond to profile_group globalids
-    assert hydamo.profile_line.profielgroepid.values[0] in list(
-        hydamo.profile_group.globalid
-    )
-
-    #     # Read Weirs
+    # Read Weirs
     hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name="Stuw")
     hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
     hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
@@ -138,15 +121,10 @@ def test_hydamo_object_from_gpkg():
 
     # Read management device
     hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-    assert len(hydamo.management_device) == 32
 
     hydamo.snap_to_branch_and_drop(hydamo.weirs, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
-    assert len(hydamo.weirs) == 25
-    assert np.round(hydamo.weirs.doorstroombreedte.mean()) == 2
 
     hydamo.snap_to_branch_and_drop(hydamo.culverts, hydamo.branches, snap_method="ends", maxdist=5, drop_related=True)
-    assert len(hydamo.culverts) == 90
-    assert np.round(hydamo.culverts.length.sum()) == 2498
 
     # Read pumpstations
     hydamo.pumpstations.read_gpkg_layer(
@@ -156,13 +134,10 @@ def test_hydamo_object_from_gpkg():
     hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
 
     hydamo.snap_to_branch_and_drop(hydamo.pumpstations, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
-    assert len(hydamo.pumps) == 1
 
     # Read bridges
     hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
     hydamo.snap_to_branch_and_drop(hydamo.bridges, hydamo.branches, snap_method="overal", maxdist=1100, drop_related=True)
-    assert len(hydamo.bridges) == 1
-    assert np.round(hydamo.bridges.branch_offset.values[0]) == 182
 
     # Read boundary conditions
     hydamo.boundary_conditions.read_gpkg_layer(
@@ -171,16 +146,11 @@ def test_hydamo_object_from_gpkg():
     hydamo.boundary_conditions.snap_to_branch(
         hydamo.branches, snap_method="overal", maxdist=10
     )
-    assert len(hydamo.boundary_conditions) == 1
-
-    assert not hydamo.boundary_conditions.branch_offset.empty
 
     # Read catchments
     hydamo.catchments.read_gpkg_layer(
         gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code", check_geotype=False,
     )
-    assert len(hydamo.catchments) == 121
-    assert np.round(hydamo.catchments.oppervlakt.sum()) == 2662
 
     # Read laterals
     hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
@@ -192,16 +162,44 @@ def test_hydamo_object_from_gpkg():
 
     hydamo.catchments['boundary_node'] = [hydamo.laterals[hydamo.laterals.globalid==c['lateraleknoopid']].code.values[0] for _,c in hydamo.catchments.iterrows()]
 
+    return hydamo, len_profile_before
+
+
+def test_hydamo_object_from_gpkg():
+    hydamo, len_profile_before = _hydamo_object_from_gpkg()
+
+    assert np.round(hydamo.clipgeo.area) == 139373665
+    assert len(hydamo.branches) == 61
+    assert np.round(hydamo.branches.length.sum()) == 28371
+    assert len_profile_before == 359
+    # seven profiles are too far from a branch and are dropped
+    assert len(hydamo.profile) == 352
+    assert hydamo.profile.geom_type.values[0] == "LineString"
+    # the dataset contains two profile groups (a bridge and a uweir)
+    assert hydamo.profile_group.shape == (2, 4)
+    # a profile_lines' profielgroepid's should correspond to profile_group globalids
+    assert hydamo.profile_line.profielgroepid.values[0] in list(
+        hydamo.profile_group.globalid
+    )
+    assert len(hydamo.management_device) == 32
+    assert len(hydamo.weirs) == 25
+    assert np.round(hydamo.weirs.doorstroombreedte.mean()) == 2
+    assert len(hydamo.culverts) == 90
+    assert np.round(hydamo.culverts.length.sum()) == 2498
+    assert len(hydamo.pumps) == 1
+    assert len(hydamo.bridges) == 1
+    assert np.round(hydamo.bridges.branch_offset.values[0]) == 182
+    assert len(hydamo.boundary_conditions) == 1
+    assert not hydamo.boundary_conditions.branch_offset.empty
+    assert len(hydamo.catchments) == 121
+    assert np.round(hydamo.catchments.oppervlakt.sum()) == 2662
     assert len(hydamo.laterals) == 121
     assert np.round(hydamo.laterals.afvoer.mean()) == 0
 
-    return hydamo
-
-
-def test_convert_structures(hydamo=None):
+def _convert_structures(hydamo=None):
     # iniate a hydamo object
     if hydamo is None:
-        hydamo = test_hydamo_object_from_gpkg()
+        hydamo, _ = _hydamo_object_from_gpkg()
 
     # Convert
     hydamo.structures.convert.weirs(
@@ -212,17 +210,10 @@ def test_convert_structures(hydamo=None):
         opening=hydamo.opening,
         management_device=hydamo.management_device,
     )
-    # one weir is converted to an orifice, one tol a universal weir. w weirs have in total 4 extra openings, so fictional weirs are added.
-    assert hydamo.structures.rweirs_df.shape[0] == hydamo.weirs.shape[0] - 2 + 4
-
-    assert len(hydamo.structures.compounds_df)==2
-    
-    assert hydamo.structures.compounds_df[hydamo.structures.compounds_df.id=='cmp_S_98740'].structureids.squeeze() == 'S_98740_1;S_98740_2;S_98740_3;S_98740_4'
 
     hydamo.structures.convert.culverts(
         hydamo.culverts, management_device=hydamo.management_device
     )
-    assert hydamo.structures.culverts_df.shape[0] == hydamo.culverts.shape[0]
 
     hydamo.structures.convert.bridges(
         hydamo.bridges,
@@ -230,18 +221,26 @@ def test_convert_structures(hydamo=None):
         profile_lines=hydamo.profile_line,
         profiles=hydamo.profile,
     )
-    assert hydamo.structures.bridges_df.shape[0] == hydamo.bridges.shape[0]
 
     hydamo.structures.convert.pumps(
         hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
     )
 
-    assert hydamo.structures.pumps_df.shape[0] == hydamo.pumps.shape[0]
     return hydamo
 
-def test_convert_crosssections():
+def test_convert_structures(hydamo=None):
+    hydamo = _convert_structures(hydamo=hydamo)
+    # one weir is converted to an orifice, one tol a universal weir. w weirs have in total 4 extra openings, so fictional weirs are added.
+    assert hydamo.structures.rweirs_df.shape[0] == hydamo.weirs.shape[0] - 2 + 4
+    assert len(hydamo.structures.compounds_df)==2
+    assert hydamo.structures.compounds_df[hydamo.structures.compounds_df.id=='cmp_S_98740'].structureids.squeeze() == 'S_98740_1;S_98740_2;S_98740_3;S_98740_4'
+    assert hydamo.structures.culverts_df.shape[0] == hydamo.culverts.shape[0]
+    assert hydamo.structures.bridges_df.shape[0] == hydamo.bridges.shape[0]
+    assert hydamo.structures.pumps_df.shape[0] == hydamo.pumps.shape[0]
+
+def _convert_crosssections():
     # initiate a hydamo object
-    hydamo = test_convert_structures()
+    hydamo = _convert_structures()
 
     hydamo.crosssections.convert.profiles(
         crosssections=hydamo.profile,
@@ -253,16 +252,6 @@ def test_convert_crosssections():
         branches=hydamo.branches,
         roughness_variant="High",
     )
-
-    assert len(hydamo.crosssections.crosssection_def) == 442
-    assert len(hydamo.crosssections.crosssection_loc) == 349
-
-    # check whether the bridge profile in in the crosssection definitions
-    assert (
-        hydamo.structures.bridges_df.csdefid.values[0]
-        in hydamo.crosssections.crosssection_def.keys()
-    )
-
     # Set a default cross section
     default = hydamo.crosssections.add_rectangle_definition(
         height=5.0,
@@ -274,12 +263,25 @@ def test_convert_crosssections():
     )
     hydamo.crosssections.set_default_definition(definition=default, shift=10.0)
 
+    return hydamo
+
+def test_convert_crosssections():
+    hydamo = _convert_crosssections()
+
+    assert len(hydamo.crosssections.crosssection_def) == 443
+    assert len(hydamo.crosssections.crosssection_loc) == 349
+
+    # check whether the bridge profile in in the crosssection definitions
+    assert (
+        hydamo.structures.bridges_df.csdefid.values[0]
+        in hydamo.crosssections.crosssection_def.keys()
+    )
     assert "default" in hydamo.crosssections.crosssection_def.keys()
 
 
-def test_add_structures_manually():
+def _add_structures_manually():
     # iniate a hydamo object
-    hydamo = test_hydamo_object_from_gpkg()
+    hydamo, _ = _hydamo_object_from_gpkg()
 
     # Add structures manually
     hydamo.structures.add_rweir(
@@ -291,7 +293,6 @@ def test_add_structures_manually():
         crestwidth=3.0,
         corrcoeff=1.0,
     )
-    assert "rwtest" in hydamo.structures.rweirs_df.id.values[0]
 
     hydamo.structures.add_orifice(
         id="otest",
@@ -307,7 +308,6 @@ def test_add_structures_manually():
         uselimitflowneg=False,
         limitflowneg=0.0,
     )
-    assert "otest" in hydamo.structures.orifices_df.id.values[0]
 
     hydamo.structures.add_uweir(
         id="uwtest",
@@ -320,7 +320,6 @@ def test_add_structures_manually():
         yvalues="0 0.5 1.0",
         zvalues="19.0 18.0 19.0",
     )
-    assert "uwtest" in hydamo.structures.uweirs_df.id.values[0]
 
     hydamo.structures.add_bridge(
         id="btest",
@@ -335,7 +334,6 @@ def test_add_structures_manually():
         frictiontype="Manning",
         friction=0.06,
     )
-    assert "btest" in hydamo.structures.bridges_df.id.values[0]
 
     hydamo.structures.add_culvert(
         id="ctest",
@@ -351,7 +349,6 @@ def test_add_structures_manually():
         bedfrictiontype="Manning",
         bedfriction=0.06,
     )
-    assert "ctest" in hydamo.structures.culverts_df.id.values[0]
 
     hydamo.structures.add_pump(
         id="ptest",
@@ -362,12 +359,20 @@ def test_add_structures_manually():
         startlevelsuctionside=[14.0],
         stoplevelsuctionside=[13.8],
     )
-    assert "ptest" in hydamo.structures.pumps_df.id.values[0]
+
     return hydamo
 
+def test_add_structures_manually():
+    hydamo = _add_structures_manually()
+    assert "rwtest" in hydamo.structures.rweirs_df.id.values[0]
+    assert "otest" in hydamo.structures.orifices_df.id.values[0]
+    assert "uwtest" in hydamo.structures.uweirs_df.id.values[0]
+    assert "btest" in hydamo.structures.bridges_df.id.values[0]
+    assert "ctest" in hydamo.structures.culverts_df.id.values[0]
+    assert "ptest" in hydamo.structures.pumps_df.id.values[0]
 
 def test_observationpoints():
-    hydamo = test_hydamo_object_from_gpkg()
+    hydamo, _ = _hydamo_object_from_gpkg()
 
     hydamo.observationpoints.add_points(
         [Point((200200, 395600)), (200200, 396200)],
@@ -379,10 +384,10 @@ def test_observationpoints():
 
 
 def test_storagenodes():
-    hydamo = test_hydamo_object_from_gpkg()
+    hydamo, _ = _hydamo_object_from_gpkg()
 
     fm = FMModel()
-    
+
     mesh.mesh1d_add_branches_from_gdf(
         fm.geometry.netfile.network,
         branches=hydamo.branches,
@@ -391,10 +396,10 @@ def test_storagenodes():
         max_dist_to_struc=None,
         structures=None,
     )
-    
-    hydamo.storagenodes.add_storagenode(       
+
+    hydamo.storagenodes.add_storagenode(
         id='sto_test',
-        xy=(141001, 395030),                
+        xy=(141001, 395030),
         name='sto_test',
         usetable="true",
         levels=' '.join(np.arange(17.1, 19.6, 0.1).astype(str)),
@@ -402,10 +407,10 @@ def test_storagenodes():
         interpolate="linear",
         network=fm.geometry.netfile.network
     )
-    
+
     hydamo.storagenodes.add_storagenode(
         id="test",
-        nodeid='199501.863000_395084.466000',                
+        nodeid='199501.863000_395084.466000',
         usestreetstorage="true",
         nodetype="unspecified",
         name='sto_test',
@@ -424,7 +429,7 @@ def test_storagenodes():
 
 
 def test_convert_boundaries():
-    hydamo = test_hydamo_object_from_gpkg()
+    hydamo, _ = _hydamo_object_from_gpkg()
 
     fm = FMModel()
 
@@ -445,7 +450,7 @@ def test_convert_boundaries():
 
 
 def test_add_boundaries():
-    hydamo = test_hydamo_object_from_gpkg()
+    hydamo, _ = _hydamo_object_from_gpkg()
 
     fm = FMModel()
 
@@ -474,7 +479,7 @@ def test_add_boundaries():
 
 
 def test_add_initialfields():
-    hydamo = test_hydamo_object_from_gpkg()
+    hydamo, _ = _hydamo_object_from_gpkg()
 
     hydamo.external_forcings.set_initial_waterdepth(1.5)
 
@@ -485,7 +490,7 @@ def test_add_initialfields():
 
 def test_write_laterals():
     # Get full hydamo object
-    hydamo = test_hydamo_object_from_gpkg()
+    hydamo, _ = _hydamo_object_from_gpkg()
 
     series = pd.Series(np.sin(np.linspace(2, 8, 100) * -1) + 1.0)
     series.index = [

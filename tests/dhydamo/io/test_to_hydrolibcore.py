@@ -39,7 +39,7 @@ def setup_model(hydamo=None, full_test=False):
     fm.time.tstop = 2 * 3600 * 24
 
     if hydamo is None:
-        hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
+        hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
 
     hydamo.structures.convert.weirs(
         hydamo.weirs,
@@ -180,7 +180,7 @@ def test_convert_to_hydrolibmodel():
     assert len(models.crossdefs) == 353
 
 
-def test_add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
+def _add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
     hydamo, fm = setup_model(hydamo=hydamo, full_test=full_test)
 
     if drrmodel is not None:
@@ -228,16 +228,18 @@ def test_add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
             filepath=onedfield_filepath
         )
 
+    return fm
+
+def test_add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
+    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
     assert hasattr(fm, "geometry")
     assert hasattr(fm.geometry, "inifieldfile")
     # this does not work yet
     # assert hasattr(onedfieldmodel, "filepath")
 
-    return fm
 
-
-def test_write_model(drrmodel=None, hydamo=None, full_test=False):
-    fm = test_add_to_filestructure(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
+def _write_model(drrmodel=None, hydamo=None, full_test=False):
+    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
 
     dimr = DIMR()
     dimr.component.append(
@@ -251,9 +253,11 @@ def test_write_model(drrmodel=None, hydamo=None, full_test=False):
     )
     dimr.save(recurse=True)
 
+    return fm, output_path
+
+def test_write_model(drrmodel=None, hydamo=None, full_test=False):
+    fm, output_path = _write_model(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
     assert (output_path / "fm" / "test.mdu").exists()
     assert (output_path / "fm" / "crsdef.ini").exists()
     assert (output_path / "fm" / "network.nc").exists()
     assert (output_path / "fm" / "initialwaterdepth.ini").exists()
-
-    return fm, output_path
