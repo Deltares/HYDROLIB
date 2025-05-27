@@ -578,7 +578,7 @@ class StructuresIO:
                     ]
                     weir_id = f'{weir.code}_{num_op+1}'
                     if (not self.structures.hydamo.management.empty) & (hasattr(self.structures.hydamo.management, 'regelmiddelid')):
-                        if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).bool():
+                        if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).item():
                             idx = self.structures.hydamo.management[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze()].index.values[0]
                             self.structures.hydamo.management.loc[idx, 'stuwid'] =weir_id
                     if weir_mandev.overlaatonderlaat.squeeze().lower() == 'overlaat':                                    
@@ -638,7 +638,7 @@ class StructuresIO:
                     continue               
             
                 if (not self.structures.hydamo.management.empty) & hasattr(self.structures.hydamo.management, 'regelmiddelid'):
-                    if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).bool():
+                    if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).item():
                         idx = self.structures.hydamo.management[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze()].index.values[0]
                         self.structures.hydamo.management.loc[idx, 'stuwid'] = weir_id
                 
