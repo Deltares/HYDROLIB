@@ -126,7 +126,10 @@ def test_create_2d_triangular_within_circle(do_plot=False):
         fig.savefig(test_figure_path / "test_create_2d_triangular_within_circle_mk.png")
 
     # Triangular grids lead to different grids on windows vs macos/linux
-    assert len(network._mesh2d.get_mesh2d().face_x) in [254, 258]
+    if platform.system() == "Windows":
+        assert len(network._mesh2d.get_mesh2d().face_x) == 254
+    else:
+        assert len(network._mesh2d.get_mesh2d().face_x) == 258
 
 
 def test_create_2d_rectangular_from_multipolygon(do_plot=False):
