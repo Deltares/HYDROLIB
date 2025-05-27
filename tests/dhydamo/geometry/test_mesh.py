@@ -147,7 +147,7 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
         deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
     )
 
-    assert len(network._mesh2d.mesh2d_face_x) == 149
+    pre_refine_length = len(network._mesh2d.mesh2d_face_x)
 
     x = np.linspace(0, 20, 101)
     river = LineString(np.c_[x, np.sin(x / 3) + 5]).buffer(0.5)
@@ -157,8 +157,7 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
 
     refine_parameters = {"min_edge_size": 0.001}
     mesh.mesh2d_refine(network, refinement, 2, refine_parameters)
-
-    assert len(network._mesh2d.mesh2d_face_x) == 907
+    pre_clip_length = len(network._mesh2d.mesh2d_face_x)
 
     # # Clip river
     mesh.mesh2d_clip(
@@ -166,8 +165,6 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
         polygon=GeometryList.from_geometry(river),
         deletemeshoption=DeleteMeshOption.FACES_WITH_INCLUDED_CIRCUMCENTERS,
     )
-
-    assert len(network._mesh2d.mesh2d_face_x) == 637
 
     # Plot to verify
     if do_plot:
@@ -180,6 +177,10 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
         ax.plot(*refinement.exterior.coords.xy, color="g", ls="--")
         plt.show()
         fig.savefig(test_figure_path / "test_create_2d_rectangular_from_multipolygon_mk.png")
+
+    assert pre_refine_length == 149
+    assert pre_clip_length == 907
+    assert len(network._mesh2d.mesh2d_face_x) == 637
 
 
 def test_create_2d_triangular_from_multipolygon(do_plot=False):
@@ -196,21 +197,14 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
     mesh.mesh2d_add_triangular(network, multipolygon, edge_length=2)
 
     # Check bounds and number of faces
-    # Triangular grids lead to different grids on windows vs macos/linux
-    assert len(network._mesh2d.mesh2d_face_x) in [376, 382]
-    assert len(network._mesh2d.mesh2d_edge_x) in [589, 598]
+    pre_refine_length_face = len(network._mesh2d.mesh2d_face_x)
+    pre_refine_length_edge = len(network._mesh2d.mesh2d_edge_x)
 
     # Refine mesh
     refine_parameters = {"min_edge_size": 0.001}
     mesh.mesh2d_refine(
         network, refinement_box, steps=2, refine_parameters=refine_parameters
     )
-
-    # @TODO different number of faces on windows vs macos/linux
-    if platform.system() == "Windows":
-        assert len(network._mesh2d.mesh2d_face_x) == 1334
-    else:
-        assert len(network._mesh2d.mesh2d_face_x) == 1360
 
     # Plot to verify
     if do_plot:
@@ -223,6 +217,15 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
         plt.show()
         fig.savefig(test_figure_path / "test_create_2d_triangular_from_multipolygon_mk.png")
 
+    # @TODO different numbers on windows vs macos/linux for triangular grids
+    if platform.system() == "Windows":
+        assert pre_refine_length_face == 376
+        assert pre_refine_length_edge == 589
+        assert len(network._mesh2d.mesh2d_face_x) == 1334
+    else:
+        assert pre_refine_length_face == 382
+        assert pre_refine_length_edge == 598
+        assert len(network._mesh2d.mesh2d_face_x) == 1360
 
 def test_2d_refine_ring_geometry(do_plot=False):
     # Define polygon
@@ -249,10 +252,8 @@ def test_2d_refine_ring_geometry(do_plot=False):
     mesh.mesh2d_refine(
         network, refinement, steps=2, refine_parameters=refine_parameters
     )
-
-    assert len(network._mesh2d.mesh2d_face_x) == 80012
+    pre_clip_length = len(network._mesh2d.mesh2d_face_x)
     mesh.mesh2d_clip(network, uitknippen, inside=True)
-    assert len(network._mesh2d.mesh2d_face_x) == 27534
 
     # Plot to verify
     if do_plot:
@@ -264,6 +265,9 @@ def test_2d_refine_ring_geometry(do_plot=False):
         ax.plot(*donut.interiors[0].coords.xy, color="r", ls="--")
         plt.show()
         fig.savefig(test_figure_path / "test_2d_refine_ring_geometry_mk.png")
+
+    assert pre_clip_length == 80012
+    assert len(network._mesh2d.mesh2d_face_x) == 27534
 
 
 def test_2d_clip_outside_polygon(do_plot=False):
@@ -280,8 +284,7 @@ def test_2d_clip_outside_polygon(do_plot=False):
         dy=1,
         deletemeshoption=DeleteMeshOption.INSIDE_NOT_INTERSECTED,
     )
-
-    assert len(network._mesh2d.mesh2d_face_x) == 324
+    pre_clip_length = len(network._mesh2d.mesh2d_face_x)
 
     clipgeo = box(-8, -8, 8, 8).difference(
         MultiPolygon([box(-6, -1, -4, 2), box(4, 5, 7, 7)])
@@ -294,8 +297,6 @@ def test_2d_clip_outside_polygon(do_plot=False):
         inside=False,
     )
 
-    assert len(network._mesh2d.mesh2d_face_x) == 244
-
     # Plot to verify
     if do_plot:
         fig, ax = plt.subplots()
@@ -306,6 +307,9 @@ def test_2d_clip_outside_polygon(do_plot=False):
             ax.plot(*hole.coords.xy, color="r", ls="--")
         plt.show()
         fig.savefig(test_figure_path / "test_2d_clip_outside_polygon_mk.png")
+
+    assert pre_clip_length == 324
+    assert len(network._mesh2d.mesh2d_face_x) == 244
 
 
 def test_plot_2d_clip_inside_polygon_with_holes(do_plot=False):
@@ -321,8 +325,7 @@ def test_plot_2d_clip_inside_polygon_with_holes(do_plot=False):
         dy=1,
         deletemeshoption=DeleteMeshOption.INSIDE_NOT_INTERSECTED,
     )
-
-    assert len(network._mesh2d.mesh2d_node_x) == 361
+    pre_clip_length = len(network._mesh2d.mesh2d_node_x)
 
     hole = box(-2, -2, 2, 2)
     clipgeo = box(-5, -5, 5, 5).difference(hole)
@@ -334,8 +337,6 @@ def test_plot_2d_clip_inside_polygon_with_holes(do_plot=False):
         inside=True,
     )
 
-    assert len(network._mesh2d.mesh2d_node_x) == 305
-
     # Plot to verify
     if do_plot:
         fig, ax = plt.subplots()
@@ -345,6 +346,9 @@ def test_plot_2d_clip_inside_polygon_with_holes(do_plot=False):
         ax.plot(*clipgeo.interiors[0].coords.xy, color="r", ls="--")
         plt.show()
         fig.savefig(test_figure_path / "test_2d_clip_inside_multipolygon_with_holes_mk.png")
+
+    assert pre_clip_length == 361
+    assert len(network._mesh2d.mesh2d_node_x) == 305
 
 
 def test_2d_clip_inside_multipolygon(do_plot=False):
@@ -371,8 +375,6 @@ def test_2d_clip_inside_multipolygon(do_plot=False):
         inside=True,
     )
 
-    assert len(network._mesh2d.mesh2d_node_x) == 357
-
     # Plot to verify
     if do_plot:
         fig, ax = plt.subplots()
@@ -382,6 +384,8 @@ def test_2d_clip_inside_multipolygon(do_plot=False):
             ax.plot(*polygon.exterior.coords.xy, color="r", ls="--")
         plt.show()
         fig.savefig(test_figure_path / "test_2d_clip_inside_multipolygon_mk.png")
+
+    assert len(network._mesh2d.mesh2d_node_x) == 357
 
 
 def test_1d_add_branch_from_linestring(do_plot=False):
@@ -395,8 +399,6 @@ def test_1d_add_branch_from_linestring(do_plot=False):
     # a multilinestring does not work...
     mesh.mesh1d_add_branch_from_linestring(network, branch, node_distance=3)
 
-    assert len(network._mesh1d.mesh1d_node_x) == 8
-
     # Plot to verify
     if do_plot:
         fig, ax = plt.subplots()
@@ -408,6 +410,8 @@ def test_1d_add_branch_from_linestring(do_plot=False):
             ax.plot(*ls.coords.xy, color="k", ls="-", lw=3, alpha=0.2)
         plt.show()
         fig.savefig(test_figure_path / "test_1d_add_branch_from_linestring_mk.png")
+
+    assert len(network._mesh1d.mesh1d_node_x) == 8
 
 
 def _prepare_1d2d_mesh(second_branch: bool = False):
@@ -450,8 +454,6 @@ def test_links1d2d_add_links_1d_to_2d(do_plot=False):
     # Generate all links
     mesh.links1d2d_add_links_1d_to_2d(network)
 
-    assert len(network._link1d2d.link1d2d_id) == 8
-
     # Plot to verify
     if do_plot:
         fig, ax = plt.subplots(figsize=(5, 5))
@@ -466,14 +468,14 @@ def test_links1d2d_add_links_1d_to_2d(do_plot=False):
         plt.show()
         fig.savefig(test_figure_path / "test_links1d2d_add_links_1d_to_2d_mk.png")
 
+    assert len(network._link1d2d.link1d2d_id) == 8
+
 
 def test_links1d2d_add_links_2d_to_1d_lateral(do_plot=False):
     network, within, branchids, _ = _prepare_1d2d_mesh()
 
     # Generate all links
     mesh.links1d2d_add_links_2d_to_1d_lateral(network)
-
-    assert len(network._link1d2d.link1d2d_id) == 34
 
     # Plot to verify
     if do_plot:
@@ -489,6 +491,7 @@ def test_links1d2d_add_links_2d_to_1d_lateral(do_plot=False):
         plt.show()
         fig.savefig(test_figure_path / "test_links1d2d_add_links_2d_to_1d_lateral_mk.png")
 
+    assert len(network._link1d2d.link1d2d_id) == 34
 
 def test_links1d2d_add_links_2d_to_1d_embedded(do_plot=False):
     network, _, _, _ = _prepare_1d2d_mesh(second_branch=True)
@@ -720,13 +723,6 @@ def test_mesh1d_add_branches_from_gdf(do_plot=False):
         max_dist_to_struc=None,
         structures=structures,
     )
-
-    # number of network nodes
-    assert len(network._mesh1d.network1d_node_x) == 59
-
-    # number of mesh nodes
-    assert len(network._mesh1d.mesh1d_node_x) == 1421
-
     # Plot to verify
     if do_plot:
         _, ax = plt.subplots()
@@ -735,3 +731,9 @@ def test_mesh1d_add_branches_from_gdf(do_plot=False):
         viz.plot_network(network, ax=ax)
         ax.autoscale_view()
         plt.show()
+
+    # number of network nodes
+    assert len(network._mesh1d.network1d_node_x) == 59
+
+    # number of mesh nodes
+    assert len(network._mesh1d.mesh1d_node_x) == 1421
