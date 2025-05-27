@@ -81,6 +81,11 @@ def test_plot_links1d2d_add_links_2d_to_1d_embedded_branchids():
 
 
 @pytest.mark.plot
+def test_plot_links1d2d_add_links_2d_to_1d_embedded_refine():
+    test_mesh.test_links1d2d_add_links_2d_to_1d_embedded_refine(do_plot=True)
+
+
+@pytest.mark.plot
 def test_plot_linkd1d2d_remove_links_within_polygon():
     test_mesh.test_linkd1d2d_remove_links_within_polygon(do_plot=True)
 
