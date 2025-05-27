@@ -1,10 +1,10 @@
 import sys
 from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from meshkernel.py_structures import DeleteMeshOption
-import meshkernel as mk
 from shapely.affinity import translate
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box
 
@@ -219,7 +219,6 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
         fig.savefig(test_figure_path / "test_create_2d_triangular_from_multipolygon_mk.png")
 
 
-@pytest.mark.dll
 def test_2d_refine_ring_geometry(do_plot=False):
     # Define polygon
     fmmodel = FMModel()
