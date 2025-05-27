@@ -543,32 +543,10 @@ def links1d2d_add_links_2d_to_1d_embedded(
     mpgl = mk.GeometryList(*faces2d.T.copy())
     idx = np.zeros(len(faces2d), dtype=bool)
 
-    # geometrylist = network.meshkernel.mesh2d_get_mesh_boundaries_as_polygons()
-    # mpgl = GeometryList(**geometrylist.__dict__).to_geometry()
-
     for subarea in common.as_polygon_list(area):
-
-        # Create a list of coordinate lists
-        # Add exterior
-        gl_sa = mk.GeometryList()
-        x_ext, y_ext = np.array(subarea.exterior.coords[:]).T
-        x_crds = [x_ext]
-        y_crds = [y_ext]
-        # Add interiors, seperated by inner_outer_separator
-        for interior in subarea.interiors:
-            x_int, y_int = np.array(interior.coords[:]).T
-            x_crds.append([gl_sa.inner_outer_separator])
-            x_crds.append(x_int)
-            y_crds.append([gl_sa.inner_outer_separator])
-            y_crds.append(y_int)
-        gl_sa.x_coordinates=np.concatenate(x_crds)
-        gl_sa.y_coordinates=np.concatenate(y_crds)
-
-        subarea = gl_sa
-
-        idx |= (
-            network.meshkernel.polygon_get_included_points(subarea, mpgl).values == 1
-        )
+        subarea = GeometryList.from_polygon(subarea)
+        sub_idx = network.meshkernel.polygon_get_included_points(subarea, mpgl)
+        idx |= sub_idx.values == 1
 
     # Check for each of the remaining faces, if it actually crosses the branches
     nodes2d = np.stack(
@@ -586,12 +564,11 @@ def links1d2d_add_links_2d_to_1d_embedded(
     )
 
     # Get the nodes for the specific branch ids
-    # TODO: The node mask does not seem to work
     node_mask = network._mesh1d.get_node_mask(branchids)
 
     # Generate links
-    #network._link1d2d._link_from_2d_to_1d_embedded(node_mask, points=multipoint)
-    network._link1d2d._link_from_2d_to_1d_embedded(node_mask, polygons=subarea)
+    # @TODO node_mask does not seem to work
+    network._link1d2d._link_from_2d_to_1d_embedded(node_mask, polygons=multipoint)
 
 def links1d2d_add_links_2d_to_1d_lateral(
     network: Network,
