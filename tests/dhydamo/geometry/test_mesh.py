@@ -692,7 +692,7 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
 
 def test_mesh1d_add_branches_from_gdf(do_plot=False):
     # Create full HyDAMO object (use from other test)
-    hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
+    hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
 
     fm = FMModel()
 
