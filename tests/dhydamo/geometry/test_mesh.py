@@ -450,123 +450,122 @@ def _prepare_1d2d_mesh(second_branch: bool = False):
 
     return network, within, branchids, branches
 
+@pytest.mark.parametrize(
+    "b_within,b_branchids,b_refine,max_length,b_plot,outcome",
+    [
+        (False, False, False, np.inf, False, 15),
+        (False, False, False, 1, False, 11),
+        (True, False, False, np.inf, False, 11),
+        (False, True, False, np.inf, False, 8),
+        (False, False, True, np.inf, False, 15),
+    ],
+)
+def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
+    network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
+    within = _within if b_within else None
+    branchids = _branchids if b_branchids else None
 
-def test_links1d2d_add_links_1d_to_2d(do_plot=False):
-    network, within, _, _ = _prepare_1d2d_mesh()
-
-    # Generate all links
-    mesh.links1d2d_add_links_1d_to_2d(network)
-
-    # Plot to verify
-    if do_plot:
-        fig, ax = plt.subplots(figsize=(5, 5))
-
-        viz.plot_network(network, ax=ax)
-
-        for polygon in common.as_polygon_list(within):
-            ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
-            ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
-        ax.set_aspect(1.0)
-        ax.autoscale_view()
-        plt.show()
-        fig.savefig(test_figure_path / "test_links1d2d_add_links_1d_to_2d_mk.png")
-
-    assert len(network._link1d2d.link1d2d_id) == 8
-
-
-def test_links1d2d_add_links_2d_to_1d_lateral(do_plot=False):
-    network, within, branchids, _ = _prepare_1d2d_mesh()
+    if b_refine:
+        buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
+        mesh.mesh2d_refine(network, buffer, steps=2, refine_parameters={"min_edge_size": 0.2})
 
     # Generate all links
-    mesh.links1d2d_add_links_2d_to_1d_lateral(network)
+    mesh.links1d2d_add_links_1d_to_2d(network, branchids=branchids, within=within, max_length=max_length)
 
     # Plot to verify
-    if do_plot:
+    if b_plot:
         fig, ax = plt.subplots(figsize=(5, 5))
 
         viz.plot_network(network, ax=ax)
 
-        for polygon in common.as_polygon_list(within):
-            ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
-            ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
+        if b_within:
+            for polygon in common.as_polygon_list(within):
+                ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
+                ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
         ax.set_aspect(1.0)
         ax.autoscale_view()
         plt.show()
-        fig.savefig(test_figure_path / "test_links1d2d_add_links_2d_to_1d_lateral_mk.png")
+        fig.savefig(test_figure_path / "test_links1d2d_add_links_1d_to_2d_within={b_within}_branchids={b_branchids}_refine={b_refine}_maxlength={max_length}_mk.png")
 
-    assert len(network._link1d2d.link1d2d_id) == 34
+    assert len(network._link1d2d.link1d2d_id) == outcome
 
-def test_links1d2d_add_links_2d_to_1d_embedded(do_plot=False):
-    network, _, _, _ = _prepare_1d2d_mesh(second_branch=True)
-    mesh.links1d2d_add_links_2d_to_1d_embedded(network)
+
+@pytest.mark.parametrize(
+    "b_within,b_branchids,b_refine, max_length, b_plot,outcome",
+    [
+        (False, False, False, np.inf, False, 99),
+        (False, False, False, 10, False, 99),
+        (True, False, False, np.inf, False, 99),
+        (False, True, False,  np.inf, False, 99),
+        (False, False, True,  np.inf, False, 99),
+    ],
+)
+def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
+    network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
+    within = _within if b_within else None
+    branchids = _branchids if b_branchids else None
+
+    if b_refine:
+        buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
+        mesh.mesh2d_refine(network, buffer, steps=2, refine_parameters={"min_edge_size": 0.2})
+
+    # Generate all links
+    mesh.links1d2d_add_links_2d_to_1d_lateral(network, branchids=branchids, within=within, max_length=max_length)
 
     # Plot to verify
-    if do_plot:
+    if b_plot:
         fig, ax = plt.subplots(figsize=(5, 5))
+
         viz.plot_network(network, ax=ax)
+
+        if b_within:
+            for polygon in common.as_polygon_list(within):
+                ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
+                ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
         ax.set_aspect(1.0)
         ax.autoscale_view()
         plt.show()
-        fig.savefig(test_figure_path / "test_links1d2d_add_links_2d_to_1d_embedded_mk.png")
+        fig.savefig(test_figure_path / "test_links1d2d_add_links_2d_to_1d_lateral_within={b_within}_branchids={b_branchids}_refine={b_refine}_maxlength={max_length}_mk.png")
+
+    assert len(network._link1d2d.link1d2d_id) == outcome
+
+
+@pytest.mark.parametrize(
+    "b_within,b_branchids,b_refine,b_plot,outcome",
+    [
+        (False, False, False, False, 24),
+        (True, False, False, False, 11),
+        (False, True, False, False, 9),
+        (False, False, True, False, 48),
+    ],
+)
+def test_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, b_plot, outcome):
+    network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
+    within = _within if b_within else None
+    branchids = _branchids if b_branchids else None
+
+    if b_refine:
+        buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
+        mesh.mesh2d_refine(network, buffer, steps=2, refine_parameters={"min_edge_size": 0.2})
+
+    # Generate all links
+    mesh.links1d2d_add_links_2d_to_1d_embedded(network, branchids=branchids, within=within)
+
+    # Plot to verify
+    if b_plot:
+        fig, ax = plt.subplots(figsize=(5, 5))
+        viz.plot_network(network, ax=ax)
+        if b_within:
+            for polygon in common.as_polygon_list(within):
+                ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
+                ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
+        ax.set_aspect(1.0)
+        ax.autoscale_view()
+        plt.show()
+        fig.savefig(test_figure_path / f"test_links1d2d_add_links_2d_to_1d_embedded_within={b_within}_branchids={b_branchids}_refine={b_refine}_mk.png")
 
     # Assert the number of links
-    assert len(network._link1d2d.link1d2d_id) == 24
-
-
-def test_links1d2d_add_links_2d_to_1d_embedded_within(do_plot=False):
-    network, within, _, _ = _prepare_1d2d_mesh(second_branch=True)
-    mesh.links1d2d_add_links_2d_to_1d_embedded(network, within=within)
-
-    # Plot to verify
-    if do_plot:
-        fig, ax = plt.subplots(figsize=(5, 5))
-        viz.plot_network(network, ax=ax)
-        for polygon in common.as_polygon_list(within):
-            ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
-            ax.plot(*polygon.exterior.coords.xy, color="g", ls="-", lw=0.5)
-        ax.set_aspect(1.0)
-        ax.autoscale_view()
-        plt.show()
-        fig.savefig(test_figure_path / "test_links1d2d_add_links_2d_to_1d_embedded_within_mk.png")
-
-    # Assert the number of links
-    assert len(network._link1d2d.link1d2d_id) == 11
-
-
-def test_links1d2d_add_links_2d_to_1d_embedded_branchids(do_plot=False):
-    network, _, branchids, _ = _prepare_1d2d_mesh(second_branch=True)
-    mesh.links1d2d_add_links_2d_to_1d_embedded(network, branchids=branchids[:1])
-
-    # Plot to verify
-    if do_plot:
-        fig, ax = plt.subplots(figsize=(5, 5))
-        viz.plot_network(network, ax=ax)
-        ax.set_aspect(1.0)
-        ax.autoscale_view()
-        plt.show()
-        fig.savefig(test_figure_path / "test_links1d2d_add_links_2d_to_1d_embedded_branchids_mk.png")
-
-    # Assert the number of links
-    assert len(network._link1d2d.link1d2d_id) == 9
-
-
-def test_links1d2d_add_links_2d_to_1d_embedded_refine(do_plot=False):
-    network, _, _, branches = _prepare_1d2d_mesh(second_branch=True)
-    buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
-    mesh.mesh2d_refine(network, buffer, steps=2, refine_parameters={"min_edge_size": 0.2})
-    mesh.links1d2d_add_links_2d_to_1d_embedded(network)
-
-    # Plot to verify
-    if do_plot:
-        fig, ax = plt.subplots(figsize=(5, 5))
-        viz.plot_network(network, ax=ax)
-        ax.set_aspect(1.0)
-        ax.autoscale_view()
-        plt.show()
-        fig.savefig(test_figure_path / "test_links1d2d_add_links_2d_to_1d_embedded_refine_mk.png")
-
-    # Assert the number of links
-    assert len(network._link1d2d.link1d2d_id) == 48
+    assert len(network._link1d2d.link1d2d_id) == outcome
 
 
 def test_linkd1d2d_remove_links_within_polygon(do_plot=False):
