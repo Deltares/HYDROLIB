@@ -54,16 +54,16 @@ class UnpavedIO:
         lu_rast, lu_affine = self.unpaved.drrmodel.read_raster(landuse, static=True)
         lu_counts = zonal_stats(
             catchments,
-            lu_rast,
+            lu_rast.astype(int),
             affine=lu_affine,
             categorical=True,
             all_touched=all_touched,
         )
 
-        rast, affine = self.unpaved.drrmodel.read_raster(soiltype, static=True)
+        soil_rast, affine = self.unpaved.drrmodel.read_raster(soiltype, static=True)
         soiltypes = zonal_stats(
             catchments,
-            soiltype,
+            soil_rast.astype(int),
             affine=affine,
             stats="majority",
             all_touched=all_touched,
@@ -71,7 +71,7 @@ class UnpavedIO:
 
         rast, affine = self.unpaved.drrmodel.read_raster(surface_level, static=True)
         mean_elev = zonal_stats(
-            catchments, rast, affine=affine, stats="median", all_touched=all_touched
+            catchments, rast.astype(float), affine=affine, stats="median", all_touched=all_touched
         )
 
         # optional rasters
@@ -80,7 +80,7 @@ class UnpavedIO:
                 surface_storage, static=True
             )
             sstores = zonal_stats(
-                catchments, rast, affine=affine, stats="mean", all_touched=True
+                catchments, rast.astype(float), affine=affine, stats="mean", all_touched=True
             )
         elif isinstance(surface_storage, int):
             surface_storage = float(surface_storage)
@@ -89,14 +89,14 @@ class UnpavedIO:
                 infiltration_capacity, static=True
             )
             infcaps = zonal_stats(
-                catchments, rast, affine=affine, stats="mean", all_touched=True
+                catchments, rast.astype(float), affine=affine, stats="mean", all_touched=True
             )
         elif isinstance(infiltration_capacity, int):
             infiltration_capacity = float(infiltration_capacity)
         if isinstance(initial_gwd, str):
             rast, affine = self.unpaved.drrmodel.read_raster(initial_gwd, static=True)
             ini_gwds = zonal_stats(
-                catchments, rast, affine=affine, stats="mean", all_touched=True
+                catchments, rast.astype(float), affine=affine, stats="mean", all_touched=True
             )
         elif isinstance(initial_gwd, int):
             initial_gwd = float(initial_gwd)
@@ -295,7 +295,7 @@ class PavedIO:
         lu_rast, lu_affine = self.paved.drrmodel.read_raster(landuse, static=True)
         lu_counts = zonal_stats(
             catchments,
-            lu_rast,
+            lu_rast.astype(int),
             affine=lu_affine,
             categorical=True,
             all_touched=all_touched,
@@ -303,7 +303,7 @@ class PavedIO:
         sl_rast, sl_affine = self.paved.drrmodel.read_raster(surface_level, static=True)
         mean_elev = zonal_stats(
             catchments,
-            sl_rast,
+            sl_rast.astype(float),
             affine=sl_affine,
             stats="median",
             all_touched=all_touched,
@@ -315,7 +315,7 @@ class PavedIO:
             )
             str_stors = zonal_stats(
                 catchments,
-                strs_rast,
+                strs_rast.astype(float),
                 affine=strs_affine,
                 stats="mean",
                 all_touched=True,
@@ -327,7 +327,7 @@ class PavedIO:
             )
             sew_stors = zonal_stats(
                 catchments,
-                sews_rast,
+                sews_rast.astype(float),
                 affine=sews_affine,
                 stats="mean",
                 all_touched=True,
@@ -340,7 +340,7 @@ class PavedIO:
             )
             pump_caps = zonal_stats(
                 catchments,
-                pump_rast,
+                pump_rast.astype(float),
                 affine=pump_affine,
                 stats="mean",
                 all_touched=True,
@@ -362,7 +362,7 @@ class PavedIO:
             if isinstance(street_storage,(Path, str)):
                 str_stors_sa = zonal_stats(
                     sewer_areas,
-                    strs_rast,
+                    strs_rast.astype(float),
                     affine=strs_affine,
                     stats="mean",
                     all_touched=True,
@@ -370,7 +370,7 @@ class PavedIO:
             if isinstance(sewer_storage, (Path, str)):
                 sew_stors_sa = zonal_stats(
                     sewer_areas,
-                    sews_rast,
+                    sews_rast.astype(float),
                     affine=sews_affine,
                     stats="mean",
                     all_touched=True,
@@ -378,7 +378,7 @@ class PavedIO:
             if isinstance(pump_capacity, (Path, str)):
                 pump_caps_sa = zonal_stats(
                     sewer_areas,
-                    pump_rast,
+                    pump_rast.astype(float),
                     affine=pump_affine,
                     stats="mean",
                     all_touched=True,
@@ -415,7 +415,7 @@ class PavedIO:
                 pav_area = 0
                 pixels = zonal_stats(
                     sew.geometry,
-                    lu_rast,
+                    lu_rast.astype(int),
                     affine=lu_affine,
                     categorical=True,
                     all_touched=all_touched,
@@ -536,7 +536,7 @@ class PavedIO:
                         # the paved ara in the catchment OUTSIDE the sewer area
                         pixels = zonal_stats(
                             area_outside_sewer,
-                            lu_rast,
+                            lu_rast.astype(int),
                             affine=lu_affine,
                             categorical=True,
                             all_touched=all_touched,
@@ -549,7 +549,7 @@ class PavedIO:
                     # all of the catchment is outside the sewer area
                     pixels = zonal_stats(
                                 cat.geometry,
-                                lu_rast,
+                                lu_rast.astype(int),
                                 affine=lu_affine,
                                 categorical=True,
                                 all_touched=all_touched,
@@ -641,18 +641,18 @@ class GreenhouseIO:
         lu_rast, lu_affine = self.greenhouse.drrmodel.read_raster(landuse, static=True)
         lu_counts = zonal_stats(
             catchments,
-            lu_rast,
+            lu_rast.astype(int),
             affine=lu_affine,
             categorical=True,
             all_touched=all_touched,
         )
         rast, affine = self.greenhouse.drrmodel.read_raster(surface_level, static=True)
         mean_elev = zonal_stats(
-            catchments, rast, affine=affine, stats="median", all_touched=all_touched
+            catchments, rast.astype(float), affine=affine, stats="median", all_touched=all_touched
         )
         if greenhouse_areas is not None:
             mean_elev_gh = zonal_stats(
-                greenhouse_areas, rast, affine=affine, stats="median", all_touched=all_touched
+                greenhouse_areas, rast.astype(float), affine=affine, stats="median", all_touched=all_touched
             )
             
         # optional rasters
@@ -661,11 +661,11 @@ class GreenhouseIO:
                 roof_storage, static=True
             )
             roofstors = zonal_stats(
-                catchments, rast, affine=affine, stats="mean", all_touched=True
+                catchments, rast.astype(float), affine=affine, stats="mean", all_touched=True
             )
             if greenhouse_areas is not None:
                 roofstors_gh = zonal_stats(
-                    greenhouse_areas, rast, affine=affine, stats="mean", all_touched=True
+                    greenhouse_areas, rast.astype(float), affine=affine, stats="mean", all_touched=True
                 )
 
         # get raster cellsize
@@ -799,7 +799,7 @@ class OpenwaterIO:
         lu_rast, lu_affine = self.openwater.drrmodel.read_raster(landuse, static=True)
         lu_counts = zonal_stats(
             catchments,
-            lu_rast,
+            lu_rast.astype(int),
             affine=lu_affine,
             categorical=True,
             all_touched=all_touched,
