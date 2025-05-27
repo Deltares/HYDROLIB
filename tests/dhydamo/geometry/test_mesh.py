@@ -451,7 +451,7 @@ def _prepare_1d2d_mesh(second_branch: bool = False):
     return network, within, branchids, branches
 
 @pytest.mark.parametrize(
-    "b_within,b_branchids,b_refine,max_length,b_plot,outcome",
+    "b_within, b_branchids, b_refine, max_length, b_plot, outcome",
     [
         (False, False, False, np.inf, False, 15),
         (False, False, False, 1, False, 11),
@@ -491,7 +491,7 @@ def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_lengt
 
 
 @pytest.mark.parametrize(
-    "b_within,b_branchids,b_refine, max_length, b_plot,outcome",
+    "b_within, b_branchids, b_refine, max_length, b_plot, outcome",
     [
         (False, False, False, np.inf, False, 99),
         (False, False, False, 10, False, 99),
@@ -531,7 +531,7 @@ def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, m
 
 
 @pytest.mark.parametrize(
-    "b_within,b_branchids,b_refine,b_plot,outcome",
+    "b_within, b_branchids, b_refine, b_plot, outcome",
     [
         (False, False, False, False, 24),
         (True, False, False, False, 11),
@@ -640,7 +640,7 @@ def _prepare_hydamo(culverts: bool = False):
 
 @pytest.mark.skipif(platform.system() == "Darwin", reason="Skip on macOS")
 @pytest.mark.parametrize(
-    "where,fill_option,fill_value,outcome",
+    "where, fill_option, fill_value, outcome",
     [
         ("face", "interpolate", 10.0, 8716.507),
         ("face", "fill_value", 10.0, 8716.507),
