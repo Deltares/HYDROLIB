@@ -77,7 +77,7 @@ def test_plot_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_
     "b_within, b_branchids, b_refine, max_length, b_plot, outcome",
     [
         (False, False, False, np.inf, True, 99),
-        (False, False, False, 10, True, 99),
+        (False, False, False, 1, True, 99),
         (True, False, False, np.inf, True, 99),
         (False, True, False,  np.inf, True, 99),
         (False, False, True,  np.inf, True, 99),
@@ -91,10 +91,10 @@ def test_plot_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refi
 @pytest.mark.parametrize(
     "b_within, b_branchids, b_refine, b_plot, outcome",
     [
-        (False, False, False, False, 24),
-        (True, False, False, False, 11),
-        (False, True, False, False, 9),
-        (False, False, True, False, 48),
+        (False, False, False, True, 24),
+        (True, False, False, True, 11),
+        (False, True, False, True, 9),
+        (False, False, True, True, 48),
     ],
 )
 def test_plot_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, b_plot, outcome):

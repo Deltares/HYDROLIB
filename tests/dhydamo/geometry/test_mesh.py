@@ -494,7 +494,7 @@ def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_lengt
     "b_within, b_branchids, b_refine, max_length, b_plot, outcome",
     [
         (False, False, False, np.inf, False, 99),
-        (False, False, False, 10, False, 99),
+        (False, False, False, 1, False, 99),
         (True, False, False, np.inf, False, 99),
         (False, True, False,  np.inf, False, 99),
         (False, False, True,  np.inf, False, 99),
