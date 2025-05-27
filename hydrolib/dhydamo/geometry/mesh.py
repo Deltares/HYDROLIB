@@ -485,11 +485,15 @@ def links1d2d_add_links_1d_to_2d(
     _filter_links_on_idx(network, keep)
 
 
-def _filter_links_on_idx(network: Network, keep: np.ndarray) -> None:
+def _filter_links_on_idx(network: Network, keep: np.ndarray, present_links: np.ndarray=None) -> None:
     # Select the remaining links
     contacts = network._link1d2d.meshkernel.contacts_get()
-    contacts.mesh1d_indices = contacts.mesh1d_indices[keep]
-    contacts.mesh2d_indices = contacts.mesh2d_indices[keep]
+    if present_links is not None:
+        contacts.mesh1d_indices = np.concat([contacts.mesh1d_indices[keep],  present_links[:,0]])
+        contacts.mesh2d_indices = np.concat([contacts.mesh2d_indices[keep],  present_links[:,1]])
+    else:
+        contacts.mesh1d_indices = contacts.mesh1d_indices[keep]
+        contacts.mesh2d_indices = contacts.mesh2d_indices[keep]
     network._link1d2d.meshkernel.contacts_set(contacts)
 
 
@@ -625,7 +629,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
     node_mask = network._mesh1d.get_node_mask(branchids)
 
     # Get the already present links. These are not filtered subsequently
-    npresent = len(network._link1d2d.link1d2d)
+    present_links = network._link1d2d.link1d2d
 
     # Generate links
     network._link1d2d._link_from_2d_to_1d_lateral(
@@ -642,9 +646,9 @@ def links1d2d_add_links_2d_to_1d_lateral(
     else:
         multilinestring = MultiLineString([poly.exterior for poly in mpboundaries.geoms])
 
-    # Find the links that intersect the boundary close to the origin
-    id1d = network._link1d2d.link1d2d[npresent:, 0]
-    id2d = network._link1d2d.link1d2d[npresent:, 1]
+    # Find the links that intersect the boundary close to the origin    
+    id1d = network._link1d2d.link1d2d[:, 0]
+    id2d = network._link1d2d.link1d2d[:, 1]
 
     nodes1d = np.stack(
         [network._mesh1d.mesh1d_node_x[id1d], network._mesh1d.mesh1d_node_y[id1d]],
@@ -657,25 +661,31 @@ def links1d2d_add_links_2d_to_1d_lateral(
     nodes2d = np.stack(
         [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
     )
-    face_node_crds = nodes2d[network._mesh2d.mesh2d_face_nodes[id2d]]
+    nodes2d_idx = network._mesh2d.mesh2d_face_nodes[id2d]
+    keep = []
+    for i, (node1d, face2d, node2d) in enumerate(
+        zip(nodes1d, faces2d, nodes2d_idx)
+    ):       
+        face_node_crds = nodes2d[node2d[node2d > 0.]]                
 
-    # Calculate distance between face edge and face center
-    x1 = np.take(face_node_crds, 0, axis=2)
-    y1 = np.take(face_node_crds, 1, axis=2)
-    face_node_crds[:] = np.roll(face_node_crds, 1, axis=1)
-    x2 = np.take(face_node_crds, 0, axis=2)
-    y2 = np.take(face_node_crds, 1, axis=2)
-    x0, y0 = faces2d[:, 0], faces2d[:, 1]
-    distance = (
-        np.absolute((x2 - x1) * (y1 - y0[:, None]) - (x1 - x0[:, None]) * (y2 - y1))
-        / np.hypot(x2 - x1, y2 - y1)
-    ).mean(axis=1)
+        # Calculate distance between face edge and face center
+        x1 = face_node_crds[:,0]
+        y1 = face_node_crds[:,1]
+        # face_node_crds[:] = np.roll(face_node_crds, 1, axis=0)
+        # x2 = face_node_crds[:,0]
+        # y2 = face_node_crds[:,1]
+        x0, y0 = face2d[0], face2d[1]
+        distance = np.hypot(x1-x0, y1-y0).mean() 
+        # distance = (
+        #     np.absolute((x2 - x1) * (y1 - y0) - (x1 - x0) * (y2 - y1))
+        #     / np.hypot(x2 - x1, y2 - y1)
+        # ).mean()
 
     # Check which links to keep
-    keep = list(range(npresent))
-    for i, (node1d, face2d, comp_dist) in enumerate(
-        zip(nodes1d, faces2d, distance * dist_factor)
-    ):
+    
+    # for i, (node1d, face2d, comp_dist) in enumerate(
+    #     zip(nodes1d, faces2d, distance * dist_factor)
+    # ):
         isect = multilinestring.intersection(LineString([face2d, node1d]))
 
         # If the intersection is for some reason not a Point of Multipoint, skip it.
@@ -690,11 +700,11 @@ def links1d2d_add_links_2d_to_1d_lateral(
         # If the distance to the mesh 2d exterior intersection is smaller than
         # the compared distance, keep it.
         dist = np.hypot(*(face2d - isect_list[0].coords[:][0]))
-        if dist < comp_dist:
+        if dist < distance:
             keep.append(i)
 
-    # Select the remaining links
-    _filter_links_on_idx(network, keep)
+    # # Select the remaining links
+    _filter_links_on_idx(network, keep, present_links=present_links)
 
 
 def links1d2d_remove_within(
@@ -747,16 +757,17 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
     if not list(network._mesh1d.network1d_node_id) or not list(
         network._mesh2d.mesh2d_face_nodes
     ):
+        logger.warning("1d nodes or 2d faces are not present.")
         return None
 
+    if network._link1d2d.link1d2d.shape[0] == 0:
+        logger.warning("No 1d2d-links present.")        
+        return None
+ 
     # Create an array with 2d facecenters and 1d nodes, that form the links
     nodes1d = np.stack(
         [network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1
     )[network._link1d2d.link1d2d[:, 0]]
-
-    # faces2d = np.stack(
-    #     [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
-    # )[network._link1d2d.link1d2d[:, 1]]
 
     # Select 1d nodes that are only present in a single edge
     edge_nodes = network._mesh1d.network1d_edge_nodes

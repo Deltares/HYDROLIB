@@ -731,18 +731,18 @@ if TwoD:
 
 
 # if TwoD:
-    # buffer = Polygon(hydamo.branches.buffer(75.0).union_all().exterior)
-    # if TwoD_option == 'MK':
-    #     print("Nodes before refinement:", network._mesh2d.mesh2d_node_x.size)        
-    #     mesh.mesh2d_refine(network, 
-    #                        buffer, 
-    #                        steps=2)
+    buffer = Polygon(hydamo.branches.buffer(75.0).union_all().exterior)
+    if TwoD_option == 'MK':
+        print("Nodes before refinement:", network._mesh2d.mesh2d_node_x.size)        
+        mesh.mesh2d_refine(network, 
+                           buffer, 
+                           steps=2)
                                              
-    #     print("Nodes after refinement:", network._mesh2d.mesh2d_node_x.size)       
-    # elif TwoD_option == 'GG':
-    #     print("Nodes before refinement:", len(mesh_gg.meshgeom.get_values('nodex')))
-    #     mesh_gg.refine(polygon=[buffer], level=[1], cellsize=cellsize, dflowfm_path=dflowfm_path)
-    #     print("Nodes after refinement:", len(mesh_gg.meshgeom.get_values('nodex')))       
+        print("Nodes after refinement:", network._mesh2d.mesh2d_node_x.size)       
+    elif TwoD_option == 'GG':
+        print("Nodes before refinement:", len(mesh_gg.meshgeom.get_values('nodex')))
+        mesh_gg.refine(polygon=[buffer], level=[1], cellsize=cellsize, dflowfm_path=dflowfm_path)
+        print("Nodes after refinement:", len(mesh_gg.meshgeom.get_values('nodex')))       
 
 
 # # Clip the 2D mesh in a 20m buffer around all branches. The algorithm is quite sensitive to the geometry, for example holes are not allowed.
@@ -750,19 +750,18 @@ if TwoD:
 # # In[40]:
 
 
-# if TwoD:
-#     if TwoD_option == 'MK':
-#         pass        
-#         print("Nodes before clipping:", network._mesh2d.mesh2d_node_x.size)
-#         # uitknippen = gpd.read_file(data_path / "2D_extent.shp").geometry.union_all().difference(hydamo.branches.geometry.union_all().buffer(10.))
-#         uitknippen = hydamo.branches.geometry.union_all().buffer(25.)
-#         import meshkernel as mk
-#         mesh.mesh2d_clip(network, uitknippen, deletemeshoption= mk.DeleteMeshOption.FACES_WITH_INCLUDED_CIRCUMCENTERS)    
-#         print("Nodes after clipping:", network._mesh2d.mesh2d_node_x.size)       
-#     elif TwoD_option == 'GG':
-#         print("Nodes before clipping:", len(mesh_gg.meshgeom.get_values('nodex')))
-#         mesh_gg.clip_mesh_by_polygon(hydamo.branches.union_all().buffer(10.))
-#         print("Nodes after clipping:",  len(mesh_gg.meshgeom.get_values('nodex')))      
+if TwoD:
+    if TwoD_option == 'MK':
+        import meshkernel as mk        
+        print("Nodes before clipping:", network._mesh2d.mesh2d_node_x.size)
+        # uitknippen = gpd.read_file(data_path / "2D_extent.shp").geometry.union_all().difference(hydamo.branches.geometry.union_all().buffer(10.))
+        uitknippen = hydamo.branches.iloc[20:50].geometry.union_all().buffer(25.)       
+        mesh.mesh2d_clip(network, uitknippen, deletemeshoption= mk.DeleteMeshOption.FACES_WITH_INCLUDED_CIRCUMCENTERS)    
+        print("Nodes after clipping:", network._mesh2d.mesh2d_node_x.size)       
+    elif TwoD_option == 'GG':
+        print("Nodes before clipping:", len(mesh_gg.meshgeom.get_values('nodex')))
+        mesh_gg.clip_mesh_by_polygon(hydamo.branches.union_all().buffer(10.))
+        print("Nodes after clipping:",  len(mesh_gg.meshgeom.get_values('nodex')))      
 
 
 # Alternatively, the mesh can be read from a netcdf file (option 3):
@@ -826,40 +825,40 @@ if TwoD:
 
 
     elif TwoD_option=='MK':
-        # mesh.links1d2d_add_links_1d_to_2d(network)
-        # mesh.links1d2d_add_links_2d_to_1d_lateral(network, max_length=50.)
+        #mesh.links1d2d_add_links_1d_to_2d(network)
         mesh.links1d2d_add_links_2d_to_1d_embedded(network)
+        mesh.links1d2d_add_links_2d_to_1d_lateral(network, max_length=50.)        
         mesh.links1d2d_remove_1d_endpoints(network)
-
+        mesh.links1d2d_remove_within(network, hydamo.branches.loc['W_1598_0'].geometry.buffer(100.))
 
 # In[44]:
 
 
-# plot the network
-if TwoD:
-    network = fm.geometry.netfile.network
-    fig, axs = plt.subplots(figsize=(13.5, 6), ncols=2, constrained_layout=True)
-    plot_network(network, ax=axs[0])
-    plot_network(network, ax=axs[1], links1d2d_kwargs=dict(lw=3, color="k"))
-#     for ax in axs:
-#         ax.set_aspect(1.0)
-#         ax.plot(*buffer.exterior.coords.xy, color="k", lw=0.5)
-    axs[0].autoscale_view()
-    axs[1].set_xlim(199200, 200000)
-    axs[1].set_ylim(394200, 394700)
+# # plot the network
+# if TwoD:
+#     network = fm.geometry.netfile.network
+#     fig, axs = plt.subplots(figsize=(13.5, 6), ncols=2, constrained_layout=True)
+#     plot_network(network, ax=axs[0])
+#     plot_network(network, ax=axs[1], links1d2d_kwargs=dict(lw=3, color="k"))
+# #     for ax in axs:
+# #         ax.set_aspect(1.0)
+# #         ax.plot(*buffer.exterior.coords.xy, color="k", lw=0.5)
+#     axs[0].autoscale_view()
+#     axs[1].set_xlim(199200, 200000)
+#     axs[1].set_ylim(394200, 394700)
 
-    sc = axs[1].scatter(
-        x=network._mesh2d.mesh2d_face_x,
-        y=network._mesh2d.mesh2d_face_y,
-        c=network._mesh2d.mesh2d_face_z,
-        s=10,
-        vmin=22,
-        vmax=27,
-    )
-    cb = plt.colorbar(sc, ax=axs[1])
-    cb.set_label("Face level [m+NAP]")
+#     sc = axs[1].scatter(
+#         x=network._mesh2d.mesh2d_face_x,
+#         y=network._mesh2d.mesh2d_face_y,
+#         c=network._mesh2d.mesh2d_face_z,
+#         s=10,
+#         vmin=22,
+#         vmax=27,
+#     )
+#     cb = plt.colorbar(sc, ax=axs[1])
+#     cb.set_label("Face level [m+NAP]")
 
-    plt.show()
+#     plt.show()
 
 
 # For finalizing the FM-model, we also need the coupling to the other modules. Therefore, we will do that first.
