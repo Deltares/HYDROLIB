@@ -6,7 +6,7 @@ import pytest
 from meshkernel.py_structures import DeleteMeshOption
 import meshkernel as mk
 from shapely.affinity import translate
-from shapely.geometry import LineString, MultiPolygon, Polygon, box
+from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box
 
 sys.path.append(".")
 from hydrolib.core.dflowfm.mdu.models import FMModel
@@ -413,16 +413,19 @@ def _prepare_1d2d_mesh(second_branch: bool = False):
 
     # Generate 1d
     branchids = []
+    branches = []
     branch = LineString([[-9, -3], [0, 4]])
     branchids.append(
         mesh.mesh1d_add_branch_from_linestring(network, branch, node_distance=1)
     )
+    branches.append(branch)
 
     if second_branch:
         branch = LineString([[0, 4], [9, 5]])
         branchids.append(
             mesh.mesh1d_add_branch_from_linestring(network, branch, node_distance=1)
         )
+        branches.append(branch)
 
     # Generate 2d
     areas = MultiPolygon([box(-8, -10, 8, -2), box(-8, 2, 8, 10)])
@@ -434,11 +437,11 @@ def _prepare_1d2d_mesh(second_branch: bool = False):
         LineString([[-2, -10], [2, 10]]).buffer(2)
     )
 
-    return network, within, branchids
+    return network, within, branchids, branches
 
 
 def test_links1d2d_add_links_1d_to_2d(do_plot=False):
-    network, within, _ = _prepare_1d2d_mesh()
+    network, within, _, _ = _prepare_1d2d_mesh()
 
     # Generate all links
     mesh.links1d2d_add_links_1d_to_2d(network)
@@ -461,7 +464,7 @@ def test_links1d2d_add_links_1d_to_2d(do_plot=False):
 
 
 def test_links1d2d_add_links_2d_to_1d_lateral(do_plot=False):
-    network, within, branchids = _prepare_1d2d_mesh()
+    network, within, branchids, _ = _prepare_1d2d_mesh()
 
     # Generate all links
     mesh.links1d2d_add_links_2d_to_1d_lateral(network)
@@ -484,7 +487,7 @@ def test_links1d2d_add_links_2d_to_1d_lateral(do_plot=False):
 
 
 def test_links1d2d_add_links_2d_to_1d_embedded(do_plot=False):
-    network, _, _ = _prepare_1d2d_mesh(second_branch=True)
+    network, _, _, _ = _prepare_1d2d_mesh(second_branch=True)
     mesh.links1d2d_add_links_2d_to_1d_embedded(network)
 
     # Plot to verify
@@ -501,7 +504,7 @@ def test_links1d2d_add_links_2d_to_1d_embedded(do_plot=False):
 
 
 def test_links1d2d_add_links_2d_to_1d_embedded_within(do_plot=False):
-    network, within, _ = _prepare_1d2d_mesh(second_branch=True)
+    network, within, _, _ = _prepare_1d2d_mesh(second_branch=True)
     mesh.links1d2d_add_links_2d_to_1d_embedded(network, within=within)
 
     # Plot to verify
@@ -521,7 +524,7 @@ def test_links1d2d_add_links_2d_to_1d_embedded_within(do_plot=False):
 
 
 def test_links1d2d_add_links_2d_to_1d_embedded_branchids(do_plot=False):
-    network, _, branchids = _prepare_1d2d_mesh(second_branch=True)
+    network, _, branchids, _ = _prepare_1d2d_mesh(second_branch=True)
     mesh.links1d2d_add_links_2d_to_1d_embedded(network, branchids=branchids[:1])
 
     # Plot to verify
@@ -537,8 +540,27 @@ def test_links1d2d_add_links_2d_to_1d_embedded_branchids(do_plot=False):
     assert len(network._link1d2d.link1d2d_id) == 9
 
 
+def test_links1d2d_add_links_2d_to_1d_embedded_refine(do_plot=False):
+    network, _, _, branches = _prepare_1d2d_mesh(second_branch=True)
+    buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
+    mesh.mesh2d_refine(network, buffer, steps=2, refine_parameters={"min_edge_size": 0.2})
+    mesh.links1d2d_add_links_2d_to_1d_embedded(network)
+
+    # Plot to verify
+    if do_plot:
+        fig, ax = plt.subplots(figsize=(5, 5))
+        viz.plot_network(network, ax=ax)
+        ax.set_aspect(1.0)
+        ax.autoscale_view()
+        plt.show()
+        fig.savefig(test_figure_path / "test_links1d2d_add_links_2d_to_1d_embedded_refine_mk.png")
+
+    # Assert the number of links
+    assert len(network._link1d2d.link1d2d_id) == 48
+
+
 def test_linkd1d2d_remove_links_within_polygon(do_plot=False):
-    network, within, _ = _prepare_1d2d_mesh()
+    network, within, _, _ = _prepare_1d2d_mesh()
     within = within.buffer(-2)
 
     # Generate all links

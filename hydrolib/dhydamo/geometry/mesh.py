@@ -554,7 +554,8 @@ def links1d2d_add_links_2d_to_1d_embedded(
     )
     where = np.nonzero(idx)[0]
     
-    for i, face_crds in enumerate(nodes2d[network._mesh2d.mesh2d_face_nodes[idx]]):
+    for i, face_idxs in enumerate(network._mesh2d.mesh2d_face_nodes[idx]):
+        face_crds = nodes2d[face_idxs[face_idxs >= 0]]
         if not mls_prep.intersects(LineString(face_crds)):
             idx[where[i]] = False
 
