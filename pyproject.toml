@@ -33,7 +33,7 @@ mplleaflet = ">=0.0.5"
 ipython = ">=8.29.0"
 xlrd = ">=2.0.1"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = ">=6.2"
 black = { version = "*", allow-prereleases = true }
 isort = ">=5.8"
