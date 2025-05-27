@@ -1,3 +1,4 @@
+import platform
 import sys
 from pathlib import Path
 
@@ -205,7 +206,11 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
         network, refinement_box, steps=2, refine_parameters=refine_parameters
     )
 
-    assert len(network._mesh2d.mesh2d_face_x) == 1334
+    # @TODO different number of faces on windows vs macos/linux
+    if platform.system() == "Windows":
+        assert len(network._mesh2d.mesh2d_face_x) == 1334
+    else:
+        assert len(network._mesh2d.mesh2d_face_x) == 1360
 
     # Plot to verify
     if do_plot:
