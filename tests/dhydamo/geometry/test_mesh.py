@@ -636,6 +636,7 @@ def _prepare_hydamo(culverts: bool = False):
     return hydamo
 
 
+@pytest.mark.skipif(platform.system() == "Darwin", reason="Skip on macOS")
 @pytest.mark.parametrize(
     "where,fill_option,fill_value,outcome",
     [
@@ -697,7 +698,6 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
     # assert round(float(test_val), 3) == round(float(outcome), 3)
 
 
-@pytest.mark.skipif(platform.system() == "Darwin", reason="Skip on macOS")
 def test_mesh1d_add_branches_from_gdf(do_plot=False):
     # Create full HyDAMO object (use from other test)
     hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
