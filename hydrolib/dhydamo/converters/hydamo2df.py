@@ -106,7 +106,7 @@ class CrossSectionsIO:
         profile_groups: Optional[ExtendedDataFrame] = None,
         profile_lines: Optional[ExtendedGeoDataFrame] = None,
         param_profile: Optional[ExtendedDataFrame] = None,
-        param_profile_values: Optional[ExtendedDataFrame] = None,        
+        param_profile_values: Optional[ExtendedDataFrame] = None,
     ) -> None:
         """
         Method to add cross section from hydamo files. Two files
@@ -368,7 +368,7 @@ class ExternalForcingsIO:
             locations = pd.concat([locations, overflows], ignore_index=True)
         if greenhouse_laterals is not None:
             locations = pd.concat([locations, greenhouse_laterals], ignore_index=True)
-            
+
         # Get time series and add to dictionary
         # for nidx, lateral in zip(nearest_idx, locations.itertuples()):
         for lateral in locations.itertuples():
@@ -547,29 +547,29 @@ class StructuresIO:
 
         Parameters corrspond to the HyDAMO DAMO2.2 objects. DFlowFM keyword 'usevelocityheight' can be specificied as a string, default is 'true'.
         """
-        # bypass HyDAMO and add stuwid directly to managment for use in RTC             
+        # bypass HyDAMO and add stuwid directly to managment for use in RTC
         if not self.structures.hydamo.management.empty:
             self.structures.hydamo.management['stuwid'] = None
-           
+
         index = np.zeros((len(weirs.code)))
         if profile_groups is not None:
             if hasattr(profile_groups,  'stuwid'):
                 index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
 
         rweirs = weirs[index == 0]
-        for weir in rweirs.itertuples():            
-            weir_opening = opening[opening.stuwid == weir.globalid]          
-            
+        for weir in rweirs.itertuples():
+            weir_opening = opening[opening.stuwid == weir.globalid]
+
             # check if a separate name field is present
             if "naam" in weirs:
                 name = weir.naam
                 if not name:
                     name = weir.code
-            else: 
+            else:
                 name = weir.code
-            
+
             if weir_opening.shape[0] > 1:
-                print(f'Weir {weir.code} contains {weir_opening.shape[0]} openings. Creating a compound structure with a fictional weir for each one.')                
+                print(f'Weir {weir.code} contains {weir_opening.shape[0]} openings. Creating a compound structure with a fictional weir for each one.')
                 cmp_list = []
                 for num_op, (_, op_row) in enumerate(weir_opening.iterrows()):
                     weir_mandev = management_device[
@@ -581,7 +581,7 @@ class StructuresIO:
                         if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).item():
                             idx = self.structures.hydamo.management[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze()].index.values[0]
                             self.structures.hydamo.management.loc[idx, 'stuwid'] =weir_id
-                    if weir_mandev.overlaatonderlaat.squeeze().lower() == 'overlaat':                                    
+                    if weir_mandev.overlaatonderlaat.squeeze().lower() == 'overlaat':
                         cmp_list.append(weir_id)
                         self.structures.add_rweir(id=weir_id,
                                                     name=name,
@@ -618,7 +618,7 @@ class StructuresIO:
                             uselimitflowneg=limitflow,
                             limitflowneg=maxq,
                         )
-                    else: 
+                    else:
                         print(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
                 self.structures.add_compound(id=f'cmp_{weir.code}', structureids =cmp_list)
                 # self.structures.rweirs_df.drop(weir.code)
@@ -626,28 +626,28 @@ class StructuresIO:
                 if weir_opening.empty:
                     print(f'Skipping {weir.code} because there is no associated opening.')
                     continue
-              
-                weir_id = weir.code                
+
+                weir_id = weir.code
                 weir_mandev = management_device[
                         management_device.kunstwerkopeningid
                         == weir_opening.globalid.values[0]
                     ]
-                
+
                 if weir_mandev.empty:
                     print(f'Skipping {weir.code} because there is no associated management device.')
-                    continue               
-            
+                    continue
+
                 if (not self.structures.hydamo.management.empty) & hasattr(self.structures.hydamo.management, 'regelmiddelid'):
                     if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).item():
                         idx = self.structures.hydamo.management[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze()].index.values[0]
                         self.structures.hydamo.management.loc[idx, 'stuwid'] = weir_id
-                
-               
+
+
                 if isinstance(weir_mandev.overlaatonderlaat, pd.Series):
                     overlaatonderlaat = weir_mandev.overlaatonderlaat.squeeze()
                 else:
                     overlaatonderlaat = weir_mandev.overlaatonderlaat
-                
+
                 if (
                     overlaatonderlaat.lower()
                     == "overlaat"
@@ -691,7 +691,7 @@ class StructuresIO:
                         uselimitflowneg=limitflow,
                         limitflowneg=maxq,
                     )
-                else:            
+                else:
                     print(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
 
         uweirs = weirs[index == 1]
@@ -722,7 +722,7 @@ class StructuresIO:
                 kruinhoogte = np.min(xyz[:,-1])
             else:
                 kruinhoogte = uweir.laagstedoorstroomhoogte
-            
+
             if len(prof) == 0:
                 # return an error it is still not found
                 raise ValueError(f"{uweir.code} is not found in any cross-section.")
@@ -731,9 +731,9 @@ class StructuresIO:
                 name=name,
                 branchid=uweir.branch_id,
                 chainage=uweir.branch_offset,
-                crestlevel=kruinhoogte,                
+                crestlevel=kruinhoogte,
                 dischargecoeff=uweir.afvoercoefficient,
-                allowedflowdir="both",                
+                allowedflowdir="both",
                 numlevels=counts,
                 yvalues=" ".join([f"{yz[0]:7.3f}" for yz in yzvalues]),
                 zvalues=" ".join([f"{yz[1]:7.3f}" for yz in yzvalues]),
@@ -1000,36 +1000,36 @@ class StructuresIO:
 
         Parameters corrspond to the HyDAMO DAMO2.2 objects.
         """
-        
+
         # Add sturing to pumps
         for pumpstation in pumpstations.itertuples():
-            
+
             # find pumps for gemaal
             pumps_subset = pumps[pumps.gemaalid == pumpstation.globalid]
             if pumps_subset.empty:
-                print(f'Skipping {pumpstation.code} because there is no associated pump.')                
+                print(f'Skipping {pumpstation.code} because there is no associated pump.')
                 continue
-            
+
             if "naam" in pumpstation:
                 name = pumpstation.name
             else:
-                name = pumpstation.code 
+                name = pumpstation.code
             if pumps_subset.shape[0] > 1:
                 # more than one pump
                 cmp_list = []
-                for ipump, (_,pump) in enumerate(pumps_subset.iterrows()): 
-                
+                for ipump, (_,pump) in enumerate(pumps_subset.iterrows()):
+
                     pump_control = management[management.pompid== pump.globalid]
                     if pump_control.empty:
                         continue
                         raise IndexError(f'No management found for {pump.code}')
-                
+
                     startlevelsuctionside = [pump_control["bovengrens"]]
                     stoplevelsuctionside = [pump_control["ondergrens"]]
 
                     pumpid = f'{pumpstation.code}_{ipump+1}'
                     cmp_list.append(pumpid)
-              
+
                     self.structures.add_pump(
                         id=pumpid,
                         name=name,
@@ -1051,11 +1051,11 @@ class StructuresIO:
                 pump_control = management[management.pompid== pumps_subset.globalid.values[0]]
                 if pump_control.empty:
                     print(f'Skipping {pumpstation.code} because there is no associated management.')
-                
+
                 startlevelsuctionside = [pump_control["bovengrens"]]
                 stoplevelsuctionside = [pump_control["ondergrens"]]
 
-                           
+
                 # the pumpstation has only one pump
                 self.structures.add_pump(
                     id=pumpstation.code,
@@ -1071,7 +1071,7 @@ class StructuresIO:
                     startleveldeliveryside=startlevelsuctionside,
                     stopleveldeliveryside=stoplevelsuctionside,
                 )
-                
+
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def pumps_from_datamodel(self, pumps: pd.DataFrame) -> None:
         """From parsed data model of pumps"""
@@ -1145,7 +1145,7 @@ class StructuresIO:
             # check the substructure coordinates. If they do not coincide, move subsequent structures to the coordinates of the first
             for s_i, struc in enumerate(structurelist[c_i]):
                 if s_i == 0:
-                    # find out what type the first structure it is and get its coordinates                    
+                    # find out what type the first structure it is and get its coordinates
                     if not self.structures.pumps_df.empty:
                         if struc in list(self.structures.pumps_df.id):
                             branch = self.structures.pumps_df[
@@ -1161,7 +1161,7 @@ class StructuresIO:
                             ].branchid.values[0]
                             offset = self.structures.rweirs_df[
                                 self.structures.rweirs_df.id == struc
-                            ].chainage.values[0]                        
+                            ].chainage.values[0]
                     if not self.structures.uweirs_df.empty:
                         if struc in list(self.structures.uweirs_df.id):
                             branch = self.structures.uweirs_df[
@@ -1193,7 +1193,7 @@ class StructuresIO:
                             ].branchid.values[0]
                             offset = self.structures.orifices_df[
                                 self.structures.orifices_df.id == struc
-                            ].chainage.values[0]                                        
+                            ].chainage.values[0]
                 else:
                     # move a subsequent structure to the location of the first
                     if not self.structures.pumps_df.empty:
@@ -1289,7 +1289,7 @@ class StructuresIO:
 
 class StorageNodesIO:
     def __init__(self, storagenodes):
-        self.storagenodes = storagenodes        
+        self.storagenodes = storagenodes
 
     def storagenodes_from_datamodel(self, storagenodes):
         """ "From parsed data model of storage nodes"""
@@ -1310,8 +1310,8 @@ class StorageNodesIO:
 
     def storagenodes_from_input(self, storagenodes=None, nodeid=None, xy=None, storagedata=None, usestreetstorage= True, network=None):
         """ "From parsed data model of storage nodes"""
-          
-        for storagenode_idx, storagenode in storagenodes.iterrows():         
+
+        for storagenode_idx, storagenode in storagenodes.iterrows():
             data = storagedata[storagedata.code == storagenode_idx]
             name = storagenode.name
             if pd.isna(name):
@@ -1325,7 +1325,7 @@ class StorageNodesIO:
                 xy=xy,
                 branchid=storagenode.branch_id,
                 chainage=storagenode.branch_offset,
-                usetable="true",                
+                usetable="true",
                 storagearea=' '.join(data.area.astype(str)),
                 levels=' '.join(data.level.astype(str)),
                 network=network
