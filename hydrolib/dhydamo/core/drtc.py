@@ -572,12 +572,12 @@ class DRTCModel:
                  
                 # If setpoint varies in time 
                 if isinstance(controller["setpoint"], pd.Series):
-                    l = ET.SubElement(j, gn_brackets + "setpointSeries")
-                    l.text = "[SP]" + "Control group " + str(key) + "/PID Rule"
+                    ll = ET.SubElement(j, gn_brackets + "setpointSeries")
+                    ll.text = "[SP]" + "Control group " + str(key) + "/PID Rule"
                 # Else fixed setpoint
                 else:
-                    l = ET.SubElement(j, gn_brackets + "setpointValue")
-                    l.text = str(controller["setpoint"])
+                    ll = ET.SubElement(j, gn_brackets + "setpointValue")
+                    ll.text = str(controller["setpoint"])
                 
                 # output
                 m = ET.SubElement(b, gn_brackets + "output")
@@ -621,8 +621,8 @@ class DRTCModel:
                     + controller["target_variable"]
                 )
                 # If setpoint varies in time 
-                l = ET.SubElement(j, gn_brackets + "setpoint")
-                l.text = "[SP]" + "Control group " + str(key) + "/Interval Rule"
+                ll = ET.SubElement(j, gn_brackets + "setpoint")
+                ll.text = "[SP]" + "Control group " + str(key) + "/Interval Rule"
 
                 # output
                 m = ET.SubElement(b, gn_brackets + "output")
