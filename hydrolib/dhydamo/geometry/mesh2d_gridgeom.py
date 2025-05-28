@@ -110,7 +110,6 @@ class Mesh2D_GG:
         # Clip
         logger.info('Clipping nodes.')
         xnodes, ynodes, edge_nodes = self.clip_nodes(xnodes, ynodes, edge_nodes, polygon, keep_outside=outside)
-        # edge_nodes = np.sort(edge_nodes, axis=1)
 
         # Update dimensions
         self.meshgeomdim.numnode = len(xnodes)

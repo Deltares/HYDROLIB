@@ -2118,7 +2118,6 @@ class Structures:
             ],
         ):
             if any(df) and add:
-                # df = pd.DataFrame.from_dict(df, orient='index')
                 df = df.copy()
                 df.insert(loc=0, column="structype", value=descr, allow_duplicates=True)
                 dfs.append(df)
