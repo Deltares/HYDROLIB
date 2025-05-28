@@ -463,7 +463,7 @@ def _prepare_1d2d_mesh(second_branch: bool = False):
 def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
     network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
     within = _within if b_within else None
-    branchids = _branchids if b_branchids else None
+    branchids = _branchids[:1] if b_branchids else None
 
     if b_refine:
         buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
@@ -503,7 +503,7 @@ def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_lengt
 def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
     network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
     within = _within if b_within else None
-    branchids = _branchids if b_branchids else None
+    branchids = _branchids[:1] if b_branchids else None
 
     if b_refine:
         buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
@@ -542,7 +542,7 @@ def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, m
 def test_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, b_plot, outcome):
     network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
     within = _within if b_within else None
-    branchids = _branchids if b_branchids else None
+    branchids = _branchids[:1] if b_branchids else None
 
     if b_refine:
         buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
