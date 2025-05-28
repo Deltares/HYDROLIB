@@ -551,9 +551,8 @@ class StructuresIO:
             self.structures.hydamo.management['stuwid'] = None
 
         index = np.zeros((len(weirs.code)))
-        if profile_groups is not None:
-            if hasattr(profile_groups,  'stuwid'):
-                index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
+        if profile_groups is not None and hasattr(profile_groups, "stuwid"):
+            index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
 
         rweirs = weirs[index == 0]
         for weir in rweirs.itertuples():
