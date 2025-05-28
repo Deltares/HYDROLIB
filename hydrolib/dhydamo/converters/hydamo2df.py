@@ -386,7 +386,6 @@ class ExternalForcingsIO:
                     logger.warning(
                         f"No lateral_discharges provided. {lateral.code} expects them. Skipping."
                     )
-                    continue
                 else:
                     if isinstance(lateral_discharges, pd.Series):
                         series = lateral_discharges.loc[lateral.code]
