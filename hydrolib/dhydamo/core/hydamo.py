@@ -2258,8 +2258,6 @@ class StorageNodes:
             )
             get_nearest = KDTree(nodes1d[:, 0:2])
             _, idx_nearest = get_nearest.query(xy.coords[:])
-            # nodeid = nodes1d[idx_nearest, 2]
-            # nodeid = f'{nodeid[0]}'
             nodeid = f"{float(nodes1d[idx_nearest[0],0]):12.6f}_{float(nodes1d[idx_nearest[0],1]):12.6f}"
 
         if manholeid is None:
