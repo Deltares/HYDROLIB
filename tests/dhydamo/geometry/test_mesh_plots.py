@@ -1,6 +1,8 @@
 import pytest
 import sys
 
+import numpy as np
+
 sys.path.append(".")
 from tests.dhydamo.geometry import test_mesh
 
@@ -56,33 +58,47 @@ def test_plot_1d_add_branch_from_linestring():
 
 
 @pytest.mark.plot
-def test_plot_links1d2d_add_links_1d_to_2d():
-    test_mesh.test_links1d2d_add_links_1d_to_2d(do_plot=True)
+@pytest.mark.parametrize(
+    "b_within, b_branchids, b_refine, max_length, b_plot, outcome",
+    [
+        (False, False, False, np.inf, True, 15),
+        (False, False, False, 1, True, 11),
+        (True, False, False, np.inf, True, 11),
+        (False, True, False, np.inf, True, 8),
+        (False, False, True, np.inf, True, 15),
+    ],
+)
+def test_plot_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
+    test_mesh.test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_length, b_plot, outcome)
 
 
 @pytest.mark.plot
-def test_plot_links1d2d_add_links_2d_to_1d_lateral():
-    test_mesh.test_links1d2d_add_links_2d_to_1d_lateral(do_plot=True)
+@pytest.mark.parametrize(
+    "b_within, b_branchids, b_refine, max_length, b_plot, outcome",
+    [
+        (False, False, False, np.inf, True, 99),
+        (False, False, False, 1, True, 99),
+        (True, False, False, np.inf, True, 99),
+        (False, True, False,  np.inf, True, 99),
+        (False, False, True,  np.inf, True, 99),
+    ],
+)
+def test_plot_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
+    test_mesh.test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, max_length, b_plot, outcome)
 
 
 @pytest.mark.plot
-def test_plot_links1d2d_add_links_2d_to_1d_embedded():
-    test_mesh.test_links1d2d_add_links_2d_to_1d_embedded(do_plot=True)
-
-
-@pytest.mark.plot
-def test_plot_links1d2d_add_links_2d_to_1d_embedded_within():
-    test_mesh.test_links1d2d_add_links_2d_to_1d_embedded_within(do_plot=True)
-
-
-@pytest.mark.plot
-def test_plot_links1d2d_add_links_2d_to_1d_embedded_branchids():
-    test_mesh.test_links1d2d_add_links_2d_to_1d_embedded(do_plot=True)
-
-
-@pytest.mark.plot
-def test_plot_links1d2d_add_links_2d_to_1d_embedded_refine():
-    test_mesh.test_links1d2d_add_links_2d_to_1d_embedded_refine(do_plot=True)
+@pytest.mark.parametrize(
+    "b_within, b_branchids, b_refine, b_plot, outcome",
+    [
+        (False, False, False, True, 24),
+        (True, False, False, True, 11),
+        (False, True, False, True, 9),
+        (False, False, True, True, 48),
+    ],
+)
+def test_plot_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, b_plot, outcome):
+    test_mesh.test_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, b_plot, outcome)
 
 
 @pytest.mark.plot
