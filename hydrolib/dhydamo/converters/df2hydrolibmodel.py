@@ -266,14 +266,13 @@ class Df2HydrolibModel:
 
     def laterals_to_dhydro(self) -> None:
         """Convert dataframe of laterals to ext and bc models"""
-                
-        for key, lateral in self.hydamo.external_forcings.lateral_nodes.items():                    
+
+        for key, lateral in self.hydamo.external_forcings.lateral_nodes.items():
             if isinstance(lateral["discharge"], str):
-                # realtime boundary                
+                # realtime boundary
                 lat_ext = Lateral(
                     id=key,
                     name=key,
-                    # type="discharge",
                     locationType="1d",
                     branchId=lateral["branchid"],
                     chainage=lateral["chainage"],
@@ -281,7 +280,7 @@ class Df2HydrolibModel:
                 )
             else:
                 # time series or constant value
-                if isinstance(lateral["discharge"], pd.Series):                    
+                if isinstance(lateral["discharge"], pd.Series):
                     lat_bc = TimeSeries(
                         name=key,
                         function="timeseries",
@@ -295,7 +294,7 @@ class Df2HydrolibModel:
                         datablock=list(map(list, zip(lateral["time"], lateral["value"]))),
                     )
                     self.laterals_bc.append(lat_bc)
-                elif isinstance(lateral["discharge"], float):                    
+                elif isinstance(lateral["discharge"], float):
                     lat_bc = Constant(
                         name=key,
                         function="constant",
@@ -303,16 +302,15 @@ class Df2HydrolibModel:
                         unit="m3/s",
                         datablock=[[lateral["discharge"]]],
                     )
-                self.forcingmodel.forcing.append(lat_bc)                
+                self.forcingmodel.forcing.append(lat_bc)
                 lat_ext = Lateral(
                     id=key,
                     name=key,
-                    # type=lateral["type"],
                     locationtype=lateral["locationtype"],
                     branchId=lateral["branchid"],
                     chainage=lateral["chainage"],
                     discharge=self.forcingmodel,
-                )            
+                )
             self.laterals_ext.append(lat_ext)
 
     def friction_definitions_to_dhydro(self):
@@ -374,13 +372,11 @@ class Df2HydrolibModel:
             inifield = InitialField(
                 quantity="waterdepth",
                 datafiletype="1dField",
-                # unit="m",
                 datafile="initialwaterdepth.ini",
             )
             if depth.geometry is None:
                 onedfield = OneDFieldGlobal(
                     quantity="waterdepth",
-                    # locationtype=depth.locationtype,
                     unit="m",
                     value=str(depth.waterdepth),
                 )
