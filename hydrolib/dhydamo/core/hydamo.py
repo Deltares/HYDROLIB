@@ -2133,7 +2133,7 @@ class ObservationPoints:
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def add_points(
-        self, crds: list, names: list, location_types=None, snap_distance: float = 5.0
+        self, crds: list, names: list, locationTypes=None, snap_distance: float = 5.0
     ) -> None:
         """
         Method to add observation points to schematisation. Observation points can be of type '1d' or '2d'. 1d-points are snapped to the branch.
@@ -2144,7 +2144,7 @@ class ObservationPoints:
             x and y coordinates of observation points
         names : str or list
             names of the observation points
-        location_types:  str or list
+        locationTypes:  str or list
             type of the observationpoints: 1d or 2d
         snap_distance : float (default is 5 m)
             1d observation poinst within this distance to a branch will be snapped to it. Otherwise they are discarded.
@@ -2156,25 +2156,25 @@ class ObservationPoints:
             names = [names]
             crds = [crds]
 
-        if location_types is not None:
-            if isinstance(location_types, str):
-                location_types = [location_types]
+        if locationTypes is not None:
+            if isinstance(locationTypes, str):
+                locationTypes = [locationTypes]
 
             # split 1d and 2d points, as the first ones need to be snapped to branches
             obs2d = gpd.GeoDataFrame()
             obs2d["name"] = [
-                n for nn, n in enumerate(names) if location_types[nn] == "2d"
+                n for nn, n in enumerate(names) if locationTypes[nn] == "2d"
             ]
             obs2d["locationtype"] = "2d"
             obs2d = obs2d.set_geometry([
                 Point(*pt) if not isinstance(pt, Point) else pt
                 for ipt, pt in enumerate(crds)
-                if (location_types[ipt] == "2d")
+                if (locationTypes[ipt] == "2d")
             ])
             obs2d["x"] = [pt.coords[0][0] for pt in obs2d["geometry"]]
             obs2d["y"] = [pt.coords[0][1] for pt in obs2d["geometry"]]
-            names1d = [n for n_i, n in enumerate(names) if location_types[n_i] == "1d"]
-            crds1d = [c for c_i, c in enumerate(crds) if location_types[c_i] == "1d"]
+            names1d = [n for n_i, n in enumerate(names) if locationTypes[n_i] == "1d"]
+            crds1d = [c for c_i, c in enumerate(crds) if locationTypes[c_i] == "1d"]
         else:
             names1d = names
             crds1d = crds
@@ -2192,7 +2192,7 @@ class ObservationPoints:
             columns={"branch_id": "branchid", "branch_offset": "chainage"}, inplace=True
         )
 
-        obs = pd.concat([obs1d, obs2d], sort=True) if location_types is not None else obs1d
+        obs = pd.concat([obs1d, obs2d], sort=True) if locationTypes is not None else obs1d
 
         obs.dropna(how="all", axis=1, inplace=True)
 
