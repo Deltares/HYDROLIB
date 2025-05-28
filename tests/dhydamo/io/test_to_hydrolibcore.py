@@ -1,26 +1,28 @@
 import sys
 
 sys.path.insert(0, r".")
+from pathlib import Path
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+from shapely.geometry import Point
+
+from hydrolib.core.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
+from hydrolib.core.dflowfm.ext.models import ExtModel
+from hydrolib.core.dflowfm.friction.models import FrictionModel
+from hydrolib.core.dflowfm.inifield.models import DiskOnlyFileModel, IniFieldModel
+from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.core.dflowfm.obs.models import ObservationPointModel
+from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
+from hydrolib.core.dflowfm.structure.models import StructureModel
 
 # and from hydrolib-core
 from hydrolib.core.dimr.models import DIMR, FMComponent
-from hydrolib.core.dflowfm.inifield.models import IniFieldModel, DiskOnlyFileModel
-from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
-from hydrolib.core.dflowfm.structure.models import StructureModel
-from hydrolib.core.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
-from hydrolib.core.dflowfm.ext.models import ExtModel
-from hydrolib.core.dflowfm.mdu.models import FMModel
-from hydrolib.core.dflowfm.friction.models import FrictionModel
-from hydrolib.core.dflowfm.obs.models import ObservationPointModel
 
 # Importing relevant classes from Hydrolib-dhydamo
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
 from hydrolib.dhydamo.geometry import mesh
-from pathlib import Path
-
 from tests.dhydamo.io import test_from_hydamo
 
 # path where the input data is located
@@ -79,7 +81,6 @@ def setup_model(hydamo=None, full_test=False):
         branches=hydamo.branches,
         roughness_variant="High",
     )
-    from shapely.geometry import Point
 
     hydamo.observationpoints.add_points(
         [Point((200200, 395600)), (200200, 396200)],
@@ -173,7 +174,7 @@ def setup_model(hydamo=None, full_test=False):
 
 
 def test_convert_to_hydrolibmodel():
-    hydamo, fm = setup_model()
+    hydamo, _ = setup_model()
 
     models = Df2HydrolibModel(hydamo)
     assert len(models.friction_defs) == 3
