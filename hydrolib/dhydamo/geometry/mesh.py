@@ -670,21 +670,9 @@ def links1d2d_add_links_2d_to_1d_lateral(
         # Calculate distance between face edge and face center
         x1 = face_node_crds[:,0]
         y1 = face_node_crds[:,1]
-        # face_node_crds[:] = np.roll(face_node_crds, 1, axis=0)
-        # x2 = face_node_crds[:,0]
-        # y2 = face_node_crds[:,1]
         x0, y0 = face2d[0], face2d[1]
         distance = np.hypot(x1-x0, y1-y0).mean() 
-        # distance = (
-        #     np.absolute((x2 - x1) * (y1 - y0) - (x1 - x0) * (y2 - y1))
-        #     / np.hypot(x2 - x1, y2 - y1)
-        # ).mean()
-
-    # Check which links to keep
     
-    # for i, (node1d, face2d, comp_dist) in enumerate(
-    #     zip(nodes1d, faces2d, distance * dist_factor)
-    # ):
         isect = multilinestring.intersection(LineString([face2d, node1d]))
 
         # If the intersection is for some reason not a Point of Multipoint, skip it.

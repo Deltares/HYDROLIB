@@ -2262,7 +2262,7 @@ class StorageNodes:
             # nodeid = nodes1d[idx_nearest, 2]
             # nodeid = f'{nodeid[0]}'
             nodeid = f"{float(nodes1d[idx_nearest[0],0]):12.6f}_{float(nodes1d[idx_nearest[0],1]):12.6f}"
-
+        
         if manholeid is None:
             manholeid = nodeid
         

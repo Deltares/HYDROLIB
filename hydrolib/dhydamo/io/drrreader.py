@@ -1024,6 +1024,12 @@ class ExternalForcingsIO:
             if not occurs:
                 not_occurring.append(cat.boundary_node)
 
+     
+        drop_idx = catchments[catchments.boundary_node.isin(not_occurring)].index.to_list()
+        if any(drop_idx):
+            print(f"{len(drop_idx)} catchments removed because of an area of 0 m2.")
+            catchments.drop(drop_idx, inplace=True)
+
         for i in not_occurring:
             catchments.drop(
                 catchments[catchments.boundary_node == i].code.iloc[0],
