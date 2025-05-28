@@ -1122,25 +1122,7 @@ class StructuresIO:
 
     def compound_structures(self, idlist, structurelist):
         # probably the coordinates should all be set to those of the first structure (still to do)
-        # self.compounds_df = ExtendedDataFrame(
-        #     required_columns=["code", "structurelist"]
-        # )
-        # self.compounds_df.set_data(
-        #     pd.DataFrame(
-        #         np.zeros((len(idlist), 3)),
-        #         columns=["code", "numstructures", "structurelist"],
-        #         dtype="str",
-        #     ),
-        #     index_col="code",
-        # )
-        # self.compounds_df.index = idlist
-        # for ii, compound in enumerate(self.compounds_df.itertuples()):
         for c_i, c_id in enumerate(idlist):
-            # self.compounds_df.at[compound.Index, "code"] = idlist[ii]
-            # self.compounds_df.at[compound.Index, "numstructures"] = len(
-            #     structurelist[ii]
-            # )
-
             # check the substructure coordinates. If they do not coincide, move subsequent structures to the coordinates of the first
             for s_i, struc in enumerate(structurelist[c_i]):
                 if s_i == 0:
@@ -1281,9 +1263,6 @@ class StructuresIO:
                             ] = offset
 
             self.structures.add_compound(id=c_id, structureids=structurelist[c_i])
-            # self.structures.compounds_df.at[compound.Index, "structurelist"] = ";".join(
-            #     [f"{s}" for s in structurelist[ii]]
-            # )
 
 
 class StorageNodesIO:
