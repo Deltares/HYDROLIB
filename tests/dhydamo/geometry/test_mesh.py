@@ -456,14 +456,14 @@ def _prepare_1d2d_mesh(second_branch: bool = False):
         (False, False, False, np.inf, False, 15),
         (False, False, False, 1, False, 11),
         (True, False, False, np.inf, False, 11),
-        (False, True, False, np.inf, False, 8),
+        (False, True, False, np.inf, False, 7),
         (False, False, True, np.inf, False, 15),
     ],
 )
 def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
     network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
     within = _within if b_within else None
-    branchids = _branchids[:1] if b_branchids else None
+    branchids = _branchids[-1:] if b_branchids else None
 
     if b_refine:
         buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
@@ -475,9 +475,7 @@ def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_lengt
     # Plot to verify
     if b_plot:
         fig, ax = plt.subplots(figsize=(5, 5))
-
         viz.plot_network(network, ax=ax)
-
         if b_within:
             for polygon in common.as_polygon_list(within):
                 ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
@@ -493,17 +491,17 @@ def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_lengt
 @pytest.mark.parametrize(
     "b_within, b_branchids, b_refine, max_length, b_plot, outcome",
     [
-        (False, False, False, np.inf, False, 99),
-        (False, False, False, 1, False, 99),
-        (True, False, False, np.inf, False, 99),
-        (False, True, False,  np.inf, False, 99),
-        (False, False, True,  np.inf, False, 99),
+        (False, False, False, np.inf, False, 26),
+        (False, False, False, 1, False, 1),
+        (True, False, False, np.inf, False, 18),
+        (False, True, False,  np.inf, False, 0),
+        (False, False, True,  np.inf, False, 27),
     ],
 )
 def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
     network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
     within = _within if b_within else None
-    branchids = _branchids[:1] if b_branchids else None
+    branchids = _branchids[-1:] if b_branchids else None
 
     if b_refine:
         buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
@@ -515,9 +513,7 @@ def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, m
     # Plot to verify
     if b_plot:
         fig, ax = plt.subplots(figsize=(5, 5))
-
         viz.plot_network(network, ax=ax)
-
         if b_within:
             for polygon in common.as_polygon_list(within):
                 ax.fill(*polygon.exterior.coords.xy, color="g", ls="-", lw=0, alpha=0.05)
@@ -535,14 +531,14 @@ def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, m
     [
         (False, False, False, False, 24),
         (True, False, False, False, 11),
-        (False, True, False, False, 9),
+        (False, True, False, False, 19),
         (False, False, True, False, 48),
     ],
 )
 def test_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, b_plot, outcome):
     network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
     within = _within if b_within else None
-    branchids = _branchids[:1] if b_branchids else None
+    branchids = _branchids[-1:] if b_branchids else None
 
     if b_refine:
         buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
