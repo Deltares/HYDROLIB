@@ -485,15 +485,20 @@ def links1d2d_add_links_1d_to_2d(
     _filter_links_on_idx(network, keep)
 
 
-def _filter_links_on_idx(network: Network, keep: np.ndarray, present_links: np.ndarray=None) -> None:
+def _filter_links_on_idx(
+    network: Network, 
+    keep: np.ndarray, 
+    present_links: Union[np.ndarray, None] = None,
+) -> None:
     # Select the remaining links
     contacts = network._link1d2d.meshkernel.contacts_get()
+    mesh1d_indices = contacts.mesh1d_indices[keep]
+    mesh2d_indices = contacts.mesh2d_indices[keep]
     if present_links is not None:
-        contacts.mesh1d_indices = np.concat([contacts.mesh1d_indices[keep],  present_links[:,0]])
-        contacts.mesh2d_indices = np.concat([contacts.mesh2d_indices[keep],  present_links[:,1]])
-    else:
-        contacts.mesh1d_indices = contacts.mesh1d_indices[keep]
-        contacts.mesh2d_indices = contacts.mesh2d_indices[keep]
+        mesh1d_indices = np.concat([mesh1d_indices, present_links[:,0]])
+        mesh2d_indices = np.concat([mesh2d_indices, present_links[:,1]])
+    contacts.mesh1d_indices = np.array(mesh1d_indices).astype(np.int32)
+    contacts.mesh2d_indices = np.array(mesh2d_indices).astype(np.int32)
     network._link1d2d.meshkernel.contacts_set(contacts)
 
 
@@ -612,18 +617,12 @@ def links1d2d_add_links_2d_to_1d_lateral(
         # Note that the provided meshboundaries is a (list of) polygon(s). Holes are provided
         # as polygons as well, which dont make it a valid MultiPolygon
         if isinstance(mpboundaries, Polygon):
-            geometrylist = GeometryList.from_geometry(
-            MultiPolygon(
-                [mpboundaries]
-            ))
+            geom = MultiPolygon([mpboundaries])
+            geometrylist = GeometryList.from_geometry(geom)
         else:
-            geometrylist = GeometryList.from_geometry(
-                MultiPolygon(
-                    common.as_polygon_list(
-                        [geom.intersection(within) for geom in mpboundaries.geoms]
-                    )
-                )
-            )
+            geom = [geom.intersection(within) for geom in mpboundaries.geoms]
+            geom = MultiPolygon(common.as_polygon_list(geom))
+            geometrylist = GeometryList.from_geometry(geom)
 
     # Get the nodes for the specific branch ids
     node_mask = network._mesh1d.get_node_mask(branchids)
