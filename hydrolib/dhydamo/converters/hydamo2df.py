@@ -1092,6 +1092,7 @@ class StructuresIO:
                 stopleveldeliveryside=pump.stopleveldeliveryside,
             )
 
+    @staticmethod
     def move_structure(struc, struc_dict, branch, offset):
         """
         Function the move a structure if needed for a compound structure.
