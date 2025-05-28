@@ -692,8 +692,6 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
     assert round(getattr(network._mesh2d, f"mesh2d_{where}_z").sum(), 1) == round(
         outcome, 1
     )
-    # test_val = getattr(network._mesh2d, f"mesh2d_{where}_z").sum()
-    # assert round(float(test_val), 3) == round(float(outcome), 3)
 
 
 def test_mesh1d_add_branches_from_gdf(do_plot=False):
