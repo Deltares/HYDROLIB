@@ -256,7 +256,7 @@ def _write_model(drrmodel=None, hydamo=None, full_test=False):
     return fm, output_path
 
 def test_write_model(drrmodel=None, hydamo=None, full_test=False):
-    fm, output_path = _write_model(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
+    _, output_path = _write_model(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
     assert (output_path / "fm" / "test.mdu").exists()
     assert (output_path / "fm" / "crsdef.ini").exists()
     assert (output_path / "fm" / "network.nc").exists()
