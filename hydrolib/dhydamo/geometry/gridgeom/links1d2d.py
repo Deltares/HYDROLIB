@@ -406,9 +406,5 @@ class Links1d2d:
         distances, faces2d = KDTree(mk_faces).query(gr_faces)
         print(f'Max distance between faces: {distances.max()}') # error out if we do not find an exact match
 
-        contacts = self.network._link1d2d.meshkernel.contacts_get()
-        contacts.mesh1d_indices = contacts.mesh1d_indices#[keep]
-        contacts.mesh2d_indices = contacts.mesh2d_indices#[keep]
-
-        contacts =  mk.Contacts(nodes1d, faces2d)
+        contacts = mk.Contacts(nodes1d, faces2d)
         self.network._link1d2d.meshkernel.contacts_set(contacts)
