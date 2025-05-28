@@ -149,7 +149,7 @@ class DRTCModel:
                         savedict["dataconfig_import"].append(ET.tostring(el).decode())
                 if "exportSeries" in children:
                     for el in children["exportSeries"]:#[2:]:
-                        if (not 'PITimeSeries' in ET.tostring(el).decode()) and (not 'CSVTimeSeries' in ET.tostring(el).decode()):
+                        if ('PITimeSeries' not in ET.tostring(el).decode()) and ('CSVTimeSeries' not in ET.tostring(el).decode()):
                             savedict["dataconfig_export"].append(ET.tostring(el).decode())                        
             elif file == "rtcToolsConfig.xml":
                 children = DRTCModel._parse_unique_children(root)
