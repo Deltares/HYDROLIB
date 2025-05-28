@@ -93,8 +93,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         # filter out rows on key/value pairs if required
         if filter_rows is not None:
             logger.info("Filter rows using key value pairs")
-            filter = (gdf[list(filter_rows)] == pd.Series(filter_rows)).all(axis=1)
-            gdf = gdf[filter]
+            filtered = (gdf[list(filter_rows)] == pd.Series(filter_rows)).all(axis=1)
+            gdf = gdf[filtered]
 
         # Drop features without geometry
         total_features = len(gdf)
@@ -107,16 +107,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         # Rename columns:
         if column_mapping is not None:
             gdf.rename(columns=column_mapping, inplace=True)
-
-        # if "MultiPolygon" or "MultiLineString" in str(gdf.geometry.type):
-        #     gdf = gdf.explode()
-        #     for ftc in gdf[id_col].unique():
-        #         if len(gdf[gdf[id_col] == ftc]) > 1:
-        #             gdf.loc[gdf[id_col] == ftc, id_col] = [
-        #                 f"{i}_{n}"
-        #                 for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
-        #             ]
-        #             print("%s is MultiPolygon; split into single parts." % ftc)
 
         # Check number of entries
         if gdf.empty:
@@ -292,17 +282,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if column_mapping is not None:
             gdf.rename(columns=column_mapping, inplace=True)
 
-        # # add a letter to 'exploded' multipolygons
-        # if "MultiPolygon" in list(gdf.geometry.type):
-        #     gdf = gdf.explode(index_parts=True)
-        #     for ftc in gdf[id_col].unique():
-        #         if len(gdf[gdf[id_col] == ftc]) > 1:
-        #             gdf.loc[gdf[id_col] == ftc, id_col] = [
-        #                 f"{i}_{n}"
-        #                 for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
-        #             ]
-        #             print(f"{ftc} is MultiPolygon; split into single parts.")
-
         # Enforce a unique index column
         if index_col is not None:
             dupes = gdf[gdf.duplicated(subset=index_col, keep="first")].copy()
@@ -375,9 +354,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
     def merge_columns(self, col1, col2, rename_col):
         """merge columns"""
-
-        # if (not(col1 in self) or not(col2 in self)):
-        #    raise ValueError(f"'{col1}' or '{col2}' do not exist.")
 
         if col1 or col2 in self.columns.values:
             try:
