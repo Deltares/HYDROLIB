@@ -1313,10 +1313,12 @@ class StorageNodesIO:
           
         for storagenode_idx, storagenode in storagenodes.iterrows():         
             data = storagedata[storagedata.code == storagenode_idx]
-            
+            name = storagenode.name
+            if pd.isna(name):
+                name = storagenode.code
             self.storagenodes.add_storagenode(
                 id=storagenode_idx,
-                name=storagenode.name if not None else storagenode.code,
+                name=name,
                 usestreetstorage=usestreetstorage,
                 nodetype="unspecified",
                 nodeid=nodeid,
