@@ -1015,12 +1015,13 @@ class StructuresIO:
             if pumps_subset.shape[0] > 1:
                 # more than one pump
                 cmp_list = []
+                print(f'Pumpstation {pumpstation.code} contains {pumps_subset.shape[0]} openings. Creating a compound structure with a fictional pump for each one.')
                 for ipump, (_,pump) in enumerate(pumps_subset.iterrows()):
 
                     pump_control = management[management.pompid== pump.globalid]
                     if pump_control.empty:
+                        print(f'No management found for {pump.code}')
                         continue
-                        raise IndexError(f'No management found for {pump.code}')
 
                     startlevelsuctionside = [pump_control["bovengrens"]]
                     stoplevelsuctionside = [pump_control["ondergrens"]]
