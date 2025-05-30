@@ -562,9 +562,12 @@ def links1d2d_add_links_2d_to_1d_embedded(
         [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
     )
     where = np.nonzero(idx)[0]
-    
     for i, face_idxs in enumerate(network._mesh2d.mesh2d_face_nodes[idx]):
+        # nodes2d always has 4 columns, but a triangular cell only has 3 nodes.
+        # In that case, one of the indices will be invalid.
         face_crds = nodes2d[face_idxs[face_idxs >= 0]]
+
+        # Check if the face crosses a branch
         if not mls_prep.intersects(LineString(face_crds)):
             idx[where[i]] = False
 
