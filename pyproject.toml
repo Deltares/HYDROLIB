@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hydrolib"
-version = "0.4.0"
+version = "0.4.1"
 description = "HYDROLIB tools for hydrodynamic and hydrological modelling workflows"
 authors = ["Deltares"]
 maintainers = [
@@ -52,7 +52,7 @@ poetry2conda = ">=0.3.0"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.4.0"
+version = "0.4.1"
 tag_format = "$version"
 version_files = [
     "hydrolib/post/__init__.py",
