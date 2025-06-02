@@ -1,33 +1,28 @@
 import sys
 
 sys.path.insert(0, r".")
-import os
+from pathlib import Path
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+from shapely.geometry import Point
+
+from hydrolib.core.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
+from hydrolib.core.dflowfm.ext.models import ExtModel
+from hydrolib.core.dflowfm.friction.models import FrictionModel
+from hydrolib.core.dflowfm.inifield.models import DiskOnlyFileModel, IniFieldModel
+from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.core.dflowfm.obs.models import ObservationPointModel
+from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
+from hydrolib.core.dflowfm.structure.models import StructureModel
 
 # and from hydrolib-core
 from hydrolib.core.dimr.models import DIMR, FMComponent
-from hydrolib.core.dflowfm.inifield.models import IniFieldModel, DiskOnlyFileModel
-from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
-from hydrolib.core.dflowfm.structure.models import StructureModel
-from hydrolib.core.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
-from hydrolib.core.dflowfm.ext.models import ExtModel
-from hydrolib.core.dflowfm.mdu.models import FMModel
-from hydrolib.core.dflowfm.bc.models import ForcingModel
-from hydrolib.core.dflowfm.friction.models import FrictionModel
-from hydrolib.core.dflowfm.obs.models import ObservationPointModel
 
 # Importing relevant classes from Hydrolib-dhydamo
-from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
 from hydrolib.dhydamo.geometry import mesh
-from hydrolib.dhydamo.core.drr import DRRModel
-from hydrolib.dhydamo.core.drtc import DRTCModel
-from hydrolib.dhydamo.io.drrwriter import DRRWriter
-from hydrolib.dhydamo.geometry.viz import plot_network
-from pathlib import Path
-
 from tests.dhydamo.io import test_from_hydamo
 
 # path where the input data is located
@@ -46,7 +41,7 @@ def setup_model(hydamo=None, full_test=False):
     fm.time.tstop = 2 * 3600 * 24
 
     if hydamo is None:
-        hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
+        hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
 
     hydamo.structures.convert.weirs(
         hydamo.weirs,
@@ -86,7 +81,6 @@ def setup_model(hydamo=None, full_test=False):
         branches=hydamo.branches,
         roughness_variant="High",
     )
-    from shapely.geometry import Point
 
     hydamo.observationpoints.add_points(
         [Point((200200, 395600)), (200200, 396200)],
@@ -180,15 +174,14 @@ def setup_model(hydamo=None, full_test=False):
 
 
 def test_convert_to_hydrolibmodel():
-    print('test')
-    hydamo, fm = setup_model()
+    hydamo, _ = setup_model()
 
     models = Df2HydrolibModel(hydamo)
     assert len(models.friction_defs) == 3
     assert len(models.crossdefs) == 353
 
 
-def test_add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
+def _add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
     hydamo, fm = setup_model(hydamo=hydamo, full_test=full_test)
 
     if drrmodel is not None:
@@ -236,16 +229,18 @@ def test_add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
             filepath=onedfield_filepath
         )
 
+    return fm
+
+def test_add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
+    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
     assert hasattr(fm, "geometry")
     assert hasattr(fm.geometry, "inifieldfile")
     # this does not work yet
     # assert hasattr(onedfieldmodel, "filepath")
 
-    return fm
 
-
-def test_write_model(drrmodel=None, hydamo=None, full_test=False):
-    fm = test_add_to_filestructure(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
+def _write_model(drrmodel=None, hydamo=None, full_test=False):
+    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
 
     dimr = DIMR()
     dimr.component.append(
@@ -259,9 +254,11 @@ def test_write_model(drrmodel=None, hydamo=None, full_test=False):
     )
     dimr.save(recurse=True)
 
+    return fm, output_path
+
+def test_write_model(drrmodel=None, hydamo=None, full_test=False):
+    _, output_path = _write_model(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
     assert (output_path / "fm" / "test.mdu").exists()
     assert (output_path / "fm" / "crsdef.ini").exists()
     assert (output_path / "fm" / "network.nc").exists()
     assert (output_path / "fm" / "initialwaterdepth.ini").exists()
-
-    return fm, output_path

@@ -3,12 +3,10 @@ import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Union
-import fiona
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from shapely import wkb
-from shapely.geometry import LineString, MultiPolygon, Point, Polygon
+from shapely.geometry import LineString, MultiPolygon, Polygon
 
 from hydrolib.dhydamo.geometry import spatial
 
@@ -86,7 +84,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # Only keep required columns
         if filter_cols:
-            logger.info(f"Filtering required column keys")
+            logger.info("Filtering required column keys")
             gdf.drop(
                 columns=gdf.columns[~gdf.columns.isin(self.required_columns)],
                 inplace=True,
@@ -94,9 +92,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # filter out rows on key/value pairs if required
         if filter_rows is not None:
-            logger.info(f"Filter rows using key value pairs")
-            filter = (gdf[list(filter_rows)] == pd.Series(filter_rows)).all(axis=1)
-            gdf = gdf[filter]
+            logger.info("Filter rows using key value pairs")
+            filtered = (gdf[list(filter_rows)] == pd.Series(filter_rows)).all(axis=1)
+            gdf = gdf[filtered]
 
         # Drop features without geometry
         total_features = len(gdf)
@@ -109,16 +107,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         # Rename columns:
         if column_mapping is not None:
             gdf.rename(columns=column_mapping, inplace=True)
-
-        if "MultiPolygon" or "MultiLineString" in str(gdf.geometry.type):
-            gdf = gdf.explode()
-            for ftc in gdf[id_col].unique():
-                if len(gdf[gdf[id_col] == ftc]) > 1:
-                    gdf.loc[gdf[id_col] == ftc, id_col] = [
-                        f"{i}_{n}"
-                        for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
-                    ]
-                    print("%s is MultiPolygon; split into single parts." % ftc)
 
         # Check number of entries
         if gdf.empty:
@@ -140,7 +128,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if proj_crs is not None:
             self.check_projection(proj_crs)
         else:
-            logger.debug(f"No projected CRS is given in ini-file")
+            logger.debug("No projected CRS is given in ini-file")
 
     def set_data(self, gdf, index_col=None, check_columns=True, check_geotype=True):
         if not self.empty:
@@ -152,7 +140,10 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # Copy content
         for col, values in gdf.items():
-            self[col] = values.values
+            if str(values.dtype) == "geometry":
+                self.set_geometry(values.values, inplace=True)
+            else:
+                self[col] = values.values
 
         if index_col is None:
             self.index = gdf.index
@@ -202,10 +193,10 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if isinstance(gpkg_path, Path):
             gpkg_path = str(gpkg_path)
 
-        layerlist = fiona.listlayers(gpkg_path)
+        layerlist = gpd.list_layers(gpkg_path).name.tolist()
         print(f"Content of gpkg-file {gpkg_path}, containing {len(layerlist)} layers:")
         print(
-            f"\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS"
+            "\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS"
         )
         for laynum, layer_name in enumerate(layerlist):
             layer = gpd.read_file(gpkg_path, layer=layer_name)
@@ -215,11 +206,16 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
             nfields = len(layer.columns)
             nfeatures = layer.shape[0]
-            geom_type = layer.geom_type.iloc[0]
-            if geom_type is None:
+            
+            if isinstance(layer, gpd.GeoDataFrame):
+                geom_type = layer.geom_type.iloc[0]
+                if geom_type is None:
+                    geom_type = "None"                
+            else:
                 geom_type = "None"
+                
             print(
-                f"\t{laynum:5d}\t|\t{layer_name:30s}\t|\t{geom_type:12s}\t|\t{nfeatures:10d}\t|\t{nfields:10d}"
+                f"\t{laynum:5d}\t|\t{layer_name:30s}\t|\t{geom_type}\t|\t{nfeatures:10d}\t|\t{nfields:10d}"
             )
 
     def read_gpkg_layer(
@@ -241,7 +237,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if isinstance(gpkg_path, Path):
             gpkg_path = str(gpkg_path)
 
-        if layer_name.lower() not in map(str.lower, fiona.listlayers(gpkg_path)):
+        if layer_name.lower() not in map(str.lower, gpd.list_layers(gpkg_path).name.tolist()):
             raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
 
         layer = gpd.read_file(gpkg_path, layer=layer_name, engine='pyogrio')
@@ -286,17 +282,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if column_mapping is not None:
             gdf.rename(columns=column_mapping, inplace=True)
 
-        # # add a letter to 'exploded' multipolygons
-        # if "MultiPolygon" in list(gdf.geometry.type):
-        #     gdf = gdf.explode(index_parts=True)
-        #     for ftc in gdf[id_col].unique():
-        #         if len(gdf[gdf[id_col] == ftc]) > 1:
-        #             gdf.loc[gdf[id_col] == ftc, id_col] = [
-        #                 f"{i}_{n}"
-        #                 for n, i in enumerate(gdf[gdf[id_col] == ftc][id_col])
-        #             ]
-        #             print(f"{ftc} is MultiPolygon; split into single parts.")
-
         # Enforce a unique index column
         if index_col is not None:
             dupes = gdf[gdf.duplicated(subset=index_col, keep="first")].copy()
@@ -337,7 +322,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if crs_out != self.crs:
             self.to_crs(crs_out, inplace=True)
         else:
-            logger.info(f"OSM data has same projection as projected crs in ini-file")
+            logger.info("OSM data has same projection as projected crs in ini-file")
 
     def branch_to_prof(
         self, offset=0.0, vertex_end=False, rename_col=None, prefix="", suffix=""
@@ -362,7 +347,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                 gdf_out[rename_col] = [
                     f"{prefix}{g[1][rename_col]}{suffix}" for g in self.iterrows()
                 ]
-            except:
+            except Exception:
                 raise ValueError(f"Column rename with '{rename_col}' did not succeed.")
 
         return gdf_out
@@ -370,13 +355,10 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
     def merge_columns(self, col1, col2, rename_col):
         """merge columns"""
 
-        # if (not(col1 in self) or not(col2 in self)):
-        #    raise ValueError(f"'{col1}' or '{col2}' do not exist.")
-
         if col1 or col2 in self.columns.values:
             try:
                 self[rename_col] = self[col1] + self[col2]
-            except:
+            except Exception:
                 raise ValueError(
                     f"Merge of two profile columns'{col1}' and '{col2}' did not succeed."
                 )
@@ -493,7 +475,7 @@ class ExtendedDataFrame(pd.DataFrame):
         if isinstance(gpkg_path, Path):
             gpkg_path = str(gpkg_path)
 
-        if layer_name.lower() not in map(str.lower, fiona.listlayers(gpkg_path)):
+        if layer_name.lower() not in map(str.lower, gpd.list_layers(gpkg_path).name.tolist()):
             raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
 
         layer = gpd.read_file(gpkg_path, layer=layer_name, engine='pyogrio')

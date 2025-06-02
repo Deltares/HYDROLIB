@@ -1,6 +1,5 @@
 # coding: latin-1
 import csv
-import datetime
 import logging
 import os
 import re
@@ -8,7 +7,7 @@ import shutil
 
 import numpy as np
 import pandas as pd
-from shapely.geometry import LineString, Point, box
+from shapely.geometry import Point
 
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 
@@ -505,14 +504,15 @@ class DRRWriter:
         if any(self.rrmodel.greenhouse.gh_nodes):
             filepath = os.path.join(self.output_dir, "GREENHSE.3B")
             with open(filepath, "w") as f:
-                for _, dct in self.rrmodel.greenhouse.gh_nodes.items():
+                for _, dct in self.rrmodel.greenhouse.gh_nodes.items():                    
                     if float(dct["ar"]) > 0.0:
+                        area_string = ' '.join(['0' for _ in range(int(dct['basin_storage_class'])-1)]+ [dct['ar']]+['0' for _ in range(10-(int(dct['basin_storage_class'])))])
                         f.write(
                             "GRHS id '"
                             + dct["id"]
-                            + "' na 10 ar 0 0 "
-                            + dct["ar"]
-                            + " 0 0 0 0 0 0 0 sl "
+                            + "' na 10 ar "
+                            + area_string
+                            + " sl "
                             + dct["sl"]
                             + " as 0 si 'Def_silo' sd 'sto_"
                             + dct["id"]

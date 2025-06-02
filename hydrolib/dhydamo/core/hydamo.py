@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union
 
 import geopandas as gpd
 import numpy as np
@@ -17,9 +17,12 @@ from hydrolib.dhydamo.converters.hydamo2df import (
     ExternalForcingsIO,
     RoughnessVariant,
     StructuresIO,
+    StorageNodesIO
 )
+from rasterstats import zonal_stats
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
+from hydrolib.dhydamo.core.drr import DRRModel
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +67,7 @@ class HyDAMO:
 
         # Read geometry to clip data
         if extent_file is not None:
-            self.clipgeo = gpd.read_file(extent_file).unary_union
+            self.clipgeo = gpd.read_file(extent_file).union_all()
         else:
             self.clipgeo = None
 
@@ -73,7 +76,7 @@ class HyDAMO:
             "number": dhydamo.__version__,
             "date": datetime.strftime(datetime.now(timezone.utc), "%Y-%m-%dT%H:%M:%S.%fZ"),
             "dimr_version": "Deltares, DIMR_EXE Version 2.00.00.140737 (Win64) (Win64)",
-            "suite_version": "D-HYDRO Suite 2022.04 1D2D,",
+            "suite_version": "D-HYDRO Suite 2024.03 1D2D,",
         }
 
         # Create standard dataframe for network, crosssections, orifices, weirs
@@ -160,8 +163,7 @@ class HyDAMO:
             required_columns=[
                 "code",
                 "geometry",
-                "globalid",
-                "soortstuw",
+                "globalid",                
                 "afvoercoefficient",
             ],
             related={
@@ -181,14 +183,10 @@ class HyDAMO:
 
         # opening
         self.opening = ExtendedDataFrame(
-            required_columns=[
-                "vormopening",
+            required_columns=[            
                 "globalid",
-                "hoogstedoorstroombreedte",
-                "hoogstedoorstroomhoogte",
                 "laagstedoorstroombreedte",
                 "laagstedoorstroomhoogte",
-                "vormopening",
                 "afvoercoefficient",
             ]
         )
@@ -200,7 +198,7 @@ class HyDAMO:
 
         # opening
         self.management_device = ExtendedDataFrame(
-            required_columns=["code", "soortregelbaarheid", "overlaatonderlaat"]
+            required_columns=["code", "overlaatonderlaat"]
         )
 
         # Bridges
@@ -333,6 +331,51 @@ class HyDAMO:
             }
         )
 
+        # RR overflows
+        self.overflows = ExtendedGeoDataFrame(
+            geotype=Point,
+            required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
+            related={
+                "sewer_areas": {
+                    "via": "codegerelateerdobject",
+                    "on": "code",
+                    "coupled_to": None
+                }
+            }
+        )
+
+        # RR greenhouse areas
+        self.greenhouse_areas = ExtendedGeoDataFrame(
+            geotype=Polygon,
+            required_columns=["code", "geometry"],
+            related={
+                "greenhouse_laterals": {
+                    "via": "code",
+                    "on": "codegerelateerdobject",
+                    "coupled_to": None
+                }
+            }
+        )
+
+         # RR overflows
+        self.greenhouse_laterals = ExtendedGeoDataFrame(
+            geotype=Point,
+            required_columns=["code", "geometry", "codegerelateerdobject"],
+            related={
+                "greenhouse_areas": {
+                    "via": "codegerelateerdobject",
+                    "on": "code",
+                    "coupled_to": None
+                }
+            }
+        )
+
+        # RR overflows
+        self.storage_areas = ExtendedGeoDataFrame(
+            geotype=Polygon,
+            required_columns=["code", "geometry"],            
+        )
+
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def list_to_str(self, lst: Union[list, np.ndarray]) -> str:
         """Converts list to string
@@ -393,6 +436,57 @@ class HyDAMO:
         if coupled_to is not None:
             for next_target_str, next_relation in coupled_to.items():
                 return self._recursive_drop_related(drop_list, target, drop_idx, next_target_str, **next_relation)
+            
+    def create_laterals(self, qspec_file=None):            
+        ## Specifieke afvoeren inlezen
+        if qspec_file is not None:
+            rr = DRRModel()
+            qspec, affine = rr.read_raster(qspec_file, static=True)
+            fill_value_specifieke_afvoeren = 0
+            qspec = np.where(qspec<0, fill_value_specifieke_afvoeren, qspec)
+
+            ## Afvoer per gebied bepalen met zonal stats
+            afvoer_per_gebied = zonal_stats(self.catchments, qspec, affine=affine, stats="mean", all_touched=True, nodata=-2147483647)   
+        
+        self.laterals = self.catchments.copy()
+
+        for num, cat in enumerate(self.catchments.itertuples()):
+            ## Koppelen van afvoeren met afwateringsgebieden
+            if qspec_file is not None:
+                q = afvoer_per_gebied[num]['mean'] # mm/d
+            else:
+                q = np.nan
+
+            area = cat.geometry.area           # m2
+            q_m3s = q*area/(1000*86400)        # van mm/d naar m3/s
+            self.laterals.at[cat.Index, 'afvoer'] = q_m3s          
+            knoopid = cat.lateraleknoopid
+        
+        
+            ## Afstand tussen watergang en afwateringsgebied. Als watergang in afwateringsgebied ligt is deze afstand 0.
+            distances = self.branches.distance(cat.geometry)
+            ## EÃ©n of meer watergangen in afwateringsgebied:
+            if sum(distances == 0) > 0:
+                ## Watergangen intersecten met afwateringsgebied
+                #wg = [watergang for watergang in watergangen.itertuples() if watergang.intersects(cat.geometry]
+                selectie = self.branches.intersection(cat.geometry)
+                ## Index van de watergang waarop je wilt snappen. Dit is de watergang die in het gebied ligt Ã©n het dichtst bij de centroid van het afwateringsgebied is.
+                index_watergang = selectie.distance(cat.geometry.centroid).idxmin() 
+                ## Combineer de ge intersecte watergangen met de index om het stuk watergang te vinden waarop mag worden gesnapt.
+                watergang = selectie.at[index_watergang]
+            ## No intersects 
+            else:
+                ## Vind de watergang die het dichtst bij de centroid van het gebied is
+                index_watergang = self.branches.distance(cat.geometry.centroid).idxmin()
+                ## Selecteer deze watergang om op te mogen snappen
+                watergang = self.branches.at[index_watergang, 'geometry']
+        
+            ## Snap de centroid van het afwateringsgebied op de geselecteerde watergang
+            lateral = watergang.interpolate(watergang.project(cat.geometry.centroid))
+            ## Schrijf de snap-locatie weg in de geodataframe
+            self.laterals.at[cat.Index, 'geometry'] = lateral
+            self.laterals.at[cat.Index, 'globalid'] = knoopid
+            self.laterals.at[cat.Index, 'code']= f'lat_{cat.code}'
 
 class Network:
     def __init__(self, hydamo: HyDAMO) -> None:
@@ -487,9 +581,9 @@ class Network:
         options 'min' (minimum), 'max' (maximum), 'mean' (average).
         """
         assert resolve_at_bifurcation_method in ["min", "max", "mean"], (
-            f"Incorrect value for "
-            f"'resolve_at_bifurcation_method' supplied. "
-            f"Either use 'min', 'max' or 'mean'"
+            "Incorrect value for "
+            "'resolve_at_bifurcation_method' supplied. "
+            "Either use 'min', 'max' or 'mean'"
         )
         bedlevels_crs_branches = self.hydamo.crosssections.get_bottom_levels()
         branch_order = self.mesh1d.get_values("nbranchorder", as_array=True)
@@ -741,8 +835,8 @@ class Network:
         """
         # Get all network data
         branch_ids = self.mesh1d.description1d["network_branch_ids"]
-        node_ids = self.mesh1d.description1d["network_node_ids"]
-        branch_edge_nodes_idx = self.mesh1d.get_values("nedge_nodes", as_array=True)
+        # node_ids = self.mesh1d.description1d["network_node_ids"]
+        # branch_edge_nodes_idx = self.mesh1d.get_values("nedge_nodes", as_array=True)
         # Collect all node ids per branch and all branches per node id
         self.make_nodes_to_branch_map()
         self.make_branches_to_node_map()
@@ -1233,7 +1327,7 @@ class CrossSections:
                 "typeruwheid": roughness[
                     roughness["profielpuntid"] == css.globalid
                 ].typeruwheid.values[0],
-                "ruwheid": float(ruwheid),
+                "ruwheid": float(ruwheid.iloc[0]),
             }
 
         return cssdct
@@ -1323,7 +1417,7 @@ class CrossSections:
                     ].waarde.values[0]
                     - (botlev_upper + botlev_lower)/2.
                 )
-                height = (dh1 + dh2) / 2.0
+                # height = (dh1 + dh2) / 2.0
                 # Determine maximum flow width and slope (both needed for output)
                 maxflowwidth = (
                     values[values.soortparameter == "bodembreedte"].waarde.values[0]
@@ -1422,7 +1516,7 @@ class ExternalForcings:
             name = "wlevpoly{:04d}".format(len(self.initial_waterlevel_polygons) + 1)
 
         # Add to geodataframe
-        if polygon == None:
+        if polygon is None:
             new_df = pd.DataFrame(
                 {
                     "waterlevel": level,
@@ -1465,7 +1559,7 @@ class ExternalForcings:
         if name is None:
             name = "wlevpoly{:04d}".format(len(self.initial_waterdepth_polygons) + 1)
         # Add to geodataframe
-        if polygon == None:
+        if polygon is None:
             new_df = pd.DataFrame(
                 {
                     "waterdepth": depth,
@@ -1557,7 +1651,7 @@ class ExternalForcings:
         )
         get_nearest = KDTree(nodes1d[:, 0:2])
         _, idx_nearest = get_nearest.query(pt.coords[:])
-        nodeid = f"{float(nodes1d[idx_nearest,0]):12.6f}_{float(nodes1d[idx_nearest,1]):12.6f}"
+        nodeid = f"{float(nodes1d[idx_nearest[0],0]):12.6f}_{float(nodes1d[idx_nearest[0],1]):12.6f}"
 
         # Convert time to minutes
         if isinstance(series, pd.Series):
@@ -1577,7 +1671,6 @@ class ExternalForcings:
             "time": times,
             "time_unit": f"minutes since {startdate}",
             "value_unit": unit,
-            "value": values,
             "nodeid": nodeid,
         }
 
@@ -2025,7 +2118,6 @@ class Structures:
             ],
         ):
             if any(df) and add:
-                # df = pd.DataFrame.from_dict(df, orient='index')
                 df = df.copy()
                 df.insert(loc=0, column="structype", value=descr, allow_duplicates=True)
                 dfs.append(df)
@@ -2040,7 +2132,7 @@ class ObservationPoints:
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def add_points(
-        self, crds: list, names, locationTypes=None, snap_distance: float = 5.0
+        self, crds: list, names: list, locationTypes=None, snap_distance: float = 5.0
     ) -> None:
         """
         Method to add observation points to schematisation. Observation points can be of type '1d' or '2d'. 1d-points are snapped to the branch.
@@ -2064,7 +2156,7 @@ class ObservationPoints:
             crds = [crds]
 
         if locationTypes is not None:
-            if isinstance(names, str):
+            if isinstance(locationTypes, str):
                 locationTypes = [locationTypes]
 
             # split 1d and 2d points, as the first ones need to be snapped to branches
@@ -2073,11 +2165,11 @@ class ObservationPoints:
                 n for nn, n in enumerate(names) if locationTypes[nn] == "2d"
             ]
             obs2d["locationtype"] = "2d"
-            obs2d["geometry"] = [
+            obs2d = obs2d.set_geometry([
                 Point(*pt) if not isinstance(pt, Point) else pt
                 for ipt, pt in enumerate(crds)
                 if (locationTypes[ipt] == "2d")
-            ]
+            ])
             obs2d["x"] = [pt.coords[0][0] for pt in obs2d["geometry"]]
             obs2d["y"] = [pt.coords[0][1] for pt in obs2d["geometry"]]
             names1d = [n for n_i, n in enumerate(names) if locationTypes[n_i] == "1d"]
@@ -2088,9 +2180,9 @@ class ObservationPoints:
 
         obs1d = gpd.GeoDataFrame()
         obs1d["name"] = names1d
-        obs1d["geometry"] = [
+        obs1d = obs1d.set_geometry([
             Point(*pt) if not isinstance(pt, Point) else pt for pt in crds1d
-        ]
+        ])
         obs1d["locationtype"] = "1d"
         find_nearest_branch(
             self.hydamo.branches, obs1d, method="overal", maxdist=snap_distance
@@ -2115,13 +2207,19 @@ class StorageNodes:
         self.storagenodes = {}
 
         self.hydamo = hydamo
-
+        
+        self.convert = StorageNodesIO(self)
+    
     def add_storagenode(
         self,
         id,
-        nodeid,
+        xy=None,
+        branchid=None,
+        chainage=None,
+        nodeid=None,
         usestreetstorage="true",
         nodetype="unspecified",
+        manholeid=None,
         name=np.nan,
         usetable="false",
         bedlevel=np.nan,
@@ -2132,19 +2230,58 @@ class StorageNodes:
         levels=np.nan,
         storagearea=np.nan,
         interpolate="linear",
+        network=None
     ):
+
+        if isinstance(xy, tuple):
+            xy = Point(*xy)
+        if xy is None and chainage is not None:
+            xy = self.hydamo.branches.loc[branchid].geometry.interpolate(chainage)            
+        
+        # Find the nearest node
+        if nodeid is not None and not isinstance(nodeid, str):
+            raise ValueError('If a nodeid is provided, it should be of type string.')
+        if nodeid is None:
+            if len(network._mesh1d.network1d_node_id) == 0:
+                raise KeyError(
+                    "To find the closest node a 1d mesh should be created first."
+                )
+            nodes1d = np.asarray(
+                [
+                    n
+                    for n in zip(
+                        network._mesh1d.network1d_node_x,
+                        network._mesh1d.network1d_node_y,
+                        network._mesh1d.network1d_node_id,
+                    )
+                ]
+            )
+            get_nearest = KDTree(nodes1d[:, 0:2])
+            _, idx_nearest = get_nearest.query(xy.coords[:])
+            nodeid = f"{float(nodes1d[idx_nearest[0],0]):12.6f}_{float(nodes1d[idx_nearest[0],1]):12.6f}"
+
+        if manholeid is None:
+            manholeid = nodeid
+        
         base = {
             "type": "storageNode",
             "id": id,
-            "name": id if np.isnan(name) else name,
+            "name": id if name is None else name,
             "useStreetStorage": usestreetstorage,
-            "nodeType": nodetype,
-            "nodeId": nodeid,
+            "nodeType": nodetype,            
             "useTable": usetable,
+            "manholeId": manholeid
         }
+        if nodeid is None:
+            cds = {'branchid':branchid, 
+                   'chainage': chainage}
+        else:
+            cds = {'nodeid':nodeid}
+
         if usetable == "false":
             out = {
                 **base,
+                **cds,
                 "bedLevel": bedlevel,
                 "area": area,
                 "streetLevel": streetlevel,
@@ -2157,10 +2294,16 @@ class StorageNodes:
             ), "Number of levels does not equal number of storagearea"
             out = {
                 **base,
+                **cds,
                 "numLevels": len(levels.split()),
-                "levels": area,
-                "storageArea": streetlevel,
+                "levels": levels,
+                "storageArea": storagearea,
                 "interpolate": interpolate,
+                "bedLevel": -999.,
+                "area":-999.,
+                "streetLevel": -999.,
+                "streetStorageArea":-999.,
+                "storageType": storagetype,
             }
         else:
             raise ValueError(

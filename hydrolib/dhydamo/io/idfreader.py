@@ -22,11 +22,6 @@ import dask.array
 import numpy as np
 import dateutil.parser
 import xarray as xr
-import collections
-import functools
-import glob
-import itertools
-import pathlib
 
 f_open = open
 

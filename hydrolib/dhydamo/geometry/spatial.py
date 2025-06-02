@@ -271,7 +271,7 @@ def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> g
     border = box(nodes[:, 0].min(), nodes[:, 1].min(), nodes[:, 0].max(), nodes[:, 1].max()).buffer(1000).exterior
     borderpts = [border.interpolate(dist).coords[0] for dist in np.linspace(0, border.length, max(20, int(border.length / 100)))]
     vor = Voronoi(points=nodes.tolist()+borderpts)
-    clippoly = facedata.unary_union
+    clippoly = facedata.union_all()
     # Get lines
     lines = []
     for poly in common.as_polygon_list(clippoly):

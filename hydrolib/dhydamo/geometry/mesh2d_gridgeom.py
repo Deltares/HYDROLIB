@@ -10,7 +10,6 @@ from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import KDTree, Voronoi
 from shapely.geometry import (
     LineString, MultiLineString, MultiPolygon, Point, Polygon, box)
-from shapely.ops import unary_union
 from shapely.prepared import prep
 
 from hydrolib.dhydamo.geometry.gridgeom import geometry
@@ -111,7 +110,6 @@ class Mesh2D_GG:
         # Clip
         logger.info('Clipping nodes.')
         xnodes, ynodes, edge_nodes = self.clip_nodes(xnodes, ynodes, edge_nodes, polygon, keep_outside=outside)
-        # edge_nodes = np.sort(edge_nodes, axis=1)
 
         # Update dimensions
         self.meshgeomdim.numnode = len(xnodes)
@@ -303,7 +301,7 @@ class Mesh2D_GG:
             border = box(xy[:, 0].min(), xy[:, 1].min(), xy[:, 0].max(), xy[:, 1].max()).buffer(1000).exterior
             borderpts = [border.interpolate(dist).coords[0] for dist in np.linspace(0, border.length, max(20, border.length//100))]
             vor = Voronoi(points=xy.tolist()+borderpts)
-            clippoly = facedata.unary_union
+            clippoly = facedata.union_all()
             # Get lines
             lines = []
             for poly in geometry.as_polygon_list(clippoly):
@@ -331,7 +329,7 @@ class Mesh2D_GG:
                             poly = poly.buffer(0.001)
                         if isinstance(poly, MultiPolygon):
                             logger.warning('Got multipolygon when clipping voronoi polygon. Only adding coordinates for largest of the polygons.')
-                            poly = poly[np.argmax([p.area for p in as_polygon_list(poly)])]
+                            poly = poly[np.argmax([p.area for p in geometry.as_polygon_list(poly)])]
                         crds = np.vstack(poly.exterior.coords[:])
                     data.append({'geometry': poly, 'crds': crds})
                     

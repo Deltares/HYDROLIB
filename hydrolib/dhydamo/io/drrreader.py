@@ -6,7 +6,7 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
-from pydantic.v1 import validate_arguments, StrictFloat, StrictInt, StrictStr
+from pydantic.v1 import validate_arguments, StrictStr
 from rasterstats import zonal_stats
 from rasterio.transform import from_origin
 from tqdm.auto import tqdm
@@ -31,7 +31,8 @@ class UnpavedIO:
         infiltration_capacity: Union[StrictStr, Path, float],
         initial_gwd: Union[StrictStr, Path, float],
         meteo_areas: ExtendedGeoDataFrame,
-        zonalstats_alltouched: bool = None,
+        zonalstats_alltouched: bool = None,        
+        greenhouse_areas: ExtendedGeoDataFrame = None
     ):
         """Generate contents of an unpaved node from raster data
 
@@ -53,16 +54,16 @@ class UnpavedIO:
         lu_rast, lu_affine = self.unpaved.drrmodel.read_raster(landuse, static=True)
         lu_counts = zonal_stats(
             catchments,
-            lu_rast,
+            lu_rast.astype(int),
             affine=lu_affine,
             categorical=True,
             all_touched=all_touched,
         )
 
-        rast, affine = self.unpaved.drrmodel.read_raster(soiltype, static=True)
+        soil_rast, affine = self.unpaved.drrmodel.read_raster(soiltype, static=True)
         soiltypes = zonal_stats(
             catchments,
-            soiltype,
+            soil_rast.astype(int),
             affine=affine,
             stats="majority",
             all_touched=all_touched,
@@ -70,7 +71,7 @@ class UnpavedIO:
 
         rast, affine = self.unpaved.drrmodel.read_raster(surface_level, static=True)
         mean_elev = zonal_stats(
-            catchments, rast, affine=affine, stats="median", all_touched=all_touched
+            catchments, rast.astype(float), affine=affine, stats="median", all_touched=all_touched
         )
 
         # optional rasters
@@ -79,7 +80,7 @@ class UnpavedIO:
                 surface_storage, static=True
             )
             sstores = zonal_stats(
-                catchments, rast, affine=affine, stats="mean", all_touched=True
+                catchments, rast.astype(float), affine=affine, stats="mean", all_touched=True
             )
         elif isinstance(surface_storage, int):
             surface_storage = float(surface_storage)
@@ -88,14 +89,14 @@ class UnpavedIO:
                 infiltration_capacity, static=True
             )
             infcaps = zonal_stats(
-                catchments, rast, affine=affine, stats="mean", all_touched=True
+                catchments, rast.astype(float), affine=affine, stats="mean", all_touched=True
             )
         elif isinstance(infiltration_capacity, int):
             infiltration_capacity = float(infiltration_capacity)
         if isinstance(initial_gwd, str):
             rast, affine = self.unpaved.drrmodel.read_raster(initial_gwd, static=True)
             ini_gwds = zonal_stats(
-                catchments, rast, affine=affine, stats="mean", all_touched=True
+                catchments, rast.astype(float), affine=affine, stats="mean", all_touched=True
             )
         elif isinstance(initial_gwd, int):
             initial_gwd = float(initial_gwd)
@@ -125,6 +126,7 @@ class UnpavedIO:
             ),
             index_col="id",
         )
+
         unpaved_drr.index = catchments.code
         # HyDAMO Crop code; hydamo name, sobek index, sobek name:
         # 1 aardappelen   3 potatoes
@@ -151,10 +153,22 @@ class UnpavedIO:
                 if m.geometry.contains(cat.geometry.centroid)
             ]
             ms = meteo_areas.iloc[0, :][0] if tm == [] else tm[0].code
-            # find corresponding meteo-station
-            # ms = [ms for ms in meteo_areas.itertuples() if ms.geometry.contains(cat.geometry.centroid)]
-            # ms = ms[0] if ms != [] else meteo_areas.iloc[0,:][0]
             mapping = np.zeros(16, dtype=int)
+            
+            # subtract greenhouse area from most occurring land use if no greenhouse area is in the landuse map
+            if greenhouse_areas is not None:
+                if cat.geometry.intersects(greenhouse_areas.geometry).any():
+                    intersection_area = cat.geometry.intersection(greenhouse_areas.geometry).area
+                    intersection_area = intersection_area[intersection_area > 0.].values[0]                    
+                    if 15 in lu_counts[num]:
+                        # divide area to subtract between greenhouses and the most occurring area
+                        remainder = np.max([0., intersection_area - float(lu_counts[num][15]*px_area)])                                                
+                    else:    
+                        remainder = intersection_area
+                    maxind = np.argmax(list(lu_counts[num].values()))              
+                    print(f'Catchment {cat.code}: subtracting {remainder} m2 from class {maxind} for supplied greenhouse area.')  
+                    lu_counts[num][list(lu_counts[num].keys())[maxind]] = np.max([0., (lu_counts[num][list(lu_counts[num].keys())[maxind]] - np.round(remainder/px_area))])
+            
             for i in range(1, 13):
                 if i in lu_counts[num]:
                     mapping[sobek_indices[i - 1] - 1] = lu_counts[num][i] * px_area
@@ -190,7 +204,7 @@ class UnpavedIO:
                 cat.code, "px"
             ] = f"{cat.geometry.centroid.coords[0][0]-10:.0f}"
             unpaved_drr.at[cat.code, "py"] = f"{cat.geometry.centroid.coords[0][1]:.0f}"
-            unpaved_drr.at[cat.code, "boundary_node"] = str(cat.lateraleknoopcode)
+            unpaved_drr.at[cat.code, "boundary_node"] = cat.boundary_node
 
         [
             self.unpaved.add_unpaved(**unpaved)
@@ -256,7 +270,8 @@ class PavedIO:
         meteo_areas: ExtendedGeoDataFrame,
         overflows: ExtendedGeoDataFrame = None,
         sewer_areas: ExtendedGeoDataFrame = None,
-        zonalstats_alltouched: bool = None,
+        zonalstats_alltouched: bool = None
+        
     ) -> None:
         """Generate contents of RR paved nodes
 
@@ -280,7 +295,7 @@ class PavedIO:
         lu_rast, lu_affine = self.paved.drrmodel.read_raster(landuse, static=True)
         lu_counts = zonal_stats(
             catchments,
-            lu_rast,
+            lu_rast.astype(int),
             affine=lu_affine,
             categorical=True,
             all_touched=all_touched,
@@ -288,7 +303,7 @@ class PavedIO:
         sl_rast, sl_affine = self.paved.drrmodel.read_raster(surface_level, static=True)
         mean_elev = zonal_stats(
             catchments,
-            sl_rast,
+            sl_rast.astype(float),
             affine=sl_affine,
             stats="median",
             all_touched=all_touched,
@@ -300,7 +315,7 @@ class PavedIO:
             )
             str_stors = zonal_stats(
                 catchments,
-                strs_rast,
+                strs_rast.astype(float),
                 affine=strs_affine,
                 stats="mean",
                 all_touched=True,
@@ -312,7 +327,7 @@ class PavedIO:
             )
             sew_stors = zonal_stats(
                 catchments,
-                sews_rast,
+                sews_rast.astype(float),
                 affine=sews_affine,
                 stats="mean",
                 all_touched=True,
@@ -325,7 +340,7 @@ class PavedIO:
             )
             pump_caps = zonal_stats(
                 catchments,
-                pump_rast,
+                pump_rast.astype(float),
                 affine=pump_affine,
                 stats="mean",
                 all_touched=True,
@@ -347,7 +362,7 @@ class PavedIO:
             if isinstance(street_storage,(Path, str)):
                 str_stors_sa = zonal_stats(
                     sewer_areas,
-                    strs_rast,
+                    strs_rast.astype(float),
                     affine=strs_affine,
                     stats="mean",
                     all_touched=True,
@@ -355,7 +370,7 @@ class PavedIO:
             if isinstance(sewer_storage, (Path, str)):
                 sew_stors_sa = zonal_stats(
                     sewer_areas,
-                    sews_rast,
+                    sews_rast.astype(float),
                     affine=sews_affine,
                     stats="mean",
                     all_touched=True,
@@ -363,7 +378,7 @@ class PavedIO:
             if isinstance(pump_capacity, (Path, str)):
                 pump_caps_sa = zonal_stats(
                     sewer_areas,
-                    pump_rast,
+                    pump_rast.astype(float),
                     affine=pump_affine,
                     stats="mean",
                     all_touched=True,
@@ -400,7 +415,7 @@ class PavedIO:
                 pav_area = 0
                 pixels = zonal_stats(
                     sew.geometry,
-                    lu_rast,
+                    lu_rast.astype(int),
                     affine=lu_affine,
                     categorical=True,
                     all_touched=all_touched,
@@ -506,9 +521,11 @@ class PavedIO:
                 logger.warning(f"No rasterdata available for catchment {cat.code}.")
                 continue
             if sewer_areas is not None:
-                if cat.geometry.intersects(sewer_areas.unary_union):
+                # part of the catchment that is also in a sewer area
+                if cat.geometry.intersects(sewer_areas.union_all()):
+                    # the part of the catchment OUTSIDE the sewer area
                     area_outside_sewer = cat.geometry.difference(
-                        sewer_areas.unary_union
+                        sewer_areas.union_all()
                     )
                     if area_outside_sewer.area == 0:
                         logger.info(
@@ -516,9 +533,10 @@ class PavedIO:
                         )
                         pav_area = 0.0
                     else:
+                        # the paved ara in the catchment OUTSIDE the sewer area
                         pixels = zonal_stats(
                             area_outside_sewer,
-                            lu_rast,
+                            lu_rast.astype(int),
                             affine=lu_affine,
                             categorical=True,
                             all_touched=all_touched,
@@ -528,9 +546,10 @@ class PavedIO:
                         else:
                             pav_area = 0.0
                 else:
+                    # all of the catchment is outside the sewer area
                     pixels = zonal_stats(
                                 cat.geometry,
-                                lu_rast,
+                                lu_rast.astype(int),
                                 affine=lu_affine,
                                 categorical=True,
                                 all_touched=all_touched,
@@ -540,6 +559,7 @@ class PavedIO:
                     else:
                         pav_area = 0.0
             else:
+                # there is no sewer area at all
                 pav_area = (
                     str(lu_counts[num][14.0] * px_area)
                     if 14.0 in lu_counts[num]
@@ -583,7 +603,7 @@ class PavedIO:
                 cat.code, "px"
             ] = f"{cat.geometry.centroid.coords[0][0]+10:.0f}"
             paved_drr.at[cat.code, "py"] = f"{cat.geometry.centroid.coords[0][1]:.0f}"
-            paved_drr.at[cat.code, "boundary_node"] = cat.lateraleknoopcode
+            paved_drr.at[cat.code, "boundary_node"] = cat.boundary_node
         [self.paved.add_paved(**pav) for pav in paved_drr.to_dict("records")]
 
 
@@ -599,12 +619,17 @@ class GreenhouseIO:
         surface_level: Union[Path, str],
         roof_storage: Union[StrictStr,float],
         meteo_areas: ExtendedGeoDataFrame,
-        zonalstats_alltouched: bool = None,
+        zonalstats_alltouched: bool = None,        
+        greenhouse_areas: ExtendedGeoDataFrame=None,
+        greenhouse_laterals: ExtendedGeoDataFrame=None,
+        basin_storage_class: int=2    
     ) -> None:
         """Generate contents of an RR greenhouse node
 
         Args:
             catchments (ExtendedGeoDataFrame): catchment areas
+            greenhouuse_areas (ExtendedGeoDataFrame): known set of greenhouse areas with attiributes
+            greenhouse_laterals (ExtendedGeoDataFrame) : known set of outlet points for greenhouses
             landuse (str): filename of land use raster
             surface_level (str): filename of surface level raster
             roofstorage (Union): float for spatially uniform sewer storage (mm), or raster for distributed values
@@ -616,31 +641,47 @@ class GreenhouseIO:
         lu_rast, lu_affine = self.greenhouse.drrmodel.read_raster(landuse, static=True)
         lu_counts = zonal_stats(
             catchments,
-            lu_rast,
+            lu_rast.astype(int),
             affine=lu_affine,
             categorical=True,
             all_touched=all_touched,
         )
         rast, affine = self.greenhouse.drrmodel.read_raster(surface_level, static=True)
         mean_elev = zonal_stats(
-            catchments, rast, affine=affine, stats="median", all_touched=all_touched
+            catchments, rast.astype(float), affine=affine, stats="median", all_touched=all_touched
         )
+        if greenhouse_areas is not None:
+            mean_elev_gh = zonal_stats(
+                greenhouse_areas, rast.astype(float), affine=affine, stats="median", all_touched=all_touched
+            )
+            
         # optional rasters
         if isinstance(roof_storage, (Path, str)):
             rast, affine = self.greenhouse.drrmodel.read_raster(
                 roof_storage, static=True
             )
             roofstors = zonal_stats(
-                catchments, rast, affine=affine, stats="mean", all_touched=True
+                catchments, rast.astype(float), affine=affine, stats="mean", all_touched=True
             )
-        
+            if greenhouse_areas is not None:
+                roofstors_gh = zonal_stats(
+                    greenhouse_areas, rast.astype(float), affine=affine, stats="mean", all_touched=True
+                )
+
         # get raster cellsize
         px_area = lu_affine[0] * -lu_affine[4]
+
+
+        numgh = catchments.shape[0]
+        indexgh = catchments.code
+        if greenhouse_areas is not None:
+            numgh = numgh + greenhouse_areas.shape[0]
+            indexgh = indexgh + greenhouse_areas.code
 
         gh_drr = ExtendedDataFrame(required_columns=["id"])
         gh_drr.set_data(
             pd.DataFrame(
-                np.zeros((len(catchments), 8)),
+                np.zeros((numgh, 8)),
                 columns=[
                     "id",
                     "area",
@@ -655,7 +696,41 @@ class GreenhouseIO:
             ),
             index_col="id",
         )
-        gh_drr.index = catchments.code
+        gh_drr.index = indexgh
+        if greenhouse_areas is not None:
+            for num, gh in enumerate(greenhouse_areas.itertuples()):
+                # find corresponding meteo-station
+                if mean_elev_gh[num]["median"] is None:
+                    logger.warning(f"No rasterdata available for catchment {gh.code}.")
+                    continue
+                tm = [
+                    m
+                    for m in meteo_areas.itertuples()
+                    if m.geometry.contains(gh.geometry.centroid)
+                ]
+                ms = meteo_areas.iloc[0, :][0] if tm == [] else tm[0].code
+
+                elev = mean_elev_gh[num]["median"]
+                gh_drr.at[gh.code, "id"] = str(gh.code)
+                gh_drr.at[gh.code, "area"] = gh.geometry.area
+                gh_drr.at[gh.code, "surface_level"] = f"{elev:.2f}"
+                if hasattr(gh, 'roof_storage_mm') & (~(np.isnan(gh.roof_storage_mm))):
+                    gh_drr.at[gh.code, "roof_storage"] = f"{gh.roof_storage_mm:.2f}"                                                 
+                if isinstance(roof_storage, float):
+                    gh_drr.at[gh.code, "roof_storage"] = f"{roof_storage:.2f}"
+                else:
+                    gh_drr.at[gh.code, "roof_storage"] = f'{roofstors_gh[num]["mean"]:.2f}'
+                if hasattr(gh, 'basin_storage_class') & (~(np.isnan(gh.basin_storage_class))):
+                    gh_drr.at[gh.code, 'basin_storage_class'] = f"{gh.basin_storage_class:g}"
+                else:
+                    gh_drr.at[gh.code, "basin_storage_class"] = f'{basin_storage_class:g}'
+                gh_drr.at[gh.code, "meteo_area"] = str(ms)
+                gh_drr.at[gh.code, "px"] = f"{gh.geometry.centroid.coords[0][0]:.0f}"
+                gh_drr.at[gh.code, "py"] = f"{gh.geometry.centroid.coords[0][1]:.0f}"
+                latcode = greenhouse_laterals[greenhouse_laterals.codegerelateerdobject == gh.code].code.values[0]
+                gh_drr.at[gh.code, "boundary_node"] = str(latcode)           
+            [self.greenhouse.add_greenhouse(**gh) for gh in gh_drr.to_dict("records")]
+
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
@@ -670,6 +745,15 @@ class GreenhouseIO:
             ]
             ms = meteo_areas.iloc[0, :][0] if tm == [] else tm[0].code
 
+            if greenhouse_areas is not None:
+                if cat.geometry.intersects(greenhouse_areas.geometry).any():
+                    intersection_area = cat.geometry.intersection(greenhouse_areas.geometry).area
+                    intersection_area = intersection_area[intersection_area > 0.].values[0]                    
+                    if 15 in lu_counts[num]:
+                        # divide area to subtract between greenhouses and the most occurring area                                                
+                        print(f'Catchment: {cat.code}: subtracting {np.min([(lu_counts[num][15]*px_area, intersection_area)])} m2 from greenhouse area in landuse map.')
+                        lu_counts[num][15] = np.max([0., (lu_counts[num][15] - np.round(intersection_area/px_area))])                                                               
+            
             elev = mean_elev[num]["median"]
             gh_drr.at[cat.code, "id"] = str(cat.code)
             gh_drr.at[cat.code, "area"] = (
@@ -680,12 +764,12 @@ class GreenhouseIO:
                 gh_drr.at[cat.code, "roof_storage"] = f"{roof_storage:.2f}"
             else:
                 gh_drr.at[cat.code, "roof_storage"] = f'{roofstors[num]["mean"]:.2f}'
+            gh_drr.at[cat.code, "basin_storage_class"] = f'{basin_storage_class:g}'
             gh_drr.at[cat.code, "meteo_area"] = str(ms)
             gh_drr.at[cat.code, "px"] = f"{cat.geometry.centroid.coords[0][0]+20:.0f}"
             gh_drr.at[cat.code, "py"] = f"{cat.geometry.centroid.coords[0][1]:.0f}"
-            gh_drr.at[cat.code, "boundary_node"] = cat.lateraleknoopcode
+            gh_drr.at[cat.code, "boundary_node"] = cat.boundary_node
         [self.greenhouse.add_greenhouse(**gh) for gh in gh_drr.to_dict("records")]
-
 
 class OpenwaterIO:
     def __init__(self, openwater):
@@ -715,7 +799,7 @@ class OpenwaterIO:
         lu_rast, lu_affine = self.openwater.drrmodel.read_raster(landuse, static=True)
         lu_counts = zonal_stats(
             catchments,
-            lu_rast,
+            lu_rast.astype(int),
             affine=lu_affine,
             categorical=True,
             all_touched=all_touched,
@@ -750,7 +834,7 @@ class OpenwaterIO:
             ow_drr.at[cat.code, "meteo_area"] = str(ms)
             ow_drr.at[cat.code, "px"] = f"{cat.geometry.centroid.coords[0][0]-20:.0f}"
             ow_drr.at[cat.code, "py"] = f"{cat.geometry.centroid.coords[0][1]:.0f}"
-            ow_drr.at[cat.code, "boundary_node"] = cat.lateraleknoopcode
+            ow_drr.at[cat.code, "boundary_node"] = cat.boundary_node
         [self.openwater.add_openwater(**ow) for ow in ow_drr.to_dict("records")]
 
 
@@ -778,8 +862,8 @@ class ExternalForcingsIO:
             enumerate(file_list), total=len(file_list), desc="Reading seepage files"
         ):
             if file.endswith('.idf'):
-                dataset = idfreader.open(os.path.join(seepage_folder, file))                
-                array = dataset[0, 0, :, :].values
+                dataset = idfreader.open(os.path.join(seepage_folder, file))                                
+                array = dataset.squeeze().values
                 header = idfreader.header(os.path.join(seepage_folder, file), pattern=None)
                 affine = from_origin(
                     header["xmin"], header["ymax"], header["dx"], header["dx"]
@@ -897,6 +981,7 @@ class ExternalForcingsIO:
         catchments: ExtendedGeoDataFrame,
         drrmodel,
         overflows: ExtendedGeoDataFrame = None,
+        greenhouse_laterals: ExtendedGeoDataFrame=None
     ) -> None:
         """Generate RR-boundary nodes to link to RR-nodes and to FM-laterals.
 
@@ -905,51 +990,59 @@ class ExternalForcingsIO:
             catchments (ExtendedGeoDataFrame): catchment areas associated with them
             drrmodel (_type_): drrmodel object
             overflows (ExtendedGeoDataFrame, optional): overflow locations, if applicable. Defaults to None.
+            greenhouse_laterals (ExtendedGeoDataFrame, optional): overflow locations, if applicable. Defaults to None.
 
         """
         # find the catchments that have no area attached and no nodes that will be attached to the boundary
         not_occurring = []
         for cat in catchments.itertuples():
             occurs = False
-            if cat.lateraleknoopcode in [
+            if cat.boundary_node in [
                 val["boundary_node"]
                 for val in drrmodel.unpaved.unp_nodes.values()
                 if np.sum([float(d) for d in val["ar"].split(" ")]) > 0.0
             ]:
                 occurs = True
-            if cat.lateraleknoopcode in [
+            if cat.boundary_node in [
                 val["boundary_node"]
                 for val in drrmodel.paved.pav_nodes.values()
                 if float(val["ar"]) > 0.0
             ]:
                 occurs = True
-            if cat.lateraleknoopcode in [
+            if cat.boundary_node in [
                 val["boundary_node"]
                 for val in drrmodel.greenhouse.gh_nodes.values()
                 if float(val["ar"]) > 0.0
             ]:
                 occurs = True
-            if cat.lateraleknoopcode in [
+            if cat.boundary_node in [
                 val["boundary_node"]
                 for val in drrmodel.openwater.ow_nodes.values()
                 if float(val["ar"]) > 0.0
             ]:
                 occurs = True
-            if occurs == False:
-                not_occurring.append(cat.lateraleknoopcode)
+            if not occurs:
+                not_occurring.append(cat.boundary_node)
+
+     
+        drop_idx = catchments[catchments.boundary_node.isin(not_occurring)].index.to_list()
+        if any(drop_idx):
+            print(f"{len(drop_idx)} catchments removed because of an area of 0 m2.")
+            catchments.drop(drop_idx, inplace=True)
 
         for i in not_occurring:
             catchments.drop(
-                catchments[catchments.lateraleknoopcode == i].code.iloc[0],
+                catchments[catchments.boundary_node == i].code.iloc[0],
                 axis=0,
                 inplace=True,
             )
 
+        numlats = len(catchments)
         if overflows is not None:
-            numlats = len(catchments) + len(overflows)
-        else:
-            numlats = len(catchments)
-
+            numlats = numlats + len(overflows)
+        if greenhouse_laterals is not None:
+            numlats = numlats + len(greenhouse_laterals)
+            
         bnd_drr = ExtendedDataFrame(required_columns=["id"])
         bnd_drr.set_data(
             pd.DataFrame(
@@ -957,26 +1050,29 @@ class ExternalForcingsIO:
             ),
             index_col="id",
         )
+        index = catchments.code
         if overflows is not None:
-            bnd_drr.index = pd.concat([catchments.code, overflows.code], ignore_index=True)
-        else:
-            bnd_drr.index = catchments.code
+            index = pd.concat([index, overflows.code], ignore_index=True)
+        if greenhouse_laterals is not None:
+            index = pd.concat([index, greenhouse_laterals.code], ignore_index=True)
+        
+        bnd_drr.index = index
         for num, cat in enumerate(catchments.itertuples()):
             # print(num, cat.code)
-            if boundary_nodes[boundary_nodes["code"] == cat.lateraleknoopcode].empty:
+            if boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid].empty:
                 # raise IndexError(f'{cat.code} not connected to a boundary node. Skipping.')
                 logger.warning(
                     f"{cat.code} not connected to a boundary node. Skipping."
                 )
                 continue
-            bnd_drr.at[cat.code, "id"] = str(cat.lateraleknoopcode)
+            bnd_drr.at[cat.code, "id"] = f'lat_{cat.code}'
             bnd_drr.at[cat.code, "px"] = str(
-                boundary_nodes[boundary_nodes["code"] == cat.lateraleknoopcode][
+                boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid][
                     "geometry"
                 ].x.iloc[0]
             ).strip()
             bnd_drr.at[cat.code, "py"] = str(
-                boundary_nodes[boundary_nodes["code"] == cat.lateraleknoopcode][
+                boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid][
                     "geometry"
                 ].y.iloc[0]
             ).strip()
@@ -986,6 +1082,12 @@ class ExternalForcingsIO:
                 bnd_drr.at[ovf.code, "id"] = str(ovf.code)
                 bnd_drr.at[ovf.code, "px"] = str(ovf.geometry.coords[0][0])
                 bnd_drr.at[ovf.code, "py"] = str(ovf.geometry.coords[0][1])
+        if greenhouse_laterals is not None:
+            logger.info("Adding greenhouse_laterals to the boundary nodes.")
+            for num, gh in enumerate(greenhouse_laterals.itertuples()):
+                bnd_drr.at[gh.code, "id"] = str(gh.code)
+                bnd_drr.at[gh.code, "px"] = str(gh.geometry.coords[0][0])
+                bnd_drr.at[gh.code, "py"] = str(gh.geometry.coords[0][1])
         [
             self.external_forcings.add_boundary_node(**bnd)
             for bnd in bnd_drr.to_dict("records")

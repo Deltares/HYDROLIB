@@ -15,7 +15,7 @@ from shapely.geometry import (
 )
 from shapely.prepared import prep
 
-from hydrolib.core.dflowfm.net.models import Branch, Network
+from hydrolib.core.dflowfm.net.models import Branch, Mesh2d, Network
 from hydrolib.core.dflowfm.net.reader import UgridReader
 from hydrolib.dhydamo.geometry import common, rasterstats, spatial
 from hydrolib.dhydamo.geometry.models import GeometryList
@@ -60,63 +60,47 @@ def mesh2d_add_rectilinear(
         _type_: _description_
     """
 
-    # Loop over polygons if a MultiPolygon is given
-    plist = common.as_polygon_list(polygon)
-    if len(plist) > 1:
-        for part in plist:            
-            xmin, ymin, xmax, ymax = part.bounds
-            rows = int((ymax - ymin) / dy)
-            columns = int((xmax - xmin) / dx)
-            if rows > 0 and columns > 0:
-                mesh2d_add_rectilinear(network, part, dx, dy, deletemeshoption)
-        return None
-
+    # Loop over polygons and create a grid for each polygon bounds
+    mesh2d_hc = Mesh2d(meshkernel=mk.MeshKernel())
+    polygon_list = GeometryList.from_geometry(polygon)
+    for part in polygon_list.geoms:
+        xmin, ymin, xmax, ymax = part.bounds
+        rows = int((ymax - ymin) / dy)
+        columns = int((xmax - xmin) / dx)
+        if rows > 0 and columns > 0:
+            mesh2d_hc.create_rectilinear(extent=part.bounds, dx=dx, dy=dy)
 
     # Store present 2d mesh (to be able to add)
     existing_mesh2d = network._mesh2d.get_mesh2d()
 
     # Create new network
-    network.mesh2d_create_rectilinear_within_extent(
-        extent=polygon.bounds,
-        dx=dx,
-        dy=dy,
+    mesh2d_output = mesh2d_hc.get_mesh2d()
+    network._mesh2d._set_mesh2d(
+        mesh2d_output.node_x,
+        mesh2d_output.node_y,
+        mesh2d_output.edge_nodes,
     )
 
     # Clip and clean
-    mesh2d_clip(        
+    mesh2d_clip(
         network=network,
-        polygon=GeometryList.from_geometry(polygon),
+        polygon=polygon_list,
         deletemeshoption=deletemeshoption,
         inside=False,
     )
 
     # Merge with existing network
     if existing_mesh2d.node_x.size > 0:
-        new_mesh2d = network._mesh2d.get_mesh2d()
-        # Modify count for indexing variables
-        new_mesh2d.edge_nodes += existing_mesh2d.edge_nodes.max() + 1
-        new_mesh2d.face_nodes += existing_mesh2d.edge_nodes.max() + 1
         # Add all variables to existing mesh
-        variables = [
-            "node_x",
-            "node_y",
-            "edge_nodes",
-            "face_nodes",
-            "nodes_per_face",
-            "edge_x",
-            "edge_y",
-            "face_x",
-            "face_y",
-        ]
-        for var in variables:
-            setattr(
-                existing_mesh2d,
-                var,
-                np.concatenate(
-                    [getattr(existing_mesh2d, var), getattr(new_mesh2d, var)]
-                ),
-            )        
-        
+        new_mesh2d = network._mesh2d.get_mesh2d()
+        network._mesh2d._set_mesh2d(
+            np.concatenate([existing_mesh2d.node_x, new_mesh2d.node_x]),
+            np.concatenate([existing_mesh2d.node_y, new_mesh2d.node_y]),
+            np.concatenate([
+                existing_mesh2d.edge_nodes,
+                new_mesh2d.edge_nodes + existing_mesh2d.edge_nodes.max() + 1,
+            ]),
+        )
 
 def mesh2d_from_netcdf(network: Network, path: Union[Path, str]) -> None:
     reader = UgridReader(path)
@@ -172,11 +156,30 @@ def mesh2d_clip(
     elif isinstance(polygon, (Polygon, MultiPolygon)):
         polygon = GeometryList.from_geometry(polygon)
 
-    network.mesh2d_clip_mesh(polygon, deletemeshoption, inside)
+    if inside:
+        # Clip each single polygon
+        for part in polygon.geoms:
+            network.mesh2d_clip_mesh(_geomlist_from_polygon(part), deletemeshoption, inside)
+    else:
+        # Keep exterior
+        clip_pol_ext = _geomlist_from_multipolygon(polygon, "exterior")
+        if clip_pol_ext.x_coordinates.size > 0:
+            network._mesh2d.meshkernel.mesh2d_delete(
+                geometry_list=clip_pol_ext,
+                delete_option=deletemeshoption,
+                invert_deletion=True,
+            )
+        # # Clip interior
+        clip_pol_int = _geomlist_from_multipolygon(polygon, "interior")
+        if clip_pol_int.x_coordinates.size > 0:
+            network._mesh2d.meshkernel.mesh2d_delete(
+                geometry_list=clip_pol_int,
+                delete_option=deletemeshoption,
+                invert_deletion=False,
+            )
 
     # Remove hanging edges
-    network._mesh2d.meshkernel.mesh2d_delete_hanging_edges()
-    #network._mesh2d._process(network._mesh2d.meshkernel.mesh2d_get())
+    network._mesh2d.meshkernel.mesh2d_delete_hanging_edges()    
     network._mesh2d.meshkernel.mesh2d_get()
 
 def _geomlist_from_polygon(polygon: Polygon) -> mk.GeometryList:
@@ -184,8 +187,42 @@ def _geomlist_from_polygon(polygon: Polygon) -> mk.GeometryList:
         gl = gl.from_geometry(polygon)
         return(mk.GeometryList(gl.x_coordinates, gl.y_coordinates, gl.values, gl.geometry_separator, gl.inner_outer_separator))
 
+def _geomlist_from_multipolygon(polygons: List[Polygon], mode: str) -> mk.GeometryList:
+    poly_separator = -999
+    x_crds, y_crds = [], []
+    for polygon in polygons.geoms:
+        x_geom, y_geom = [], []
+        if mode == "exterior":
+            x_ext, y_ext = np.array(polygon.exterior.coords[:]).T
+            x_geom.append(x_ext)
+            y_geom.append(y_ext)
+        elif mode == "interior":
+            for int_geom in polygon.interiors:
+                x_int, y_int = np.array(int_geom.coords[:]).T
+                x_geom.append(x_int)
+                y_geom.append(y_int)
+        else:
+            raise ValueError(f"Expected mode to be either 'interior' or 'exterior' (got: '{mode}')")
+
+        for xc, yc in zip(x_geom, y_geom):
+            if len(x_crds) > 0:
+                x_crds.append([poly_separator])
+                y_crds.append([poly_separator])
+            x_crds.append(xc)
+            y_crds.append(yc)
+
+    if len(x_crds) > 0 and len(y_crds) > 0:
+        x_crds = np.concatenate(x_crds)
+        y_crds = np.concatenate(y_crds)
+    gl = mk.GeometryList(x_coordinates=x_crds, y_coordinates=y_crds, inner_outer_separator=-998)
+
+    return gl
+
 def mesh2d_refine(
-    network: Network, polygon: Union[Polygon, MultiPolygon], steps: int
+    network: Network,    
+    polygon: Union[Polygon, MultiPolygon],
+    steps: int,
+    refine_parameters: dict=None,
 ) -> None:
     """Refine mesh 2d within (list of) polygon or multipolygon, with a certain
     number of refinement steps.
@@ -194,18 +231,31 @@ def mesh2d_refine(
         network (Network): Network for which the mesh is clipped
         polygon (Union[GeometryList, Union[Polygon, MultiPolygon]]): Polygon within which the mesh is clipped
         steps (int): Number of steps in the refinement
+        parameters (MeshRefinementParameters, optional): parameters to be used in the refinement. Defaults to None. 
     """
-    # Check if any polygon contains holes (does not work)
-    for polygon in common.as_polygon_list(polygon):
-        if len(polygon.interiors) > 0:
-            raise NotImplementedError(
-                "Refining within polygons with holes does not work. Remove holes before using this function (e.g., polygon = Polygon(polygon.exterior))."
-            )
+    parameters = mk.MeshRefinementParameters(   
+                refine_intersected=True,
+                use_mass_center_when_refining=True,
+                min_edge_size=1.0,
+                refinement_type=2,
+                connect_hanging_nodes=True,
+                account_for_samples_outside_face=True,
+                max_refinement_iterations=1,
+                smoothing_iterations=5,
+                max_courant_time=120.0,
+                directional_refinement=False
+    )
+    if refine_parameters is not None:
+        for key in refine_parameters.keys():
+            setattr(parameters, key, refine_parameters[key])
 
-    
-    for polygon in common.as_polygon_list(polygon):        
-        network.mesh2d_refine_mesh(_geomlist_from_polygon(polygon), level=steps)
-        
+    for polygon in common.as_polygon_list(polygon):
+        network.mesh2d_refine_mesh(
+            _geomlist_from_polygon(polygon),
+            level=steps,            
+            parameters=parameters)                      
+
+
 def mesh1d_add_branch_from_linestring(
     network: Network,
     linestring: LineString,
@@ -307,7 +357,7 @@ def mesh1d_add_branches_from_gdf(
         network.mesh1d_add_branch(branch, name=branchname)
 
 
-def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: list, order_attribute:str, network: Network, exceptions:list=None)-> list:    
+def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: list, order_attribute:str, network: Network, exceptions:list=[])-> list:
     """
     mesh1d_order_numbers_from_attribute Method to allocate order numbers to branches based on a common attribute.
 
@@ -317,14 +367,14 @@ def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: lis
         order_attribute (str): _description_. Attribute of branches based on which order numbers are allocated.
         network: FM network geometry to which the order numbers should be written
         exceptions (list, optional): List of branch code that should not be given an order number. Defaults to None.
-    
+
     Returns:
         missing_after_interpolation (list): list of branches that still do not have a cross section
     """
     j = 0
     branches["order"] = np.nan
     for value in branches[order_attribute].unique():
-        if value is not None and ~all(x in missing for x in branches.loc[branches.loc[:, order_attribute] == value, "code"]):
+        if value is not None and not all(x in missing for x in branches.loc[branches.loc[:, order_attribute] == value, "code"]):
             branches.loc[branches.loc[:, order_attribute] == value, "order"] = int(j)
             j = j + 1
     for exception in exceptions:
@@ -343,6 +393,7 @@ def mesh1d_order_numbers_from_attribute(branches: gpd.GeoDataFrame, missing: lis
             )
     missing_after_interpolation = np.setdiff1d(missing, interpolation)
     return(missing_after_interpolation)
+
 
 def mesh1d_set_branch_order(network: Network, branchids: list, idx: int = None) -> None:
     """
@@ -369,6 +420,7 @@ def mesh1d_set_branch_order(network: Network, branchids: list, idx: int = None) 
         branchorder[branchidx] = idx
     # Save
     network._mesh1d.network1d_branch_order = branchorder
+
 
 def links1d2d_add_links_1d_to_2d(
     network: Network,
@@ -405,7 +457,7 @@ def links1d2d_add_links_1d_to_2d(
 
     # If a 'within' polygon was provided, convert it to a geometrylist
     geometrylist = _geomlist_from_polygon(within)
-    
+
     # Get the nodes for the specific branch ids
     node_mask = network._mesh1d.get_node_mask(branchids)
 
@@ -432,15 +484,22 @@ def links1d2d_add_links_1d_to_2d(
     )
     _filter_links_on_idx(network, keep)
 
-    
-def _filter_links_on_idx(network: Network, keep: np.ndarray) -> None:
+
+def _filter_links_on_idx(
+    network: Network, 
+    keep: np.ndarray, 
+    present_links: Union[np.ndarray, None] = None,
+) -> None:
     # Select the remaining links
-    network._link1d2d.link1d2d = network._link1d2d.link1d2d[keep]
-    network._link1d2d.link1d2d_contact_type = network._link1d2d.link1d2d_contact_type[
-        keep
-    ]
-    network._link1d2d.link1d2d_id = network._link1d2d.link1d2d_id[keep]
-    network._link1d2d.link1d2d_long_name = network._link1d2d.link1d2d_long_name[keep]
+    contacts = network._link1d2d.meshkernel.contacts_get()
+    mesh1d_indices = contacts.mesh1d_indices[keep]
+    mesh2d_indices = contacts.mesh2d_indices[keep]
+    if present_links is not None:
+        mesh1d_indices = np.concat([mesh1d_indices, present_links[:,0]])
+        mesh2d_indices = np.concat([mesh2d_indices, present_links[:,1]])
+    contacts.mesh1d_indices = np.array(mesh1d_indices).astype(np.int32)
+    contacts.mesh2d_indices = np.array(mesh2d_indices).astype(np.int32)
+    network._link1d2d.meshkernel.contacts_set(contacts)
 
 
 def links1d2d_add_links_2d_to_1d_embedded(
@@ -489,40 +548,26 @@ def links1d2d_add_links_2d_to_1d_embedded(
     # Create an array with 2d facecenters and check which intersect the (clipped) area
     faces2d = np.stack(
         [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
-    )
-    
+    )    
     mpgl = mk.GeometryList(*faces2d.T.copy())
     idx = np.zeros(len(faces2d), dtype=bool)
+
     for subarea in common.as_polygon_list(area):
-    
-        # Create a list of coordinate lists
-        # Add exterior
-        gl_sa = mk.GeometryList()
-        x_ext, y_ext = np.array(subarea.exterior.coords[:]).T
-        x_crds = [x_ext]
-        y_crds = [y_ext]
-        # Add interiors, seperated by inner_outer_separator
-        for interior in subarea.interiors:
-            x_int, y_int = np.array(interior.coords[:]).T
-            x_crds.append([gl_sa.inner_outer_separator])
-            x_crds.append(x_int)
-            y_crds.append([gl_sa.inner_outer_separator])
-            y_crds.append(y_int)
-        gl_sa.x_coordinates=np.concatenate(x_crds)
-        gl_sa.y_coordinates=np.concatenate(y_crds)
-        
-        subarea = gl_sa
-         
-        idx |= (
-            network.meshkernel.polygon_get_included_points(subarea, mpgl).values == 1
-        )
+        subarea = GeometryList.from_polygon(subarea)
+        sub_idx = network.meshkernel.polygon_get_included_points(subarea, mpgl)
+        idx |= sub_idx.values == 1
 
     # Check for each of the remaining faces, if it actually crosses the branches
     nodes2d = np.stack(
         [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
     )
     where = np.nonzero(idx)[0]
-    for i, face_crds in enumerate(nodes2d[network._mesh2d.mesh2d_face_nodes[idx]]):
+    for i, face_idxs in enumerate(network._mesh2d.mesh2d_face_nodes[idx]):
+        # nodes2d always has 4 columns, but a triangular cell only has 3 nodes.
+        # In that case, one of the indices will be invalid.
+        face_crds = nodes2d[face_idxs[face_idxs >= 0]]
+
+        # Check if the face crosses a branch
         if not mls_prep.intersects(LineString(face_crds)):
             idx[where[i]] = False
 
@@ -532,12 +577,11 @@ def links1d2d_add_links_2d_to_1d_embedded(
     )
 
     # Get the nodes for the specific branch ids
-    # TODO: The node mask does not seem to work
     node_mask = network._mesh1d.get_node_mask(branchids)
 
     # Generate links
-    network._link1d2d._link_from_2d_to_1d_embedded(node_mask, points=multipoint)
-
+    # @TODO node_mask does not seem to work
+    network._link1d2d._link_from_2d_to_1d_embedded(node_mask, polygons=multipoint)
 
 def links1d2d_add_links_2d_to_1d_lateral(
     network: Network,
@@ -568,7 +612,6 @@ def links1d2d_add_links_2d_to_1d_lateral(
         max_length (float, optional): Max edge length. Defaults to None.
     """
 
-    
     geometrylist = network.meshkernel.mesh2d_get_mesh_boundaries_as_polygons()
     mpboundaries = GeometryList(**geometrylist.__dict__).to_geometry()
     if within is not None:
@@ -577,24 +620,18 @@ def links1d2d_add_links_2d_to_1d_lateral(
         # Note that the provided meshboundaries is a (list of) polygon(s). Holes are provided
         # as polygons as well, which dont make it a valid MultiPolygon
         if isinstance(mpboundaries, Polygon):
-            geometrylist = GeometryList.from_geometry(
-            MultiPolygon(
-                [mpboundaries]
-            ))
+            geom = MultiPolygon([mpboundaries])
+            geometrylist = GeometryList.from_geometry(geom)
         else:
-            geometrylist = GeometryList.from_geometry(
-                MultiPolygon(
-                    common.as_polygon_list(
-                        [geom.intersection(within) for geom in mpboundaries.geoms]
-                    )
-                )
-            )
+            geom = [geom.intersection(within) for geom in mpboundaries.geoms]
+            geom = MultiPolygon(common.as_polygon_list(geom))
+            geometrylist = GeometryList.from_geometry(geom)
 
     # Get the nodes for the specific branch ids
     node_mask = network._mesh1d.get_node_mask(branchids)
 
     # Get the already present links. These are not filtered subsequently
-    npresent = len(network._link1d2d.link1d2d)
+    present_links = network._link1d2d.link1d2d
 
     # Generate links
     network._link1d2d._link_from_2d_to_1d_lateral(
@@ -608,12 +645,12 @@ def links1d2d_add_links_2d_to_1d_lateral(
     # Create multilinestring
     if isinstance(mpboundaries, Polygon):
         multilinestring = MultiLineString([mpboundaries.exterior])
-    else: 
+    else:
         multilinestring = MultiLineString([poly.exterior for poly in mpboundaries.geoms])
 
-    # Find the links that intersect the boundary close to the origin
-    id1d = network._link1d2d.link1d2d[npresent:, 0]
-    id2d = network._link1d2d.link1d2d[npresent:, 1]
+    # Find the links that intersect the boundary close to the origin    
+    id1d = network._link1d2d.link1d2d[:, 0]
+    id2d = network._link1d2d.link1d2d[:, 1]
 
     nodes1d = np.stack(
         [network._mesh1d.mesh1d_node_x[id1d], network._mesh1d.mesh1d_node_y[id1d]],
@@ -626,25 +663,19 @@ def links1d2d_add_links_2d_to_1d_lateral(
     nodes2d = np.stack(
         [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
     )
-    face_node_crds = nodes2d[network._mesh2d.mesh2d_face_nodes[id2d]]
+    nodes2d_idx = network._mesh2d.mesh2d_face_nodes[id2d]
+    keep = []
+    for i, (node1d, face2d, node2d) in enumerate(
+        zip(nodes1d, faces2d, nodes2d_idx)
+    ):       
+        face_node_crds = nodes2d[node2d[node2d > 0.]]                
 
-    # Calculate distance between face edge and face center
-    x1 = np.take(face_node_crds, 0, axis=2)
-    y1 = np.take(face_node_crds, 1, axis=2)
-    face_node_crds[:] = np.roll(face_node_crds, 1, axis=1)
-    x2 = np.take(face_node_crds, 0, axis=2)
-    y2 = np.take(face_node_crds, 1, axis=2)
-    x0, y0 = faces2d[:, 0], faces2d[:, 1]
-    distance = (
-        np.absolute((x2 - x1) * (y1 - y0[:, None]) - (x1 - x0[:, None]) * (y2 - y1))
-        / np.hypot(x2 - x1, y2 - y1)
-    ).mean(axis=1)
-
-    # Check which links to keep
-    keep = list(range(npresent))
-    for i, (node1d, face2d, comp_dist) in enumerate(
-        zip(nodes1d, faces2d, distance * dist_factor)
-    ):
+        # Calculate distance between face edge and face center
+        x1 = face_node_crds[:,0]
+        y1 = face_node_crds[:,1]
+        x0, y0 = face2d[0], face2d[1]
+        distance = np.hypot(x1-x0, y1-y0).mean() 
+    
         isect = multilinestring.intersection(LineString([face2d, node1d]))
 
         # If the intersection is for some reason not a Point of Multipoint, skip it.
@@ -659,11 +690,11 @@ def links1d2d_add_links_2d_to_1d_lateral(
         # If the distance to the mesh 2d exterior intersection is smaller than
         # the compared distance, keep it.
         dist = np.hypot(*(face2d - isect_list[0].coords[:][0]))
-        if dist < comp_dist:
+        if dist < distance:
             keep.append(i)
 
-    # Select the remaining links
-    _filter_links_on_idx(network, keep)
+    # # Select the remaining links
+    _filter_links_on_idx(network, keep, present_links=present_links)
 
 
 def links1d2d_remove_within(
@@ -716,16 +747,17 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
     if not list(network._mesh1d.network1d_node_id) or not list(
         network._mesh2d.mesh2d_face_nodes
     ):
+        logger.warning("1d nodes or 2d faces are not present.")
         return None
 
+    if network._link1d2d.link1d2d.shape[0] == 0:
+        logger.warning("No 1d2d-links present.")        
+        return None
+ 
     # Create an array with 2d facecenters and 1d nodes, that form the links
     nodes1d = np.stack(
         [network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1
     )[network._link1d2d.link1d2d[:, 0]]
-
-    faces2d = np.stack(
-        [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
-    )[network._link1d2d.link1d2d[:, 1]]
 
     # Select 1d nodes that are only present in a single edge
     edge_nodes = network._mesh1d.network1d_edge_nodes
@@ -743,7 +775,7 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
             keep[index] = False
 
     _filter_links_on_idx(network, keep)
-    
+
 
 def mesh2d_altitude_from_raster(
     network,

@@ -706,7 +706,7 @@ if TwoD:
     print("Nodes before refinement:", network._mesh2d.mesh2d_node_x.size)
 
     # refine around the branches. This does only work for a polygon without holes, so use the exterior
-    buffer = Polygon(hydamo.branches.buffer(50.0).unary_union.exterior)
+    buffer = Polygon(hydamo.branches.buffer(50.0).union_all().exterior)
     mesh.mesh2d_refine(network, buffer, 1)
     print("Nodes after refinement:", network._mesh2d.mesh2d_node_x.size)
 

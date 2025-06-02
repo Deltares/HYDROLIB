@@ -24,11 +24,12 @@ def _find_dimr(dhydro_path="C:/Program Files/Deltares"):
 
     return dimr_path
 
-@pytest.mark.slow_test
+@pytest.mark.slow
+@pytest.mark.skipif(_find_dimr() is None, reason="D-Hydro not installed or run_dimr.bat not found")
 def test_run_model():
     # Read hydamo object only once
-    hydamo = test_from_hydamo.test_hydamo_object_from_gpkg()
-    hydamo = test_from_hydamo.test_convert_structures(hydamo=hydamo)
+    hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
+    hydamo = test_from_hydamo._convert_structures(hydamo=hydamo)
 
     hydamo.structures.add_rweir(
         id="rwtest",
@@ -65,18 +66,17 @@ def test_run_model():
     hydamo.structures.convert.compound_structures(cmpnd_ids, cmpnd_list)
 
     # Add RR component
-    drrmodel = test_setup_rr.test_setup_rr_model(hydamo=hydamo)
+    drrmodel = test_setup_rr._setup_rr_model(hydamo=hydamo)
 
     # Setup model
-    fm, output_path = test_to_hydrolibcore.test_write_model(drrmodel=drrmodel, hydamo=hydamo, full_test=True)
+    fm, output_path = test_to_hydrolibcore._write_model(drrmodel=drrmodel, hydamo=hydamo, full_test=True)
 
     # Add RTC component
-    drtcmodel = test_setup_rtc.test_setup_rtc_model(hydamo=hydamo)
+    drtcmodel = test_setup_rtc._setup_rtc_model(hydamo=hydamo)
     drtcmodel.write_xml_v1()
 
     # Find DIMR path
     dimr_path = _find_dimr()
-    assert dimr_path is not None
 
     # Write DIMR config
     dimr = DIMRWriter(output_path=output_path, dimr_path=dimr_path)

@@ -1,8 +1,6 @@
 import netCDF4
 import numpy as np
-import sys
 
-from hydrolib.dhydamo.geometry.gridgeom.cstructures import meshgeom, meshgeomdim
 
 import logging
 

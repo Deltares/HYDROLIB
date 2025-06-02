@@ -90,7 +90,7 @@ def as_point_list(
 def interp_linestring(linestring, dist):
     # In case of multilinestring
     if isinstance(linestring, MultiLineString):
-        return MultiLineString([interp_linestring(l, dist) for l in linestring])
+        return MultiLineString([interp_linestring(ls, dist) for ls in linestring])
 
     return LineString(
         [

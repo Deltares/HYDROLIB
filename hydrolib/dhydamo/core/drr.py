@@ -6,7 +6,6 @@ from typing import Union
 import pandas as pd
 import rasterio
 from pydantic.v1 import validate_arguments
-from rasterio.transform import from_origin
 
 from hydrolib.dhydamo.io import drrreader
 
@@ -277,6 +276,7 @@ class Greenhouse:
         area: str,
         surface_level: str,
         roof_storage: str,
+        basin_storage_class: str,
         meteo_area: str,
         px: str,
         py: str,
@@ -304,6 +304,7 @@ class Greenhouse:
             "px": px,
             "py": py,
             "boundary_node": boundary_node,
+            "basin_storage_class": basin_storage_class,
         }
 
 

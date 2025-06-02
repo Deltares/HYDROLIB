@@ -1,8 +1,8 @@
 import numpy as np
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, Point, Polygon
-from scipy.spatial import KDTree
 import logging
+import meshkernel as mk
 import geopandas as gpd
 from tqdm.auto import tqdm
 from hydrolib.dhydamo.geometry.gridgeom import geometry
@@ -11,11 +11,11 @@ logger = logging.getLogger(__name__)
 
 class Links1d2d:
     def __init__(self, network, mesh2d, hydamo):
-        
+
         self.mesh1d  = {}
         self.mesh1d['nodes1d'] = np.c_[network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y]
         self.mesh1d['edges1d'] = network._mesh1d.mesh1d_edge_nodes + 1
-        
+
         self.mesh2d = mesh2d
         self.hydamo = hydamo
 
@@ -48,8 +48,6 @@ class Links1d2d:
         get_nearest = KDTree(faces2d)
 
         # Get network geometry
-        # nodes1d = self.mesh1d.get_nodes()
-        # idx = self.mesh1d.get_nodes_for_branch(branchid)
         nodes1d = self.mesh1d['nodes1d']
         idx = np.full(nodes1d.shape[0], dtype=bool, fill_value=True)
         # Get nearest 2d nodes
@@ -61,8 +59,8 @@ class Links1d2d:
         self.nodes1d.extend(nodes1didx[close] + 1)
         self.faces2d.extend(idx_nearest[close] + 1)
 
-        # # Remove conflicting 1d2d links
-        for _,bc in self.hydamo.boundary_conditions.iterrows():        
+        # Remove conflicting 1d2d links
+        for _,bc in self.hydamo.boundary_conditions.iterrows():
             self.check_boundary_link(bc)
 
     def generate_2d_to_1d(
@@ -200,7 +198,7 @@ class Links1d2d:
             self.mesh2d.set_values("facey", cy)
 
         # Remove conflicting 1d2d links
-        for _,bc in self.hydamo.boundary_conditions.iterrows():        
+        for _,bc in self.hydamo.boundary_conditions.iterrows():
             self.check_boundary_link(bc)
 
     def check_boundary_link(self, bc):
@@ -240,7 +238,7 @@ class Links1d2d:
                 loc = self.nodes1d.index(item)
                 self.nodes1d.pop(loc)
                 self.faces2d.pop(loc)
-                nx, ny = nodes1d[item - 1]                
+                nx, ny = nodes1d[item - 1]
                 logger.info(
                     f"Removed link(s) from 1d node: ({nx:.2f}, {ny:.2f}) because it is too close to boundary condition at node {node_id:.0f}."
                 )
@@ -303,9 +301,9 @@ class Links1d2d:
         Mesh can specified, 1d or 2d.
         """
         if mesh == "1d":
-            pts = self.mesh1d['nodes1d']            
+            pts = self.mesh1d['nodes1d']
         elif mesh == "2d":
-            pts = np.c_[self.mesh2d.get_faces(geometry="center")]            
+            pts = np.c_[self.mesh2d.get_faces(geometry="center")]
         else:
             raise ValueError('Mesh should be "1d" or "2d".')
 
@@ -315,7 +313,7 @@ class Links1d2d:
         # Find nearest link
         dists = np.hypot(pts[:, 0] - x, pts[:, 1] - y)
         if dists.min() > max_distance:
-            print('No links within the maximum distance. Doing nothing.')            
+            print('No links within the maximum distance. Doing nothing.')
             return None
         imin = np.argmin(dists)
 
@@ -338,7 +336,7 @@ class Links1d2d:
         if not self.nodes1d or not self.faces2d:
             return None
 
-        nodes1d = self.mesh1d['nodes1d'] 
+        nodes1d = self.mesh1d['nodes1d']
         edge_nodes = self.mesh1d['edges1d']
 
         # Select 1d nodes that are only present in a single edge
@@ -368,7 +366,7 @@ class Links1d2d:
         faces2d = np.c_[
             self.mesh2d.get_values("facex"), self.mesh2d.get_values("facey")
         ][np.array(self.faces2d) - 1]
-        
+
 
         # Check which links intersect the provided area
         index = np.zeros(len(nodes1d), dtype=bool)
@@ -380,7 +378,7 @@ class Links1d2d:
         for i in reversed(np.where(index)[0]):
             self.nodes1d.pop(i)
             self.faces2d.pop(i)
-            
+
     def convert_to_hydrolib(self):
         """
         convert_to_hydrolib Convert gruidgeom objects back to hydrolib-core
@@ -393,11 +391,11 @@ class Links1d2d:
         nodex = self.mesh2d.get_values('nodex', as_array=True)
         nodey = self.mesh2d.get_values('nodey', as_array=True)
         facez = self.mesh2d.get_values('facez', as_array=True)
-        edge_nodes = self.mesh2d.get_values('edge_nodes', as_array=True) - 1        
+        edge_nodes = self.mesh2d.get_values('edge_nodes', as_array=True) - 1
         self.network._mesh2d._set_mesh2d(nodex, nodey, edge_nodes)
         self.network._mesh2d.mesh2d_face_z = facez
 
-        # Add the 1d2d 
+        # Add the 1d2d
         nodes1d = np.array(self.nodes1d) - 1
 
         # Faces do not have to be the same between meshgeom and hydrolib. Find
@@ -408,24 +406,5 @@ class Links1d2d:
         distances, faces2d = KDTree(mk_faces).query(gr_faces)
         print(f'Max distance between faces: {distances.max()}') # error out if we do not find an exact match
 
-        self.network._link1d2d.link1d2d = np.append(
-            self.network._link1d2d.link1d2d,
-            np.c_[nodes1d, faces2d],
-            axis=0,
-        )
-        self.network._link1d2d.link1d2d_contact_type = np.append(
-            self.network._link1d2d.link1d2d_contact_type, 
-            np.full(nodes1d.size, 3)
-        )
-        self.network._link1d2d.link1d2d_id = np.append(
-           self.network._link1d2d.link1d2d_id,
-           np.array([f"{n1d:d}_{f2d:d}" for n1d, f2d in np.c_[nodes1d, faces2d]])
-        )
-        self.network._link1d2d.link1d2d_long_name = np.append(
-            self.network._link1d2d.link1d2d_long_name,
-            np.array([f"{n1d:d}_{f2d:d}" for n1d, f2d in np.c_[nodes1d, faces2d]])
-        )
-
-
-        
-
+        contacts = mk.Contacts(nodes1d, faces2d)
+        self.network._link1d2d.meshkernel.contacts_set(contacts)
