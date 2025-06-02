@@ -3,7 +3,7 @@ import os
 import warnings
 from pathlib import Path
 from typing import Union
-
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 from pydantic.v1 import validate_arguments, StrictStr
@@ -53,7 +53,7 @@ class UnpavedIO:
         warnings.filterwarnings("ignore")
         lu_rast, lu_affine = self.unpaved.drrmodel.read_raster(landuse, static=True)
         lu_counts = zonal_stats(
-            catchments,
+            gpd.GeoDataFrame(catchments),
             lu_rast.astype(int),
             affine=lu_affine,
             categorical=True,
@@ -62,7 +62,7 @@ class UnpavedIO:
 
         soil_rast, affine = self.unpaved.drrmodel.read_raster(soiltype, static=True)
         soiltypes = zonal_stats(
-            catchments,
+            gpd.GeoDataFrame(catchments),
             soil_rast.astype(int),
             affine=affine,
             stats="majority",
@@ -71,7 +71,7 @@ class UnpavedIO:
 
         rast, affine = self.unpaved.drrmodel.read_raster(surface_level, static=True)
         mean_elev = zonal_stats(
-            catchments, rast.astype(float), affine=affine, stats="median", all_touched=all_touched
+            gpd.GeoDataFrame(catchments), rast.astype(float), affine=affine, stats="median", all_touched=all_touched
         )
 
         # optional rasters
@@ -80,7 +80,7 @@ class UnpavedIO:
                 surface_storage, static=True
             )
             sstores = zonal_stats(
-                catchments, rast.astype(float), affine=affine, stats="mean", all_touched=True
+                gpd.GeoDataFrame(catchments), rast.astype(float), affine=affine, stats="mean", all_touched=True
             )
         elif isinstance(surface_storage, int):
             surface_storage = float(surface_storage)
@@ -89,14 +89,14 @@ class UnpavedIO:
                 infiltration_capacity, static=True
             )
             infcaps = zonal_stats(
-                catchments, rast.astype(float), affine=affine, stats="mean", all_touched=True
+                gpd.GeoDataFrame(catchments), rast.astype(float), affine=affine, stats="mean", all_touched=True
             )
         elif isinstance(infiltration_capacity, int):
             infiltration_capacity = float(infiltration_capacity)
         if isinstance(initial_gwd, str):
             rast, affine = self.unpaved.drrmodel.read_raster(initial_gwd, static=True)
             ini_gwds = zonal_stats(
-                catchments, rast.astype(float), affine=affine, stats="mean", all_touched=True
+                gpd.GeoDataFrame(catchments), rast.astype(float), affine=affine, stats="mean", all_touched=True
             )
         elif isinstance(initial_gwd, int):
             initial_gwd = float(initial_gwd)
@@ -294,7 +294,7 @@ class PavedIO:
 
         lu_rast, lu_affine = self.paved.drrmodel.read_raster(landuse, static=True)
         lu_counts = zonal_stats(
-            catchments,
+            gpd.GeoDataFrame(catchments),
             lu_rast.astype(int),
             affine=lu_affine,
             categorical=True,
@@ -302,7 +302,7 @@ class PavedIO:
         )
         sl_rast, sl_affine = self.paved.drrmodel.read_raster(surface_level, static=True)
         mean_elev = zonal_stats(
-            catchments,
+            gpd.GeoDataFrame(catchments),
             sl_rast.astype(float),
             affine=sl_affine,
             stats="median",
@@ -314,7 +314,7 @@ class PavedIO:
                 street_storage, static=True
             )
             str_stors = zonal_stats(
-                catchments,
+                gpd.GeoDataFrame(catchments),
                 strs_rast.astype(float),
                 affine=strs_affine,
                 stats="mean",
@@ -326,7 +326,7 @@ class PavedIO:
                 sewer_storage, static=True
             )
             sew_stors = zonal_stats(
-                catchments,
+                gpd.GeoDataFrame(catchments),
                 sews_rast.astype(float),
                 affine=sews_affine,
                 stats="mean",
@@ -339,7 +339,7 @@ class PavedIO:
                 pump_capacity, static=True
             )
             pump_caps = zonal_stats(
-                catchments,
+                gpd.GeoDataFrame(catchments),
                 pump_rast.astype(float),
                 affine=pump_affine,
                 stats="mean",
@@ -377,14 +377,14 @@ class PavedIO:
                 )
             if isinstance(pump_capacity, (Path, str)):
                 pump_caps_sa = zonal_stats(
-                    sewer_areas,
+                    gpd.GeoDataFrame(sewer_areas),
                     pump_rast.astype(float),
                     affine=pump_affine,
                     stats="mean",
                     all_touched=True,
                 )
             mean_sa_elev = zonal_stats(
-                sewer_areas, sl_rast, affine=sl_affine, stats="median", all_touched=True
+                gpd.GeoDataFrame(sewer_areas), sl_rast, affine=sl_affine, stats="median", all_touched=True
             )
 
             # initialize the array of paved nodes, which should contain a node for all catchments and all overflows
@@ -640,7 +640,7 @@ class GreenhouseIO:
 
         lu_rast, lu_affine = self.greenhouse.drrmodel.read_raster(landuse, static=True)
         lu_counts = zonal_stats(
-            catchments,
+            gpd.GeoDataFrame(catchments),
             lu_rast.astype(int),
             affine=lu_affine,
             categorical=True,
@@ -648,11 +648,11 @@ class GreenhouseIO:
         )
         rast, affine = self.greenhouse.drrmodel.read_raster(surface_level, static=True)
         mean_elev = zonal_stats(
-            catchments, rast.astype(float), affine=affine, stats="median", all_touched=all_touched
+            gpd.GeoDataFrame(catchments), rast.astype(float), affine=affine, stats="median", all_touched=all_touched
         )
         if greenhouse_areas is not None:
             mean_elev_gh = zonal_stats(
-                greenhouse_areas, rast.astype(float), affine=affine, stats="median", all_touched=all_touched
+                 gpd.GeoDataFrame(greenhouse_areas), rast.astype(float), affine=affine, stats="median", all_touched=all_touched
             )
             
         # optional rasters
@@ -661,11 +661,11 @@ class GreenhouseIO:
                 roof_storage, static=True
             )
             roofstors = zonal_stats(
-                catchments, rast.astype(float), affine=affine, stats="mean", all_touched=True
+                 gpd.GeoDataFrame(catchments), rast.astype(float), affine=affine, stats="mean", all_touched=True
             )
             if greenhouse_areas is not None:
                 roofstors_gh = zonal_stats(
-                    greenhouse_areas, rast.astype(float), affine=affine, stats="mean", all_touched=True
+                     gpd.GeoDataFrame(greenhouse_areas), rast.astype(float), affine=affine, stats="mean", all_touched=True
                 )
 
         # get raster cellsize
@@ -798,7 +798,7 @@ class OpenwaterIO:
 
         lu_rast, lu_affine = self.openwater.drrmodel.read_raster(landuse, static=True)
         lu_counts = zonal_stats(
-            catchments,
+            gpd.GeoDataFrame(catchments),
             lu_rast.astype(int),
             affine=lu_affine,
             categorical=True,
@@ -876,7 +876,7 @@ class ExternalForcingsIO:
                 )
             times.append(time)
             stats = zonal_stats(
-                catchments, array, affine=affine, stats="mean", all_touched=True
+                 gpd.GeoDataFrame(catchments), array, affine=affine, stats="mean", all_touched=True
             )
             arr[ifile, :] = [s["mean"] for s in stats]
         result = pd.DataFrame(
@@ -920,7 +920,7 @@ class ExternalForcingsIO:
                 )
                 times.append(time)
                 stats = zonal_stats(
-                    areas, array, affine=affine, stats="mean", all_touched=True
+                     gpd.GeoDataFrame(areas), array, affine=affine, stats="mean", all_touched=True
                 )
                 arr[ifile, :] = [s["mean"] for s in stats]
             result = pd.DataFrame(
@@ -963,7 +963,7 @@ class ExternalForcingsIO:
                 )
                 times.append(time)
                 stats = zonal_stats(
-                    areas, array, affine=affine, stats="mean", all_touched=True
+                     gpd.GeoDataFrame(areas), array, affine=affine, stats="mean", all_touched=True
                 )
                 arr[ifile, :] = [s["mean"] for s in stats]
             result = pd.DataFrame(
