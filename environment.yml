@@ -1,0 +1,9 @@
+name: hydrolib
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.*
+  - pip=25.1.1
+  - pip:
+    - hydrolib==0.4.1
+    
