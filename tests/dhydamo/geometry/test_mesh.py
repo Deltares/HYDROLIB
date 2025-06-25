@@ -483,7 +483,7 @@ def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_lengt
         ax.set_aspect(1.0)
         ax.autoscale_view()
         plt.show()
-        fig.savefig(test_figure_path / "test_links1d2d_add_links_1d_to_2d_within={b_within}_branchids={b_branchids}_refine={b_refine}_maxlength={max_length}_mk.png")
+        fig.savefig(test_figure_path / f"test_links1d2d_add_links_1d_to_2d_within={b_within}_branchids={b_branchids}_refine={b_refine}_maxlength={max_length}_mk.png")
 
     assert len(network._link1d2d.link1d2d_id) == outcome
 
@@ -521,7 +521,7 @@ def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, m
         ax.set_aspect(1.0)
         ax.autoscale_view()
         plt.show()
-        fig.savefig(test_figure_path / "test_links1d2d_add_links_2d_to_1d_lateral_within={b_within}_branchids={b_branchids}_refine={b_refine}_maxlength={max_length}_mk.png")
+        fig.savefig(test_figure_path / f"test_links1d2d_add_links_2d_to_1d_lateral_within={b_within}_branchids={b_branchids}_refine={b_refine}_maxlength={max_length}_mk.png")
 
     assert len(network._link1d2d.link1d2d_id) == outcome
 
