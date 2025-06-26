@@ -129,7 +129,10 @@ def mesh2d_add_triangular(
             polygon = common.interp_polygon(polygon, dist=edge_length)
 
         # Add triangular mesh within polygon
-        meshkernel.mesh2d_make_triangular_mesh_from_polygon(_geomlist_from_polygon(polygon))
+        meshkernel.mesh2d_make_triangular_mesh_from_polygon(
+            _geomlist_from_polygon(polygon),
+            scale_factor=1,
+            )
         #meshkernel.mesh2d_make_mesh_from_polygon(GeometryList.from_geometry(polygon))
 
 def mesh2d_clip(
