@@ -133,6 +133,7 @@ def mesh2d_add_triangular(
             _geomlist_from_polygon(polygon),
             scale_factor=1,
             )
+        #meshkernel.mesh2d_make_mesh_from_polygon(GeometryList.from_geometry(polygon))
 
 def mesh2d_clip(
     network: Network,
