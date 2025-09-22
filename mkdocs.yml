@@ -42,7 +42,6 @@ plugins:
           selection:
             inherited_members: false
 
-      custom_templates: templates
       watch:
         - hydrolib
 markdown_extensions:
