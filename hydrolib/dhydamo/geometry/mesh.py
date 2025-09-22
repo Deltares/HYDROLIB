@@ -129,7 +129,10 @@ def mesh2d_add_triangular(
             polygon = common.interp_polygon(polygon, dist=edge_length)
 
         # Add triangular mesh within polygon
-        meshkernel.mesh2d_make_triangular_mesh_from_polygon(_geomlist_from_polygon(polygon))
+        meshkernel.mesh2d_make_triangular_mesh_from_polygon(
+            _geomlist_from_polygon(polygon),
+            scale_factor=1,
+            )
         #meshkernel.mesh2d_make_mesh_from_polygon(GeometryList.from_geometry(polygon))
 
 def mesh2d_clip(
@@ -580,7 +583,6 @@ def links1d2d_add_links_2d_to_1d_embedded(
     node_mask = network._mesh1d.get_node_mask(branchids)
 
     # Generate links
-    # @TODO node_mask does not seem to work
     network._link1d2d._link_from_2d_to_1d_embedded(node_mask, polygons=multipoint)
 
 def links1d2d_add_links_2d_to_1d_lateral(

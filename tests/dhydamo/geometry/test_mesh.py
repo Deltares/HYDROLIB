@@ -531,7 +531,7 @@ def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, m
     [
         (False, False, False, False, 24),
         (True, False, False, False, 11),
-        (False, True, False, False, 19),
+        (False, True, False, False, 15),
         (False, False, True, False, 48),
     ],
 )
