@@ -14,7 +14,7 @@ python = "^3.10"
 pandas = ">=1.2, <3.0"
 geopandas = ">=1.0.0, <2.0"
 xarray = ">=2023.1.0"
-hydrolib-core = "^0.9.1"
+hydrolib-core = "^0.9.5"
 numpy = ">=1.21 <3.0"
 matplotlib = ">=3.5"
 openpyxl = ">=3"
@@ -109,6 +109,7 @@ fiona = { channel = "conda-forge" }
 contextily = { channel = "conda-forge" }
 
 [tool.pytest.ini_options]
+addopts = "-v --tb=short --durations=0"
 markers = [
   "plot: tests that open plot windows",
   "slow: tests that are known to run slowly",
