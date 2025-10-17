@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - 197-fix-docs-action
 
 jobs:
   deploy:
