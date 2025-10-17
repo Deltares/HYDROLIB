@@ -1,0 +1,2283 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>Example of generating a 1D2DRR model - an overview of functionalities - HYDROLIB documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="deltares" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#example-of-generating-a-1d2drr-model-an-overview-of-functionalities" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="HYDROLIB documentation" class="md-header__button md-logo" aria-label="HYDROLIB documentation" data-md-component="logo">
+      
+  <img src="../../../images/HYDROLIB_logo_notext_mono_eroded.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            HYDROLIB documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Example of generating a 1D2DRR model - an overview of functionalities
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="deltares" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7M9 21v-1h6v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1m3-17a5 5 0 0 0-5 5c0 2.05 1.23 3.81 3 4.58V16h4v-2.42c1.77-.77 3-2.53 3-4.58a5 5 0 0 0-5-5"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7M9 21a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-1H9z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Deltares/HYDROLIB" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    deltares/HYDROLIB
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../about/about_HYDROLIB/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  About
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../guides/setup/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  How-to
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Tools
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../reference/api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../changelog/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Changelog
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="HYDROLIB documentation" class="md-nav__button md-logo" aria-label="HYDROLIB documentation" data-md-component="logo">
+      
+  <img src="../../../images/HYDROLIB_logo_notext_mono_eroded.svg" alt="logo">
+
+    </a>
+    HYDROLIB documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Deltares/HYDROLIB" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    deltares/HYDROLIB
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    About
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            About
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../about/about_HYDROLIB/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    HYDROLIB
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../about/about_partners/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Partners
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    How-to
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            How-to
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Documentation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Tools
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Tools
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    D-HyDAMO plugin
+    
+  </span>
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            D-HyDAMO plugin
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../Profileoptimizer/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Profile Optimizer
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            Profile Optimizer
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Profileoptimizer/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    API reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../HydroLogic_Inundation_Toolbox/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Inundation Toolbox
+    
+  </span>
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            Inundation Toolbox
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../case_management_tools/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Case Management Tools
+    
+  </span>
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            Case Management Tools
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../arcadis/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    ARCADIS Tools
+    
+  </span>
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_5">
+            <span class="md-nav__icon md-icon"></span>
+            ARCADIS Tools
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Changelog
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            Changelog
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Changelog
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="example-of-generating-a-1d2drr-model-an-overview-of-functionalities">Example of generating a 1D2DRR model - an overview of functionalities<a class="headerlink" href="#example-of-generating-a-1d2drr-model-an-overview-of-functionalities" title="Permanent link">&para;</a></h1>
+<p>This notebook gives an overview of the functionalities of the D-HyDAMO module, part of the Hydrolib environment.</p>
+<p>This notebook is based on previous examples of the python package delft3dfmpy, but now connnected to the Hydrolib-core package, which is used for writing a D-Hydro model. It contains similar functinality as delft3dfmpy v2.0.1; input data is expected to be according to HyDAMO DAMO2.2 gpkg-format. The example model used here is based on a part of the Oostrumsche beek in Limburg, ameded with some fictional dummy data to better illustrate functionalities.</p>
+<h2 id="load-python-libraries-and-hydrolib-core-functionality">Load Python libraries and Hydrolib-core functionality<a class="headerlink" href="#load-python-libraries-and-hydrolib-core-functionality" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># Basis</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">Point</span><span class="p">,</span> <span class="n">Polygon</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">contextily</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">cx</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c1">## In not installed, add a path from where hydrolib it can be imported</span>
+<span class="c1">#sys.path.insert(0, &quot;d:/Documents/GitHub/HYDROLIB&quot;)</span>
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;../../&quot;</span><span class="p">)</span>
+
+<span class="c1"># NOTE: core and dhydamo need to be in the same folder to be imported correctly</span>
+<span class="c1"># and from hydrolib-core</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.core.io.dimr.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">DIMR</span><span class="p">,</span> <span class="n">FMComponent</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.core.io.inifield.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">IniFieldModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.core.io.onedfield.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">OneDFieldModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.core.io.structure.models</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.core.io.crosssection.models</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.core.io.ext.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExtModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.core.io.mdu.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">FMModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.core.io.bc.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">ForcingModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.core.io.friction.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">FrictionModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.core.io.obs.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationPointModel</span>
+
+<span class="c1"># Importing relevant classes from Hydrolib-dhydamo</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.dhydamo.core.hydamo</span><span class="w"> </span><span class="kn">import</span> <span class="n">HyDAMO</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.dhydamo.converters.df2hydrolibmodel</span><span class="w"> </span><span class="kn">import</span> <span class="n">Df2HydrolibModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.dhydamo.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">mesh</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.dhydamo.core.drr</span><span class="w"> </span><span class="kn">import</span> <span class="n">DRRModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.dhydamo.core.drtc</span><span class="w"> </span><span class="kn">import</span> <span class="n">DRTCModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.dhydamo.io.dimrwriter</span><span class="w"> </span><span class="kn">import</span> <span class="n">DIMRWriter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.dhydamo.io.drrwriter</span><span class="w"> </span><span class="kn">import</span> <span class="n">DRRWriter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hydrolib.dhydamo.geometry.viz</span><span class="w"> </span><span class="kn">import</span> <span class="n">plot_network</span>
+</code></pre></div>
+<p>Define in- and output paths</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># path to the package containing the dummy-data</span>
+<span class="n">data_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;../tests/data&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+<span class="k">assert</span> <span class="n">data_path</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+
+<span class="c1"># path to write the models</span>
+<span class="n">output_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;../tests/model&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+<span class="c1"># assert output_path.exists()</span>
+</code></pre></div>
+<p>Define components that should be used in the model. 1D is used in all cases.</p>
+<div class="highlight"><pre><span></span><code><span class="n">TwoD</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">RR</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">RTC</span> <span class="o">=</span> <span class="kc">True</span>
+</code></pre></div>
+<h2 id="read-hydamo-damo22-data">Read HyDAMO DAMO2.2 data<a class="headerlink" href="#read-hydamo-damo22-data" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># all data is contained in one geopackage called &#39;Example model&#39;</span>
+<span class="n">gpkg_file</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">data_path</span> <span class="o">/</span> <span class="s2">&quot;Example_model.gpkg&quot;</span><span class="p">)</span>
+
+<span class="c1"># initialize a hydamo object</span>
+<span class="n">hydamo</span> <span class="o">=</span> <span class="n">HyDAMO</span><span class="p">(</span><span class="n">extent_file</span><span class="o">=</span><span class="n">data_path</span> <span class="o">/</span> <span class="s2">&quot;OLO_stroomgebied_incl.maas.shp&quot;</span><span class="p">)</span>
+
+<span class="c1"># show content</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="o">.</span><span class="n">show_gpkg</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Content of gpkg-file D:\3640.20\HYDROLIB-dhydamo\hydrolib\tests\data\Example_model.gpkg, containing 18 layers:
+    INDEX   |   NAME                            |   GEOM_TYPE       |    NFEATURES  |      NFIELDS
+        0   |   hydroobject                     |   Line String     |           61  |           35
+        1   |   stuw                            |   3D Point        |           25  |           40
+        2   |   duikersifonhevel                |   3D Line String  |           92  |           43
+        3   |   gemaal                          |   3D Point        |            1  |            8
+        4   |   brug                            |   Point           |            1  |           10
+        5   |   pomp                            |   Unknown (any)   |            1  |            9
+        6   |   sturing                         |   Unknown (any)   |            3  |           19
+        7   |   kunstwerkopening                |   Unknown (any)   |          213  |           15
+        8   |   hydrologischerandvoorwaarde     |   Point           |            1  |            8
+        9   |   regelmiddel                     |   3D Point        |           27  |           29
+       10   |   profielpunt                     |   3D Point        |         2203  |           14
+       11   |   ruwheidprofiel                  |   Unknown (any)   |         9976  |           12
+       12   |   afvoergebiedaanvoergebied       |   Unknown (any)   |          121  |            5
+       13   |   lateraleknoop                   |   Point           |          121  |            6
+       14   |   profielgroep                    |   Unknown (any)   |            2  |            4
+       15   |   profiellijn                     |   3D Line String  |            2  |            3
+       16   |   hydroobject_normgp              |   Unknown (any)   |            1  |            4
+       17   |   normgeparamprofielwaarde        |   Unknown (any)   |            7  |            7
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c1"># read branchs</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;HydroObject&quot;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="s2">&quot;code&quot;</span><span class="p">)</span>
+<span class="c1"># read profiles</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span>
+    <span class="n">gpkg_file</span><span class="p">,</span>
+    <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;ProfielPunt&quot;</span><span class="p">,</span>
+    <span class="n">groupby_column</span><span class="o">=</span><span class="s2">&quot;profiellijnid&quot;</span><span class="p">,</span>
+    <span class="n">order_column</span><span class="o">=</span><span class="s2">&quot;codevolgnummer&quot;</span><span class="p">,</span>
+    <span class="n">id_col</span><span class="o">=</span><span class="s2">&quot;code&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">profile_roughness</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;RuwheidProfiel&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">snap_to_branch</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="p">,</span> <span class="n">snap_method</span><span class="o">=</span><span class="s2">&quot;intersecting&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">subset</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;branch_offset&quot;</span><span class="p">])</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">profile_line</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;profiellijn&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">profile_group</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;profielgroep&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">&quot;code&quot;</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">profile</span><span class="p">[</span><span class="s2">&quot;code&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">profile</span><span class="p">[</span><span class="s2">&quot;profiellijnid&quot;</span><span class="p">]</span>
+<span class="c1"># structures</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">culverts</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;DuikerSifonHevel&quot;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="s2">&quot;code&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">culverts</span><span class="o">.</span><span class="n">snap_to_branch</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="p">,</span> <span class="n">snap_method</span><span class="o">=</span><span class="s2">&quot;ends&quot;</span><span class="p">,</span> <span class="n">maxdist</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">culverts</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">subset</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;branch_offset&quot;</span><span class="p">])</span>
+
+<span class="n">hydamo</span><span class="o">.</span><span class="n">weirs</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Stuw&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">weirs</span><span class="o">.</span><span class="n">snap_to_branch</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="p">,</span> <span class="n">snap_method</span><span class="o">=</span><span class="s2">&quot;overal&quot;</span><span class="p">,</span> <span class="n">maxdist</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">weirs</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">subset</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;branch_offset&quot;</span><span class="p">])</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">opening</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Kunstwerkopening&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">management_device</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Regelmiddel&quot;</span><span class="p">)</span>
+
+<span class="n">idx</span> <span class="o">=</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">management_device</span><span class="p">[</span><span class="n">hydamo</span><span class="o">.</span><span class="n">management_device</span><span class="p">[</span><span class="s2">&quot;duikersifonhevelid&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">notnull</span><span class="p">()]</span><span class="o">.</span><span class="n">index</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">idx</span><span class="p">:</span>
+    <span class="n">globid</span> <span class="o">=</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">culverts</span><span class="p">[</span>
+        <span class="n">hydamo</span><span class="o">.</span><span class="n">culverts</span><span class="o">.</span><span class="n">code</span> <span class="o">==</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">management_device</span><span class="o">.</span><span class="n">duikersifonhevelid</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="p">]</span><span class="o">.</span><span class="n">globalid</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">management_device</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="s2">&quot;duikersifonhevelid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">globid</span>
+
+<span class="n">hydamo</span><span class="o">.</span><span class="n">pumpstations</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Gemaal&quot;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="s2">&quot;code&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">pumpstations</span><span class="o">.</span><span class="n">snap_to_branch</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="p">,</span> <span class="n">snap_method</span><span class="o">=</span><span class="s2">&quot;overal&quot;</span><span class="p">,</span> <span class="n">maxdist</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">pumps</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Pomp&quot;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="s2">&quot;code&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">management</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Sturing&quot;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="s2">&quot;code&quot;</span><span class="p">)</span>
+
+<span class="n">hydamo</span><span class="o">.</span><span class="n">bridges</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Brug&quot;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="s2">&quot;code&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">bridges</span><span class="o">.</span><span class="n">snap_to_branch</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="p">,</span> <span class="n">snap_method</span><span class="o">=</span><span class="s2">&quot;overal&quot;</span><span class="p">,</span> <span class="n">maxdist</span><span class="o">=</span><span class="mi">1100</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">bridges</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">subset</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;branch_offset&quot;</span><span class="p">])</span>
+<span class="c1"># boundaries</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">boundary_conditions</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span>
+    <span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;hydrologischerandvoorwaarde&quot;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="s2">&quot;code&quot;</span>
+<span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">boundary_conditions</span><span class="o">.</span><span class="n">snap_to_branch</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="p">,</span> <span class="n">snap_method</span><span class="o">=</span><span class="s2">&quot;overal&quot;</span><span class="p">,</span> <span class="n">maxdist</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+
+<span class="c1"># catchments</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;afvoergebiedaanvoergebied&quot;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="s2">&quot;code&quot;</span><span class="p">)</span>
+<span class="c1"># laterals</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">laterals</span><span class="o">.</span><span class="n">read_gpkg_layer</span><span class="p">(</span><span class="n">gpkg_file</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;lateraleknoop&quot;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">ind</span><span class="p">,</span> <span class="n">cat</span> <span class="ow">in</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">ind</span><span class="p">,</span> <span class="s2">&quot;lateraleknoopcode&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">laterals</span><span class="p">[</span>
+        <span class="n">hydamo</span><span class="o">.</span><span class="n">laterals</span><span class="o">.</span><span class="n">globalid</span> <span class="o">==</span> <span class="n">cat</span><span class="o">.</span><span class="n">lateraleknoopid</span>
+    <span class="p">]</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">laterals</span><span class="o">.</span><span class="n">snap_to_branch</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="p">,</span> <span class="n">snap_method</span><span class="o">=</span><span class="s2">&quot;overal&quot;</span><span class="p">,</span> <span class="n">maxdist</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>15.0 is MultiPolygon; split into single parts.
+57.0 is MultiPolygon; split into single parts.
+68.0 is MultiPolygon; split into single parts.
+71.0 is MultiPolygon; split into single parts.
+92.0 is MultiPolygon; split into single parts.
+285.0 is MultiPolygon; split into single parts.
+310.0 is MultiPolygon; split into single parts.
+882.0 is MultiPolygon; split into single parts.
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s2">&quot;axes.edgecolor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;w&quot;</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="mi">196000</span><span class="p">,</span> <span class="mi">205000</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">391000</span><span class="p">,</span> <span class="mi">397000</span><span class="p">)</span>
+
+<span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Channel&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;blue&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Cross section&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">culverts</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">centroid</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+    <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;yellow&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Culvert&quot;</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s2">&quot;^&quot;</span>
+<span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">weirs</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">centroid</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;green&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Weir&quot;</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s2">&quot;^&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">bridges</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Bridge&quot;</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s2">&quot;^&quot;</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">pumpstations</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+    <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span>
+    <span class="n">color</span><span class="o">=</span><span class="s2">&quot;orange&quot;</span><span class="p">,</span>
+    <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Pump&quot;</span><span class="p">,</span>
+    <span class="n">marker</span><span class="o">=</span><span class="s2">&quot;s&quot;</span><span class="p">,</span>
+    <span class="n">markersize</span><span class="o">=</span><span class="mi">125</span><span class="p">,</span>
+    <span class="n">zorder</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
+    <span class="n">linewidth</span><span class="o">=</span><span class="mf">2.5</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">boundary_conditions</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+    <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Boundary&quot;</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s2">&quot;s&quot;</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">125</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">0</span>
+<span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+<span class="n">cx</span><span class="o">.</span><span class="n">add_basemap</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="mi">28992</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">cx</span><span class="o">.</span><span class="n">providers</span><span class="o">.</span><span class="n">OpenStreetMap</span><span class="o">.</span><span class="n">Mapnik</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+</code></pre></div>
+<p><img alt="png" src="../output_11_0.png" /></p>
+<h2 id="data-conversion">Data conversion<a class="headerlink" href="#data-conversion" title="Permanent link">&para;</a></h2>
+<h3 id="structures">Structures<a class="headerlink" href="#structures" title="Permanent link">&para;</a></h3>
+<p>HyDAMO contains methods to convert HyDAMO2.2 data to internal dataframes, which correspond to the D-Hydro format.</p>
+<p>We first import the structures from the HyDAMO-object, since the structures' positions are necessary for defining the position of the 1D-mesh. Structures can also be added without the HyDAMO imports. O</p>
+<p>Note that for importing most structures multiple objects are needed from the GPKG. For more info on how to add structures (directly or from HyDAMO), see: https://hkvconfluence.atlassian.net/wiki/spaces/DHYD/overview.</p>
+<ul>
+<li>
+<p>for weirs, a corresponding profile is looked up in the crossections. If one is found, the weir is implemented as a universal weir. If it is not found, a regular (rectangular) weir will be used. The cross-section ('hydamo.profile') should be related through 'hydamo.profile_line' to a 'hydamo.profile_group', which contains a 'stuwid' column which is equal to the GlobalID of the corresponding weir. The weir object can also include orifices, in that case the field 'overlaatonderlaat' in the 'management_device-object ('regelmiddel') is 'onderlaat'. For weirs it should be 'overlaat'.</p>
+</li>
+<li>
+<p>for culverts, a regelmiddel can be used to model a 'schuif' and/or a 'terugslagklep'. This is specified by the field 'soortregelmiddel'. In case of a 'terugslagklep', the flow direction is set to 'positive' instead of 'both'. In case of a 'schuif', a valve is implemented. Note that in DAMO2.2, an 'afsluitmiddel' can contain the same information. For now, only a regelmiddel (management_device) is implemented. In a next version, the flexibility to use both will be included. </p>
+</li>
+<li>
+<p>bridges need an associated crosssection. This is idential to universal weirs, but here the 'hydamo.profile_group'-object should contain a field 'brugid'. </p>
+</li>
+<li>
+<p>pumps are composed from 'hydamo.pumpstations', 'hydamo.pumps' and 'hydamo.managmement'. Only suction-side drection is implemented. Maximal capacity should be in m3/min.</p>
+</li>
+</ul>
+<p>In most cases, these 'extra' arguments are optional, i.e. they are not required and can be left out. Some are required:
+- pumps really need all 3 objects ('hydamo.pumpstations', 'hydamo.pumps' and 'hydamo.managmement');
+- bridges really need an associated crosssection (see above);</p>
+<p>For more info on the structure definitions one is referred to the D-Flow FM user manual: https://content.oss.deltares.nl/delft3d/manuals/D-Flow_FM_User_Manual.pdf.</p>
+<div class="highlight"><pre><span></span><code><span class="n">hydamo</span><span class="o">.</span><span class="n">structures</span><span class="o">.</span><span class="n">convert</span><span class="o">.</span><span class="n">weirs</span><span class="p">(</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">weirs</span><span class="p">,</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">profile_group</span><span class="p">,</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">profile_line</span><span class="p">,</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">profile</span><span class="p">,</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">opening</span><span class="p">,</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">management_device</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">hydamo</span><span class="o">.</span><span class="n">structures</span><span class="o">.</span><span class="n">convert</span><span class="o">.</span><span class="n">culverts</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">culverts</span><span class="p">,</span> <span class="n">management_device</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">management_device</span><span class="p">)</span>
+
+<span class="n">hydamo</span><span class="o">.</span><span class="n">structures</span><span class="o">.</span><span class="n">convert</span><span class="o">.</span><span class="n">bridges</span><span class="p">(</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">bridges</span><span class="p">,</span>
+    <span class="n">profile_groups</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">profile_group</span><span class="p">,</span>
+    <span class="n">profile_lines</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">profile_line</span><span class="p">,</span>
+    <span class="n">profiles</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">profile</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">hydamo</span><span class="o">.</span><span class="n">structures</span><span class="o">.</span><span class="n">convert</span><span class="o">.</span><span class="n">pumps</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">pumpstations</span><span class="p">,</span> <span class="n">pumps</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">pumps</span><span class="p">,</span> <span class="n">management</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">management</span><span class="p">)</span>
+</code></pre></div>
+<p>Additional methods are available to add structures:</p>
+<div class="highlight"><pre><span></span><code><span class="n">hydamo</span><span class="o">.</span><span class="n">structures</span><span class="o">.</span><span class="n">add_rweir</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;rwtest&quot;</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;rwtest&quot;</span><span class="p">,</span>
+    <span class="n">branchid</span><span class="o">=</span><span class="s2">&quot;W_1386_0&quot;</span><span class="p">,</span>
+    <span class="n">chainage</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
+    <span class="n">crestlevel</span><span class="o">=</span><span class="mf">18.0</span><span class="p">,</span>
+    <span class="n">crestwidth</span><span class="o">=</span><span class="mf">3.0</span><span class="p">,</span>
+    <span class="n">corrcoeff</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>The resulting dataframes look like this:</p>
+<div class="highlight"><pre><span></span><code><span class="n">hydamo</span><span class="o">.</span><span class="n">structures</span><span class="o">.</span><span class="n">culverts_df</span><span class="o">.</span><span class="n">head</span><span class="p">()</span>
+</code></pre></div>
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>id</th>
+      <th>name</th>
+      <th>branchid</th>
+      <th>chainage</th>
+      <th>rightlevel</th>
+      <th>leftlevel</th>
+      <th>length</th>
+      <th>inletlosscoeff</th>
+      <th>outletlosscoeff</th>
+      <th>csdefid</th>
+      <th>bedfrictiontype</th>
+      <th>bedfriction</th>
+      <th>allowedflowdir</th>
+      <th>valveonoff</th>
+      <th>numlosscoeff</th>
+      <th>valveopeningheight</th>
+      <th>relopening</th>
+      <th>losscoeff</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>B_11954</td>
+      <td>None</td>
+      <td>W_2591_1</td>
+      <td>895.235</td>
+      <td>11.891157</td>
+      <td>11.891157</td>
+      <td>2.834944</td>
+      <td>0.5</td>
+      <td>1.0</td>
+      <td>B_11954</td>
+      <td>Manning</td>
+      <td>0.01667</td>
+      <td>both</td>
+      <td>0</td>
+      <td>None</td>
+      <td>0.0</td>
+      <td>None</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>B_11547</td>
+      <td>None</td>
+      <td>W_242225_0</td>
+      <td>158.537</td>
+      <td>12.736937</td>
+      <td>12.736937</td>
+      <td>0.953823</td>
+      <td>0.5</td>
+      <td>1.0</td>
+      <td>B_11547</td>
+      <td>Manning</td>
+      <td>0.01667</td>
+      <td>both</td>
+      <td>0</td>
+      <td>None</td>
+      <td>0.0</td>
+      <td>None</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>B_11546</td>
+      <td>None</td>
+      <td>W_242226_0</td>
+      <td>0.244</td>
+      <td>12.335174</td>
+      <td>12.335174</td>
+      <td>1.485853</td>
+      <td>0.5</td>
+      <td>1.0</td>
+      <td>B_11546</td>
+      <td>Manning</td>
+      <td>0.01667</td>
+      <td>both</td>
+      <td>0</td>
+      <td>None</td>
+      <td>0.0</td>
+      <td>None</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>B_11544</td>
+      <td>None</td>
+      <td>W_242224_0</td>
+      <td>775.644</td>
+      <td>13.107891</td>
+      <td>13.107891</td>
+      <td>2.610899</td>
+      <td>0.5</td>
+      <td>1.0</td>
+      <td>B_11544</td>
+      <td>Manning</td>
+      <td>0.01667</td>
+      <td>both</td>
+      <td>0</td>
+      <td>None</td>
+      <td>0.0</td>
+      <td>None</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>B_11548</td>
+      <td>None</td>
+      <td>W_242227_0</td>
+      <td>8.699</td>
+      <td>11.781898</td>
+      <td>11.781898</td>
+      <td>4.115577</td>
+      <td>0.5</td>
+      <td>1.0</td>
+      <td>B_11548</td>
+      <td>Manning</td>
+      <td>0.01667</td>
+      <td>both</td>
+      <td>0</td>
+      <td>None</td>
+      <td>0.0</td>
+      <td>None</td>
+      <td>None</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h1 id="initialize-the-fm-model">Initialize the FM-model<a class="headerlink" href="#initialize-the-fm-model" title="Permanent link">&para;</a></h1>
+<p>At this stage also the start and stoptime are defined, they will be used in the other modules if needed</p>
+<div class="highlight"><pre><span></span><code><span class="n">fm</span> <span class="o">=</span> <span class="n">FMModel</span><span class="p">()</span>
+<span class="c1"># Set start and stop time</span>
+<span class="n">fm</span><span class="o">.</span><span class="n">time</span><span class="o">.</span><span class="n">refdate</span> <span class="o">=</span> <span class="mi">20160601</span>
+<span class="n">fm</span><span class="o">.</span><span class="n">time</span><span class="o">.</span><span class="n">tstop</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="mi">3600</span> <span class="o">*</span> <span class="mi">24</span>
+</code></pre></div>
+<h2 id="add-the-1d-mesh">Add the 1D mesh<a class="headerlink" href="#add-the-1d-mesh" title="Permanent link">&para;</a></h2>
+<p>The above structures are collected in one dataframe and in the generation of calculation poins, as structures should be separated by calculation points.</p>
+<div class="highlight"><pre><span></span><code><span class="n">structures</span> <span class="o">=</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">structures</span><span class="o">.</span><span class="n">as_dataframe</span><span class="p">(</span>
+    <span class="n">rweirs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">bridges</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">uweirs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">culverts</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">orifices</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">pumps</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="n">mesh</span><span class="o">.</span><span class="n">mesh1d_add_branches_from_gdf</span><span class="p">(</span>
+    <span class="n">fm</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">netfile</span><span class="o">.</span><span class="n">network</span><span class="p">,</span>
+    <span class="n">branches</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="p">,</span>
+    <span class="n">branch_name_col</span><span class="o">=</span><span class="s2">&quot;code&quot;</span><span class="p">,</span>
+    <span class="n">node_distance</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">max_dist_to_struc</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">structures</span><span class="o">=</span><span class="n">structures</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Some structures are not linked to a branch.
+Structures [22, 25] have the same location.
+Structures [19, 28] have the same location.
+Structures [27, 33] have the same location.
+</code></pre></div>
+<p>Add cross-sections to the branches. TO do this, many HyDAMO objects might be needed: if parameterised profiles occur, they are taken from hydamo.param_profile and, param_profile_values; if crosssections are associated with structures, those are specified in profile_group and profile lines. </p>
+<p>HyDAMO DAMO2.2 data contains two roughness values (high and low); here it can be specified which one to use.</p>
+<p>For branches without a crosssection, a default profile can be defined.</p>
+<div class="highlight"><pre><span></span><code><span class="n">hydamo</span><span class="o">.</span><span class="n">crosssections</span><span class="o">.</span><span class="n">convert</span><span class="o">.</span><span class="n">profiles</span><span class="p">(</span>
+    <span class="n">crosssections</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">profile</span><span class="p">,</span>
+    <span class="n">crosssection_roughness</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">profile_roughness</span><span class="p">,</span>
+    <span class="n">profile_groups</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">profile_group</span><span class="p">,</span>
+    <span class="n">profile_lines</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">profile_line</span><span class="p">,</span>
+    <span class="n">param_profile</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">param_profile</span><span class="p">,</span>
+    <span class="n">param_profile_values</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">param_profile_values</span><span class="p">,</span>
+    <span class="n">branches</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="p">,</span>
+    <span class="n">roughness_variant</span><span class="o">=</span><span class="s2">&quot;High&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Set a default cross section</span>
+<span class="n">default</span> <span class="o">=</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">crosssections</span><span class="o">.</span><span class="n">add_rectangle_definition</span><span class="p">(</span>
+    <span class="n">height</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span> <span class="n">closed</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">roughnesstype</span><span class="o">=</span><span class="s2">&quot;StricklerKs&quot;</span><span class="p">,</span> <span class="n">roughnessvalue</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;default&quot;</span>
+<span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">crosssections</span><span class="o">.</span><span class="n">set_default_definition</span><span class="p">(</span><span class="n">definition</span><span class="o">=</span><span class="n">default</span><span class="p">,</span> <span class="n">shift</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="observation-points">Observation points<a class="headerlink" href="#observation-points" title="Permanent link">&para;</a></h3>
+<p>Observation points are now written in the new format, where once can discriminate between 1D ('1d') and 2D ('2d') observation points. This can be done using the optional argument 'locationTypes'. If it is omitted, all points are assumed to be 1d. 1D-points are always snapped to a the nearest branch. 2D-observation points are always defined by their X/Y-coordinates.</p>
+<p>Note: add_points can be called only once: once dfmodel.observation_points is filled,the add_points-method is not available anymore. Observation point coordinates can be definied eiher as an (x,y)-tuple or as a shapely Point-object.</p>
+<div class="highlight"><pre><span></span><code><span class="n">hydamo</span><span class="o">.</span><span class="n">observationpoints</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">Point</span><span class="p">((</span><span class="mi">200200</span><span class="p">,</span> <span class="mi">395600</span><span class="p">)),</span> <span class="p">(</span><span class="mi">200200</span><span class="p">,</span> <span class="mi">396200</span><span class="p">)],</span>
+    <span class="p">[</span><span class="s2">&quot;ObsPt1&quot;</span><span class="p">,</span> <span class="s2">&quot;ObsPt2&quot;</span><span class="p">],</span>
+    <span class="n">locationTypes</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;1d&quot;</span><span class="p">,</span> <span class="s2">&quot;1d&quot;</span><span class="p">],</span>
+    <span class="n">snap_distance</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<h3 id="storage-nodes">Storage nodes<a class="headerlink" href="#storage-nodes" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="n">hydamo</span><span class="o">.</span><span class="n">storagenodes</span><span class="o">.</span><span class="n">add_storagenode</span><span class="p">(</span>
+    <span class="s2">&quot;test&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;123_123&quot;</span><span class="p">,</span>
+    <span class="n">usestreetstorage</span><span class="o">=</span><span class="s2">&quot;true&quot;</span><span class="p">,</span>
+    <span class="n">nodetype</span><span class="o">=</span><span class="s2">&quot;unspecified&quot;</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+    <span class="n">usetable</span><span class="o">=</span><span class="s2">&quot;false&quot;</span><span class="p">,</span>
+    <span class="n">bedlevel</span><span class="o">=</span><span class="mf">12.0</span><span class="p">,</span>
+    <span class="n">area</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">streetlevel</span><span class="o">=</span><span class="mf">14.0</span><span class="p">,</span>
+    <span class="n">streetstoragearea</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span>
+    <span class="n">storagetype</span><span class="o">=</span><span class="s2">&quot;reservoir&quot;</span><span class="p">,</span>
+    <span class="n">levels</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+    <span class="n">storagearea</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+    <span class="n">interpolate</span><span class="o">=</span><span class="s2">&quot;linear&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<h3 id="boundary-conditions">Boundary conditions<a class="headerlink" href="#boundary-conditions" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="n">hydamo</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">convert</span><span class="o">.</span><span class="n">boundaries</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">boundary_conditions</span><span class="p">,</span> <span class="n">mesh1d</span><span class="o">=</span><span class="n">fm</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">netfile</span><span class="o">.</span><span class="n">network</span><span class="p">)</span>
+</code></pre></div>
+<h4 id="add-a-fictional-time-series-to-use-in-the-bc-file">Add a fictional time series to use in the BC file<a class="headerlink" href="#add-a-fictional-time-series-to-use-in-the-bc-file" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><span class="n">series</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">120</span><span class="p">)</span> <span class="o">*</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">)</span>
+<span class="n">series</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">Timestamp</span><span class="p">(</span><span class="s2">&quot;2016-06-01 00:00:00&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timedelta</span><span class="p">(</span><span class="n">hours</span><span class="o">=</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">120</span><span class="p">)]</span>
+<span class="n">series</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>&lt;AxesSubplot:&gt;
+</code></pre></div>
+<p><img alt="png" src="../output_37_1.png" /></p>
+<p>There is also a fuction to convert laterals, but to run this we also need the RR model. Therefore, see below. It also possible to manually add boundaries and laterals as constants or timeseries. We implement the sinoid above as an upstream streamflow boundary and a lateral:</p>
+<div class="highlight"><pre><span></span><code><span class="n">hydamo</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">add_boundary_condition</span><span class="p">(</span>
+    <span class="s2">&quot;RVW_01&quot;</span><span class="p">,</span> <span class="p">(</span><span class="mf">197464.0</span><span class="p">,</span> <span class="mf">392130.0</span><span class="p">),</span> <span class="s2">&quot;dischargebnd&quot;</span><span class="p">,</span> <span class="n">series</span><span class="p">,</span> <span class="n">fm</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">netfile</span><span class="o">.</span><span class="n">network</span>
+<span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="n">hydamo</span><span class="o">.</span><span class="n">dict_to_dataframe</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">boundary_nodes</span><span class="p">)</span>
+</code></pre></div>
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>id</th>
+      <th>quantity</th>
+      <th>value</th>
+      <th>time</th>
+      <th>time_unit</th>
+      <th>value_unit</th>
+      <th>nodeid</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>RVM_02</th>
+      <td>RVM_02</td>
+      <td>waterlevelbnd</td>
+      <td>11.0</td>
+      <td>None</td>
+      <td>minutes since 0000-00-00 00:00:00</td>
+      <td>m</td>
+      <td>201414.562000_396649.200000</td>
+    </tr>
+    <tr>
+      <th>RVW_01</th>
+      <td>RVW_01</td>
+      <td>dischargebnd</td>
+      <td>[0.09070257317431829, 0.11283143771052084, 0.1...</td>
+      <td>[0.0, 60.0, 120.0, 180.0, 240.0, 300.0, 360.0,...</td>
+      <td>minutes since 2016-06-01 00:00:00</td>
+      <td>m3/s</td>
+      <td>197462.792000_392131.096000</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3 id="initial-conditions">Initial conditions<a class="headerlink" href="#initial-conditions" title="Permanent link">&para;</a></h3>
+<p>Set the initial water depth to 0.5 m. It is also possible to set a global water level using the equivalent function "set_initial_waterlevel".</p>
+<div class="highlight"><pre><span></span><code><span class="n">hydamo</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">set_initial_waterdepth</span><span class="p">(</span><span class="mf">1.5</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="2d-mesh">2D mesh<a class="headerlink" href="#2d-mesh" title="Permanent link">&para;</a></h3>
+<p>To add a mesh, currently 2 options exist:
+1. The converter can generate a relatively simple mesh, with a rotation or refinement. Note that rotation <em>and</em> refinement is currently not possible. In the section below we generate a refined 2D mesh with the following steps:</p>
+<div class="highlight"><pre><span></span><code>- Generate grid within a polygon. The polygon is the extent given to the HyDAMO model.
+- Refine along the main branch
+- Determine altitude from a DEM.
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c1"># 2d mesh extent</span>
+<span class="k">if</span> <span class="n">TwoD</span><span class="p">:</span>
+    <span class="n">extent</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;..\tests\data\2D_extent.shp&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;geometry&quot;</span><span class="p">]</span>
+    <span class="n">network</span> <span class="o">=</span> <span class="n">fm</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">netfile</span><span class="o">.</span><span class="n">network</span>
+</code></pre></div>
+<p>To generate a triangular mesh:</p>
+<div class="highlight"><pre><span></span><code><span class="c1">#if TwoD:</span>
+    <span class="c1">#mesh.mesh2d_add_triangular(network, extent, edge_length=50.0)</span>
+</code></pre></div>
+<p>And a rectangular mesh:</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">TwoD</span><span class="p">:</span>
+    <span class="n">mesh</span><span class="o">.</span><span class="n">mesh2d_add_rectilinear</span><span class="p">(</span><span class="n">network</span><span class="p">,</span> <span class="n">extent</span><span class="p">,</span> <span class="n">dx</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">dy</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">TwoD</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Nodes before refinement:&quot;</span><span class="p">,</span> <span class="n">network</span><span class="o">.</span><span class="n">_mesh2d</span><span class="o">.</span><span class="n">mesh2d_node_x</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+
+    <span class="c1"># refine around the branches. This does only work for a polygon without holes, so use the exterior</span>
+    <span class="n">buffer</span> <span class="o">=</span> <span class="n">Polygon</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="o">.</span><span class="n">buffer</span><span class="p">(</span><span class="mf">50.0</span><span class="p">)</span><span class="o">.</span><span class="n">union_all</span><span class="p">()</span><span class="o">.</span><span class="n">exterior</span><span class="p">)</span>
+    <span class="n">mesh</span><span class="o">.</span><span class="n">mesh2d_refine</span><span class="p">(</span><span class="n">network</span><span class="p">,</span> <span class="n">buffer</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Nodes after refinement:&quot;</span><span class="p">,</span> <span class="n">network</span><span class="o">.</span><span class="n">_mesh2d</span><span class="o">.</span><span class="n">mesh2d_node_x</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+
+    <span class="c1"># add terrain level</span>
+    <span class="n">mesh</span><span class="o">.</span><span class="n">mesh2d_altitude_from_raster</span><span class="p">(</span><span class="n">network</span><span class="p">,</span> <span class="s2">&quot;../tests/data/rasters/AHN_2m_clipped_filled.tif&quot;</span><span class="p">,</span> <span class="s2">&quot;face&quot;</span><span class="p">,</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="n">fill_value</span><span class="o">=-</span><span class="mi">999</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Nodes before refinement: 7515
+Nodes after refinement: 11945
+</code></pre></div>
+<p>For linking the 1D and 2D model, three options are available:
+1. Generating links from each 1d node to the nearest 2d node.
+2. Generating links from each 2d node to the nearest 1d node (intersecting==True)
+3. Generating links from each 2d node to the nearest 1d node, while not allowing the links to intersect other cells (intersecting==True).</p>
+<p>Intersecting indicates whether or not the 2D cells cross the 1D network (lateral versus embedded links).
+So, option 3 is relevant when there is no 2d mesh on top of the 1d mesh: the lateral links.</p>
+<p>Note that for each option a maximum link length can be chosen, to prevent creating long (and perhaps unrealistic) links.</p>
+<h3 id="add-1d-2d-links">Add 1d-2d links<a class="headerlink" href="#add-1d-2d-links" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">TwoD</span><span class="p">:</span>
+    <span class="n">mesh</span><span class="o">.</span><span class="n">links1d2d_add_links_1d_to_2d</span><span class="p">(</span><span class="n">fm</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">netfile</span><span class="o">.</span><span class="n">network</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">TwoD</span><span class="p">:</span>
+    <span class="n">network</span> <span class="o">=</span> <span class="n">fm</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">netfile</span><span class="o">.</span><span class="n">network</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mf">13.5</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">constrained_layout</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">plot_network</span><span class="p">(</span><span class="n">network</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">plot_network</span><span class="p">(</span><span class="n">network</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">links1d2d_kwargs</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">lw</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axs</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_aspect</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="o">*</span><span class="n">buffer</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span><span class="o">.</span><span class="n">xy</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">autoscale_view</span><span class="p">()</span>
+    <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="mi">199700</span><span class="p">,</span> <span class="mi">200200</span><span class="p">)</span>
+    <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">393600</span><span class="p">,</span> <span class="mi">394100</span><span class="p">)</span>
+
+    <span class="n">sc</span> <span class="o">=</span> <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">=</span><span class="n">network</span><span class="o">.</span><span class="n">_mesh2d</span><span class="o">.</span><span class="n">mesh2d_face_x</span><span class="p">,</span>
+        <span class="n">y</span><span class="o">=</span><span class="n">network</span><span class="o">.</span><span class="n">_mesh2d</span><span class="o">.</span><span class="n">mesh2d_face_y</span><span class="p">,</span>
+        <span class="n">c</span><span class="o">=</span><span class="n">network</span><span class="o">.</span><span class="n">_mesh2d</span><span class="o">.</span><span class="n">mesh2d_face_z</span><span class="p">,</span>
+        <span class="n">s</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+        <span class="n">vmin</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span>
+        <span class="n">vmax</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">cb</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">sc</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">cb</span><span class="o">.</span><span class="n">set_label</span><span class="p">(</span><span class="s2">&quot;Face level [m+NAP]&quot;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</code></pre></div>
+<p><img alt="png" src="../output_55_0.png" /></p>
+<p>For finalizing the FM-model, we also need the coupling to the other modules. Therefore, we will do that first.</p>
+<h1 id="add-an-rtc-model">Add an RTC model<a class="headerlink" href="#add-an-rtc-model" title="Permanent link">&para;</a></h1>
+<p>RTC contains many different options. Three are now implemented in D-HyDAMO: 
+- a PID controller (crest level is determined by water level at an observation point);
+- a time controller (a time series of crest level is provided);
+- the possibility for the users to provide their own XML-files for more complex cases. Depending on the complexity, the integration might not yet work for all cases.</p>
+<p>First, initialize a DRTCModel-object. The input is hydamo (for the data), fm (for the time settings), a path where the model will be created (typically an 'rtc' subfolder), a timestep (default 60 seconds) and, optionally, a folder where the user can put 'custom' XML code that will be integrated in the RTC-model. These files will be parsed now and be integrated later.</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RTC</span><span class="p">:</span>
+    <span class="n">drtcmodel</span> <span class="o">=</span> <span class="n">DRTCModel</span><span class="p">(</span>
+        <span class="n">hydamo</span><span class="p">,</span>
+        <span class="n">fm</span><span class="p">,</span>
+        <span class="n">output_path</span><span class="o">=</span><span class="n">output_path</span><span class="p">,</span>
+        <span class="n">rtc_timestep</span><span class="o">=</span><span class="mf">60.0</span><span class="p">,</span>
+        <span class="n">complex_controllers_folder</span><span class="o">=</span><span class="n">data_path</span> <span class="o">/</span> <span class="s2">&quot;complex_controllers&quot;</span>        
+    <span class="p">)</span>
+</code></pre></div>
+<p>If PID controllers are present, they need settings that are not included in the HyDAMO DAMO2.2 data. We define those in a dictionary. They can be specified for each structure - in that case the key of the dictionary should match the key in the HyDAMO DAMO2.2 'sturing'-object. If no separate settings are provided the 'global' settings are used.</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RTC</span><span class="p">:</span>
+    <span class="n">pid_settings</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">pid_settings</span><span class="p">[</span><span class="s2">&quot;global&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;ki&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.05</span><span class="p">,</span>
+        <span class="s2">&quot;kp&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.03</span><span class="p">,</span>
+        <span class="s2">&quot;kd&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="s2">&quot;maxspeed&quot;</span><span class="p">:</span> <span class="mf">0.00033</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">pid_settings</span><span class="p">[</span><span class="s2">&quot;kst_pid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;ki&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.03</span><span class="p">,</span>
+            <span class="s2">&quot;kp&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.0</span><span class="p">,</span>
+            <span class="s2">&quot;kd&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+            <span class="s2">&quot;maxspeed&quot;</span><span class="p">:</span> <span class="mf">0.00033</span><span class="p">,</span>
+        <span class="p">}</span>
+</code></pre></div>
+<p>The function 'from_hydamo' converts the controllers that are specified in the HyDAMO DAMO2.2 data. The extra input consists of the settings for PID controllers (see above) and a dataframe with time series for the time controllers.</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RTC</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">management</span><span class="o">.</span><span class="n">typecontroller</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+        <span class="n">timeseries</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">data_path</span> <span class="o">/</span> <span class="s2">&quot;timecontrollers.csv&quot;</span><span class="p">)</span>
+        <span class="n">timeseries</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">timeseries</span><span class="o">.</span><span class="n">Time</span>        
+
+        <span class="n">drtcmodel</span><span class="o">.</span><span class="n">from_hydamo</span><span class="p">(</span><span class="n">pid_settings</span><span class="o">=</span><span class="n">pid_settings</span><span class="p">,</span> <span class="n">timeseries</span><span class="o">=</span><span class="n">timeseries</span><span class="p">)</span>
+</code></pre></div>
+<p>Additional controllers, that are not included in D-HyDAMO DAMO2.2 might be specified like this:</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RTC</span><span class="p">:</span>
+    <span class="n">drtcmodel</span><span class="o">.</span><span class="n">add_pid_controller</span><span class="p">(</span>
+        <span class="n">structure_id</span><span class="o">=</span><span class="s2">&quot;S_96788&quot;</span><span class="p">,</span>
+        <span class="n">steering_variable</span><span class="o">=</span><span class="s2">&quot;Crest level (s)&quot;</span><span class="p">,</span>
+        <span class="n">target_variable</span><span class="o">=</span><span class="s2">&quot;Water level (op)&quot;</span><span class="p">,</span>
+        <span class="n">setpoint</span><span class="o">=</span><span class="mf">18.2</span><span class="p">,</span>
+        <span class="n">observation_location</span><span class="o">=</span><span class="s2">&quot;ObsPt2&quot;</span><span class="p">,</span>
+        <span class="n">lower_bound</span><span class="o">=</span><span class="mf">18.0</span><span class="p">,</span>
+        <span class="n">upper_bound</span><span class="o">=</span><span class="mf">18.4</span><span class="p">,</span>
+        <span class="n">pid_settings</span><span class="o">=</span><span class="n">pid_settings</span><span class="p">[</span><span class="s2">&quot;global&quot;</span><span class="p">],</span>
+    <span class="p">)</span>
+
+    <span class="n">drtcmodel</span><span class="o">.</span><span class="n">add_time_controller</span><span class="p">(</span>
+        <span class="n">structure_id</span><span class="o">=</span><span class="s2">&quot;S_96548&quot;</span><span class="p">,</span> <span class="n">steering_variable</span><span class="o">=</span><span class="s2">&quot;Crest level (s)&quot;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">timeseries</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>Note that the provided complex controllers use observation points that are not yet in the model. As opposed to delft3dfmpy, it is now possible to add observation points in stages. So we add the missing point now:</p>
+<div class="highlight"><pre><span></span><code><span class="n">hydamo</span><span class="o">.</span><span class="n">observationpoints</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">Point</span><span class="p">(</span><span class="mi">199423</span><span class="p">,</span> <span class="mi">393755</span><span class="p">),</span> <span class="n">Point</span><span class="p">(</span><span class="mi">200260</span><span class="p">,</span> <span class="mi">393771</span><span class="p">)],</span>
+    <span class="p">[</span><span class="s2">&quot;ObsPt3&quot;</span><span class="p">,</span> <span class="s2">&quot;ObsPt4&quot;</span><span class="p">],</span>
+    <span class="n">locationTypes</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;1d&quot;</span><span class="p">,</span> <span class="s2">&quot;1d&quot;</span><span class="p">],</span>
+    <span class="n">snap_distance</span><span class="o">=</span><span class="mf">20.0</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<h2 id="add-a-rainfall-runoff-model">Add a rainfall runoff model<a class="headerlink" href="#add-a-rainfall-runoff-model" title="Permanent link">&para;</a></h2>
+<p>RR has not changed yet compared to delft3dfmpy. Initialize a model:</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RR</span><span class="p">:</span>
+    <span class="n">drrmodel</span> <span class="o">=</span> <span class="n">DRRModel</span><span class="p">()</span>
+</code></pre></div>
+<p>Catchments are provided in the HyDAMO DAMO2.2 format and included in the GPKG. They can also be read from other formats using 'read_gml', or 'read_shp'. Note that in case of shapefiles column mapping is necessary because the column names are truncated. </p>
+<p>Note that when catchments have a "MultiPolygon' geometry, the multipolygons are 'exploded' into single polygon geometries. A warning of this is isued, and a suffix is added to every polygons ID to prevent duplicates. </p>
+<p>For every catchment, the land use areas will be calculated and if appopriate a maximum of four RR-nodes will be created per catchment:
+ - unpaved (based on the Ernst concept)
+ - paved 
+ - greenhouse
+ - open water (not the full Sobek2 open water, but only used to transfer (net) precipitation that falls on open water that is schematized in RR to the 1D/2D network.</p>
+<p>At the moment, two options exist for the schematisation of the paved area:
+ 1) simple: the paved fraction of each catchment is modelled with a paved node, directly connected to catchments' boundary node
+ <br>
+ 2) more complex: sewer area polygons and overflow points are used a input as well. For each sewer area, the overlapping paved area is the distributed over the overflows that are associated with the sewerarea (the column 'lateraleknoopcode') using the area fraction (column 'fractie') for each overflow. In each catchment, paved area that does not intersect with a sewer area gets an unpaved node as in option (1).</p>
+<p>Load data and settings (still to fill with documentatation from delft3dfmpy)</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RR</span><span class="p">:</span>
+    <span class="c1"># all data and settings to create the RR-model</span>
+    <span class="n">lu_file</span> <span class="o">=</span> <span class="n">data_path</span> <span class="o">/</span> <span class="s2">&quot;rasters&quot;</span> <span class="o">/</span> <span class="s2">&quot;sobek_landuse.tif&quot;</span>
+    <span class="n">ahn_file</span> <span class="o">=</span> <span class="n">data_path</span> <span class="o">/</span> <span class="s2">&quot;rasters&quot;</span> <span class="o">/</span> <span class="s2">&quot;AHN_2m_clipped_filled.tif&quot;</span>
+    <span class="n">soil_file</span> <span class="o">=</span> <span class="n">data_path</span> <span class="o">/</span> <span class="s2">&quot;rasters&quot;</span> <span class="o">/</span> <span class="s2">&quot;sobek_soil.tif&quot;</span>
+    <span class="n">surface_storage</span> <span class="o">=</span> <span class="mf">10.0</span>
+    <span class="n">infiltration_capacity</span> <span class="o">=</span> <span class="mf">100.0</span>
+    <span class="n">initial_gwd</span> <span class="o">=</span> <span class="mf">1.2</span>  <span class="c1"># water level depth below surface</span>
+
+    <span class="n">runoff_resistance</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">infil_resistance</span> <span class="o">=</span> <span class="mf">300.0</span>
+    <span class="n">layer_depths</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]</span>
+    <span class="n">layer_resistances</span> <span class="o">=</span> <span class="p">[</span><span class="mi">30</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="mi">10000</span><span class="p">]</span>
+    <span class="n">street_storage</span> <span class="o">=</span> <span class="mf">10.0</span>
+    <span class="n">sewer_storage</span> <span class="o">=</span> <span class="mf">10.0</span>
+    <span class="n">pumpcapacity</span> <span class="o">=</span> <span class="mf">10.0</span>
+    <span class="n">roof_storage</span> <span class="o">=</span> <span class="mf">10.0</span>
+    <span class="n">meteo_areas</span> <span class="o">=</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span>
+</code></pre></div>
+<p>Fill the nodes:</p>
+<p>For land use and soil type a coding is prescribed. For landuse, the legend of the map is expected to be as follows: <br>
+ 1 potatoes  <br>
+ 2 wheat<br>
+ 3 sugar beet<br> 
+ 4 corn       <br> 
+ 5 other crops <br> 
+ 6 bulbous plants<br> 
+ 7 orchard<br>
+ 8 grass  <br>
+ 9 deciduous forest  <br>
+10 coniferous forest<br>
+11 nature<br>
+12 barren<br>
+13 open water<br>
+14 built-up<br>
+15 greenhouses<br></p>
+<p>For classes 1-12, the areas are calculated from the provided raster and remapped to the classification in the Sobek RR-tables.</p>
+<p>The coding for the soil types:<br>
+1 'Veengrond met veraarde bovengrond'<br>
+ 2 'Veengrond met veraarde bovengrond, zand'<br>
+ 3 'Veengrond met kleidek'<br>
+ 4 'Veengrond met kleidek op zand'<br>
+ 5 'Veengrond met zanddek op zand'<br>
+ 6 'Veengrond op ongerijpte klei'<br>
+ 7 'Stuifzand'<br>
+ 8 'Podzol (Leemarm, fijn zand)'<br>
+ 9 'Podzol (zwak lemig, fijn zand)'<br>
+10 'Podzol (zwak lemig, fijn zand op grof zand)'<br>
+11 'Podzol (lemig keileem)'<br>
+12 'Enkeerd (zwak lemig, fijn zand)'<br>
+13 'Beekeerd (lemig fijn zand)'<br>
+14 'Podzol (grof zand)'<br>
+15 'Zavel'<br>
+16 'Lichte klei'<br>
+17 'Zware klei'<br>
+18 'Klei op veen'<br>
+19 'Klei op zand'<br>
+20 'Klei op grof zand'<br>
+21 'Leem'<br></p>
+<p>And surface elevation needs to be in m+NAP.</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RR</span><span class="p">:</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">unpaved</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">unpaved_from_input</span><span class="p">(</span>
+        <span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="p">,</span>
+        <span class="n">lu_file</span><span class="p">,</span>
+        <span class="n">ahn_file</span><span class="p">,</span>
+        <span class="n">soil_file</span><span class="p">,</span>
+        <span class="n">surface_storage</span><span class="p">,</span>
+        <span class="n">infiltration_capacity</span><span class="p">,</span>
+        <span class="n">initial_gwd</span><span class="p">,</span>
+        <span class="n">meteo_areas</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">unpaved</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">ernst_from_input</span><span class="p">(</span>
+        <span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="p">,</span>
+        <span class="n">depths</span><span class="o">=</span><span class="n">layer_depths</span><span class="p">,</span>
+        <span class="n">resistance</span><span class="o">=</span><span class="n">layer_resistances</span><span class="p">,</span>
+        <span class="n">infiltration_resistance</span><span class="o">=</span><span class="n">infil_resistance</span><span class="p">,</span>
+        <span class="n">runoff_resistance</span><span class="o">=</span><span class="n">runoff_resistance</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">paved</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">paved_from_input</span><span class="p">(</span>
+        <span class="n">catchments</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="p">,</span>
+        <span class="n">landuse</span><span class="o">=</span><span class="n">lu_file</span><span class="p">,</span>
+        <span class="n">surface_level</span><span class="o">=</span><span class="n">ahn_file</span><span class="p">,</span>
+        <span class="n">street_storage</span><span class="o">=</span><span class="n">street_storage</span><span class="p">,</span>
+        <span class="n">sewer_storage</span><span class="o">=</span><span class="n">sewer_storage</span><span class="p">,</span>
+        <span class="n">pump_capacity</span><span class="o">=</span><span class="n">pumpcapacity</span><span class="p">,</span>
+        <span class="n">meteo_areas</span><span class="o">=</span><span class="n">meteo_areas</span><span class="p">,</span>
+        <span class="n">zonalstats_alltouched</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">greenhouse</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">greenhouse_from_input</span><span class="p">(</span>
+        <span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="p">,</span> <span class="n">lu_file</span><span class="p">,</span> <span class="n">ahn_file</span><span class="p">,</span> <span class="n">roof_storage</span><span class="p">,</span> <span class="n">meteo_areas</span><span class="p">,</span> <span class="n">zonalstats_alltouched</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">)</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">openwater</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">openwater_from_input</span><span class="p">(</span>
+        <span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="p">,</span> <span class="n">lu_file</span><span class="p">,</span> <span class="n">meteo_areas</span><span class="p">,</span> <span class="n">zonalstats_alltouched</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>Make the RR boundaries:</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RR</span><span class="p">:</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">boundary_from_input</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">laterals</span><span class="p">,</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="p">,</span> <span class="n">drrmodel</span><span class="p">)</span>
+</code></pre></div>
+<p>Again, the result is a dictionary, but it can be easily displayed as a dataframe:</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RR</span><span class="p">:</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">dict_to_dataframe</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">paved</span><span class="o">.</span><span class="n">pav_nodes</span><span class="p">)</span><span class="o">.</span><span class="n">tail</span><span class="p">()</span>
+</code></pre></div>
+<p>As with FM objects, also RR-nodes can be added from the workflow. An unpaved node as an example:</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RR</span><span class="p">:</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">paved</span><span class="o">.</span><span class="n">add_paved</span><span class="p">(</span>
+        <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;test_pav&quot;</span><span class="p">,</span>
+        <span class="n">area</span><span class="o">=</span><span class="s2">&quot;100&quot;</span><span class="p">,</span>
+        <span class="n">surface_level</span><span class="o">=</span><span class="s2">&quot;18.1&quot;</span><span class="p">,</span>
+        <span class="n">street_storage</span><span class="o">=</span><span class="s2">&quot;10.0&quot;</span><span class="p">,</span>
+        <span class="n">sewer_storage</span><span class="o">=</span><span class="s2">&quot;10.0&quot;</span><span class="p">,</span>
+        <span class="n">pump_capacity</span><span class="o">=</span><span class="s2">&quot;1.&quot;</span><span class="p">,</span>
+        <span class="n">meteo_area</span><span class="o">=</span><span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">code</span><span class="p">,</span>
+        <span class="n">px</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">centroid</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]),</span>
+        <span class="n">py</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">centroid</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]),</span>
+        <span class="n">boundary_node</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">boundary_nodes</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="mi">0</span><span class="p">],</span>
+    <span class="p">)</span>
+</code></pre></div>
+<h3 id="external-forcings">External forcings<a class="headerlink" href="#external-forcings" title="Permanent link">&para;</a></h3>
+<p>Three types of external forcing need to be provided:<br>
+- Seepage/drainage
+- Precipitation
+- Evaporation</p>
+<p>All are assumed to be spatially variable and thus need to pe provided as rasters per time step. Only the locations of the folders containing the rasters need to be provided; the time step is then derived from the file names.</p>
+<p>Precipitation and evaporation are assumed to be in mm/d. As for evaporation only one meteostation is used, the meteo_areas are dissolved. For seepage, as the use of Metaswap-rasters is allowed, the unit is assumed to m3/grid cell/timestep.</p>
+<p>Rastertypes can be any type that is recognized by rasterio (in any case Geotiff and ArcASCII rasters). If the file extension is 'IDF', as is the case in Modflow output, the raster is read using the 'imod'-package.</p>
+<p>IMPORTANT: time steps are extracted from the file names. Therefore, the names should cohere to some conditions:
+The filename should consist of at least two parts, separated by underscores. The second part needs to contain time information, which should be formatted as YYYYMMDDHHMMSS (SS may be omitted). Or, for daily data YYYYMMDD.</p>
+<p>For example: 'precip_20200605151500.tif'</p>
+<p>Extracting meteo-data from rasters can be time consuming. If precip_file and evap_file are specified, meteo-files are copied from an existing location.</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RR</span><span class="p">:</span>
+    <span class="n">seepage_folder</span> <span class="o">=</span> <span class="n">data_path</span> <span class="o">/</span> <span class="s2">&quot;rasters&quot;</span> <span class="o">/</span> <span class="s2">&quot;seepage&quot;</span>
+    <span class="n">precip_file</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">data_path</span> <span class="o">/</span> <span class="s2">&quot;DEFAULT.BUI&quot;</span><span class="p">)</span>
+    <span class="n">evap_folder</span> <span class="o">=</span> <span class="n">data_path</span> <span class="o">/</span> <span class="s2">&quot;rasters&quot;</span> <span class="o">/</span> <span class="s2">&quot;evaporation&quot;</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">seepage_from_input</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="p">,</span> <span class="n">seepage_folder</span><span class="p">)</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">precip_from_input</span><span class="p">(</span><span class="n">meteo_areas</span><span class="p">,</span> <span class="n">precip_folder</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precip_file</span><span class="o">=</span><span class="n">precip_file</span><span class="p">)</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">evap_from_input</span><span class="p">(</span><span class="n">meteo_areas</span><span class="p">,</span> <span class="n">evap_folder</span><span class="o">=</span><span class="n">evap_folder</span><span class="p">,</span> <span class="n">evap_file</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Reading seepage files:   0%|          | 0/3 [00:00&lt;?, ?it/s]
+
+
+
+Reading evaporation files:   0%|          | 0/3 [00:00&lt;?, ?it/s]
+</code></pre></div>
+<p>Add the main parameters:</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RR</span><span class="p">:</span>   
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">d3b_parameters</span><span class="p">[</span><span class="s2">&quot;Timestepsize&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">300</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">d3b_parameters</span><span class="p">[</span><span class="s2">&quot;StartTime&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;&#39;2016/06/01;00:00:00&#39;&quot;</span>  <span class="c1"># should be equal to refdate for D-HYDRO</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">d3b_parameters</span><span class="p">[</span><span class="s2">&quot;EndTime&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;&#39;2016/06/03;00:00:00&#39;&quot;</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">d3b_parameters</span><span class="p">[</span><span class="s2">&quot;RestartIn&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">d3b_parameters</span><span class="p">[</span><span class="s2">&quot;RestartOut&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">d3b_parameters</span><span class="p">[</span><span class="s2">&quot;RestartFileNamePrefix&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;Test&quot;</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">d3b_parameters</span><span class="p">[</span><span class="s2">&quot;UnsaturatedZone&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">d3b_parameters</span><span class="p">[</span><span class="s2">&quot;UnpavedPercolationLikeSobek213&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="n">drrmodel</span><span class="o">.</span><span class="n">d3b_parameters</span><span class="p">[</span><span class="s2">&quot;VolumeCheckFactorToCF&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">100000</span>
+</code></pre></div>
+<p>And now we can also add the laterals to FM with the correct settings:</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RR</span><span class="p">:</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">convert</span><span class="o">.</span><span class="n">laterals</span><span class="p">(</span>
+        <span class="n">hydamo</span><span class="o">.</span><span class="n">laterals</span><span class="p">,</span>
+        <span class="n">lateral_discharges</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">rr_boundaries</span><span class="o">=</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">boundary_nodes</span><span class="p">,</span>
+    <span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">lateral_discharges</span> <span class="o">=</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">laterals</span><span class="p">[</span><span class="s2">&quot;afvoer&quot;</span><span class="p">]</span>
+    <span class="n">lateral_discharges</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">hydamo</span><span class="o">.</span><span class="n">laterals</span><span class="o">.</span><span class="n">code</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">convert</span><span class="o">.</span><span class="n">laterals</span><span class="p">(</span>
+        <span class="n">hydamo</span><span class="o">.</span><span class="n">laterals</span><span class="p">,</span> <span class="n">lateral_discharges</span><span class="o">=</span><span class="n">lateral_discharges</span><span class="p">,</span> <span class="n">rr_boundaries</span><span class="o">=</span><span class="kc">None</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>And now we can also manually add lateral nodes, which we still need to convert to a dataframe.</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="ow">not</span> <span class="n">RR</span><span class="p">:</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">add_lateral</span><span class="p">(</span><span class="s2">&quot;LAT_01&quot;</span><span class="p">,</span> <span class="s2">&quot;W_242209_0&quot;</span><span class="p">,</span> <span class="s2">&quot;5.0&quot;</span><span class="p">,</span> <span class="n">series</span><span class="p">)</span>
+    <span class="n">hydamo</span><span class="o">.</span><span class="n">dict_to_dataframe</span><span class="p">(</span><span class="n">hydamo</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">lateral_nodes</span><span class="p">)</span><span class="o">.</span><span class="n">tail</span><span class="p">()</span>
+</code></pre></div>
+<h3 id="plot-the-rr-model">Plot the RR model<a class="headerlink" href="#plot-the-rr-model" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">node_geometry</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
+    <span class="c1"># Function to put the node geometries in geodataframes</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">Point</span><span class="p">,</span> <span class="n">LineString</span>
+
+    <span class="n">geoms</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">links</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="s2">&quot;ar&quot;</span> <span class="ow">in</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">([</span><span class="nb">float</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;ar&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">)])</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">geoms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Point</span><span class="p">((</span><span class="nb">float</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;px&quot;</span><span class="p">]),</span> <span class="nb">float</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;py&quot;</span><span class="p">]))))</span>
+                <span class="n">links</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">LineString</span><span class="p">(</span>
+                        <span class="p">(</span>
+                            <span class="n">Point</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;px&quot;</span><span class="p">]),</span> <span class="nb">float</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;py&quot;</span><span class="p">])),</span>
+                            <span class="n">Point</span><span class="p">(</span>
+                                <span class="nb">float</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">boundary_nodes</span><span class="p">[</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;boundary_node&quot;</span><span class="p">]][</span><span class="s2">&quot;px&quot;</span><span class="p">]),</span>
+                                <span class="nb">float</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">boundary_nodes</span><span class="p">[</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;boundary_node&quot;</span><span class="p">]][</span><span class="s2">&quot;py&quot;</span><span class="p">]),</span>
+                            <span class="p">),</span>
+                        <span class="p">)</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">geoms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Point</span><span class="p">((</span><span class="nb">float</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;px&quot;</span><span class="p">]),</span> <span class="nb">float</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;py&quot;</span><span class="p">]))))</span>
+    <span class="k">return</span> <span class="p">((</span><span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">geoms</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;geometry&quot;</span><span class="p">])),</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">links</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;geometry&quot;</span><span class="p">]))</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c1">## plt.rcParams[&#39;axes.edgecolor&#39;] = &#39;w&#39;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.patches</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mpatches</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+
+<span class="n">ax</span><span class="o">.</span><span class="n">xaxis</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="mi">195000</span><span class="p">,</span> <span class="mi">205000</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">390000</span><span class="p">,</span> <span class="mi">399000</span><span class="p">)</span>
+
+<span class="n">hydamo</span><span class="o">.</span><span class="n">catchments</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Catchments&quot;</span><span class="p">,</span> <span class="n">edgecolor</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span> <span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;pink&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">hydamo</span><span class="o">.</span><span class="n">branches</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Channel&quot;</span><span class="p">)</span>
+<span class="n">node_geometry</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">unpaved</span><span class="o">.</span><span class="n">unp_nodes</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+    <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s2">&quot;s&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;green&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Unpaved&quot;</span>
+<span class="p">)</span>
+<span class="n">node_geometry</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">unpaved</span><span class="o">.</span><span class="n">unp_nodes</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">node_geometry</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">paved</span><span class="o">.</span><span class="n">pav_nodes</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s2">&quot;s&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Paved&quot;</span><span class="p">)</span>
+<span class="n">node_geometry</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">paved</span><span class="o">.</span><span class="n">pav_nodes</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">node_geometry</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">greenhouse</span><span class="o">.</span><span class="n">gh_nodes</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;yellow&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Greenhouse&quot;</span><span class="p">)</span>
+<span class="n">node_geometry</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">greenhouse</span><span class="o">.</span><span class="n">gh_nodes</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">node_geometry</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">openwater</span><span class="o">.</span><span class="n">ow_nodes</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;blue&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Openwater&quot;</span><span class="p">)</span>
+<span class="n">node_geometry</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">openwater</span><span class="o">.</span><span class="n">ow_nodes</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;RR-link&quot;</span><span class="p">)</span>
+<span class="n">node_geometry</span><span class="p">(</span><span class="n">drrmodel</span><span class="o">.</span><span class="n">external_forcings</span><span class="o">.</span><span class="n">boundary_nodes</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+    <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;purple&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;RR Boundary&quot;</span>
+<span class="p">)</span>
+
+<span class="c1"># manually add handles for polygon plot</span>
+<span class="n">handles</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">get_legend_handles_labels</span><span class="p">()</span>
+<span class="n">poly</span> <span class="o">=</span> <span class="n">mpatches</span><span class="o">.</span><span class="n">Patch</span><span class="p">(</span><span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;pink&quot;</span><span class="p">,</span> <span class="n">edgecolor</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">cx</span><span class="o">.</span><span class="n">add_basemap</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="mi">28992</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">cx</span><span class="o">.</span><span class="n">providers</span><span class="o">.</span><span class="n">OpenStreetMap</span><span class="o">.</span><span class="n">Mapnik</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">handles</span><span class="o">=</span><span class="n">handles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">poly</span><span class="p">),</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;Catchments&quot;</span><span class="p">))</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+</code></pre></div>
+<p><img alt="png" src="../output_94_0.png" /></p>
+<h2 id="writing-the-model">Writing the model<a class="headerlink" href="#writing-the-model" title="Permanent link">&para;</a></h2>
+<p>Now we call Hydrolib-core functionality to write the model. First, we initialize an object that converts all dataframes to Hydrolib-core objects. Then we add these models to the file structure of the FM model.</p>
+<p>Call a function to convert the dataframes to Hydrolib-core classes:</p>
+<div class="highlight"><pre><span></span><code><span class="n">models</span> <span class="o">=</span> <span class="n">Df2HydrolibModel</span><span class="p">(</span><span class="n">hydamo</span><span class="p">)</span>
+</code></pre></div>
+<p>And add the classes to the file structure</p>
+<div class="highlight"><pre><span></span><code><span class="n">fm</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">structurefile</span> <span class="o">=</span> <span class="p">[</span><span class="n">StructureModel</span><span class="p">(</span><span class="n">structure</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">structures</span><span class="p">)]</span>
+<span class="n">fm</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">crosslocfile</span> <span class="o">=</span> <span class="n">CrossLocModel</span><span class="p">(</span><span class="n">crosssection</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">crosslocs</span><span class="p">)</span>
+<span class="n">fm</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">crossdeffile</span> <span class="o">=</span> <span class="n">CrossDefModel</span><span class="p">(</span><span class="n">definition</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">crossdefs</span><span class="p">)</span>
+
+<span class="n">fm</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">frictfile</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">fric_def</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">friction_defs</span><span class="p">):</span>
+    <span class="n">fric_model</span> <span class="o">=</span> <span class="n">FrictionModel</span><span class="p">(</span><span class="n">global_</span><span class="o">=</span><span class="n">fric_def</span><span class="p">)</span>
+    <span class="n">fric_model</span><span class="o">.</span><span class="n">filepath</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;roughness_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">.ini&quot;</span>
+    <span class="n">fm</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">frictfile</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fric_model</span><span class="p">)</span>
+
+<span class="n">fm</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">obsfile</span> <span class="o">=</span> <span class="p">[</span><span class="n">ObservationPointModel</span><span class="p">(</span><span class="n">observationpoint</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">obspoints</span><span class="p">)]</span>
+
+<span class="n">extmodel</span> <span class="o">=</span> <span class="n">ExtModel</span><span class="p">()</span>
+<span class="n">extmodel</span><span class="o">.</span><span class="n">boundary</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">boundaries_ext</span>
+<span class="n">extmodel</span><span class="o">.</span><span class="n">lateral</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">laterals_ext</span>
+<span class="n">fm</span><span class="o">.</span><span class="n">external_forcing</span><span class="o">.</span><span class="n">extforcefilenew</span> <span class="o">=</span> <span class="n">extmodel</span>
+
+<span class="n">fm</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">inifieldfile</span> <span class="o">=</span> <span class="n">IniFieldModel</span><span class="p">(</span><span class="n">initial</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">inifields</span><span class="p">)</span>
+<span class="c1"># for ifield, onedfield in enumerate(models.onedfieldmodels):</span>
+<span class="c1">#     fm.geometry.inifieldfile.initial[ifield].datafile = OneDFieldModel(</span>
+<span class="c1">#         global_= onedfield</span>
+<span class="c1">#     )</span>
+</code></pre></div>
+<p>Now we write the file structure:</p>
+<div class="highlight"><pre><span></span><code><span class="n">fm</span><span class="o">.</span><span class="n">filepath</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span> <span class="o">/</span> <span class="s2">&quot;fm&quot;</span> <span class="o">/</span> <span class="s2">&quot;test.mdu&quot;</span>
+<span class="n">dimr</span> <span class="o">=</span> <span class="n">DIMR</span><span class="p">()</span>
+<span class="n">dimr</span><span class="o">.</span><span class="n">component</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+    <span class="n">FMComponent</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;DFM&quot;</span><span class="p">,</span> <span class="n">workingDir</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span> <span class="o">/</span> <span class="s2">&quot;fm&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">fm</span><span class="p">,</span> <span class="n">inputfile</span><span class="o">=</span><span class="n">fm</span><span class="o">.</span><span class="n">filepath</span><span class="p">)</span>    
+<span class="p">)</span>
+<span class="n">dimr</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">recurse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
+<span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">data_path</span> <span class="o">/</span> <span class="s2">&quot;initialWaterDepth.ini&quot;</span><span class="p">,</span> <span class="n">output_path</span> <span class="o">/</span> <span class="s2">&quot;fm&quot;</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>&#39;D:\\3640.20\\HYDROLIB-dhydamo\\hydrolib\\tests\\model2\\fm\\initialWaterDepth.ini&#39;
+</code></pre></div>
+<p>This is not done yet. Use the delft3dfmpy writers for the RR-part:</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RTC</span><span class="p">:</span>
+    <span class="n">drtcmodel</span><span class="o">.</span><span class="n">write_xml_v1</span><span class="p">()</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="k">if</span> <span class="n">RR</span><span class="p">:</span>
+    <span class="n">rr_writer</span> <span class="o">=</span> <span class="n">DRRWriter</span><span class="p">(</span><span class="n">drrmodel</span><span class="p">,</span> <span class="n">output_dir</span><span class="o">=</span><span class="n">output_path</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;test&quot;</span><span class="p">,</span> <span class="n">wwtp</span><span class="o">=</span><span class="p">(</span><span class="mf">199000.0</span><span class="p">,</span> <span class="mf">396000.0</span><span class="p">))</span>
+    <span class="n">rr_writer</span><span class="o">.</span><span class="n">write_all</span><span class="p">()</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="n">dimr</span> <span class="o">=</span> <span class="n">DIMRWriter</span><span class="p">(</span><span class="n">output_path</span><span class="o">=</span><span class="n">output_path</span><span class="p">)</span>
+<span class="n">dimr</span><span class="o">.</span><span class="n">write_dimrconfig</span><span class="p">(</span><span class="n">fm</span><span class="p">,</span> <span class="n">rr_model</span><span class="o">=</span><span class="n">drrmodel</span><span class="p">,</span> <span class="n">rtc_model</span><span class="o">=</span><span class="n">drtcmodel</span><span class="p">)</span>
+<span class="n">dimr</span><span class="o">.</span><span class="n">write_runbat</span><span class="p">()</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Done!&quot;</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Done!
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2022 Deltares
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://github.com/Deltares/HYDROLIB" target="_blank" rel="noopener" title="Source code" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://gitter.im/Deltares/HYDROLIB" target="_blank" rel="noopener" title="Chat with us on Gitter" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M66.4 322.5H16V0h50.4zM166.9 76.1h-50.4V512h50.4zm100.6 0h-50.4V512h50.4zM368 76h-50.4v247H368z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.instant", "navigation.indexes", "navigation.tracking", "navigation.tabs", "navigation.top", "toc.integrate"], "search": "../../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>
