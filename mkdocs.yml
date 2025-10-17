@@ -30,7 +30,7 @@ plugins:
       default_handler: python
       handlers:
         python:
-          rendering:
+          options:
             show_root_toc_entry: false
             show_root_heading: false
             show_source: true
@@ -39,11 +39,8 @@ plugins:
             heading_level: 3
             show_category_heading: false
             group_by_category: false
-          selection:
             inherited_members: false
 
-      watch:
-        - hydrolib
 markdown_extensions:
   - pymdownx.highlight
   - tables
