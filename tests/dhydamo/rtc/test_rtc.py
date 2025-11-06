@@ -1,8 +1,10 @@
+import logging
 import sys
 
 sys.path.insert(0, r".")
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from hydrolib.dhydamo.core.drtc import DRTCModel
@@ -92,3 +94,16 @@ def test_setup_rtc_model(hydamo=None):
     assert len(drtcmodel.pid_controllers) == 3
     assert len(drtcmodel.time_controllers) == 2
     assert len(drtcmodel.interval_controllers) == 1
+
+
+def test_complex_controller_already_present(caplog):
+    rtcd = _setup_rtc_model()
+    rtcd.add_time_controller(
+        structure_id="S_96684",
+        steering_variable="Crest level (s)",
+        data=pd.Series(np.zeros(10)),
+    )
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
+        rtcd.write_xml_v1()
+    
+    assert any("Skipped writing" in message for message in caplog.messages)

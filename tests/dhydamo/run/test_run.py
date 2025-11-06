@@ -4,7 +4,7 @@ import subprocess
 import pytest
 
 from tests.dhydamo.io import test_to_hydrolibcore, test_from_hydamo
-from tests.dhydamo.rtc import test_setup_rtc
+from tests.dhydamo.rtc import test_rtc
 from tests.dhydamo.rr import test_setup_rr
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
 from hydrolib.dhydamo.io.drrwriter import DRRWriter
@@ -49,7 +49,7 @@ def test_run_model():
     rr_writer.write_all()
     
     # Add RTC component
-    drtcmodel = test_setup_rtc._setup_rtc_model(hydamo=hydamo, fm=fm, output_path=output_path)
+    drtcmodel = test_rtc._setup_rtc_model(hydamo=hydamo)
     drtcmodel.write_xml_v1()
 
     # Find DIMR path

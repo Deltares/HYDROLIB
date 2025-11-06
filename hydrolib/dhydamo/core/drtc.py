@@ -1,13 +1,15 @@
 import logging
-import shutil
 import os
+import shutil
+import xml.dom.minidom
+import xml.etree.ElementTree as ET
+from datetime import datetime as dt
 from pathlib import Path
-from typing import Union, Optional
+from typing import Optional, Union
+
 import pandas as pd
 from pydantic.v1 import validate_arguments
-from datetime import datetime as dt
-import xml.etree.ElementTree as ET
-import xml.dom.minidom
+
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 
@@ -26,7 +28,7 @@ class DRTCModel:
         rtc_timeseriesdata: pd.DataFrame=None,
         complex_controllers_folder: Union[str, Path] = None,
         rtc_timestep: Union[int, float] = 60,
-        
+
     ) -> None:
         """Initialization of the DRTCModel class. (empty) lists/dicts and filepaths are initialized. Also, complex controllers are parsed. Template files are (already) copied to the output folder.
 
@@ -62,11 +64,12 @@ class DRTCModel:
         # parse user-provided controllers
         if not rtc_onlytimeseries:
             if complex_controllers_folder is not None:
-                self.complex_controllers = self.parse_complex_controller(
+                self.complex_controllers, self.complex_controller_ids = self.parse_complex_controller(
                     complex_controllers_folder
                 )
             else:
                 self.complex_controllers = None
+                self.complex_controller_ids = None
 
         # copy files from the template RTC-folder
         self.template_dir = Path(os.path.dirname(__file__)) / ".." / "resources" / "RTC"
@@ -80,41 +83,41 @@ class DRTCModel:
         for file in generic_files:
             shutil.copy(self.template_dir / file, self.output_path / file)
 
-        if rtc_onlytimeseries:                    
+        if rtc_onlytimeseries:
             for name, data in rtc_timeseriesdata.items():
                 if name in hydamo.structures.rweirs_df.id.to_list():
                     steering_var = "Crest level (s)"
                 if name in hydamo.structures.orifices_df.id.to_list():
                     steering_var = 'Gate lower edge level (s)'
                 if name in hydamo.structures.pumps_df.id.to_list():
-                    steering_var = 'Capacity (p)'       
+                    steering_var = 'Capacity (p)'
                 self.add_time_controller(
                     structure_id=name, steering_variable=steering_var, data=data
-                )  
-            self.check_timeseries(rtc_timeseriesdata)    
+                )
+            self.check_timeseries(rtc_timeseriesdata)
             self.complex_controllers  = None
-    
+
     @validate_arguments
     def check_timeseries(self, timeseries):
         hydamo_controllers = self.hydamo.management[~self.hydamo.management.regelmiddelid.isnull()].regelmiddelid
         for controller in hydamo_controllers:
             mandev = self.hydamo.management_device[self.hydamo.management_device.globalid ==controller]
             if ~mandev.kunstwerkopeningid.isnull().values[0]:
-                ko = self.hydamo.opening[self.hydamo.opening.globalid ==mandev.kunstwerkopeningid.values[0]]                
-                weir = self.hydamo.weirs[self.hydamo.weirs.globalid ==ko.stuwid.values[0]].code.values[0]                
+                ko = self.hydamo.opening[self.hydamo.opening.globalid ==mandev.kunstwerkopeningid.values[0]]
+                weir = self.hydamo.weirs[self.hydamo.weirs.globalid ==ko.stuwid.values[0]].code.values[0]
                 if weir not in timeseries.columns:
-                    print(f'For {weir} a controller is defined in hydamo.management, but no timeseries is provided for it.')
+                    logger.warning(f'For {weir} a controller is defined in hydamo.management, but no timeseries is provided for it.')
             elif ~mandev.duikersifonhevelid.isnull().values[0]:
                 dsh = self.hydamo.culvert[self.hydamo.culvert.globalid ==mandev.duikersifonhevelid.values[0]].code
                 if dsh not in timeseries.columns:
-                    print(f'For {dsh} a controller is defined in hydamo.management, but no timeseries is provided for it.')
+                    logger.warning(f'For {dsh} a controller is defined in hydamo.management, but no timeseries is provided for it.')
             else:
-                print(f'{mandev.code} is not associated with a management_device or culvert.')
+                logger.warning(f'{mandev.code} is not associated with a management_device or culvert.')
         hydamo_pumps = self.hydamo.management[~self.hydamo.management.pompid.isnull()].pompid
-        for pump in hydamo_pumps:            
+        for pump in hydamo_pumps:
             pmp = self.hydamo.pumps[self.hydamo.pumps.globalid ==pump].code.values[0]
             if pmp not in timeseries.columns:
-                print(f'For {pmp} a controller is defined in hydamo.management, but no timeseries is provided for it.')
+                logger.warning(f'For {pmp} a controller is defined in hydamo.management, but no timeseries is provided for it.')
 
     @staticmethod
     @validate_arguments
@@ -129,6 +132,7 @@ class DRTCModel:
         """
         files = os.listdir(xml_folder)
         files = [file for file in files if file.endswith("xml")]
+        struct_ids = []
         savedict = {}
         savedict["dataconfig_import"] = []
         savedict["dataconfig_export"] = []
@@ -145,29 +149,46 @@ class DRTCModel:
                 if "importSeries" in children:
                     for num, el in enumerate(children["importSeries"]):#[1:]:
                         if 'PITimeSeries' in ET.tostring(el).decode() and num == 0:
-                            continue                        
+                            continue
                         savedict["dataconfig_import"].append(ET.tostring(el).decode())
+                        DRTCModel._parse_id(el, struct_ids)
                 if "exportSeries" in children:
                     for el in children["exportSeries"]:#[2:]:
                         if ('PITimeSeries' not in ET.tostring(el).decode()) and ('CSVTimeSeries' not in ET.tostring(el).decode()):
-                            savedict["dataconfig_export"].append(ET.tostring(el).decode())                        
+                            savedict["dataconfig_export"].append(ET.tostring(el).decode())
+                            DRTCModel._parse_id(el, struct_ids)
             elif file == "rtcToolsConfig.xml":
                 children = DRTCModel._parse_unique_children(root)
                 if "rules" in children:
                     for el in children["rules"]:
                         savedict["toolsconfig_rules"].append(ET.tostring(el).decode())
+                        DRTCModel._parse_id(el, struct_ids)
                 if "triggers" in children:
                     for el in children["triggers"]:
                         savedict["toolsconfig_triggers"].append(ET.tostring(el).decode())
+                        DRTCModel._parse_id(el, struct_ids)
             elif file == "timeseries_import.xml":
                 for el in root:
                     savedict["timeseries"].append(ET.tostring(el).decode())
+                    DRTCModel._parse_id(el, struct_ids)
             elif file == "state_import.xml":
                 for el in root[0]:
                     savedict["state"].append(ET.tostring(el).decode())
+                    DRTCModel._parse_id(el, struct_ids)
             elif file == "dimr_config.xml":
                 savedict["dimr_config"].append(root)
-        return savedict
+
+        return savedict, set(struct_ids)
+
+    @staticmethod
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def _parse_id(entry: ET.Element, struct_ids: list) -> str:
+        if "id" in entry.attrib:
+            entry_id = entry.attrib["id"]
+            if entry_id.startswith("[Input]") or entry_id.startswith("[Output]"):
+                entry_id = entry_id.replace("[Input]", "").replace("[Output]", "")
+                entry_id = entry_id.split("/")[0]
+                struct_ids.append(entry_id)
 
     @staticmethod
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -205,7 +226,7 @@ class DRTCModel:
             # first get the structure ID through the coupled items. It can so far be three different structure types.
             if not pd.isnull(management.regelmiddelid):
                 weir_code = management.stuwid
-                
+
                 if weir_code in list(self.hydamo.structures.rweirs_df.id):
                     weir = self.hydamo.structures.rweirs_df[
                         self.hydamo.structures.rweirs_df.id == weir_code
@@ -218,15 +239,15 @@ class DRTCModel:
                     weir = self.hydamo.structures.orifices_df[
                         self.hydamo.structures.orifices_df.id == weir_code
                     ]
-                else:                    
-                    print(
+                else:
+                    logger.warning(
                         f"Management for management_device {management.regelmiddelid} could not be connnected to a structure. Skipping it."
                     )
                     continue
                 struc_id = weir.id.values[0]
             elif not pd.isnull(management.pompid):
                 if not self.hydamo.pumps.empty and management.pompid in list(self.hydamo.pumps.globalid):
-                    struc_id = self.hydamo.pumps[self.hydamo.pumps.globalid == management.pompid].code.values[0]                
+                    struc_id = self.hydamo.pumps[self.hydamo.pumps.globalid == management.pompid].code.values[0]
             else:
                 raise ValueError(
                     "Only management_devices and pumps can be connected to a management object."
@@ -250,7 +271,7 @@ class DRTCModel:
                 raise ValueError(
                     f"Invalid value for target variable of {struc_id}: {management.doelvariabele}."
                 )
-  
+
             if management.typecontroller == "PID":
                 #  if the ID is not specified separately, use the global settings
                 if pid_settings is None:
@@ -283,7 +304,7 @@ class DRTCModel:
             elif management.typecontroller == "interval":
                 if interval_settings is None:
                     raise ValueError(f'{management.code} contains an interval controller, but no interval_settings are provided. Please do so.')
-                
+
                 if struc_id not in interval_settings:
                     deadband = interval_settings["global"]["deadband"]
                     max_speed = interval_settings["global"]["maxspeed"]
@@ -357,7 +378,7 @@ class DRTCModel:
         ki: float = 0.001,
         kp: float = 0.0,
         kd: float = 0.0,
-        max_speed: float=0.00033,        
+        max_speed: float=0.00033,
         interpolation_option: str = 'LINEAR',
         extrapolation_option: str = 'BLOCK',
     ) -> None:
@@ -366,7 +387,7 @@ class DRTCModel:
         Args:
             structure_id (str): structure iD.
             steering_variable (str): variable to be controlled, usually crest level.
-            target_variable (str): target variable (usually water level)            
+            target_variable (str): target variable (usually water level)
             setpoint (Union[float, str, pd.Series]): setpoint value or timeseries of setpointvalue
             lower_bound (Union[float, str]): lowest value to be allowed
             upper_bound (Union[float, str]): highest value to be allowed
@@ -378,20 +399,20 @@ class DRTCModel:
             interpolation_option (str): interpolation option used
             extrapolation_option (str): extrapolation option used
         """
-        self.pid_controllers[structure_id] = {     
-            "type": "PID",       
+        self.pid_controllers[structure_id] = {
+            "type": "PID",
             "steering_variable": steering_variable,
             "target_variable": target_variable,
             "setpoint": setpoint,
             "observation_point": observation_location,
             "lower_bound": lower_bound,
-            "upper_bound": upper_bound,            
-            "ki": ki,       
-            "kp": kp,       
-            "kd": kd,       
-            'max_speed': max_speed, 
+            "upper_bound": upper_bound,
+            "ki": ki,
+            "kp": kp,
+            "kd": kd,
+            'max_speed': max_speed,
             "interpolation_option": interpolation_option,
-            "extrapolation_option": extrapolation_option,            
+            "extrapolation_option": extrapolation_option,
         }
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -425,7 +446,7 @@ class DRTCModel:
             extrapolation_option (str): extrapolation option used
         """
         self.interval_controllers[structure_id] = {
-            "type": 'Interval', 
+            "type": 'Interval',
             "steering_variable": steering_variable,
             "target_variable": target_variable,
             "setpoint": setpoint,
@@ -460,7 +481,7 @@ class DRTCModel:
         with open(filename, "w+") as f:
             f.write(xmlstring)
         with open(filename, "r") as f:
-            temp = xml.dom.minidom.parseString(f.read()) 
+            temp = xml.dom.minidom.parseString(f.read())
         with open(filename, "w+") as f:
             f.write(temp.toprettyxml())
 
@@ -471,7 +492,7 @@ class DRTCModel:
         self.write_timeseries_import()
         self.write_dataconfig()
         self.write_state_import()
-        
+
 
     def write_runtimeconfig(self) -> None:
         """Function to write RtcRunTimeConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
@@ -529,9 +550,12 @@ class DRTCModel:
         for ikey, key in enumerate(self.all_controllers.keys()):
 
             controller = self.all_controllers[key]
+            if key in self.complex_controller_ids:
+                logger.warning(f"Skipped writing {controller['type']} control for {key}, complex controller already present")
+                continue
 
             a = ET.SubElement(myroot[1], gn_brackets + "rule")
-            if controller['type'] == "PID":                
+            if controller['type'] == "PID":
 
                 # rule type (PID)
                 b = ET.SubElement(a, gn_brackets + "pid")
@@ -569,8 +593,8 @@ class DRTCModel:
                     + "/"
                     + controller["target_variable"]
                 )
-                 
-                # If setpoint varies in time 
+
+                # If setpoint varies in time
                 if isinstance(controller["setpoint"], pd.Series):
                     ll = ET.SubElement(j, gn_brackets + "setpointSeries")
                     ll.text = "[SP]" + "Control group " + str(key) + "/PID Rule"
@@ -578,7 +602,7 @@ class DRTCModel:
                 else:
                     ll = ET.SubElement(j, gn_brackets + "setpointValue")
                     ll.text = str(controller["setpoint"])
-                
+
                 # output
                 m = ET.SubElement(b, gn_brackets + "output")
 
@@ -590,10 +614,10 @@ class DRTCModel:
 
                 q = ET.SubElement(m, gn_brackets + "differentialPart")
                 q.text = "[DP]" + "Control group " + str(key) + "/PID Rule"
-            
+
             elif controller['type'] == 'Interval':
                 # Interval RTC
-                # rule type (Interval) 
+                # rule type (Interval)
                 b = ET.SubElement(a, gn_brackets + "interval")
                 b.set("id", "[IntervalRule]" + "Control group " + str(key) + "/Interval Rule")
 
@@ -620,7 +644,7 @@ class DRTCModel:
                     + "/"
                     + controller["target_variable"]
                 )
-                # If setpoint varies in time 
+                # If setpoint varies in time
                 ll = ET.SubElement(j, gn_brackets + "setpoint")
                 ll.text = "[SP]" + "Control group " + str(key) + "/Interval Rule"
 
@@ -651,17 +675,17 @@ class DRTCModel:
 
         # elements that are parsed from user specified files should be inserted at the right place.
         if self.complex_controllers is not None:
-            for ctl in self.complex_controllers["toolsconfig_rules"]:                
+            for ctl in self.complex_controllers["toolsconfig_rules"]:
                 myroot[1].append(ET.fromstring(ctl))
-            for ctl in self.complex_controllers["toolsconfig_triggers"]:                                
+            for ctl in self.complex_controllers["toolsconfig_triggers"]:
                 # no trigger block present yet
                 if len(myroot) == 2:
                     trigger = ET.Element(gn_brackets + "triggers")
                     myroot.append(trigger)
                     myroot[2].append(ET.fromstring(ctl))
                 else:
-                    myroot[2].append(ET.fromstring(ctl))                
-                
+                    myroot[2].append(ET.fromstring(ctl))
+
         self.finish_file(myroot, configfile, self.output_path / "rtcToolsConfig.xml")
 
     def write_dataconfig(self) -> None:
@@ -679,8 +703,8 @@ class DRTCModel:
         myroot = configfile.getroot()
 
         timeseries_length = len(ET.parse(self.output_path / 'timeseries_import.xml').getroot())
-        
-        
+
+
         # implementing standard settings import and exportdata
         a0 = ET.SubElement(myroot[1], gn_brackets + "CSVTimeSeriesFile")
         a0.set("decimalSeparator", ".")
@@ -698,19 +722,19 @@ class DRTCModel:
        # implementing standard settings import and exportdata
         if timeseries_length > 0:
             # only if timeseries are written to the import
-            a4 = ET.SubElement(myroot[0], gn_brackets + "PITimeSeriesFile")        
+            a4 = ET.SubElement(myroot[0], gn_brackets + "PITimeSeriesFile")
             a5 = ET.SubElement(a4, gn_brackets + "timeSeriesFile")
-            a5.text = "timeseries_import.xml"        
+            a5.text = "timeseries_import.xml"
             a6 = ET.SubElement(a4, gn_brackets + "useBinFile")
             a6.text = "false"
-        
+
           # weir dependable data
         for ikey, key in enumerate(self.all_controllers.keys()):
 
             controller = self.all_controllers[key]
 
             # te importeren data
-            if controller['type'] == 'PID': 
+            if controller['type'] == 'PID':
                 a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
                 a.set(
                     "id",
@@ -732,7 +756,7 @@ class DRTCModel:
                 e.text = "m"
 
                 # If a time dependent setpoint is required, add the Time Rule
-                if type(controller['setpoint']) is pd.Series: 
+                if type(controller['setpoint']) is pd.Series:
                     a2 = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
 
                     if controller['type'] =='PID':
@@ -741,7 +765,7 @@ class DRTCModel:
 
                         c2 = ET.SubElement(b2, gn_brackets + "locationId")
                         c2.text = f"[PID]Control group {key}/PID Rule"
-                    
+
                     elif controller['type'] == 'Interval':
                         a2.set("id", "[SP] Interval Rule")
                         b2 = ET.SubElement(a2, gn_brackets + "PITimeSeries")
@@ -757,7 +781,7 @@ class DRTCModel:
 
                     e2 = ET.SubElement(b2, gn_brackets + "extrapolationOption")
                     e2.text = controller['extrapolation_option'] # Changed from Block: HL
-            elif controller['type'] == 'Interval': 
+            elif controller['type'] == 'Interval':
                 a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
                 a.set(
                     "id",
@@ -779,7 +803,7 @@ class DRTCModel:
                 e.text = "m"
 
                 a2 = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
-                
+
                 a2.set("id", f"[SP]Control group {key}/Interval Rule")
                 b3 = ET.SubElement(a2, gn_brackets + "PITimeSeries")
 
@@ -912,7 +936,7 @@ class DRTCModel:
                 dates = pd.to_datetime( controller["setpoint"].index).strftime("%Y-%m-%d")
                 times = pd.to_datetime(controller["setpoint"].index).strftime("%H:%M:%S")
                 timestep = (pd.to_datetime(f'{dates[1]} {times[1]}') - pd.to_datetime(f'{dates[0]} {times[0]}')).total_seconds()
-                
+
                 a = ET.SubElement(myroot, gn_brackets + "series")
                 b = ET.SubElement(a, gn_brackets + "header")
                 c = ET.SubElement(b, gn_brackets + "type")
@@ -1021,7 +1045,7 @@ class DRTCModel:
             if controller['type'] == 'PID':
                 b.text = str(controller["upper_bound"])
             elif controller['type'] == 'Interval':
-                b.text = str(max(controller['setting_above'], controller['setting_below'])) # Take the maximum value as a starting value            
+                b.text = str(max(controller['setting_above'], controller['setting_below'])) # Take the maximum value as a starting value
             else:
                 b.text = str(controller["data"].values[0])
 
