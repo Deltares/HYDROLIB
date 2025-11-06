@@ -93,7 +93,7 @@ def test_plot_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refi
     [
         (False, False, False, True, 24),
         (True, False, False, True, 11),
-        (False, True, False, True, 19),
+        (False, True, False, True, 15),
         (False, False, True, True, 48),
     ],
 )
