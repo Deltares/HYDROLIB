@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime as dt
 from pathlib import Path
 from typing import Optional, Union
-
+from dataclasses import dataclass
 import pandas as pd
 from pydantic.v1 import validate_arguments
 
@@ -14,6 +14,15 @@ from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FlowStructure:
+    "Internal dataclass for flow structures referenced in complex controllers"
+    struct_type: str
+    struct_name: str
+    struct_id: int
+    struct_property: str
 
 class DRTCModel:
     """Main class to generate RTC-module files."""
@@ -26,7 +35,8 @@ class DRTCModel:
         output_path: Union[str, Path] = None,
         rtc_onlytimeseries: bool = False,
         rtc_timeseriesdata: pd.DataFrame=None,
-        complex_controllers_folder: Union[str, Path] = None,
+        complex_controllers_folder: Union[list[Union[str, Path]], str, Path] = None,
+        id_limit_complex_controllers: Union[list[str], None] = None,
         rtc_timestep: Union[int, float] = 60,
 
     ) -> None:
@@ -38,7 +48,8 @@ class DRTCModel:
             output_path (str or Windows-path, optional): path where the rtc-files are placed. Defaults to None.
             rtc_onlytimeseries (bool): defines the rtc mode: only time series or actual controllers. Defaults to False (actual controllers)
             rtc_timeseriesdata (pd.DataFrame): timeseries in case they are used instead of controllers. Defaults to None.
-            complex_controllers_folder (Path or str, optional): Path where users can put xml-files that will be imported in the RTC-model. Defaults to None.
+            complex_controllers_folder (list[Path or str] or Path or str, optional): Path where users can put xml-files that will be imported in the RTC-model. Defaults to None.
+            id_limit_complex_controllers (list[str], optional): whitelist of id's to couple to the complex controller logic. Defaults to None (all complex controller logic will be imported)
             rtc_timestep (Union[int, float], optional): Time step of the RTC model. Defaults to 60 seconds.
         """
         self.hydamo = hydamo
@@ -62,14 +73,20 @@ class DRTCModel:
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # parse user-provided controllers
+        self.complex_controllers = None
+        self.complex_controller_structs = None
+        self.complex_controller_ids = None
+        self.id_limit_complex_controllers = None
         if not rtc_onlytimeseries:
             if complex_controllers_folder is not None:
-                self.complex_controllers, self.complex_controller_ids = self.parse_complex_controller(
+                #@TODO handle list
+                self.complex_controllers, self.complex_controller_structs = self.parse_complex_controller(
                     complex_controllers_folder
                 )
-            else:
-                self.complex_controllers = None
-                self.complex_controller_ids = None
+                self.complex_controller_ids = set([fs.struct_name for fs in self.complex_controller_structs])
+                if id_limit_complex_controllers is None:
+                    id_limit_complex_controllers = self.complex_controller_ids.copy()
+                self.id_limit_complex_controllers = id_limit_complex_controllers
 
         # copy files from the template RTC-folder
         self.template_dir = Path(os.path.dirname(__file__)) / ".." / "resources" / "RTC"
@@ -121,7 +138,7 @@ class DRTCModel:
 
     @staticmethod
     @validate_arguments
-    def parse_complex_controller(xml_folder: Union[Path, str]) -> dict:
+    def parse_complex_controller(xml_folder: Union[Path, str]) -> tuple[dict[str, ET.Element], list[FlowStructure]]:
         """Method to parse user-specified 'complex' controllers
 
         Args:
@@ -132,7 +149,7 @@ class DRTCModel:
         """
         files = os.listdir(xml_folder)
         files = [file for file in files if file.endswith("xml")]
-        struct_ids = []
+        flow_structures = None
         savedict = {}
         savedict["dataconfig_import"] = []
         savedict["dataconfig_export"] = []
@@ -151,44 +168,42 @@ class DRTCModel:
                         if 'PITimeSeries' in ET.tostring(el).decode() and num == 0:
                             continue
                         savedict["dataconfig_import"].append(ET.tostring(el).decode())
-                        DRTCModel._parse_id(el, struct_ids)
                 if "exportSeries" in children:
                     for el in children["exportSeries"]:#[2:]:
                         if ('PITimeSeries' not in ET.tostring(el).decode()) and ('CSVTimeSeries' not in ET.tostring(el).decode()):
                             savedict["dataconfig_export"].append(ET.tostring(el).decode())
-                            DRTCModel._parse_id(el, struct_ids)
             elif file == "rtcToolsConfig.xml":
                 children = DRTCModel._parse_unique_children(root)
                 if "rules" in children:
                     for el in children["rules"]:
                         savedict["toolsconfig_rules"].append(ET.tostring(el).decode())
-                        DRTCModel._parse_id(el, struct_ids)
                 if "triggers" in children:
                     for el in children["triggers"]:
                         savedict["toolsconfig_triggers"].append(ET.tostring(el).decode())
-                        DRTCModel._parse_id(el, struct_ids)
             elif file == "timeseries_import.xml":
                 for el in root:
                     savedict["timeseries"].append(ET.tostring(el).decode())
-                    DRTCModel._parse_id(el, struct_ids)
             elif file == "state_import.xml":
                 for el in root[0]:
                     savedict["state"].append(ET.tostring(el).decode())
-                    DRTCModel._parse_id(el, struct_ids)
             elif file == "dimr_config.xml":
                 savedict["dimr_config"].append(root)
+                flow_structures = DRTCModel._parse_referenced_flow_structures(root)
 
-        return savedict, set(struct_ids)
+        return savedict, flow_structures
 
     @staticmethod
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
-    def _parse_id(entry: ET.Element, struct_ids: list) -> str:
-        if "id" in entry.attrib:
-            entry_id = entry.attrib["id"]
-            if entry_id.startswith("[Input]") or entry_id.startswith("[Output]"):
-                entry_id = entry_id.replace("[Input]", "").replace("[Output]", "")
-                entry_id = entry_id.split("/")[0]
-                struct_ids.append(entry_id)
+    def _parse_referenced_flow_structures(root: ET.Element) -> list[FlowStructure]:
+        flow_structures = []
+        rtc_to_flow = root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")
+        flow_to_rtc = root.findall(".//{*}coupler[@name='flow_to_rtc']/{*}item/{*}sourceName")
+        for item in rtc_to_flow + flow_to_rtc:
+            stype, sname, sprop = item.text.split("/")
+            sid = int(sname.split("_")[1])
+            flow_structures.append(FlowStructure(stype, sname, sid, sprop))
+
+        return flow_structures
 
     @staticmethod
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
@@ -547,10 +562,10 @@ class DRTCModel:
         self.all_controllers.update(self.pid_controllers)
         self.all_controllers.update(self.interval_controllers)
 
-        for ikey, key in enumerate(self.all_controllers.keys()):
+        for key in self.all_controllers.keys():
 
             controller = self.all_controllers[key]
-            if key in self.complex_controller_ids:
+            if key in self.complex_controller_ids and key in self.id_limit_complex_controllers:
                 logger.warning(f"Skipped writing {controller['type']} control for {key}, complex controller already present")
                 continue
 
