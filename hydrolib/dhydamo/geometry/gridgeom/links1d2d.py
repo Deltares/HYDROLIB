@@ -114,7 +114,7 @@ class Links1d2d:
             idx = idx[distance < max_distance]
 
         # Create GeoDataFrame
-        logger.info(f"Creating GeoDataFrame of ({len(idx)}) 2D cells.")
+        logger.info("Creating GeoDataFrame of (%d) 2D cells.", len(idx))
         cells = gpd.GeoDataFrame(
             data=centers2d[idx],
             columns=["x", "y"],
@@ -404,7 +404,10 @@ class Links1d2d:
         gr_faces = gr_faces[np.array(self.faces2d) - 1]
         mk_faces = np.c_[self.network._mesh2d.mesh2d_face_x, self.network._mesh2d.mesh2d_face_y]
         distances, faces2d = KDTree(mk_faces).query(gr_faces)
-        logger.info(f'Max distance between faces: {distances.max()}') # error out if we do not find an exact match
+        logger.info(
+            "Max distance between faces: %s",
+            distances.max(),
+        )  # error out if we do not find an exact match
 
         contacts = mk.Contacts(nodes1d, faces2d)
         self.network._link1d2d.meshkernel.contacts_set(contacts)

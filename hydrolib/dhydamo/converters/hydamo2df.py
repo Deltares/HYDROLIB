@@ -569,7 +569,11 @@ class StructuresIO:
                 name = weir.code
 
             if weir_opening.shape[0] > 1:
-                logger.info(f'Weir {weir.code} contains {weir_opening.shape[0]} openings. Creating a compound structure with a fictional weir for each one.')
+                logger.info(
+                    "Weir %s contains %d openings. Creating a compound structure with a fictional weir for each one.",
+                    weir.code,
+                    weir_opening.shape[0],
+                )
                 cmp_list = []
                 for num_op, (_, op_row) in enumerate(weir_opening.iterrows()):
                     weir_mandev = management_device[
@@ -619,12 +623,19 @@ class StructuresIO:
                             limitflowneg=maxq,
                         )
                     else:
-                        logger.info(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
+                        logger.info(
+                            'Skipping %s - from "overlaatonderlaat" %s the type of structure could not be determined.',
+                            weir.code,
+                            weir_mandev.overlaatonderlaat,
+                        )
                 self.structures.add_compound(id=f'cmp_{weir.code}', structureids =cmp_list)
                 # self.structures.rweirs_df.drop(weir.code)
             else:
                 if weir_opening.empty:
-                    logger.info(f'Skipping {weir.code} because there is no associated opening.')
+                    logger.info(
+                        "Skipping %s because there is no associated opening.",
+                        weir.code,
+                    )
                     continue
 
                 weir_id = weir.code
@@ -634,7 +645,10 @@ class StructuresIO:
                     ]
 
                 if weir_mandev.empty:
-                    logger.info(f'Skipping {weir.code} because there is no associated management device.')
+                    logger.info(
+                        "Skipping %s because there is no associated management device.",
+                        weir.code,
+                    )
                     continue
 
                 if (not self.structures.hydamo.management.empty) & hasattr(self.structures.hydamo.management, 'regelmiddelid'):
@@ -692,7 +706,11 @@ class StructuresIO:
                         limitflowneg=maxq,
                     )
                 else:
-                    logger.info(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
+                    logger.info(
+                        'Skipping %s - from "overlaatonderlaat" %s the type of structure could not be determined.',
+                        weir.code,
+                        weir_mandev.overlaatonderlaat,
+                    )
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
@@ -997,7 +1015,10 @@ class StructuresIO:
             # find pumps for gemaal
             pumps_subset = pumps[pumps.gemaalid == pumpstation.globalid]
             if pumps_subset.empty:
-                logger.info(f'Skipping {pumpstation.code} because there is no associated pump.')
+                logger.info(
+                    "Skipping %s because there is no associated pump.",
+                    pumpstation.code,
+                )
                 continue
 
             if "naam" in pumpstation:
@@ -1007,7 +1028,11 @@ class StructuresIO:
             if pumps_subset.shape[0] > 1:
                 # more than one pump
                 cmp_list = []
-                logger.info(f'Pumpstation {pumpstation.code} contains {pumps_subset.shape[0]} openings. Creating a compound structure with a fictional pump for each one.')
+                logger.info(
+                    "Pumpstation %s contains %d openings. Creating a compound structure with a fictional pump for each one.",
+                    pumpstation.code,
+                    pumps_subset.shape[0],
+                )
                 for ipump, (_,pump) in enumerate(pumps_subset.iterrows()):
 
                     pump_control = management[management.pompid== pump.globalid]

@@ -16,7 +16,7 @@ class ProgressLogger:
             if self.lastp == percentage:
                 return None
             self.lastp = percentage
-            self.logger.info(f'Processing raster: {percentage:3d} %')
+            self.logger.info("Processing raster: %3d %%", percentage)
 
 
 
