@@ -380,7 +380,8 @@ class ExternalForcingsIO:
             else:
                 if lateral_discharges is None:
                     logger.warning(
-                        f"No lateral_discharges provided. {lateral.code} expects them. Skipping."
+                        "No lateral_discharges provided. %s expects them. Skipping.",
+                        lateral.code,
                     )
                 else:
                     if isinstance(lateral_discharges, pd.Series):
@@ -396,7 +397,8 @@ class ExternalForcingsIO:
                     else:
                         if lateral.code not in lateral_discharges.columns:
                             logger.warning(
-                                f"No data found for {lateral.code}. Skipping."
+                                "No data found for %s. Skipping.",
+                                lateral.code,
                             )
                             continue
 
@@ -623,7 +625,7 @@ class StructuresIO:
                             limitflowneg=maxq,
                         )
                     else:
-                        logger.info(
+                        logger.warning(
                             'Skipping %s - from "overlaatonderlaat" %s the type of structure could not be determined.',
                             weir.code,
                             weir_mandev.overlaatonderlaat,
@@ -632,7 +634,7 @@ class StructuresIO:
                 # self.structures.rweirs_df.drop(weir.code)
             else:
                 if weir_opening.empty:
-                    logger.info(
+                    logger.warning(
                         "Skipping %s because there is no associated opening.",
                         weir.code,
                     )
@@ -645,7 +647,7 @@ class StructuresIO:
                     ]
 
                 if weir_mandev.empty:
-                    logger.info(
+                    logger.warning(
                         "Skipping %s because there is no associated management device.",
                         weir.code,
                     )
@@ -706,7 +708,7 @@ class StructuresIO:
                         limitflowneg=maxq,
                     )
                 else:
-                    logger.info(
+                    logger.warning(
                         'Skipping %s - from "overlaatonderlaat" %s the type of structure could not be determined.',
                         weir.code,
                         weir_mandev.overlaatonderlaat,
@@ -1015,7 +1017,7 @@ class StructuresIO:
             # find pumps for gemaal
             pumps_subset = pumps[pumps.gemaalid == pumpstation.globalid]
             if pumps_subset.empty:
-                logger.info(
+                logger.warning(
                     "Skipping %s because there is no associated pump.",
                     pumpstation.code,
                 )
@@ -1037,7 +1039,7 @@ class StructuresIO:
 
                     pump_control = management[management.pompid== pump.globalid]
                     if pump_control.empty:
-                        logger.info("No management found for %s", pump.code)
+                        logger.warning("No management found for %s", pump.code)
                         continue
 
                     startlevelsuctionside = [pump_control["bovengrens"]]
@@ -1066,7 +1068,7 @@ class StructuresIO:
                 #  only one pump
                 pump_control = management[management.pompid== pumps_subset.globalid.values[0]]
                 if pump_control.empty:
-                    logger.info(
+                    logger.warning(
                         "Skipping %s because there is no associated management.",
                         pumpstation.code,
                     )
