@@ -682,7 +682,8 @@ class Network:
                             max_tries += 1
                     if max_tries > 500:
                         logger.warning(
-                            f"Can't fix correct directions branch groups {all_branches}"
+                            "Can't fix correct directions branch groups %s",
+                            all_branches,
                         )
                         break
 
@@ -1380,23 +1381,22 @@ class CrossSections:
                 values[values.soortparameter == "bodemhoogte benedenstrooms"].waarde
             ).values[0]:
                 logger.warning(
-                    "bodemhoogte benedenstrooms not available for profile {}.".format(
-                        param.globalid
-                    )
+                    "bodemhoogte benedenstrooms not available for profile %s.",
+                    param.globalid,
                 )
             if pd.isnull(values[values.soortparameter == "bodembreedte"].waarde).values[
                 0
             ]:
                 logger.warning(
-                    "bodembreedte not available for profile {}.".format(param.globalid)
+                    "bodembreedte not available for profile %s.",
+                    param.globalid,
                 )
             if pd.isnull(
                 values[values.soortparameter == "bodemhoogte bovenstrooms"].waarde
             ).values[0]:
                 logger.warning(
-                    "bodemhoogte bovenstrooms not available for profile {}.".format(
-                        param.globalid
-                    )
+                    "bodemhoogte bovenstrooms not available for profile %s.",
+                    param.globalid,
                 )
 
             # Determine characteristics

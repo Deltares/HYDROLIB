@@ -1036,7 +1036,7 @@ class ExternalForcingsIO:
      
         drop_idx = catchments[catchments.boundary_node.isin(not_occurring)].index.to_list()
         if any(drop_idx):
-            logger.info(
+            logger.warning(
                 "%d catchments removed because of an area of 0 m2.",
                 len(drop_idx),
             )
