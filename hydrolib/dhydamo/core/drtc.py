@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class FlowStructure:
+class DRTCStructure:
     "Internal dataclass for flow structures referenced in complex controllers"
     struct_type: str
     struct_name: str
@@ -79,14 +79,15 @@ class DRTCModel:
         self.id_limit_complex_controllers = None
         if not rtc_onlytimeseries:
             if complex_controllers_folder is not None:
-                #@TODO handle list
-                self.complex_controllers, self.complex_controller_structs = self.parse_complex_controller(
-                    complex_controllers_folder
+                (
+                    self.complex_controllers,
+                    self.complex_controller_structs,
+                    self.complex_controller_ids,
+                    self.id_limit_complex_controllers,
+                ) = self._load_complex_controllers(
+                    complex_controllers_folder,
+                    id_limit_complex_controllers,
                 )
-                self.complex_controller_ids = set([fs.struct_name for fs in self.complex_controller_structs])
-                if id_limit_complex_controllers is None:
-                    id_limit_complex_controllers = self.complex_controller_ids.copy()
-                self.id_limit_complex_controllers = id_limit_complex_controllers
 
         # copy files from the template RTC-folder
         self.template_dir = Path(os.path.dirname(__file__)) / ".." / "resources" / "RTC"
@@ -138,7 +139,7 @@ class DRTCModel:
 
     @staticmethod
     @validate_arguments
-    def parse_complex_controller(xml_folder: Union[Path, str]) -> tuple[dict[str, ET.Element], list[FlowStructure]]:
+    def parse_complex_controller(xml_folder: Union[Path, str]) -> tuple[dict[str, ET.Element], list[DRTCStructure]]:
         """Method to parse user-specified 'complex' controllers
 
         Args:
@@ -188,22 +189,100 @@ class DRTCModel:
                     savedict["state"].append(ET.tostring(el).decode())
             elif file == "dimr_config.xml":
                 savedict["dimr_config"].append(root)
-                flow_structures = DRTCModel._parse_referenced_flow_structures(root)
+                flow_structures = DRTCModel._parse_referenced_structures(root)
 
         return savedict, flow_structures
 
+    def _load_complex_controllers(
+        self,
+        complex_controllers_folder: Union[list[Union[str, Path]], str, Path],
+        id_limit_complex_controllers: Optional[list[str]],
+    ) -> tuple[dict[str, list[str]], list[DRTCStructure], set[str], set[str]]:
+        """Normalize input folders, merge parsed controllers, and validate unique IDs."""
+        if isinstance(complex_controllers_folder, list):
+            combined_controllers = None
+            combined_structs = []
+            for folder in complex_controllers_folder:
+                # Merge controller XML fragments from multiple folders.
+                controllers, structs = DRTCModel.parse_complex_controller(Path(folder))
+                if combined_controllers is None:
+                    combined_controllers = {key: list(items) for key, items in controllers.items()}
+                else:
+                    for key, items in controllers.items():
+                        # Append controller XML fragments across folders by section key.
+                        combined_controllers.setdefault(key, []).extend(items)
+                if structs:
+                    combined_structs.extend(structs)
+            complex_controllers = combined_controllers or {}
+            complex_controller_structs = combined_structs
+        else:
+            complex_controllers, complex_controller_structs = DRTCModel.parse_complex_controller(
+                Path(complex_controllers_folder)
+            )
+            if complex_controller_structs is None:
+                complex_controller_structs = []
+
+        # Validate unique controller ids.
+        complex_controller_names = [fs.struct_name for fs in complex_controller_structs]
+        name_counts = {}
+        for name in complex_controller_names:
+            name_counts[name] = name_counts.get(name, 0) + 1
+        duplicates = [name for name, count in name_counts.items() if count > 1]
+        if duplicates:
+            logger.error("Duplicate complex controller ids found: %s", duplicates)
+            raise ValueError("Duplicate complex controller ids found in complex controllers")
+
+        # Build a set of unique controller ids.
+        complex_controller_ids = set(complex_controller_names)
+
+        # Validate that referenced structures exist in HyDAMO.
+        struct_ids_by_type = {
+            "observations": set(self.hydamo.observationpoints.observation_points.get("name", [])),
+            "weirs": set(self.hydamo.structures.rweirs_df.get("id", [])) | set(self.hydamo.structures.uweirs_df.get("id", [])),
+            "orifices": set(self.hydamo.structures.orifices_df.get("id", [])),
+            "pumps": set(self.hydamo.structures.pumps_df.get("id", [])),
+            "generalstructures": set(self.hydamo.structures.generalstructures_df.get("id", [])),
+            "culverts": set(self.hydamo.structures.culverts_df.get("id", [])),
+            "bridges": set(self.hydamo.structures.bridges_df.get("id", [])),
+        }
+        missing_structs = []
+        unknown_types = set()
+        for fs in complex_controller_structs:
+            if fs.struct_type in struct_ids_by_type:
+                if fs.struct_name not in struct_ids_by_type[fs.struct_type]:
+                    missing_structs.append(f"{fs.struct_type}/{fs.struct_name}")
+            else:
+                unknown_types.add(fs.struct_type)
+        if unknown_types:
+            logger.warning("Skipping HyDAMO complex controller validation for unsupported structure types: %s", sorted(unknown_types))
+        if missing_structs:
+            logger.error("Complex controller structures not found in HyDAMO: %s", missing_structs)
+            raise ValueError(f"Complex controller structures not found in HyDAMO: {missing_structs}")
+
+        # Build whitelist set of allowed controller ids.
+        if id_limit_complex_controllers is None:
+            id_limit_complex_controllers = list(complex_controller_ids)
+        id_limit_complex_controllers = set(id_limit_complex_controllers)
+
+        return (
+            complex_controllers,
+            complex_controller_structs,
+            complex_controller_ids,
+            id_limit_complex_controllers,
+        )
+
     @staticmethod
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
-    def _parse_referenced_flow_structures(root: ET.Element) -> list[FlowStructure]:
-        flow_structures = []
+    def _parse_referenced_structures(root: ET.Element) -> list[DRTCStructure]:
+        structures = []
         rtc_to_flow = root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")
         flow_to_rtc = root.findall(".//{*}coupler[@name='flow_to_rtc']/{*}item/{*}sourceName")
         for item in rtc_to_flow + flow_to_rtc:
             stype, sname, sprop = item.text.split("/")
             sid = int(sname.split("_")[1])
-            flow_structures.append(FlowStructure(stype, sname, sid, sprop))
+            structures.append(DRTCStructure(stype, sname, sid, sprop))
 
-        return flow_structures
+        return structures
 
     @staticmethod
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
