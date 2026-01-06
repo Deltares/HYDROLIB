@@ -423,6 +423,17 @@ class StructuresIO:
     def __init__(self, structures):
         self.structures = structures
 
+    def _name_or_nan(self, row):
+        return row.name if "name" in row.index else np.nan
+
+    def _common_structure_kwargs(self, row, id_attr="id"):
+        return {
+            "id": getattr(row, id_attr),
+            "name": self._name_or_nan(row),
+            "branchid": row.branch_id,
+            "chainage": row.branch_offset,
+        }
+
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def generalstructures_from_datamodel(self, generalstructures: pd.DataFrame) -> None:
         """From parsed data model of orifices
@@ -432,13 +443,9 @@ class StructuresIO:
         """
 
         for generalstructure_idx, generalstructure in generalstructures.iterrows():
+            base = self._common_structure_kwargs(generalstructure)
             self.structures.add_generalstructure(
-                id=generalstructure.id,
-                name=generalstructure.name
-                if "name" in generalstructure.index
-                else np.nan,
-                branchid=generalstructure.branch_id,
-                chainage=generalstructure.branch_offset,
+                **base,
                 allowedflowdir="both",
                 upstream1width=generalstructure.upstream1width
                 if "upstream1width" in generalstructure.index
@@ -736,11 +743,9 @@ class StructuresIO:
     def weirs_from_datamodel(self, weirs: pd.DataFrame) -> None:
         """ "From parsed data model of weirs"""
         for weir_idx, weir in weirs.iterrows():
+            base = self._common_structure_kwargs(weir)
             self.structures.add_weir(
-                id=weir.id,
-                name=weir.name if "name" in weir.index else np.nan,
-                branchid=weir.branch_id,
-                chainage=weir.branch_offset,
+                **base,
                 crestlevel=weir.crestlevel,
                 crestwidth=weir.crestwidth,
                 corrcoeff=weir.corrcoeff,
@@ -750,11 +755,9 @@ class StructuresIO:
     def orifices_from_datamodel(self, orifices: pd.DataFrame) -> None:
         """ "From parsed data model of orifices"""
         for orifice_idx, orifice in orifices.iterrows():
+            base = self._common_structure_kwargs(orifice)
             self.structures.add_orifice(
-                id=orifice.id,
-                name=orifice.name if "name" in orifice.index else np.nan,
-                branchid=orifice.branch_id,
-                chainage=orifice.branch_offset,
+                **base,
                 allowedflowdir="both",
                 crestlevel=orifice.crestlevel,
                 crestwidth=orifice.crestwidth,
@@ -770,11 +773,9 @@ class StructuresIO:
     def uweirs_from_datamodel(self, uweirs: pd.DataFrame) -> None:
         """ "From parsed data model of universal weirs"""
         for uweir_idx, uweir in uweirs.iterrows():
+            base = self._common_structure_kwargs(uweir)
             self.structures.add_uweir(
-                id=uweir.id,
-                name=uweir.name if "name" in uweir.index else np.nan,
-                branchid=uweir.branch_id,
-                chainage=uweir.branch_offset,
+                **base,
                 crestlevel=uweir.crestlevel,
                 yvalues=uweir.yvalues,
                 zvalues=uweir.zvalues,
@@ -831,11 +832,9 @@ class StructuresIO:
     def bridges_from_datamodel(self, bridges: pd.DataFrame) -> None:
         """ "From parsed data model of bridges"""
         for bridge_idx, bridge in bridges.iterrows():
+            base = self._common_structure_kwargs(bridge, id_attr="code")
             self.structures.add_bridge(
-                id=bridge.code,
-                name=bridge.name if "name" in bridge.index else np.nan,
-                branchid=bridge.branch_id,
-                chainage=bridge.branch_offset,
+                **base,
                 csdefid=bridge.csdefid,
                 shift=0.0,
                 allowedflowdir="both",
@@ -958,11 +957,9 @@ class StructuresIO:
 
         # Add to dict
         for culvert_idx, culvert in culverts.iterrows():
+            base = self._common_structure_kwargs(culvert)
             self.structures.add_culvert(
-                id=culvert.id,
-                name=culvert.name if "name" in culvert.index else np.nan,
-                branchid=culvert.branch_id,
-                chainage=culvert.branch_offset,
+                **base,
                 leftlevel=culvert.leftlevel,
                 rightlevel=culvert.rightlevel,
                 crosssection=culvert.crosssectiondefinitionid,
@@ -1071,11 +1068,9 @@ class StructuresIO:
         """From parsed data model of pumps"""
 
         for pump_idx, pump in pumps.iterrows():
+            base = self._common_structure_kwargs(pump)
             self.structures.add_pump(
-                id=pump.id,
-                name=pump.name if "name" in pump.index else np.nan,
-                branchid=pump.branch_id,
-                chainage=pump.branch_offset,
+                **base,
                 orientation="positive",
                 numstages=1,
                 controlside=pump.controlside,
