@@ -10,7 +10,7 @@ from shapely.geometry import LineString, MultiPolygon, Polygon
 
 from hydrolib.dhydamo.geometry import spatial
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
