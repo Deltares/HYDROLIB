@@ -1012,7 +1012,7 @@ class StructuresIO:
 
                     pump_control = management[management.pompid== pump.globalid]
                     if pump_control.empty:
-                        print(f'No management found for {pump.code}')
+                        logger.info("No management found for %s", pump.code)
                         continue
 
                     startlevelsuctionside = [pump_control["bovengrens"]]
@@ -1041,7 +1041,10 @@ class StructuresIO:
                 #  only one pump
                 pump_control = management[management.pompid== pumps_subset.globalid.values[0]]
                 if pump_control.empty:
-                    print(f'Skipping {pumpstation.code} because there is no associated management.')
+                    logger.info(
+                        "Skipping %s because there is no associated management.",
+                        pumpstation.code,
+                    )
 
                 startlevelsuctionside = [pump_control["bovengrens"]]
                 stoplevelsuctionside = [pump_control["ondergrens"]]
