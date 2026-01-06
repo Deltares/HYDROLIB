@@ -1116,147 +1116,51 @@ class StructuresIO:
         struc_dict[struc]["chainage"] = offset
         return struc_dict
 
+    def _structure_frames(self):
+        return (
+            self.structures.pumps_df,
+            self.structures.rweirs_df,
+            self.structures.uweirs_df,
+            self.structures.culverts_df,
+            self.structures.bridges_df,
+            self.structures.orifices_df,
+        )
+
+    def _get_structure_location(self, structure_id):
+        branch = None
+        offset = None
+        for df in self._structure_frames():
+            if df.empty:
+                continue
+            match = df[df.id == structure_id]
+            if not match.empty:
+                branch = match.branchid.values[0]
+                offset = match.chainage.values[0]
+        return branch, offset
+
+    def _set_structure_location(self, structure_id, branch, offset):
+        for df in self._structure_frames():
+            if df.empty:
+                continue
+            idx = df.index[df.id == structure_id]
+            if not idx.empty:
+                df.loc[idx, "branchid"] = branch
+                df.loc[idx, "chainage"] = offset
+
     def compound_structures(self, idlist, structurelist):
         # probably the coordinates should all be set to those of the first structure (still to do)
         for c_i, c_id in enumerate(idlist):
+            branch = None
+            offset = None
             # check the substructure coordinates. If they do not coincide, move subsequent structures to the coordinates of the first
             for s_i, struc in enumerate(structurelist[c_i]):
                 if s_i == 0:
                     # find out what type the first structure it is and get its coordinates
-                    if not self.structures.pumps_df.empty:
-                        if struc in list(self.structures.pumps_df.id):
-                            branch = self.structures.pumps_df[
-                                self.structures.pumps_df.id == struc
-                            ].branchid.values[0]
-                            offset = self.structures.pumps_df[
-                                self.structures.pumps_df.id == struc
-                            ].chainage.values[0]
-                    if not self.structures.rweirs_df.empty:
-                        if struc in list(self.structures.rweirs_df.id):
-                            branch = self.structures.rweirs_df[
-                                self.structures.rweirs_df.id == struc
-                            ].branchid.values[0]
-                            offset = self.structures.rweirs_df[
-                                self.structures.rweirs_df.id == struc
-                            ].chainage.values[0]
-                    if not self.structures.uweirs_df.empty:
-                        if struc in list(self.structures.uweirs_df.id):
-                            branch = self.structures.uweirs_df[
-                                self.structures.uweirs_df.id == struc
-                            ].branchid.values[0]
-                            offset = self.structures.uweirs_df[
-                                self.structures.uweirs_df.id == struc
-                            ].chainage.values[0]
-                    if not self.structures.culverts_df.empty:
-                        if struc in list(self.structures.culverts_df.id):
-                            branch = self.structures.culverts_df[
-                                self.structures.culverts_df.id == struc
-                            ].branchid.values[0]
-                            offset = self.structures.culverts_df[
-                                self.structures.culverts_df.id == struc
-                            ].chainage.values[0]
-                    if not self.structures.bridges_df.empty:
-                        if struc in list(self.structures.bridges_df.id):
-                            branch = self.structures.bridges_df[
-                                self.structures.bridges_df.id == struc
-                            ].branchid.values[0]
-                            offset = self.structures.bridges_df[
-                                self.structures.bridges_df.id == struc
-                            ].chainage.values[0]
-                    if not self.structures.orifices_df.empty:
-                        if struc in list(self.structures.orifices_df.id):
-                            branch = self.structures.orifices_df[
-                                self.structures.orifices_df.id == struc
-                            ].branchid.values[0]
-                            offset = self.structures.orifices_df[
-                                self.structures.orifices_df.id == struc
-                            ].chainage.values[0]
+                    branch, offset = self._get_structure_location(struc)
                 else:
                     # move a subsequent structure to the location of the first
-                    if not self.structures.pumps_df.empty:
-                        if struc in list(self.structures.pumps_df.id):
-                            self.structures.pumps_df.loc[
-                                self.structures.pumps_df[
-                                    self.structures.pumps_df.id == struc
-                                ].index,
-                                "branchid",
-                            ] = branch
-                            self.structures.pumps_df.loc[
-                                self.structures.pumps_df[
-                                    self.structures.pumps_df.id == struc
-                                ].index,
-                                "chainage",
-                            ] = offset
-                    if not self.structures.rweirs_df.empty:
-                        if struc in list(self.structures.rweirs_df.id):
-                            self.structures.rweirs_df.loc[
-                                self.structures.rweirs_df[
-                                    self.structures.rweirs_df.id == struc
-                                ].index,
-                                "branchid",
-                            ] = branch
-                            self.structures.rweirs_df.loc[
-                                self.structures.rweirs_df[
-                                    self.structures.rweirs_df.id == struc
-                                ].index,
-                                "chainage",
-                            ] = offset
-                    if not self.structures.uweirs_df.empty:
-                        if struc in list(self.structures.uweirs_df.id):
-                            self.structures.uweirs_df.loc[
-                                self.structures.uweirs_df[
-                                    self.structures.uweirs_df.id == struc
-                                ].index,
-                                "branchid",
-                            ] = branch
-                            self.structures.uweirs_df.loc[
-                                self.structures.uweirs_df[
-                                    self.structures.uweirs_df.id == struc
-                                ].index,
-                                "chainage",
-                            ] = offset
-                    if not self.structures.culverts_df.empty:
-                        if struc in list(self.structures.culverts_df.id):
-                            self.structures.culverts_df.loc[
-                                self.structures.culverts_df[
-                                    self.structures.culverts_df.id == struc
-                                ].index,
-                                "branchid",
-                            ] = branch
-                            self.structures.culverts_df.loc[
-                                self.structures.culverts_df[
-                                    self.structures.culverts_df.id == struc
-                                ].index,
-                                "chainage",
-                            ] = offset
-                    if not self.structures.bridges_df.empty:
-                        if struc in list(self.structures.bridges_df.id):
-                            self.structures.bridges_df.loc[
-                                self.structures.bridges_df[
-                                    self.structures.bridges_df.id == struc
-                                ].index,
-                                "branchid",
-                            ] = branch
-                            self.structures.bridges_df.loc[
-                                self.structures.bridges_df[
-                                    self.structures.bridges_df.id == struc
-                                ].index,
-                                "chainage",
-                            ] = offset
-                    if not self.structures.orifices_df.empty:
-                        if struc in list(self.structures.orifices_df.id):
-                            self.structures.orifices_df.loc[
-                                self.structures.orifices_df[
-                                    self.structures.orifices_df.id == struc
-                                ].index,
-                                "branchid",
-                            ] = branch
-                            self.structures.orifices_df.loc[
-                                self.structures.orifices_df[
-                                    self.structures.orifices_df.id == struc
-                                ].index,
-                                "chainage",
-                            ] = offset
+                    if branch is not None and offset is not None:
+                        self._set_structure_location(struc, branch, offset)
 
             self.structures.add_compound(id=c_id, structureids=structurelist[c_i])
 
