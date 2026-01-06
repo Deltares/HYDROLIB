@@ -415,7 +415,7 @@ class HyDAMO:
         # nan values for branch_offset.
         drop_idx = extendedgdf[pd.isnull(extendedgdf.branch_offset)].index.values
         drop_list = [(extendedgdf, drop_idx)]
-        print(f"dropping objects with indices: {drop_idx}")
+        logger.info(f"dropping objects with indices: {drop_idx}")
 
         # Find out which labels need to be dropped from related objects
         if drop_related and extendedgdf.related is not None:
@@ -431,7 +431,7 @@ class HyDAMO:
         drop_related = source.loc[drop_idx, via].values
         drop_idx = target[target[on].isin(drop_related)].index.values
         drop_list.append((target, drop_idx))
-        print(f"  - dropping objects from '{target_str}' with indices: {drop_idx}")
+        logger.info(f"  - dropping objects from '{target_str}' with indices: {drop_idx}")
 
         if coupled_to is not None:
             for next_target_str, next_relation in coupled_to.items():
@@ -677,7 +677,7 @@ class Network:
                             n = 0
                             max_tries += 1
                     if max_tries > 500:
-                        print(
+                        logger.warning(
                             f"Can't fix correct directions branch groups {all_branches}"
                         )
                         break

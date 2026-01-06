@@ -162,7 +162,7 @@ class CrossSectionsIO:
 
         # Assign cross-sections to branches
         nnocross = len(self.crosssections.get_branches_without_crosssection())
-        print(
+        logger.info(
             f"Before adding the number of branches without cross section is: {nnocross}."
         )
 
@@ -196,13 +196,13 @@ class CrossSectionsIO:
         ]
 
         nnocross = len(no_crosssection)
-        print(
+        logger.info(
             f"After adding 'dwarsprofielen' the number of branches without cross section is: {nnocross}."
         )
         if nnocross == 0:
-            print("No further branches without a profile.")
+            logger.info("No further branches without a profile.")
         elif param_profile is None:
-            print("No parametrised crossections available for branches.")
+            logger.info("No parametrised crossections available for branches.")
         else:
             # Derive norm cross sections for norm parametrised
             param_profiles_converted = self.crosssections.parametrised_to_profiles(
@@ -259,7 +259,7 @@ class CrossSectionsIO:
                 )
 
         nnocross = len(self.crosssections.get_branches_without_crosssection())
-        print(
+        logger.info(
             f"After adding 'normgeparametriseerd' the number of branches without cross section is: {nnocross}."
         )
 
@@ -562,7 +562,7 @@ class StructuresIO:
                 name = weir.code
 
             if weir_opening.shape[0] > 1:
-                print(f'Weir {weir.code} contains {weir_opening.shape[0]} openings. Creating a compound structure with a fictional weir for each one.')
+                logger.info(f'Weir {weir.code} contains {weir_opening.shape[0]} openings. Creating a compound structure with a fictional weir for each one.')
                 cmp_list = []
                 for num_op, (_, op_row) in enumerate(weir_opening.iterrows()):
                     weir_mandev = management_device[
@@ -612,12 +612,12 @@ class StructuresIO:
                             limitflowneg=maxq,
                         )
                     else:
-                        print(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
+                        logger.info(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
                 self.structures.add_compound(id=f'cmp_{weir.code}', structureids =cmp_list)
                 # self.structures.rweirs_df.drop(weir.code)
             else:
                 if weir_opening.empty:
-                    print(f'Skipping {weir.code} because there is no associated opening.')
+                    logger.info(f'Skipping {weir.code} because there is no associated opening.')
                     continue
 
                 weir_id = weir.code
@@ -627,7 +627,7 @@ class StructuresIO:
                     ]
 
                 if weir_mandev.empty:
-                    print(f'Skipping {weir.code} because there is no associated management device.')
+                    logger.info(f'Skipping {weir.code} because there is no associated management device.')
                     continue
 
                 if (not self.structures.hydamo.management.empty) & hasattr(self.structures.hydamo.management, 'regelmiddelid'):
@@ -685,7 +685,7 @@ class StructuresIO:
                         limitflowneg=maxq,
                     )
                 else:
-                    print(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
+                    logger.info(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
@@ -881,7 +881,7 @@ class StructuresIO:
                 }
             else:
                 crosssection = {"shape": "circle", "diameter": 0.40}
-                print(
+                logger.info(
                     f"Culvert {culvert.code} has an unknown shape: {culvert.vormkoker}. Applying a default profile (round - 40cm)"
                 )
 
@@ -1000,7 +1000,7 @@ class StructuresIO:
             # find pumps for gemaal
             pumps_subset = pumps[pumps.gemaalid == pumpstation.globalid]
             if pumps_subset.empty:
-                print(f'Skipping {pumpstation.code} because there is no associated pump.')
+                logger.info(f'Skipping {pumpstation.code} because there is no associated pump.')
                 continue
 
             if "naam" in pumpstation:
@@ -1010,7 +1010,7 @@ class StructuresIO:
             if pumps_subset.shape[0] > 1:
                 # more than one pump
                 cmp_list = []
-                print(f'Pumpstation {pumpstation.code} contains {pumps_subset.shape[0]} openings. Creating a compound structure with a fictional pump for each one.')
+                logger.info(f'Pumpstation {pumpstation.code} contains {pumps_subset.shape[0]} openings. Creating a compound structure with a fictional pump for each one.')
                 for ipump, (_,pump) in enumerate(pumps_subset.iterrows()):
 
                     pump_control = management[management.pompid== pump.globalid]

@@ -313,7 +313,7 @@ class Links1d2d:
         # Find nearest link
         dists = np.hypot(pts[:, 0] - x, pts[:, 1] - y)
         if dists.min() > max_distance:
-            print('No links within the maximum distance. Doing nothing.')
+            logger.warning('No links within the maximum distance. Doing nothing.')
             return None
         imin = np.argmin(dists)
 
@@ -349,7 +349,7 @@ class Links1d2d:
                 self.nodes1d.pop(loc)
                 self.faces2d.pop(loc)
                 nx, ny = nodes1d[item - 1]
-                print(
+                logger.info(
                     f"Removed link(s) from 1d node: ({nx:.2f}, {ny:.2f}) because it is connected to an end-point."
                 )
 
@@ -404,7 +404,7 @@ class Links1d2d:
         gr_faces = gr_faces[np.array(self.faces2d) - 1]
         mk_faces = np.c_[self.network._mesh2d.mesh2d_face_x, self.network._mesh2d.mesh2d_face_y]
         distances, faces2d = KDTree(mk_faces).query(gr_faces)
-        print(f'Max distance between faces: {distances.max()}') # error out if we do not find an exact match
+        logger.info(f'Max distance between faces: {distances.max()}') # error out if we do not find an exact match
 
         contacts = mk.Contacts(nodes1d, faces2d)
         self.network._link1d2d.meshkernel.contacts_set(contacts)

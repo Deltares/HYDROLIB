@@ -194,8 +194,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             gpkg_path = str(gpkg_path)
 
         layerlist = gpd.list_layers(gpkg_path).name.tolist()
-        print(f"Content of gpkg-file {gpkg_path}, containing {len(layerlist)} layers:")
-        print(
+        logger.info(f"Content of gpkg-file {gpkg_path}, containing {len(layerlist)} layers:")
+        logger.info(
             "\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS"
         )
         for laynum, layer_name in enumerate(layerlist):
@@ -214,7 +214,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             else:
                 geom_type = "None"
                 
-            print(
+            logger.info(
                 f"\t{laynum:5d}\t|\t{layer_name:30s}\t|\t{geom_type}\t|\t{nfeatures:10d}\t|\t{nfields:10d}"
             )
 

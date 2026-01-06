@@ -166,7 +166,7 @@ class UnpavedIO:
                     else:    
                         remainder = intersection_area
                     maxind = np.argmax(list(lu_counts[num].values()))              
-                    print(f'Catchment {cat.code}: subtracting {remainder} m2 from class {maxind} for supplied greenhouse area.')  
+                    logger.info(f'Catchment {cat.code}: subtracting {remainder} m2 from class {maxind} for supplied greenhouse area.')  
                     lu_counts[num][list(lu_counts[num].keys())[maxind]] = np.max([0., (lu_counts[num][list(lu_counts[num].keys())[maxind]] - np.round(remainder/px_area))])
             
             for i in range(1, 13):
@@ -751,7 +751,7 @@ class GreenhouseIO:
                     intersection_area = intersection_area[intersection_area > 0.].values[0]                    
                     if 15 in lu_counts[num]:
                         # divide area to subtract between greenhouses and the most occurring area                                                
-                        print(f'Catchment: {cat.code}: subtracting {np.min([(lu_counts[num][15]*px_area, intersection_area)])} m2 from greenhouse area in landuse map.')
+                        logger.info(f'Catchment: {cat.code}: subtracting {np.min([(lu_counts[num][15]*px_area, intersection_area)])} m2 from greenhouse area in landuse map.')
                         lu_counts[num][15] = np.max([0., (lu_counts[num][15] - np.round(intersection_area/px_area))])                                                               
             
             elev = mean_elev[num]["median"]
@@ -1027,7 +1027,7 @@ class ExternalForcingsIO:
      
         drop_idx = catchments[catchments.boundary_node.isin(not_occurring)].index.to_list()
         if any(drop_idx):
-            print(f"{len(drop_idx)} catchments removed because of an area of 0 m2.")
+            logger.info(f"{len(drop_idx)} catchments removed because of an area of 0 m2.")
             catchments.drop(drop_idx, inplace=True)
 
         for i in not_occurring:
@@ -1058,7 +1058,7 @@ class ExternalForcingsIO:
         
         bnd_drr.index = index
         for num, cat in enumerate(catchments.itertuples()):
-            # print(num, cat.code)
+            # logger.info(num, cat.code)
             if boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid].empty:
                 # raise IndexError(f'{cat.code} not connected to a boundary node. Skipping.')
                 logger.warning(
