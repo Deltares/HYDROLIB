@@ -196,7 +196,7 @@ class DRTCModel:
     def _load_complex_controllers(
         self,
         complex_controllers_folder: Union[list[Union[str, Path]], str, Path],
-        id_limit_complex_controllers: Optional[list[str]],
+        id_limit_complex_controllers: list[str],
     ) -> tuple[dict[str, list[str]], list[DRTCStructure], set[str], set[str]]:
         """Normalize input folders, merge parsed controllers, and validate unique IDs."""
         if isinstance(complex_controllers_folder, list):
@@ -261,7 +261,7 @@ class DRTCModel:
 
         # Build whitelist set of allowed controller ids.
         if id_limit_complex_controllers is None:
-            id_limit_complex_controllers = list(complex_controller_ids)
+            raise ValueError("Explicit list of allowed complex controller structures is required (id_limit_complex_controllers)")
         id_limit_complex_controllers = set(id_limit_complex_controllers)
 
         return (
