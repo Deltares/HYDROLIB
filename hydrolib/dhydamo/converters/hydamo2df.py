@@ -355,14 +355,8 @@ class ExternalForcingsIO:
         if rr_boundaries is None:
             rr_boundaries = []
 
-        # in case of 3d points, remove the 3rd dimension
-        locations["geometry2"] = [
-            Point([point.geometry.x, point.geometry.y])
-            for _, point in locations.iterrows()
-        ]
-        locations.drop("geometry", inplace=True, axis=1)
-        locations.rename(columns={"geometry2": "geometry"}, inplace=True)
-
+        locations.geometry = locations.geometry.force_2d()
+        
         latdct = {}
         if overflows is not None:
             locations = pd.concat([locations, overflows], ignore_index=True)

@@ -81,14 +81,15 @@ def _setup_rr_model(hydamo=None):
     )
 
     seepage_folder = data_path / "rasters" / "seepage"
-    precip_folder = data_path / "rasters" / "precipitation"
+    precip_file = data_path / "DEFAULT.BUI"
+    evap_file = data_path / "DEFAULT.EVP"
     evap_folder = data_path / "rasters" / "evaporation"
     drrmodel.external_forcings.io.seepage_from_input(hydamo.catchments, seepage_folder)
     drrmodel.external_forcings.io.precip_from_input(
-        meteo_areas, precip_folder=precip_folder, precip_file=None
+        meteo_areas, precip_folder=None, precip_file=precip_file
     )
     drrmodel.external_forcings.io.evap_from_input(
-        meteo_areas, evap_folder=evap_folder, evap_file=None
+        meteo_areas, evap_folder=None, evap_file=evap_file
     )
 
     drrmodel.d3b_parameters["Timestepsize"] = 300

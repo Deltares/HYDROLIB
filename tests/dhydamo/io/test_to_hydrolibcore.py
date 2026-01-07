@@ -42,18 +42,32 @@ def setup_model(hydamo=None, full_test=False):
 
     if hydamo is None:
         hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
-
-    hydamo.structures.convert.weirs(
-        hydamo.weirs,
-        hydamo.profile_group,
-        hydamo.profile_line,
-        hydamo.profile,
-        hydamo.opening,
-        hydamo.management_device,
-    )
+        hydamo = test_from_hydamo._convert_structures(hydamo=hydamo)
 
     structures = None
     if full_test:
+        hydamo.observationpoints.add_points(
+            [Point(199617,394885), Point(199421,393769), Point(199398,393770)],
+            ["Obs_BV152054", "ObsS_96684","ObsO_test"],
+            locationTypes=["1d", "1d", "1d"],
+            snap_distance=10.0,
+            )
+
+        hydamo.observationpoints.add_points(
+            [Point(200198,396489), Point(201129, 396269), Point(200264, 394761), Point(199665, 395323)],
+            ["ObsS_96544", "ObsP_113GIS", 'Obs_UWR', 'Obs_ORIF'],
+            locationTypes=["1d", "1d","1d", "1d"],
+            snap_distance=10.0,
+        )    
+        hydamo.structures.add_orifice(
+            id="orifice_test",
+            branchid="W_242213_0",
+            chainage=43.0,
+            crestlevel=18.00,
+            gateloweredgelevel=18.5,
+            crestwidth=7.5,
+            corrcoeff=1.0,
+        )
         structures = hydamo.structures.as_dataframe(
             rweirs=True,
             bridges=True,
@@ -62,100 +76,66 @@ def setup_model(hydamo=None, full_test=False):
             orifices=True,
             pumps=True,
         )
-
-    mesh.mesh1d_add_branches_from_gdf(
-        fm.geometry.netfile.network,
-        branches=hydamo.branches,
-        branch_name_col="code",
-        node_distance=20,
-        max_dist_to_struc=None,
-        structures=structures,
-    )
-    hydamo.crosssections.convert.profiles(
-        crosssections=hydamo.profile,
-        crosssection_roughness=hydamo.profile_roughness,
-        profile_groups=hydamo.profile_group,
-        profile_lines=hydamo.profile_line,
-        param_profile=hydamo.param_profile,
-        param_profile_values=hydamo.param_profile_values,
-        branches=hydamo.branches,
-        roughness_variant="High",
-    )
-
-    hydamo.observationpoints.add_points(
-        [Point((200200, 395600)), (200200, 396200)],
-        ["ObsPt1", "ObsPt2"],
-        locationTypes=["1d", "1d"],
-        snap_distance=10.0,
-    )
-    # Set a default cross section
-    default = hydamo.crosssections.add_rectangle_definition(
-        height=5.0,
-        width=5.0,
-        closed=False,
-        roughnesstype="StricklerKs",
-        roughnessvalue=30,
-        name="default",
-    )
-    hydamo.crosssections.set_default_definition(definition=default, shift=10.0)
-    hydamo.external_forcings.set_initial_waterdepth(1.5)
-
-    if full_test:
-        hydamo.observationpoints.add_points(
-            [Point(199617,394885), Point(199421,393769), Point(199398,393770), Point(200198,396489)],
-            ["Obs_BV152054", "ObsS_96684_1","ObsS_96684_2", "ObsS_96544"],
-            locationTypes=["1d", "1d", "1d", "1d"],
-            snap_distance=10.0,
+        objects = pd.concat([structures, hydamo.observationpoints.observation_points], axis=0)    
+        
+        mesh.mesh1d_add_branches_from_gdf(
+            fm.geometry.netfile.network,
+            branches=hydamo.branches,
+            branch_name_col="code",
+            node_distance=20,
+            max_dist_to_struc=None,
+            structures=objects,
         )
-
-        # Check how many branches do not have a profile.
-        # One way to fix this is by assigning order numbers to branches, so the 
-        # crosssections are interpolated over branches with the same order. First, 
-        # we assign branches iwth the same 'naam' the same branch order.    
+        # crosssections
+        hydamo.crosssections.convert.profiles(
+            crosssections=hydamo.profile,
+            crosssection_roughness=hydamo.profile_roughness,
+            profile_groups=hydamo.profile_group,
+            profile_lines=hydamo.profile_line,
+            param_profile=hydamo.param_profile,
+            param_profile_values=hydamo.param_profile_values,
+            branches=hydamo.branches,
+            roughness_variant="High",
+        )
         missing = hydamo.crosssections.get_branches_without_crosssection()
-        j = 0
-        hydamo.branches["order"] = np.nan
-        for i in hydamo.branches.naam.unique():
-            if i is None:
-                continue
+        missing_after_interpolation = mesh.mesh1d_order_numbers_from_attribute(hydamo.branches, 
+                missing, 
+                order_attribute='naam', 
+                network=fm.geometry.netfile.network,  
+                exceptions=['W_1386_0'])
 
-            name_matches = hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "code"]
-            all_missing = all(x in missing for x in name_matches)
-            if not all_missing:
-                hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "order"] = int(j)
-                j = j + 1
-
-        # branch W_1386_0 has a name, but is  single side branch, it's order is no use. Reset it.
-        hydamo.branches.loc[hydamo.branches.code == 'W_1386_0', 'order']  = -1
-
-        # We assign these orders, now as column in the hydamo.branches dataframe, to the network.
-        interpolation = []
-        for i in hydamo.branches.order.unique():
-            if i > 0:
-                mesh.mesh1d_set_branch_order(
-                    fm.geometry.netfile.network,
-                    hydamo.branches.code[hydamo.branches.order == i].to_list(),
-                    idx=int(i),
-                )
-                interpolation = (
-                    interpolation + hydamo.branches.code[hydamo.branches.order == i].to_list()
-                )
-        
-        # Check for how many branches no interpolation can be applied.
-        missing_after_interpolation = np.setdiff1d(missing, interpolation)
-        
         # Set a default cross section
         profiel=np.array([[0,21],[2,19],[7,19],[9,21]])
-        default = hydamo.crosssections.add_yz_definition(yz=profiel, thalweg = 4.5, roughnesstype='StricklerKs', roughnessvalue=25.0,  name='default')
-        hydamo.crosssections.set_default_definition(definition=default, shift=0.0)
-        hydamo.crosssections.set_default_locations(missing_after_interpolation)
+        default = hydamo.crosssections.add_yz_definition(yz=profiel, 
+                                                        thalweg = 4.5,
+                                                        roughnesstype='StricklerKs',
+                                                        roughnessvalue=25.0, 
+                                                        name='default'
+                                                        )
 
+        hydamo.crosssections.set_default_definition(definition=default, shift=0.0)
+        hydamo.crosssections.set_default_locations(missing_after_interpolation)   
+    
+        # storage node
+        hydamo.storagenodes.add_storagenode(       
+            id='sto_test',
+            xy=(141001, 395030),                
+            name='sto_test',
+            usetable="true",
+            levels=' '.join(np.arange(17.1, 19.6, 0.1).astype(str)),
+            storagearea=' '.join(np.arange(100, 1000, 900/25.).astype(str)),
+            interpolate="linear",
+            network=fm.geometry.netfile.network
+            )
+        
+        # boundary conditions
         hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network)
         series = pd.Series(np.sin(np.linspace(2, 8, 120) * -1) + 1.0)
         series.index = [pd.Timestamp("2016-06-01 00:00:00") + pd.Timedelta(hours=i) for i in range(120)]
         hydamo.external_forcings.add_boundary_condition(
             "RVW_01", (197464.0, 392130.0), "dischargebnd", series, fm.geometry.netfile.network
         )
+        # initial condition
         hydamo.external_forcings.set_initial_waterdepth(1.5)
 
         # Add 2d network
@@ -186,9 +166,7 @@ def _add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
 
     if drrmodel is not None:
         hydamo.external_forcings.convert.laterals(
-            hydamo.laterals,
-            overflows=hydamo.overflows,
-            lateral_discharges=None,
+            hydamo.laterals,                        
             rr_boundaries=drrmodel.external_forcings.boundary_nodes
         )
 

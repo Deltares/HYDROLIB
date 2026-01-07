@@ -20,7 +20,7 @@ def _find_dimr(dhydro_path="C:/Program Files/Deltares"):
         if len(installs) > 0:
             sort_keys = [p.name.replace("D-HYDRO Suite", "").strip().split(" ")[0] for p in installs]
             installs = [x for _, x in sorted(zip(sort_keys, installs))]
-            dimr_path = str(installs[-1].joinpath("plugins/DeltaShell.Dimr/kernels/x64/dimr/scripts/run_dimr.bat"))
+            dimr_path = str(installs[-1].joinpath("plugins/DeltaShell.Dimr/kernels/x64/bin/run_dimr.bat"))
 
     return dimr_path
 
@@ -30,41 +30,7 @@ def test_run_model():
     # Read hydamo object only once
     hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
     hydamo = test_from_hydamo._convert_structures(hydamo=hydamo)
-
-    hydamo.structures.add_rweir(
-        id="rwtest",
-        name="rwtest",
-        branchid="W_1386_0",
-        chainage=2.0,
-        crestlevel=12.5,
-        crestwidth=3.0,
-        corrcoeff=1.0,
-    )
-    hydamo.structures.add_orifice(
-        id="orifice_test",
-        branchid="W_242213_0",
-        chainage=43.0,
-        crestlevel=18.00,
-        gateloweredgelevel=18.5,
-        crestwidth=7.5,
-        corrcoeff=1.0,
-    )
-    hydamo.structures.add_uweir(
-        id="uweir_test",
-        branchid="W_242213_0",
-        chainage=2.0,
-        crestlevel=18.00,
-        crestwidth=7.5,
-        dischargecoeff=1.0,
-        numlevels=4,
-        yvalues="0.0 1.0 2.0 3.0",
-        zvalues="19.0 18.0 18.2 19",
-    )
-
-    cmpnd_ids = ["cmpnd_1","cmpnd_2","cmpnd_3"]
-    cmpnd_list = [["D_24521", "D_14808"],["D_21450", "D_19758"],["D_19757", "D_21451"]]
-    hydamo.structures.convert.compound_structures(cmpnd_ids, cmpnd_list)
-
+  
     # Add RR component
     drrmodel = test_setup_rr._setup_rr_model(hydamo=hydamo)
 
