@@ -8,9 +8,7 @@ from tests.dhydamo.io import test_from_hydamo
 def _setup_rr_model(hydamo=None):
     data_path = Path("hydrolib/tests/data").resolve()
     assert data_path.exists()
-    output_path = Path("hydrolib/tests/model").resolve()
-    assert output_path.exists()
-
+    
     drrmodel = DRRModel()
 
     if hydamo is None:
@@ -81,39 +79,15 @@ def _setup_rr_model(hydamo=None):
     )
 
     seepage_folder = data_path / "rasters" / "seepage"
-    precip_file = data_path / "DEFAULT.BUI"
-    evap_file = data_path / "DEFAULT.EVP"
+    precip_folder = data_path /  "rasters" / "precipitation"
     evap_folder = data_path / "rasters" / "evaporation"
     drrmodel.external_forcings.io.seepage_from_input(hydamo.catchments, seepage_folder)
     drrmodel.external_forcings.io.precip_from_input(
-        meteo_areas, precip_folder=None, precip_file=precip_file
+        meteo_areas, precip_folder=precip_folder, precip_file=None
     )
     drrmodel.external_forcings.io.evap_from_input(
-        meteo_areas, evap_folder=None, evap_file=evap_file
+        meteo_areas, evap_folder=evap_folder, evap_file=None
     )
-
-    drrmodel.d3b_parameters["Timestepsize"] = 300
-    drrmodel.d3b_parameters["StartTime"] = (
-        "'2016/06/01;00:00:00'"  # should be equal to refdate for D-HYDRO
-    )
-    drrmodel.d3b_parameters["EndTime"] = "'2016/06/03;00:00:00'"
-    drrmodel.d3b_parameters["RestartIn"] = 0
-    drrmodel.d3b_parameters["RestartOut"] = 0
-    drrmodel.d3b_parameters["RestartFileNamePrefix"] = "Test"
-    drrmodel.d3b_parameters["UnsaturatedZone"] = 1
-    drrmodel.d3b_parameters["UnpavedPercolationLikeSobek213"] = -1
-    drrmodel.d3b_parameters["VolumeCheckFactorToCF"] = 100000
-
-    hydamo.external_forcings.convert.laterals(
-        hydamo.laterals,
-        lateral_discharges=None,
-        rr_boundaries=drrmodel.external_forcings.boundary_nodes,
-    )
-
-    rr_writer = DRRWriter(
-        drrmodel, output_dir=output_path, name="test", wwtp=(199000.0, 396000.0)
-    )
-    rr_writer.write_all()
 
     return drrmodel
 

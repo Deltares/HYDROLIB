@@ -6,7 +6,7 @@ import pandas as pd
 from pydantic.v1 import validate_arguments
 from typing import Optional
 from shapely.geometry import Point
-
+import netCDF4
 from hydrolib.dhydamo.geometry.mesh import Network
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
@@ -417,6 +417,28 @@ class ExternalForcingsIO:
                 discharge=item["discharge"],
             )
 
+    # @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    # def boundary_from_other_model(
+    #     self        
+    # ) -> None:
+    #      """
+    #     Obtain boundary from results of another model
+
+    #     Parameters
+    #     ----------
+    #     locations: gpd.GeoDataFrame
+    #         GeoDataFrame with at least 'geometry' (Point) and the column 'code'
+    #     lateral_discharges: pd.DataFrame
+    #         DataFrame with lateral discharges. The index should be a time object (datetime or similar).
+    #     rr_boundaries: pd.DataFrame
+    #         DataFrame with RR-catchments that are coupled
+    #     """
+    #     from netCDF4 import Dataset
+    #     resfile = r'D:\4390.10\HYDROLIB_update\hydrolib\tests\data\different_model\test_his.nc'
+    #     location = 
+    #     parameter =- 
+    #     pass
+        
 
 class StructuresIO:
     def __init__(self, structures):

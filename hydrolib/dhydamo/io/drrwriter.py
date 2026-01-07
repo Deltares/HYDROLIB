@@ -685,13 +685,13 @@ class DRRWriter:
             lines = f.readlines()
 
         for i, line in enumerate(lines):
-            if line.lower().startswith(parameter.lower()):
+            if line.lower().strip().startswith(parameter.lower()):
                 items = re.split("=", line)
                 key, oldvalue = items[0], items[1]
                 if not key.strip().lower() == parameter.lower():
                     continue
                 lines[i] = line.replace(
-                    "=" + oldvalue, f"={value}\n".ljust(len(oldvalue) + 1)
+                    "=" + oldvalue, f"={value}\n"
                 )
                 break
 

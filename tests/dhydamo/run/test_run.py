@@ -6,7 +6,7 @@ from tests.dhydamo.io import test_to_hydrolibcore, test_from_hydamo
 from tests.dhydamo.rtc import test_setup_rtc
 from tests.dhydamo.rr import test_setup_rr
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
-
+from hydrolib.dhydamo.io.drrwriter import DRRWriter
 
 def _find_dimr(dhydro_path="C:/Program Files/Deltares"):
     dimr_path = None
@@ -30,15 +30,25 @@ def test_run_model():
     # Read hydamo object only once
     hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
     hydamo = test_from_hydamo._convert_structures(hydamo=hydamo)
-  
+
     # Add RR component
     drrmodel = test_setup_rr._setup_rr_model(hydamo=hydamo)
-
+  
     # Setup model
     fm, output_path = test_to_hydrolibcore._write_model(drrmodel=drrmodel, hydamo=hydamo, full_test=True)
-
+    
+    # write RR
+    drrmodel.d3b_parameters["Timestepsize"] = "60" 
+    drrmodel.d3b_parameters["StartTime"] = "'2016/06/01;00:00:00'"
+    drrmodel.d3b_parameters["EndTime"] = "'2016/06/01;01:00:00'"
+    drrmodel.d3b_parameters["UnsaturatedZone"] = 1
+    drrmodel.d3b_parameters["UnpavedPercolationLikeSobek213"] = -1
+    drrmodel.d3b_parameters["VolumeCheckFactorToCF"] = 100000
+    rr_writer = DRRWriter(drrmodel, output_dir=output_path, name="test", wwtp=(199000.0, 396000.0))
+    rr_writer.write_all()
+    
     # Add RTC component
-    drtcmodel = test_setup_rtc._setup_rtc_model(hydamo=hydamo)
+    drtcmodel = test_setup_rtc._setup_rtc_model(hydamo=hydamo, fm=fm, output_path=output_path)
     drtcmodel.write_xml_v1()
 
     # Find DIMR path

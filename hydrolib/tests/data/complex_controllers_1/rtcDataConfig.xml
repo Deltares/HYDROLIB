@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rtcDataConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rtc="http://www.wldelft.nl/fews" xmlns="http://www.wldelft.nl/fews" xsi:schemaLocation="http://www.wldelft.nl/fews D:\4390.10\HYDROLIB\hydrolib\tests\New%20folder\New%20folder%20(2)\rtc\rtcDataConfig.xsd">
+  <importSeries>
+    <PITimeSeriesFile>
+      <timeSeriesFile>timeseries_import.xml</timeSeriesFile>
+      <useBinFile>false</useBinFile>
+    </PITimeSeriesFile>
+    <timeSeries id="[Input]ObsS_96684/Water level (op)">
+      <OpenMIExchangeItem>
+        <elementId>ObsS_96684</elementId>
+        <quantityId>Water level (op)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="Control Group 1/Time Rule True">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group 1/Time Rule True</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>LINEAR</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="Control Group 1/Time rule False">
+      <PITimeSeries>
+        <locationId>[TimeRule]Control Group 1/Time rule False</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>LINEAR</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+  </importSeries>
+  <exportSeries>
+    <CSVTimeSeriesFile decimalSeparator="." delimiter="," adjointOutput="false"></CSVTimeSeriesFile>
+    <PITimeSeriesFile>
+      <timeSeriesFile>timeseries_export.xml</timeSeriesFile>
+      <useBinFile>false</useBinFile>
+    </PITimeSeriesFile>
+    <timeSeries id="[Output]S_96684/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>S_96684</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Status]Control Group 1/Standard Condition" />
+  </exportSeries>
+</rtcDataConfig>
