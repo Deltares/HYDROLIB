@@ -40,7 +40,7 @@ def test_run_model():
     # write RR
     drrmodel.d3b_parameters["Timestepsize"] = "60" 
     drrmodel.d3b_parameters["StartTime"] = "'2016/06/01;00:00:00'"
-    drrmodel.d3b_parameters["EndTime"] = "'2016/06/01;01:00:00'"
+    drrmodel.d3b_parameters["EndTime"] = "'2016/06/03;01:00:00'"
     drrmodel.d3b_parameters["UnsaturatedZone"] = 1
     drrmodel.d3b_parameters["UnpavedPercolationLikeSobek213"] = -1
     drrmodel.d3b_parameters["VolumeCheckFactorToCF"] = 100000

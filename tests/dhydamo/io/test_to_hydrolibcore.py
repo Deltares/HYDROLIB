@@ -37,7 +37,7 @@ def setup_model(hydamo=None, full_test=False):
     fm = FMModel()
     # Set start and stop time
     fm.time.refdate = 20160601
-    fm.time.tstop =  3600
+    fm.time.tstop =  48*3600
 
     if hydamo is None:
         hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
@@ -236,6 +236,9 @@ def _write_model(drrmodel=None, hydamo=None, full_test=False):
     fm.output.ncformat = 4                      # parameter setting advised by Deltares for better performance
     fm.output.ncnoforcedflush = 1               # parameter setting advised by Deltares for better performance
     fm.output.ncnounlimited = 1      
+
+    if hasattr(fm, 'sediment'):
+        delattr(fm, 'sediment')
 
     dimr = DIMR()
     dimr.component.append(
