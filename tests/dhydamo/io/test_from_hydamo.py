@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from hydrolib.dhydamo.core import hydamo
 from hydrolib.dhydamo.geometry import mesh
 from shapely.geometry import Point
 from hydrolib.dhydamo.core.hydamo import HyDAMO
@@ -153,15 +154,11 @@ def _hydamo_object_from_gpkg():
     )
 
     # Read laterals
+    # read laterals
     hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
-    for ind, cat in hydamo.catchments.iterrows():
-        hydamo.catchments.loc[ind, "lateraleknoopcode"] = hydamo.laterals[
-            hydamo.laterals.globalid == cat.lateraleknoopid
-        ].code.values[0]
     hydamo.laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=5000)
-
     hydamo.catchments['boundary_node'] = [hydamo.laterals[hydamo.laterals.globalid==c['lateraleknoopid']].code.values[0] for _,c in hydamo.catchments.iterrows()]
-
+        
     return hydamo, len_profile_before
 
 

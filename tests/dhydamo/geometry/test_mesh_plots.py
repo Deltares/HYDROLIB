@@ -107,5 +107,10 @@ def test_plot_linkd1d2d_remove_links_within_polygon():
 
 
 @pytest.mark.plot
+def test_plot_linkd1d2d_remove_links_within_small_polygon():
+    test_mesh.test_linkd1d2d_remove_links_within_small_polygon(do_plot=True)
+
+
+@pytest.mark.plot
 def test_plot_mesh1d_add_branches_from_gdf():
     test_mesh.test_mesh1d_add_branches_from_gdf(do_plot=True)

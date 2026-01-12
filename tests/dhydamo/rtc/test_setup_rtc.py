@@ -9,19 +9,21 @@ from hydrolib.dhydamo.core.drtc import DRTCModel
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
 
 
-def _setup_rtc_model(hydamo=None):
+def _setup_rtc_model(hydamo=None, fm=None, output_path=None):
     data_path = Path("hydrolib/tests/data").resolve()
     assert data_path.exists()
-    output_path = Path("hydrolib/tests/model").resolve()
-    assert output_path.exists()
+    
+    if output_path is None:
+        output_path = Path("hydrolib/tests/model").resolve()
 
-    hydamo, fm = setup_model(hydamo=hydamo)
+    if hydamo is None:
+        hydamo, fm = setup_model(hydamo=hydamo)
 
     drtcmodel = DRTCModel(
         hydamo,
         fm,
         output_path=output_path,
-        complex_controllers_folder=data_path / "complex_controllers",
+        complex_controllers_folder=data_path / "complex_controllers_1",
         rtc_timestep=60.0,
     )
 

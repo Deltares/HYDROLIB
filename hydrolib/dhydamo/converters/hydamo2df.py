@@ -6,7 +6,9 @@ import pandas as pd
 from pydantic.v1 import validate_arguments
 from typing import Optional
 from shapely.geometry import Point
-
+from netCDF4 import Dataset
+from netCDF4 import chartostring
+from pathlib import Path
 from hydrolib.dhydamo.geometry.mesh import Network
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
@@ -355,14 +357,8 @@ class ExternalForcingsIO:
         if rr_boundaries is None:
             rr_boundaries = []
 
-        # in case of 3d points, remove the 3rd dimension
-        locations["geometry2"] = [
-            Point([point.geometry.x, point.geometry.y])
-            for _, point in locations.iterrows()
-        ]
-        locations.drop("geometry", inplace=True, axis=1)
-        locations.rename(columns={"geometry2": "geometry"}, inplace=True)
-
+        locations.geometry = locations.geometry.force_2d()
+        
         latdct = {}
         if overflows is not None:
             locations = pd.concat([locations, overflows], ignore_index=True)
@@ -423,6 +419,105 @@ class ExternalForcingsIO:
                 discharge=item["discharge"],
             )
 
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def timeseries_from_other_model(self,
+                                  his_file: Union[Path, str] = None, 
+                                  location_type: str = None,
+                                  location_id: str =None, 
+                                  variable: str = None,
+                                  starttime: Optional[Union[str, pd.Timestamp]] = None,
+                                  endtime: Optional[Union[str, pd.Timestamp]] = None,
+                                ) -> None:        
+      
+        """
+        Obtain boundary from results of another model
+
+        Parameters
+        ----------
+        locations: gpd.GeoDataFrame
+            GeoDataFrame with at least 'geometry' (Point) and the column 'code'
+        lateral_discharges: pd.DataFrame
+            DataFrame with lateral discharges. The index should be a time object (datetime or similar).
+        rr_boundaries: pd.DataFrame
+            DataFrame with RR-catchments that are coupled
+        """                  
+        
+        # if timesteps are strings, convert them to datetime objects
+        if starttime is not None:
+            if isinstance(starttime, str):
+                starttime = pd.to_datetime(starttime)
+            if isinstance(endtime, str):
+                endtime = pd.to_datetime(endtime)
+        # read the contents of the his file
+        his = Dataset(his_file, 'r')
+        
+        his_time = his.variables['time'][:]
+        time_unit=his['time'].units.split(' ')
+        refdate = pd.to_datetime(time_unit[2] + ' ' + time_unit[3])
+        interval_seconds = his_time[1]-his_time[0]
+        times = pd.date_range(start=refdate, end=refdate+pd.Timedelta(hours=np.max(his_time)/3600.), freq=f'{interval_seconds}S')
+    
+        if location_type == 'weir':
+            type = 'weirgen'
+            loc_ids = chartostring(his[f'{type}_name'][:])
+            coord_string_x = 'weir_input_geom_node_coordx'
+            coord_string_y = 'weir_input_geom_node_coordy'
+         
+        elif location_type == 'observation_point':
+            type = 'station'
+            loc_ids = chartostring(his[f'{type}_name'][:])
+            coord_string_x = 'station_x_coordinate'
+            coord_string_y = 'station_y_coordinate'
+        elif location_type == 'pump':                 
+            coord_string_x = f'{location_type}_input_geom_node_coordx'
+            coord_string_y = f'{location_type}_input_geom_node_coordy'
+            loc_ids = chartostring(his[f'{location_type}_name'][:])       
+            if variable == 'discharge':
+                type = 'pump_structure'
+            else:
+                type = location_type
+        elif location_type == 'uweir':
+            type = 'uniweir'
+            loc_ids = chartostring(his[f'{type}_name'][:])
+            coord_string_x = f'{type}_input_geom_node_coordx'
+            coord_string_y = f'{type}_input_geom_node_coordy'   
+        elif location_type == 'compound':
+            type = 'cmpstru'
+            loc_ids = chartostring(his[f'{type}_name'][:])            
+        else:
+            type = location_type
+            loc_ids = chartostring(his[f'{type}_name'][:])
+            coord_string_x = f'{type}_input_geom_node_coordx'
+            coord_string_y = f'{type}_input_geom_node_coordy'
+        try:
+            loc_index = np.where(loc_ids == location_id)[0][0]       
+        except:
+            raise ValueError(f'Location ID {location_id} of type {location_type} not found in {his_file}. Available IDs: {loc_ids}') 
+        
+        
+        if variable == 'waterlevel_upstream':
+            variable = 's1up'
+        elif variable == 'waterlevel_downstream':
+            variable = 's1dn'
+        if type != 'cmpstru':
+            loc_x = his[coord_string_x][:][loc_index]
+            loc_y = his[coord_string_y][:][loc_index]
+                    
+            loc_geom = Point(loc_x, loc_y)
+        else:
+            logger.warning('Geometry for compound structures not supported yet. Get the location of one of its structures.')
+            loc_geom = None
+
+        if location_type == 'observation_point':
+            timeseries = his['waterlevel'][:,loc_index]
+        else:
+            timeseries = his[f'{type}_{variable}'][:, loc_index]
+        loc_series = pd.Series(timeseries, index=times, name=location_id)
+        if starttime is not None:
+            loc_series = loc_series.loc[starttime:endtime]            
+            if loc_series.empty: 
+                logger.error(f'No data available for {location_id} between {starttime} and {endtime}.')
+        return loc_geom, loc_series       
 
 class StructuresIO:
     def __init__(self, structures):
