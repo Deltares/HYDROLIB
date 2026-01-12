@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from meshkernel.py_structures import DeleteMeshOption
 from shapely.affinity import translate
-from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box
+from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box, MultiPoint
 
 sys.path.append(".")
 from hydrolib.core.dflowfm.mdu.models import FMModel
@@ -570,6 +570,7 @@ def test_linkd1d2d_remove_links_within_polygon(do_plot=False):
 
     # Generate all links
     mesh.links1d2d_add_links_1d_to_2d(network)
+    mesh.links1d2d_remove_within(network, within)
 
     # Plot to verify
     if do_plot:
@@ -585,7 +586,35 @@ def test_linkd1d2d_remove_links_within_polygon(do_plot=False):
 
         plt.show()
         fig.savefig(test_figure_path / "test_linkd1d2d_remove_links_within_polygon_mk.png")
+    
+    assert len(network._link1d2d.link1d2d_id) == 4
 
+
+def test_linkd1d2d_remove_links_within_small_polygon(do_plot=False):
+    network, _, _, _ = _prepare_1d2d_mesh()
+
+    # Generate all links
+    mesh.links1d2d_add_links_1d_to_2d(network)
+    coords1d = np.vstack([network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y]).T
+    within = MultiPoint(coords1d).buffer(0.1)
+    mesh.links1d2d_remove_within(network, within)
+
+    # Plot to verify
+    if do_plot:
+        fig, ax = plt.subplots(figsize=(5, 5))
+
+        viz.plot_network(network, ax=ax)
+
+        for polygon in common.as_polygon_list(within):
+            ax.fill(*polygon.exterior.coords.xy, color="r", ls="-", lw=0, alpha=0.05)
+            ax.plot(*polygon.exterior.coords.xy, color="r", ls="-", lw=0.5)
+        ax.set_aspect(1.0)
+        ax.autoscale_view()
+
+        plt.show()
+        fig.savefig(test_figure_path / "test_linkd1d2d_remove_links_within_small_polygon_mk.png")
+    
+    assert len(network._link1d2d.link1d2d_id) == 0
 
 def _prepare_hydamo(culverts: bool = False):
     # initialize a hydamo object
