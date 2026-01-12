@@ -1,3 +1,4 @@
+
 import pathlib
 import subprocess
 import pytest
@@ -65,4 +66,3 @@ def test_run_model():
     stdout = stdout.decode("ascii")
     stderr = stderr.decode("ascii")
 
-    # @TODO write actual check if the model output is as expected
