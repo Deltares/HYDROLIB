@@ -585,6 +585,7 @@ def links1d2d_add_links_2d_to_1d_embedded(
     # Generate links
     network._link1d2d._link_from_2d_to_1d_embedded(node_mask, polygons=multipoint)
 
+
 def links1d2d_add_links_2d_to_1d_lateral(
     network: Network,
     dist_factor: Union[float, None] = 2.0,
@@ -634,6 +635,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
 
     # Get the already present links. These are not filtered subsequently
     present_links = network._link1d2d.link1d2d
+    npresent = len(present_links)
 
     # Generate links
     network._link1d2d._link_from_2d_to_1d_lateral(
@@ -650,7 +652,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
     else:
         multilinestring = MultiLineString([poly.exterior for poly in mpboundaries.geoms])
 
-    # Find the links that intersect the boundary close to the origin    
+    # Find the links that intersect the boundary close to the origin
     id1d = network._link1d2d.link1d2d[:, 0]
     id2d = network._link1d2d.link1d2d[:, 1]
 
@@ -695,7 +697,8 @@ def links1d2d_add_links_2d_to_1d_lateral(
         if dist < distance:
             keep.append(i)
 
-    # # Select the remaining links
+    # Select only the newly added links; present links are re-appended below.
+    keep = [i for i in keep if i >= npresent]
     _filter_links_on_idx(network, keep, present_links=present_links)
 
 

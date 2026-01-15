@@ -1,5 +1,6 @@
 import platform
 import sys
+from collections import Counter
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -524,6 +525,49 @@ def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, m
         fig.savefig(test_figure_path / f"test_links1d2d_add_links_2d_to_1d_lateral_within={b_within}_branchids={b_branchids}_refine={b_refine}_maxlength={max_length}_mk.png")
 
     assert len(network._link1d2d.link1d2d_id) == outcome
+
+
+def test_links1d2d_add_links_2d_to_1d_lateral_keeps_existing_links(monkeypatch):
+    network, _, _, _ = _prepare_1d2d_mesh(second_branch=True)
+    xmin = network._mesh2d.mesh2d_node_x.min()
+    xmax = network._mesh2d.mesh2d_node_x.max()
+    ymin = network._mesh2d.mesh2d_node_y.min()
+    ymax = network._mesh2d.mesh2d_node_y.max()
+    xmid = 0.5 * (xmin + xmax)
+    epsilon = (xmax - xmin) * 1e-6
+
+    within_left = box(xmin, ymin, xmid - epsilon, ymax)
+    within_right = box(xmid + epsilon, ymin, xmax, ymax)
+
+    mesh.links1d2d_add_links_2d_to_1d_lateral(network, within=within_left)
+    present_links = network._link1d2d.link1d2d.copy()
+    assert len(present_links) > 0
+
+    link_class = network._link1d2d.__class__
+    original = link_class._link_from_2d_to_1d_lateral
+
+    def _append_lateral(self, node_mask, polygon=None, search_radius=None):
+        before = self.meshkernel.contacts_get()
+        original(self, node_mask, polygon=polygon, search_radius=search_radius)
+        after = self.meshkernel.contacts_get()
+        after.mesh1d_indices = np.concatenate(
+            [before.mesh1d_indices, after.mesh1d_indices]
+        )
+        after.mesh2d_indices = np.concatenate(
+            [before.mesh2d_indices, after.mesh2d_indices]
+        )
+        self.meshkernel.contacts_set(after)
+
+    monkeypatch.setattr(
+        link_class, "_link_from_2d_to_1d_lateral", _append_lateral
+    )
+
+    mesh.links1d2d_add_links_2d_to_1d_lateral(network, within=within_right)
+
+    all_links = network._link1d2d.link1d2d
+    assert len(all_links) > len(present_links)
+    counts = Counter(map(tuple, all_links))
+    assert all(counts[tuple(link)] == 1 for link in present_links)
 
 
 @pytest.mark.parametrize(
