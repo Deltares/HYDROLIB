@@ -694,7 +694,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
         # If the distance to the mesh 2d exterior intersection is smaller than
         # the compared distance, keep it.
         dist = np.hypot(*(face2d - isect_list[0].coords[:][0]))
-        if dist < distance:
+        if dist < dist_factor * distance:
             keep.append(i)
 
     # Select only the newly added links; present links are re-appended below.
