@@ -713,31 +713,42 @@ def links1d2d_remove_within(
     """
 
     # Create an array with 2d facecenters and 1d nodes, that form the links
+    links = network._link1d2d.link1d2d
     nodes1d = np.stack(
-        [network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1
-    )[network._link1d2d.link1d2d[:, 0]]
+        [
+            network._mesh1d.mesh1d_node_x[links[:, 0]],
+            network._mesh1d.mesh1d_node_y[links[:, 0]],
+        ], axis=1
+    )
     faces2d = np.stack(
-        [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
-    )[network._link1d2d.link1d2d[:, 1]]
+        [
+            network._mesh2d.mesh2d_face_x[links[:, 1]],
+            network._mesh2d.mesh2d_face_y[links[:, 1]],
+        ], axis=1
+    )
 
-    # Create GeometryList MultiPoint object
-    mpgl_faces2d = GeometryList(*faces2d.T.copy())
-    mpgl_nodes1d = GeometryList(*nodes1d.T.copy())
-    idx = np.zeros(len(network._link1d2d.link1d2d), dtype=bool)
+    # Create GeometryList MultiPoint object (dedupe to avoid MK duplicate-point issues)
+    uniq_faces2d, inv_faces2d = np.unique(faces2d, axis=0, return_inverse=True)
+    uniq_nodes1d, inv_nodes1d = np.unique(nodes1d, axis=0, return_inverse=True)
+    mpgl_faces2d = GeometryList(*uniq_faces2d.T.copy())
+    mpgl_nodes1d = GeometryList(*uniq_nodes1d.T.copy())
+    idx_faces = np.zeros(len(uniq_faces2d), dtype=bool)
+    idx_nodes = np.zeros(len(uniq_nodes1d), dtype=bool)
 
     # Check which links intersect the provided area
     for polygon in common.as_polygon_list(within):
         subarea = GeometryList.from_geometry(polygon)
-        idx |= (
+        idx_faces |= (
             network.meshkernel.polygon_get_included_points(subarea, mpgl_faces2d).values
             == 1
         )
-        idx |= (
+        idx_nodes |= (
             network.meshkernel.polygon_get_included_points(subarea, mpgl_nodes1d).values
             == 1
         )
 
     # Remove these links
+    idx = idx_faces[inv_faces2d] | idx_nodes[inv_nodes1d]
     keep = ~idx
     _filter_links_on_idx(network, keep)
 
