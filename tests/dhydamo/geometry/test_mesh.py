@@ -546,20 +546,22 @@ def test_links1d2d_add_links_2d_to_1d_lateral_keeps_existing_links(monkeypatch):
     link_class = network._link1d2d.__class__
     original = link_class._link_from_2d_to_1d_lateral
 
-    def _append_lateral(self, node_mask, polygon=None, search_radius=None):
+    def _replace_lateral(self, node_mask, polygon=None, search_radius=None):
         before = self.meshkernel.contacts_get()
         original(self, node_mask, polygon=polygon, search_radius=search_radius)
         after = self.meshkernel.contacts_get()
-        after.mesh1d_indices = np.concatenate(
-            [before.mesh1d_indices, after.mesh1d_indices]
-        )
-        after.mesh2d_indices = np.concatenate(
-            [before.mesh2d_indices, after.mesh2d_indices]
-        )
-        self.meshkernel.contacts_set(after)
+        n_before = before.mesh1d_indices.size
+        if (
+            after.mesh1d_indices.size >= n_before
+            and np.array_equal(after.mesh1d_indices[:n_before], before.mesh1d_indices)
+            and np.array_equal(after.mesh2d_indices[:n_before], before.mesh2d_indices)
+        ):
+            after.mesh1d_indices = after.mesh1d_indices[n_before:]
+            after.mesh2d_indices = after.mesh2d_indices[n_before:]
+            self.meshkernel.contacts_set(after)
 
     monkeypatch.setattr(
-        link_class, "_link_from_2d_to_1d_lateral", _append_lateral
+        link_class, "_link_from_2d_to_1d_lateral", _replace_lateral
     )
 
     mesh.links1d2d_add_links_2d_to_1d_lateral(network, within=within_right)
@@ -568,6 +570,8 @@ def test_links1d2d_add_links_2d_to_1d_lateral_keeps_existing_links(monkeypatch):
     assert len(all_links) > len(present_links)
     counts = Counter(map(tuple, all_links))
     assert all(counts[tuple(link)] == 1 for link in present_links)
+    assert all(count == 1 for count in counts.values())
+    assert np.unique(all_links[:, 1]).size == all_links.shape[0]
 
 
 @pytest.mark.parametrize(

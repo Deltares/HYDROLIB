@@ -635,7 +635,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
 
     # Get the already present links. These are not filtered subsequently
     present_links = network._link1d2d.link1d2d
-    npresent = len(present_links)
+    present_set = {tuple(x) for x in present_links}
 
     # Generate links
     network._link1d2d._link_from_2d_to_1d_lateral(
@@ -653,8 +653,19 @@ def links1d2d_add_links_2d_to_1d_lateral(
         multilinestring = MultiLineString([poly.exterior for poly in mpboundaries.geoms])
 
     # Find the links that intersect the boundary close to the origin
-    id1d = network._link1d2d.link1d2d[:, 0]
-    id2d = network._link1d2d.link1d2d[:, 1]
+    new_links = network._link1d2d.link1d2d
+    id1d = new_links[:, 0]
+    id2d = new_links[:, 1]
+
+    # Drop new links that point to faces already linked in the existing set.
+    present_faces = np.unique(present_links[:, 1])
+    mask = ~np.isin(id2d, present_faces)
+    idx_map = np.arange(id2d.size)
+    if not np.all(mask):
+        idx_map = idx_map[mask]
+        new_links = new_links[mask]
+        id1d = id1d[mask]
+        id2d = id2d[mask]
 
     nodes1d = np.stack(
         [network._mesh1d.mesh1d_node_x[id1d], network._mesh1d.mesh1d_node_y[id1d]],
@@ -668,7 +679,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
         [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
     )
     nodes2d_idx = network._mesh2d.mesh2d_face_nodes[id2d]
-    keep = []
+    best_by_face = {}
     for i, (node1d, face2d, node2d) in enumerate(
         zip(nodes1d, faces2d, nodes2d_idx)
     ):       
@@ -691,14 +702,18 @@ def links1d2d_add_links_2d_to_1d_lateral(
         if len(isect_list) != 1:
             continue
 
-        # If the distance to the mesh 2d exterior intersection is smaller than
-        # the compared distance, keep it.
+        # If 1d2d link does not exist and the distance to the mesh 2d exterior
+        # intersection is smaller than the compared distance, keep it.
         dist = np.hypot(*(face2d - isect_list[0].coords[:][0]))
-        if dist < dist_factor * distance:
-            keep.append(i)
+        if dist < dist_factor * distance and tuple(new_links[i]) not in present_set:
+            orig_idx = int(idx_map[i])
+            face_id = id2d[i]
+            current = best_by_face.get(face_id)
+            if current is None or dist < current[0]:
+                best_by_face[face_id] = (dist, orig_idx)
 
-    # Select only the newly added links; present links are re-appended below.
-    keep = [i for i in keep if i >= npresent]
+    # Keep only the newly generated links; present links are re-appended below.
+    keep = [idx for _, idx in best_by_face.values()]
     _filter_links_on_idx(network, keep, present_links=present_links)
 
 
