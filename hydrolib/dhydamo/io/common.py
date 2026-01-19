@@ -230,6 +230,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         check_columns: bool = True,
         check_geotype: bool = True,
         clip: Union[Polygon, MultiPolygon] = None,
+        check_3d: bool = True
     ):
         if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
@@ -257,6 +258,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             geom_types = layer.geometry.geom_type.unique()
             if len(geom_types) != 1 or geom_types[0] != "Point":
                 raise ValueError("Can only group Points to LineString")
+            if check_3d and np.isnan(layer.geometry.z.to_numpy()).any():
+                raise ValueError("All geometries need to have a Z coordinate")
+
 
             # Group geometries to lines
             geometries = []
