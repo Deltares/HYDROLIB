@@ -325,9 +325,16 @@ def mesh1d_add_branches_from_gdf(
         missing = structures.branchid.isna()
         if missing.any():
             if len(missing) > 5:
-                logger.warning(f"{len(missing)} structures are not linked to a branch (too many to show).")
+                logger.warning(
+                    "%d structures are not linked to a branch (too many to show).",
+                    len(missing),
+                )
             else:
-                logger.warning(f"{len(missing)} structures ({structures.loc[missing, 'id'].values()}) are not linked to a branch.")
+                logger.warning(
+                    "%d structures (%s) are not linked to a branch.",
+                    len(missing),
+                    structures.loc[missing, "id"].values(),
+                )
         ids_offsets = ids_offsets.loc[idx, :]
 
         # For each branch
@@ -336,9 +343,8 @@ def mesh1d_add_branches_from_gdf(
             u, c = np.unique(group.chainage, return_counts=True)
             if any(c > 1):
                 logger.warning(
-                    "Structures {} have the same location.".format(
-                        ", ".join(group.loc[np.isin(group, u[c > 1]), "id"].tolist())
-                    )
+                    "Structures %s have the same location.",
+                    ", ".join(group.loc[np.isin(group, u[c > 1]), "id"].tolist()),
                 )
             # Add to dictionary
             structure_chainage[branchid] = u

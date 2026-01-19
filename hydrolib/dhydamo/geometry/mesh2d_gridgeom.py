@@ -515,7 +515,11 @@ class Rectangular(Mesh2D_GG):
        
         polygons = geometry.as_polygon_list(polygon)
         
-        logger.info(f'Generating grid with cellsize {cellsize} m and rotation {rotation} degrees.')
+        logger.info(
+            "Generating grid with cellsize %s m and rotation %s degrees.",
+            cellsize,
+            rotation,
+        )
         convex = MultiPolygon(polygons).convex_hull
         
         # In case of a rotation, extend the grid far enough to make sure
