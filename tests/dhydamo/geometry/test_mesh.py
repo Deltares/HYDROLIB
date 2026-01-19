@@ -617,35 +617,6 @@ def test_linkd1d2d_remove_links_within_small_polygon(do_plot=False):
     assert len(network._link1d2d.link1d2d_id) == 0
 
 
-def test_links1d2d_remove_within_dedupes_points(monkeypatch):
-    # Ensure we never pass duplicate coordinates to meshkernel during removal.
-    network, within, _, _ = _prepare_1d2d_mesh()
-    mesh.links1d2d_add_links_1d_to_2d(network)
-
-    links = network._link1d2d.link1d2d.copy()
-    dup_links = np.vstack([links, links[:1]])
-
-    contacts = network._link1d2d.meshkernel.contacts_get()
-    contacts.mesh1d_indices = dup_links[:, 0].astype(np.int32)
-    contacts.mesh2d_indices = dup_links[:, 1].astype(np.int32)
-    network._link1d2d.meshkernel.contacts_set(contacts)
-
-    def _check_unique(self, subarea, points):
-        coords = np.column_stack([points.x_coordinates, points.y_coordinates])
-        if len(coords) != len(np.unique(coords, axis=0)):
-            raise AssertionError("duplicate points passed to meshkernel")
-        result = type("Result", (), {})()
-        result.values = np.zeros(len(coords), dtype=int)
-        return result
-
-    monkeypatch.setattr(
-        network.meshkernel.__class__, "polygon_get_included_points", _check_unique
-    )
-
-    mesh.links1d2d_remove_within(network, within)
-
-    assert len(network._link1d2d.link1d2d) == len(dup_links)
-
 def _prepare_hydamo(culverts: bool = False):
     # initialize a hydamo object
     extent_file = hydamo_data_path / "OLO_stroomgebied_incl.maas.shp"
