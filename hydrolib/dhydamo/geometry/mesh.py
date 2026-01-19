@@ -592,6 +592,7 @@ def links1d2d_add_links_2d_to_1d_embedded(
     # Generate links
     network._link1d2d._link_from_2d_to_1d_embedded(node_mask, polygons=multipoint)
 
+
 def links1d2d_add_links_2d_to_1d_lateral(
     network: Network,
     dist_factor: Union[float, None] = 2.0,
@@ -677,7 +678,8 @@ def links1d2d_add_links_2d_to_1d_lateral(
     keep = []
     for i, (node1d, face2d, node2d) in enumerate(
         zip(nodes1d, faces2d, nodes2d_idx)
-    ):       
+    ):
+        # Triangular grids
         face_node_crds = nodes2d[node2d[node2d > 0.]]                
 
         # Calculate distance between face edge and face center
@@ -703,7 +705,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
         if dist < dist_factor * distance:
             keep.append(i)
 
-    # # Select the remaining links
+    # Select the remaining links
     _filter_links_on_idx(network, keep, present_links=present_links)
 
 
@@ -775,25 +777,14 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
         logger.warning("No 1d2d-links present.")        
         return None
  
-    # Create an array with 2d facecenters and 1d nodes, that form the links
-    nodes1d = np.stack(
-        [network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1
-    )[network._link1d2d.link1d2d[:, 0]]
-
     # Select 1d nodes that are only present in a single edge
     edge_nodes = network._mesh1d.network1d_edge_nodes
     edgeid, counts = np.unique(edge_nodes, return_counts=True)
     to_remove = edgeid[counts == 1]
 
-    keep = np.ones(len(network._link1d2d.link1d2d), dtype=bool)
-    for i in to_remove:
-        network_node = (
-            network._mesh1d.network1d_node_x[i],
-            network._mesh1d.network1d_node_y[i],
-        )
-        if np.isin(network_node, nodes1d)[0]:
-            index = np.argwhere(np.isin(nodes1d, network_node)).ravel()[0]
-            keep[index] = False
+    # Remove links connected to 1d endpoint nodes.
+    link_nodes = network._link1d2d.link1d2d[:, 0]
+    keep = ~np.isin(link_nodes, to_remove)
 
     _filter_links_on_idx(network, keep)
 
