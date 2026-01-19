@@ -618,7 +618,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
         network (Network): Network in which the links are made. Should contain a 1d and 2d mesh
         dist_factor (Union[float, None], optional): Factor to determine which links are kept (see description above). Defaults to 2.0.
         branchids (List[str], optional): List is branch id's for which the conncetions are made. Defaults to None.
-        within (Union[Polygon, MultiPolygon], optional): Clipping polygon for 2d mesh. Defaults to None.
+        within (Union[Polygon, MultiPolygon], optional): Clipping polygon for 2d mesh that is. Defaults to None.
         max_length (float, optional): Max edge length. Defaults to None.
     """
 
@@ -626,19 +626,16 @@ def links1d2d_add_links_2d_to_1d_lateral(
     mpboundaries = GeometryList(**geometrylist.__dict__).to_geometry()
     if within is not None:
         # If a 'within' polygon was provided, get the intersection with the meshboundaries
+        # and convert it to a geometrylist
         # Note that the provided meshboundaries is a (list of) polygon(s). Holes are provided
         # as polygons as well, which dont make it a valid MultiPolygon
-        mpboundaries = mpboundaries.intersection(within)
-        if mpboundaries.geom_type not in ("Polygon", "MultiPolygon"):
-            polys = [geom for geom in mpboundaries.geoms if geom.geom_type in ("Polygon", "MultiPolygon")]
-            mpboundaries = MultiPolygon(common.as_polygon_list(polys))
-        if mpboundaries.is_empty:
-            return
-
-    # Always convert to a GeometryList (dhydamo extends meshkernel GeometryList)
-    if mpboundaries.geom_type == "Polygon":
-        mpboundaries = MultiPolygon([mpboundaries])
-    geometrylist = GeometryList.from_geometry(mpboundaries)
+        if isinstance(mpboundaries, Polygon):
+            geom = MultiPolygon([mpboundaries])
+            geometrylist = GeometryList.from_geometry(geom)
+        else:
+            geom = [geom.intersection(within) for geom in mpboundaries.geoms]
+            geom = MultiPolygon(common.as_polygon_list(geom))
+            geometrylist = GeometryList.from_geometry(geom)
 
     # Get the nodes for the specific branch ids
     node_mask = network._mesh1d.get_node_mask(branchids)
@@ -655,11 +652,13 @@ def links1d2d_add_links_2d_to_1d_lateral(
     if dist_factor is None:
         return
 
-    # Create multilinestring. Above we ensured that mpboundaries is a
-    # multipolygon consisting of only polygons.
-    multilinestring = MultiLineString([poly.exterior for poly in mpboundaries.geoms])
+    # Create multilinestring
+    if isinstance(mpboundaries, Polygon):
+        multilinestring = MultiLineString([mpboundaries.exterior])
+    else:
+        multilinestring = MultiLineString([poly.exterior for poly in mpboundaries.geoms])
 
-    # Find the links that intersect the boundary close to the origin
+    # Find the links that intersect the boundary close to the origin    
     id1d = network._link1d2d.link1d2d[:, 0]
     id2d = network._link1d2d.link1d2d[:, 1]
 
