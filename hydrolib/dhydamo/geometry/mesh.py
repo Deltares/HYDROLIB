@@ -630,7 +630,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
         # Note that the provided meshboundaries is a (list of) polygon(s). Holes are provided
         # as polygons as well, which dont make it a valid MultiPolygon
         if isinstance(mpboundaries, Polygon):
-            geom = MultiPolygon([mpboundaries])
+            geom = MultiPolygon([mpboundaries.intersection(within)])
             geometrylist = GeometryList.from_geometry(geom)
         else:
             geom = [geom.intersection(within) for geom in mpboundaries.geoms]
