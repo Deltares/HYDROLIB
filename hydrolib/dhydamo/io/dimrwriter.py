@@ -47,7 +47,7 @@ class DIMRWriter:
     @validate_arguments
     def add_crs(self) -> None:
         """Reads the Netcdf file and addes the required attributes for a valid CRS."""        
-        netfile = list((self.output_path / 'fm').glob('*.nc'))[0]
+        netfile = list((self.output_path / 'dflowfm').glob('*.nc'))[0]
         netf = nc.Dataset(netfile, 'r+')
         netf.Conventions =  'CF-1.8 UGRID-1.0 Deltares-0.10'
         proj = netf.createVariable('projected_coordinate_system','i4')
