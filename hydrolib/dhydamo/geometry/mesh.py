@@ -498,8 +498,15 @@ def _filter_links_on_idx(
     mesh1d_indices = contacts.mesh1d_indices[keep]
     mesh2d_indices = contacts.mesh2d_indices[keep]
     if present_links is not None:
-        mesh1d_indices = np.concat([mesh1d_indices, present_links[:,0]])
-        mesh2d_indices = np.concat([mesh2d_indices, present_links[:,1]])
+        mesh1d_indices = np.concatenate([mesh1d_indices, present_links[:,0]])
+        mesh2d_indices = np.concatenate([mesh2d_indices, present_links[:,1]])
+    if mesh1d_indices.size:
+        # De-duplicate while keeping first occurrence
+        pairs = np.column_stack([mesh1d_indices, mesh2d_indices])
+        _, unique_idx = np.unique(pairs, axis=0, return_index=True)
+        unique_idx = np.sort(unique_idx)
+        mesh1d_indices = mesh1d_indices[unique_idx]
+        mesh2d_indices = mesh2d_indices[unique_idx]
     contacts.mesh1d_indices = np.array(mesh1d_indices).astype(np.int32)
     contacts.mesh2d_indices = np.array(mesh2d_indices).astype(np.int32)
     network._link1d2d.meshkernel.contacts_set(contacts)
