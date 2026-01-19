@@ -151,7 +151,7 @@ def setup_model(hydamo=None, full_test=False):
         mesh.links1d2d_remove_1d_endpoints(network)
 
     # main filepath
-    fm.filepath = Path(output_path) / "fm" / "test.mdu"
+    fm.filepath = Path(output_path) / "dflowfm" / "DFM.mdu"
     # we first need to set the forcing model, because it is referred to in the ext model components
     return hydamo, fm
 
@@ -200,7 +200,7 @@ def _add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
         # fm.geometry.inifieldfile.initial[ifield].datafile = OneDFieldModel(global_=onedfield)
 
         # this is a workaround to do the same
-        onedfield_filepath = output_path / "fm" / "initialwaterdepth.ini"
+        onedfield_filepath = output_path / "dflowfm" / "initialwaterdepth.ini"
         onedfieldmodel = OneDFieldModel(global_=onedfield)
         onedfieldmodel.save(filepath=onedfield_filepath)
         fm.geometry.inifieldfile.initial[ifield].datafile = DiskOnlyFileModel(
@@ -244,7 +244,7 @@ def _write_model(drrmodel=None, hydamo=None, full_test=False):
     dimr.component.append(
         FMComponent(
             name="DFM",
-            workingDir=Path(output_path) / "fm",
+            workingDir=Path(output_path) / "dflowfm",
             model=fm,
             inputfile=fm.filepath,
         )        
@@ -255,7 +255,7 @@ def _write_model(drrmodel=None, hydamo=None, full_test=False):
 
 def test_write_model(drrmodel=None, hydamo=None, full_test=False):
     _, output_path = _write_model(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
-    assert (output_path / "fm" / "test.mdu").exists()
-    assert (output_path / "fm" / "crsdef.ini").exists()
-    assert (output_path / "fm" / "network.nc").exists()
-    assert (output_path / "fm" / "initialwaterdepth.ini").exists()
+    assert (output_path / "dflowfm" / "DFM.mdu").exists()
+    assert (output_path / "dflowfm" / "crsdef.ini").exists()
+    assert (output_path / "dflowfm" / "network.nc").exists()
+    assert (output_path / "dflowfm" / "initialwaterdepth.ini").exists()

@@ -23,7 +23,7 @@ def _setup_rtc_model(hydamo=None, fm=None, output_path=None):
         hydamo,
         fm,
         output_path=output_path,
-        complex_controllers_folder=data_path / "complex_controllers_1",
+        complex_controllers_folder=data_path / "complex_controllers",
         rtc_timestep=60.0,
     )
 
