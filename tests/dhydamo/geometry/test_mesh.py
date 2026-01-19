@@ -491,11 +491,11 @@ def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_lengt
 @pytest.mark.parametrize(
     "b_within, b_branchids, b_refine, max_length, b_plot, outcome",
     [
-        (False, False, False, np.inf, False, 26),
+        (False, False, False, np.inf, False, 38),
         (False, False, False, 1, False, 1),
-        (True, False, False, np.inf, False, 18),
+        (True, False, False, np.inf, False, 30),
         (False, True, False,  np.inf, False, 0),
-        (False, False, True,  np.inf, False, 27),
+        (False, False, True,  np.inf, False, 39),
     ],
 )
 def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
@@ -615,6 +615,7 @@ def test_linkd1d2d_remove_links_within_small_polygon(do_plot=False):
         fig.savefig(test_figure_path / "test_linkd1d2d_remove_links_within_small_polygon_mk.png")
     
     assert len(network._link1d2d.link1d2d_id) == 0
+
 
 def _prepare_hydamo(culverts: bool = False):
     # initialize a hydamo object

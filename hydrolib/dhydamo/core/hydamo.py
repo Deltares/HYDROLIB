@@ -415,7 +415,7 @@ class HyDAMO:
         # nan values for branch_offset.
         drop_idx = extendedgdf[pd.isnull(extendedgdf.branch_offset)].index.values
         drop_list = [(extendedgdf, drop_idx)]
-        print(f"dropping objects with indices: {drop_idx}")
+        logger.info("dropping objects with indices: %s", drop_idx)
 
         # Find out which labels need to be dropped from related objects
         if drop_related and extendedgdf.related is not None:
@@ -431,7 +431,11 @@ class HyDAMO:
         drop_related = source.loc[drop_idx, via].values
         drop_idx = target[target[on].isin(drop_related)].index.values
         drop_list.append((target, drop_idx))
-        print(f"  - dropping objects from '{target_str}' with indices: {drop_idx}")
+        logger.info(
+            "  - dropping objects from '%s' with indices: %s",
+            target_str,
+            drop_idx,
+        )
 
         if coupled_to is not None:
             for next_target_str, next_relation in coupled_to.items():
@@ -677,8 +681,9 @@ class Network:
                             n = 0
                             max_tries += 1
                     if max_tries > 500:
-                        print(
-                            f"Can't fix correct directions branch groups {all_branches}"
+                        logger.warning(
+                            "Can't fix correct directions branch groups %s",
+                            all_branches,
                         )
                         break
 
@@ -1376,23 +1381,22 @@ class CrossSections:
                 values[values.soortparameter == "bodemhoogte benedenstrooms"].waarde
             ).values[0]:
                 logger.warning(
-                    "bodemhoogte benedenstrooms not available for profile {}.".format(
-                        param.globalid
-                    )
+                    "bodemhoogte benedenstrooms not available for profile %s.",
+                    param.globalid,
                 )
             if pd.isnull(values[values.soortparameter == "bodembreedte"].waarde).values[
                 0
             ]:
                 logger.warning(
-                    "bodembreedte not available for profile {}.".format(param.globalid)
+                    "bodembreedte not available for profile %s.",
+                    param.globalid,
                 )
             if pd.isnull(
                 values[values.soortparameter == "bodemhoogte bovenstrooms"].waarde
             ).values[0]:
                 logger.warning(
-                    "bodemhoogte bovenstrooms not available for profile {}.".format(
-                        param.globalid
-                    )
+                    "bodemhoogte bovenstrooms not available for profile %s.",
+                    param.globalid,
                 )
 
             # Determine characteristics

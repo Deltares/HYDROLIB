@@ -171,7 +171,7 @@ class Df2HydrolibModel:
         # If any are missing, check if a default cross section definition has been defined
         if (len(default_locs) > 0) & (self.assign_default_profiles):
             if self.hydamo.crosssections.default_definition is None:
-                 print(
+                 logger.warning(
                     "Not all branches have a cross section appointed to them. We assume D-Hydro can interpolate over these branches, otherwise errors will occur."
                 )
             logger.info(
