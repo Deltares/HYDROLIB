@@ -11,7 +11,7 @@ from hydrolib.dhydamo.core.drtc import DRTCModel
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
 
 
-def _setup_rtc_model(hydamo=None, fm=None, output_path=None):
+def _setup_rtc_model(hydamo=None, fm=None, output_path=None, multiple_folders=False):
     data_path = Path("hydrolib/tests/data").resolve()
     assert data_path.exists()
     
@@ -19,13 +19,22 @@ def _setup_rtc_model(hydamo=None, fm=None, output_path=None):
         output_path = Path("hydrolib/tests/model").resolve()
 
     if hydamo is None:
-        hydamo, fm = setup_model(hydamo=hydamo)
+        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+
+    if multiple_folders:
+        complex_controllers_folder=[
+            data_path / "complex_controllers_1",
+            data_path / "complex_controllers_2",
+        ]
+    else:
+        complex_controllers_folder=data_path / "complex_controllers_1"
 
     drtcmodel = DRTCModel(
         hydamo,
         fm,
         output_path=output_path,
-        complex_controllers_folder=data_path / "complex_controllers",
+        complex_controllers_folder=complex_controllers_folder,
+        id_limit_complex_controllers=["S_96684", "ObsS_96684"],
         rtc_timestep=60.0,
     )
 
@@ -96,8 +105,8 @@ def test_setup_rtc_model(hydamo=None):
     assert len(drtcmodel.interval_controllers) == 1
 
 
-def test_complex_controller_already_present(caplog):
-    rtcd = _setup_rtc_model()
+def test_complex_controller_already_present(caplog, hydamo=None):
+    rtcd = _setup_rtc_model(hydamo=hydamo)
     rtcd.add_time_controller(
         structure_id="S_96684",
         steering_variable="Crest level (s)",
