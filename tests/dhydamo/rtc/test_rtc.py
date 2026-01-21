@@ -112,10 +112,10 @@ def _setup_rtc_model(hydamo=None, fm=None, output_path=None, multiple_folders=Fa
 
 
 def test_setup_rtc_model(hydamo=None):
-    drtcmodel = _setup_rtc_model(hydamo=hydamo)
-    assert len(drtcmodel.pid_controllers) == 3
-    assert len(drtcmodel.time_controllers) == 2
-    assert len(drtcmodel.interval_controllers) == 1
+    rtcd = _setup_rtc_model(hydamo=hydamo)
+    assert len(rtcd.pid_controllers) == 3
+    assert len(rtcd.time_controllers) == 2
+    assert len(rtcd.interval_controllers) == 1
 
 
 def test_complex_controller_already_present(caplog, hydamo=None):
@@ -134,3 +134,6 @@ def test_complex_controller_already_present(caplog, hydamo=None):
 def test_complex_controller_multiple_folders(hydamo=None):
     rtcd = _setup_rtc_model(hydamo=hydamo, multiple_folders=True)
     rtcd.write_xml_v1()
+    assert len(rtcd.pid_controllers) == 3
+    assert len(rtcd.time_controllers) == 2
+    assert len(rtcd.interval_controllers) == 1
