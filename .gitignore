@@ -139,6 +139,7 @@ hydrolib/dhydamo/debug.py
 coverage-reports
 xunit-reports
 hydrolib/tests/model/*
+/tests/model/dflowfm
 hydrolib/tests/model_sturing/*
 hydrolib/notebooks/dimr_config.xml
 tests/model/dimr_config.xml

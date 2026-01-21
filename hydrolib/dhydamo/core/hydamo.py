@@ -2141,7 +2141,7 @@ class Structures:
 class ObservationPoints:
     def __init__(self, hydamo):
         self.hydamo = hydamo
-        self.observation_points = gpd.GeoDataFrame()
+        self.observation_points = gpd.GeoDataFrame().set_geometry([])
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def add_points(
