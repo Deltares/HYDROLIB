@@ -21,7 +21,6 @@ class DRTCStructure:
     "Internal dataclass for flow structures referenced in complex controllers"
     struct_type: str
     struct_name: str
-    struct_id: int
     struct_property: str
 
 class DRTCModel:
@@ -200,21 +199,16 @@ class DRTCModel:
     ) -> tuple[dict[str, list[str]], list[DRTCStructure], set[str], set[str]]:
         """Normalize input folders, merge parsed controllers, and validate unique IDs."""
         if isinstance(complex_controllers_folder, list):
-            combined_controllers = None
-            combined_structs = []
+            complex_controllers = {}
+            complex_controller_structs = []
             for folder in complex_controllers_folder:
                 # Merge controller XML fragments from multiple folders.
                 controllers, structs = DRTCModel.parse_complex_controller(Path(folder))
-                if combined_controllers is None:
-                    combined_controllers = {key: list(items) for key, items in controllers.items()}
-                else:
-                    for key, items in controllers.items():
-                        # Append controller XML fragments across folders by section key.
-                        combined_controllers.setdefault(key, []).extend(items)
+                for key, items in controllers.items():
+                    # Append controller XML fragments across folders by section key.
+                    complex_controllers.setdefault(key, []).extend(items)
                 if structs:
-                    combined_structs.extend(structs)
-            complex_controllers = combined_controllers or {}
-            complex_controller_structs = combined_structs
+                    complex_controller_structs.extend(structs)
         else:
             complex_controllers, complex_controller_structs = DRTCModel.parse_complex_controller(
                 Path(complex_controllers_folder)
@@ -222,18 +216,28 @@ class DRTCModel:
             if complex_controller_structs is None:
                 complex_controller_structs = []
 
-        # Validate unique controller ids.
-        complex_controller_names = [fs.struct_name for fs in complex_controller_structs]
-        name_counts = {}
-        for name in complex_controller_names:
-            name_counts[name] = name_counts.get(name, 0) + 1
-        duplicates = [name for name, count in name_counts.items() if count > 1]
-        if duplicates:
-            logger.error("Duplicate complex controller ids found: %s", duplicates)
-            raise ValueError("Duplicate complex controller ids found in complex controllers")
+        # observation points can be found multiple times, but we want to list
+        # these only once. Structures can only be defined once.
+        duplicates = []
+        check_cc = {}
+        for fs in complex_controller_structs:
+            if fs.struct_name in check_cc:
+                if fs.struct_type != "observations":
+                    duplicates.append(fs.struct_name)
+            else:
+                check_cc[fs.struct_name] = fs
+
+        # Raise an error for duplicate structures
+        if len(duplicates) > 0:
+            msg = f"Duplicate complex controller ids found: {duplicates}"
+            logger.error(msg)
+            raise ValueError(msg)
+        
+        # Refined list of structures with single definitions.
+        complex_controller_structs = list(check_cc.values())
 
         # Build a set of unique controller ids.
-        complex_controller_ids = set(complex_controller_names)
+        complex_controller_ids = set(check_cc.keys())
 
         # Validate that referenced structures exist in HyDAMO.
         struct_ids_by_type = {
@@ -256,12 +260,15 @@ class DRTCModel:
         if unknown_types:
             logger.warning("Skipping HyDAMO complex controller validation for unsupported structure types: %s", sorted(unknown_types))
         if missing_structs:
-            logger.error("Complex controller structures not found in HyDAMO: %s", missing_structs)
-            raise ValueError(f"Complex controller structures not found in HyDAMO: {missing_structs}")
+            msg = f"Complex controller structures not found in HyDAMO: {missing_structs}"
+            logger.error(msg)
+            raise ValueError(msg)
 
         # Build whitelist set of allowed controller ids.
         if id_limit_complex_controllers is None:
-            raise ValueError("Explicit list of allowed complex controller structures is required (id_limit_complex_controllers)")
+            msg = "Explicit list of allowed complex controller structures is required (id_limit_complex_controllers)"
+            logger.error(msg)
+            raise ValueError(msg)
         id_limit_complex_controllers = set(id_limit_complex_controllers)
 
         return (
@@ -278,9 +285,7 @@ class DRTCModel:
         rtc_to_flow = root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")
         flow_to_rtc = root.findall(".//{*}coupler[@name='flow_to_rtc']/{*}item/{*}sourceName")
         for item in rtc_to_flow + flow_to_rtc:
-            stype, sname, sprop = item.text.split("/")
-            sid = int(sname.split("_")[1])
-            structures.append(DRTCStructure(stype, sname, sid, sprop))
+            structures.append(DRTCStructure(*item.text.split("/")))
 
         return structures
 

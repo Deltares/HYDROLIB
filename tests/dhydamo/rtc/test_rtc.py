@@ -26,15 +26,28 @@ def _setup_rtc_model(hydamo=None, fm=None, output_path=None, multiple_folders=Fa
             data_path / "complex_controllers_1",
             data_path / "complex_controllers_2",
         ]
+        id_limit_complex_controllers = ["S_96684", "ObsS_96684", "uweir_test"]
+        hydamo.structures.add_uweir(
+            id="uweir_test",
+            branchid="W_242213_0",
+            chainage=2.0,
+            crestlevel=18.00,
+            crestwidth=7.5,
+            dischargecoeff=1.0,
+            numlevels=4,
+            yvalues="0.0 1.0 2.0 3.0",
+            zvalues="19.0 18.0 18.2 19",
+        )
     else:
         complex_controllers_folder=data_path / "complex_controllers_1"
+        id_limit_complex_controllers = ["S_96684", "ObsS_96684"]
 
     drtcmodel = DRTCModel(
         hydamo,
         fm,
         output_path=output_path,
         complex_controllers_folder=complex_controllers_folder,
-        id_limit_complex_controllers=["S_96684", "ObsS_96684"],
+        id_limit_complex_controllers=id_limit_complex_controllers,
         rtc_timestep=60.0,
     )
 
@@ -116,3 +129,8 @@ def test_complex_controller_already_present(caplog, hydamo=None):
         rtcd.write_xml_v1()
     
     assert any("Skipped writing" in message for message in caplog.messages)
+
+
+def test_complex_controller_multiple_folders(hydamo=None):
+    rtcd = _setup_rtc_model(hydamo=hydamo, multiple_folders=True)
+    rtcd.write_xml_v1()
