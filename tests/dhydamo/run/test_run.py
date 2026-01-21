@@ -49,7 +49,7 @@ def test_run_model():
     rr_writer.write_all()
     
     # Add RTC component
-    drtcmodel = test_rtc._setup_rtc_model(hydamo=hydamo)
+    drtcmodel = test_rtc._setup_rtc_model(hydamo=hydamo, fm=fm)
     drtcmodel.write_xml_v1()
 
     # Find DIMR path
