@@ -69,7 +69,7 @@ class HyDAMO:
         if extent_file is not None:
             self.clipgeo = gpd.read_file(extent_file).union_all()
         else:
-            self.clipgeo = one
+            self.clipgeo = None
 
         # versioning info
         self.version = {
