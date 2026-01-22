@@ -559,6 +559,7 @@ class StructuresIO:
             index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
 
         rweirs = weirs[index == 0]
+        self.structures.hydamo.management.index = self.structures.hydamo.management.globalid
         for weir in rweirs.itertuples():
             weir_opening = opening[opening.stuwid == weir.globalid]
 
@@ -758,7 +759,8 @@ class StructuresIO:
                 yvalues=" ".join([f"{yz[0]:7.3f}" for yz in yzvalues]),
                 zvalues=" ".join([f"{yz[1]:7.3f}" for yz in yzvalues]),
             )
-
+        self.structures.hydamo.management.index = self.structures.hydamo.management.globalid
+        
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def weirs_from_datamodel(self, weirs: pd.DataFrame) -> None:
         """ "From parsed data model of weirs"""

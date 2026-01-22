@@ -69,7 +69,7 @@ class HyDAMO:
         if extent_file is not None:
             self.clipgeo = gpd.read_file(extent_file).union_all()
         else:
-            self.clipgeo = None
+            self.clipgeo = one
 
         # versioning info
         self.version = {
@@ -1600,17 +1600,19 @@ class ExternalForcings:
 
     @validate_arguments
     def add_boundary_condition(
-        self, name: str, pt, quantity: str, series, mesh1d=None
+        self, name: str, pt, quantity: str, value, mesh1d=None
     ) -> None:
         """
         Add boundary conditions to model:
-        - The boundary condition can be discharge or waterlevel
+        - The boundary condition can be discharge or waterlevel, or a Q-H relation
         - Is specified by a geographical location (pt) and a branchid
         - If no branchid is given, the nearest is searched
         - The boundary condition is added to the end of the given or nearest branch.
-        - To specify a time dependendend boundary: a timeseries with values should be given
-        - To specify a constant boundary a float should be given
-
+        Value can be one of three options:
+        -  timeseries: a Pandas series with time as index should be given
+        -  constant:  a float should be given
+        -  Q-H boundary: a dictionary with Q-H 
+        
         Parameters
         ----------
         name : str
@@ -1619,17 +1621,35 @@ class ExternalForcings:
             Location of the boundary condition
         bctype : str
             Type of boundary condition. Currently only discharge and waterlevel are supported
-        series : pd.Series or float
+        series : pd.Series dict, or float
             If a float, a constant in time boundary condition is used. If a pandas series,
-            the values per time step are used. Index should be in datetime format
+            the values per time step are used. Index should be in datetime format, if dict a Q-H table is assumed
         branchid : str, optional
             ID of the branch. If None, the branch nearest to the given location (pt) is
             searched, by default None
         """
 
-        assert quantity in ["dischargebnd", "waterlevelbnd"]
+        assert quantity in ["dischargebnd", "waterlevelbnd", 'qhbnd']
 
-        unit = "m3/s" if quantity == "dischargebnd" else "m"
+
+        if isinstance(value, pd.Series):
+            vec1 = ((value.index - value.index[0]).total_seconds() / 60.0).tolist()
+            vec2 = value.values.tolist()
+            startdate = value.index[0].strftime("%Y-%m-%d %H:%M:%S")
+            unit1 =  f"minutes since {startdate}"
+            unit2 = "m3/s" if quantity == "dischargebnd" else "m"            
+        elif isinstance(value, float):
+            vec1 = None
+            vec2 = value
+            startdate = "0000-00-00 00:00:00"
+            unit1 =  f"minutes since {startdate}"
+            unit2 = "m3/s" if quantity == "dischargebnd" else "m"
+        else:
+            vec1 = value['Q']
+            vec2 = value['H']            
+            unit1 = 'm3/s'
+            unit2 = 'm'
+        
         if name in self.boundary_nodes.keys():
             raise KeyError(
                 f'A boundary condition with name "{name}" is already present.'
@@ -1657,30 +1677,18 @@ class ExternalForcings:
         _, idx_nearest = get_nearest.query(pt.coords[:])
         nodeid = f"{float(nodes1d[idx_nearest[0],0]):12.6f}_{float(nodes1d[idx_nearest[0],1]):12.6f}"
 
-        # Convert time to minutes
-        if isinstance(series, pd.Series):
-            times = ((series.index - series.index[0]).total_seconds() / 60.0).tolist()
-            values = series.values.tolist()
-            startdate = series.index[0].strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            times = None
-            values = series
-            startdate = "0000-00-00 00:00:00"
-
         # Add boundary condition
         self.boundary_nodes[name] = {
             "id": name,
             "quantity": quantity,
-            "value": values,
-            "time": times,
-            "time_unit": f"minutes since {startdate}",
-            "value_unit": unit,
+            "vec1": vec1,
+            "vec2": vec2,
+            "unit1": unit1,
+            "unit2": unit2,
             "nodeid": nodeid,
         }
 
-        # Check if a 1d2d link should be removed
-        # self.dflowfmmodel.network.links1d2d.check_boundary_link(self.boundaries[name])
-
+        
     @validate_arguments
     def add_rain_series(self, name: str, values: list, times: list) -> None:
         """
