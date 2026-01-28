@@ -6,15 +6,23 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from shapely.geometry import Point
 
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
 
 
-def _setup_rtc_model(hydamo=None, fm=None, output_path=None, multiple_folders=False):
+def _setup_rtc_model(
+        hydamo=None,
+        fm=None,
+        output_path=None,
+        multiple_folders=False,
+        four_types=False,
+        wrong_test=False,
+    ):
     data_path = Path("hydrolib/tests/data").resolve()
     assert data_path.exists()
-    
+
     if output_path is None:
         output_path = Path("hydrolib/tests/model").resolve()
 
@@ -38,7 +46,24 @@ def _setup_rtc_model(hydamo=None, fm=None, output_path=None, multiple_folders=Fa
             yvalues="0.0 1.0 2.0 3.0",
             zvalues="19.0 18.0 18.2 19",
         )
+    elif four_types:
+        hydamo.observationpoints.add_points(
+            [Point(200064,395087), Point(200775,395209), Point(201585,395162), Point(199877,393954)],
+            ["ObsS_98143", "ObsS_96840", "ObsS_96547", "ObsS_96789"],
+            locationTypes=["1d", "1d", "1d", "1d"],
+            snap_distance=10.0,
+        )
+        if wrong_test:
+            complex_controllers_folder=data_path / "complex_controllers_fout"
+        else:
+            complex_controllers_folder=data_path / "complex_controllers_4types"
+
+        id_limit_complex_controllers = [
+            "ObsS_98143", "ObsS_96840", "ObsS_96547", "ObsS_96789",
+            "S_98143", "S_96789", "S_96547", "S_96840",
+        ]
     else:
+        # Default case
         complex_controllers_folder=data_path / "complex_controllers_1"
         id_limit_complex_controllers = ["S_96684", "ObsS_96684"]
 
@@ -127,7 +152,7 @@ def test_complex_controller_already_present(caplog, hydamo=None):
     )
     with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
         rtcd.write_xml_v1()
-    
+
     assert any("Skipped writing" in message for message in caplog.messages)
 
 
@@ -137,3 +162,17 @@ def test_complex_controller_multiple_folders(hydamo=None):
     assert len(rtcd.pid_controllers) == 3
     assert len(rtcd.time_controllers) == 2
     assert len(rtcd.interval_controllers) == 1
+
+def test_complex_controller_fourtypes(caplog, hydamo=None):
+    rtcd = _setup_rtc_model(hydamo=hydamo, four_types=True, wrong_test=False)
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
+        rtcd.write_xml_v1()
+
+    caplog
+
+def test_complex_controller_wrong(caplog, hydamo=None):
+    rtcd = _setup_rtc_model(hydamo=hydamo, four_types=True, wrong_test=True)
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
+        rtcd.write_xml_v1()
+
+    assert "Skipped writing Time control for S_96840, complex controller already present" in caplog.messages 
