@@ -1,3 +1,4 @@
+import copy
 import logging
 import os
 import shutil
@@ -73,32 +74,26 @@ class DRTCModel:
 
         # parse user-provided controllers
         self.complex_controllers = None
-        self.complex_controller_structs = None
-        self.complex_controller_ids = None
-        self.id_limit_complex_controllers = None
+        self.cc_structs = None
+        self.cc_ids = None
+        self.cc_id_limit = None
         if not rtc_onlytimeseries:
             if complex_controllers_folder is not None:
-                (
-                    self.complex_controllers,
-                    self.complex_controller_structs,
-                    self.complex_controller_ids,
-                    self.id_limit_complex_controllers,
-                ) = self._load_complex_controllers(
-                    complex_controllers_folder,
-                    id_limit_complex_controllers,
-                )
+                # Build whitelist set of allowed controller ids.
+                if len(id_limit_complex_controllers) == 0:
+                    msg = "Explicit list of allowed complex controller structures is required (id_limit_complex_controllers)"
+                    logger.error(msg)
+                    raise ValueError(msg)
+                self.cc_id_limit = set(id_limit_complex_controllers)
+                self.cc_structs, self.cc_ids = self._load_complex_controller_structs(complex_controllers_folder)
+                self.complex_controllers = self._load_complex_controllers(complex_controllers_folder)
 
         # copy files from the template RTC-folder
-        self.template_dir = Path(os.path.dirname(__file__)) / ".." / "resources" / "RTC"
+        self.template_dir = Path(__file__).resolve().parent / ".." / "resources" / "RTC"
 
-        generic_files = os.listdir(self.template_dir)
-        generic_files = [
-            file
-            for file in generic_files
-            if file.endswith(".xsd") or file.endswith("json")
-        ]
-        for file in generic_files:
-            shutil.copy(self.template_dir / file, self.output_path / file)
+        generic_files = [p for p in self.template_dir.iterdir() if p.suffix in {".xsd", ".json"}]
+        for filepath in generic_files:
+            shutil.copy(filepath, self.output_path / filepath.name)
 
         if rtc_onlytimeseries:
             for name, data in rtc_timeseriesdata.items():
@@ -113,6 +108,15 @@ class DRTCModel:
                 )
             self.check_timeseries(rtc_timeseriesdata)
             self.complex_controllers  = None
+
+    @validate_arguments
+    def allow_struct(self, cc_id: str):
+        allow = True
+        if self.cc_ids is not None and self.cc_id_limit is not None:
+            if cc_id in self.cc_ids and cc_id not in self.cc_id_limit:
+                allow = False
+
+        return allow
 
     @validate_arguments
     def check_timeseries(self, timeseries):
@@ -136,20 +140,17 @@ class DRTCModel:
             if pmp not in timeseries.columns:
                 logger.warning(f'For {pmp} a controller is defined in hydamo.management, but no timeseries is provided for it.')
 
-    @staticmethod
     @validate_arguments
-    def parse_complex_controller(xml_folder: Union[Path, str]) -> tuple[dict[str, ET.Element], list[DRTCStructure]]:
+    def parse_complex_controller(self, xml_folder: Union[Path, str]) -> tuple[dict[str, ET.Element], list[DRTCStructure]]:
         """Method to parse user-specified 'complex' controllers
 
         Args:
-            xml_folder (Union[Path, str]): Folder where the user located the custom XML files.s
+            xml_folder (Union[Path, str]): Folder where the user located the custom XML files
 
         Returns:
             dict: dict of list with the data in the files. Every key is a RTC-file, including the DIMR-config.
         """
-        files = os.listdir(xml_folder)
-        files = [file for file in files if file.endswith("xml")]
-        flow_structures = None
+        files = [p for p in Path(xml_folder).iterdir() if p.suffix == ".xml"]
         savedict = {}
         savedict["dataconfig_import"] = []
         savedict["dataconfig_export"] = []
@@ -158,63 +159,100 @@ class DRTCModel:
         savedict["timeseries"] = []
         savedict["state"] = []
         savedict["dimr_config"] = []
-        for file in files:
-            tree = ET.parse(xml_folder / file)
+        for filepath in files:
+            tree = ET.parse(filepath)
             root = tree.getroot()
-            if file == "rtcDataConfig.xml":
-                children = DRTCModel._parse_unique_children(root)
+            if filepath.name == "rtcDataConfig.xml":
+                children = self._parse_unique_children(root)
                 if "importSeries" in children:
                     for num, el in enumerate(children["importSeries"]):#[1:]:
                         if 'PITimeSeries' in ET.tostring(el).decode() and num == 0:
+                            continue
+                        allow, el_text = self._parse_dataconfig_item(el)
+                        if not allow:
+                            logger.info(
+                                "rtcDataConfig.xml: Skipped importSeries item for elementId '%s' (not allowed by complex controller filter).",
+                                el_text,
+                            )
                             continue
                         savedict["dataconfig_import"].append(ET.tostring(el).decode())
                 if "exportSeries" in children:
                     for el in children["exportSeries"]:#[2:]:
                         if ('PITimeSeries' not in ET.tostring(el).decode()) and ('CSVTimeSeries' not in ET.tostring(el).decode()):
+                            allow, el_text = self._parse_dataconfig_item(el)
+                            if not allow:
+                                logger.info(
+                                    "rtcDataConfig.xml: Skipped exportSeries item for elementId '%s' (not allowed by complex controller filter).",
+                                    el_text,
+                                )
+                                continue
                             savedict["dataconfig_export"].append(ET.tostring(el).decode())
-            elif file == "rtcToolsConfig.xml":
-                children = DRTCModel._parse_unique_children(root)
+            elif filepath.name == "rtcToolsConfig.xml":
+                children = self._parse_unique_children(root)
                 if "rules" in children:
                     for el in children["rules"]:
+                        allow, el_text = self._parse_toolsconfig_item(el)
+                        if not allow:
+                            logger.info(
+                                "rtcToolsConfig.xml: Skipped rule element '%s' (not allowed by complex controller filter).",
+                                el_text,
+                            )
+                            continue
                         savedict["toolsconfig_rules"].append(ET.tostring(el).decode())
                 if "triggers" in children:
                     for el in children["triggers"]:
+                        allow, el_text = self._parse_toolsconfig_item(el)
+                        if not allow:
+                            logger.info(
+                                "rtcToolsConfig.xml: Skipped trigger element '%s' (not allowed by complex controller filter).",
+                                el_text,
+                            )
+                            continue
                         savedict["toolsconfig_triggers"].append(ET.tostring(el).decode())
-            elif file == "timeseries_import.xml":
+            elif filepath.name == "timeseries_import.xml":
                 for el in root:
                     savedict["timeseries"].append(ET.tostring(el).decode())
-            elif file == "state_import.xml":
+            elif filepath.name == "state_import.xml":
                 for el in root[0]:
                     savedict["state"].append(ET.tostring(el).decode())
-            elif file == "dimr_config.xml":
-                savedict["dimr_config"].append(root)
-                flow_structures = DRTCModel._parse_referenced_structures(root)
+            elif filepath.name == "dimr_config.xml":
+                red_root = copy.deepcopy(root)
+                for el in list(red_root):
+                    for el_name, el_target in zip(["rtc_to_flow", "flow_to_rtc"], ["targetName", "sourceName"]):
+                        if "name" not in el.attrib or el.attrib["name"] != el_name:
+                            continue
+                        for sub_el in list(el):
+                            target = sub_el.find(".//{*}" + el_target)
+                            allow, el_text = self._parse_dimr_item(target)
+                            if not allow:
+                                logger.info(
+                                    "dimr_config.xml: Skipped %s element with '%s' '%s' (not allowed by complex controller filter).",
+                                    el_name,
+                                    el_target,
+                                    el_text,
+                                )
+                                el.remove(sub_el)
+                savedict["dimr_config"].append(red_root)
 
-        return savedict, flow_structures
+        return savedict
 
-    def _load_complex_controllers(
-        self,
-        complex_controllers_folder: Union[list[Union[str, Path]], str, Path],
-        id_limit_complex_controllers: list[str],
-    ) -> tuple[dict[str, list[str]], list[DRTCStructure], set[str], set[str]]:
-        """Normalize input folders, merge parsed controllers, and validate unique IDs."""
-        if isinstance(complex_controllers_folder, list):
-            complex_controllers = {}
-            complex_controller_structs = []
-            for folder in complex_controllers_folder:
-                # Merge controller XML fragments from multiple folders.
-                controllers, structs = DRTCModel.parse_complex_controller(Path(folder))
-                for key, items in controllers.items():
-                    # Append controller XML fragments across folders by section key.
-                    complex_controllers.setdefault(key, []).extend(items)
-                if structs:
+
+    @validate_arguments
+    def _load_complex_controller_structs(
+        self, complex_controllers_folder: Union[list[Union[str, Path]], str, Path],
+    ) -> tuple[list[DRTCStructure], set[str]]:
+        if not isinstance(complex_controllers_folder, list):
+            complex_controllers_folder = [complex_controllers_folder]
+        
+        # Find complex controller structs and referred observation points
+        complex_controller_structs = []
+        for folder in complex_controllers_folder:
+            for filepath in Path(folder).iterdir():
+                if filepath.name == "dimr_config.xml":
+                    tree = ET.parse(filepath)
+                    root = tree.getroot()
+                    structs = self._parse_referenced_structures(root)
                     complex_controller_structs.extend(structs)
-        else:
-            complex_controllers, complex_controller_structs = DRTCModel.parse_complex_controller(
-                Path(complex_controllers_folder)
-            )
-            if complex_controller_structs is None:
-                complex_controller_structs = []
 
         # observation points can be found multiple times, but we want to list
         # these only once. Structures can only be defined once.
@@ -264,23 +302,96 @@ class DRTCModel:
             logger.error(msg)
             raise ValueError(msg)
 
-        # Build whitelist set of allowed controller ids.
-        if id_limit_complex_controllers is None:
-            msg = "Explicit list of allowed complex controller structures is required (id_limit_complex_controllers)"
-            logger.error(msg)
-            raise ValueError(msg)
-        id_limit_complex_controllers = set(id_limit_complex_controllers)
+        return complex_controller_structs, complex_controller_ids
 
-        return (
-            complex_controllers,
-            complex_controller_structs,
-            complex_controller_ids,
-            id_limit_complex_controllers,
-        )
+    @validate_arguments
+    def _load_complex_controllers(
+        self, complex_controllers_folder: Union[list[Union[str, Path]], str, Path],
+    ) -> dict[str, list[str]]:
+        """Normalize input folders, merge parsed controllers, and validate unique IDs."""
+        if isinstance(complex_controllers_folder, list):
+            complex_controllers = {}
+            for folder in complex_controllers_folder:
+                # Merge controller XML fragments from multiple folders.
+                controllers = self.parse_complex_controller(Path(folder))
+                for key, items in controllers.items():
+                    # Append controller XML fragments across folders by section key.
+                    complex_controllers.setdefault(key, []).extend(items)
+        else:
+            complex_controllers = self.parse_complex_controller(Path(complex_controllers_folder))
 
-    @staticmethod
+        return complex_controllers
+
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
-    def _parse_referenced_structures(root: ET.Element) -> list[DRTCStructure]:
+    def _parse_dataconfig_item(self, el: ET.Element) -> tuple[bool, Optional[str]]:
+        allow = True
+        el_id = el.find(".//{*}elementId")
+
+        # Check if this is a complex controller but not in the whitelist
+        # Always allow observation points
+        el_text = None
+        if el_id is not None and not el_id.text.startswith("Obs"):
+            allow = self.allow_struct(el_id.text)
+            el_text = el_id.text
+
+        return allow, el_text
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def _parse_toolsconfig_item(self, el: ET.Element) -> tuple[bool, Optional[str]]:
+        allow = True
+        el_firstchild = next(iter(el), None)
+
+        el_tags = []
+        el_firstchild_text = None
+        for tag in ["input", "output", "trigger", "condition"]:
+            el_tags += el.findall(".//{*}" + tag)
+        for el_tag in el_tags:
+            if el_tag.text.startswith("[Input]") or el_tag.text.startswith("[Output]"):
+                el_id = el_tag.text.replace("[Input]", "").replace("[Output]", "")
+                el_id = el_id.split("/")[0]
+
+                # Always allow observation points
+                if el_id.startswith("Obs"):
+                    continue
+
+                # Check if this is a complex controller but not in the whitelist
+                if allow:
+                    allow = self.allow_struct(el_id.text)
+                    el_firstchild_text = el_firstchild.get("id")
+
+        return allow, el_firstchild_text
+
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def _parse_dimr_item(self, target: Optional[ET.Element]) -> tuple[bool, Optional[str]]:
+        allow = True
+        el_text = None
+        if target is None or not target.text:
+            return allow, el_text
+
+        parts = target.text.split("/")
+        if len(parts) < 3:
+            return allow, target.text
+
+        struct_type, struct_id, _ = parts
+
+        # Check if this is a complex controller but not in the whitelist
+        # Always allow observation points
+        if (
+            struct_type != "observations"
+            and self.cc_ids is not None
+            and self.cc_id_limit is not None
+            and struct_id in self.cc_ids
+            and struct_id not in self.cc_id_limit
+        ):
+            allow = False
+            el_text = target.text
+
+        return allow, el_text
+
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def _parse_referenced_structures(self, root: ET.Element) -> list[DRTCStructure]:
         structures = []
         rtc_to_flow = root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")
         flow_to_rtc = root.findall(".//{*}coupler[@name='flow_to_rtc']/{*}item/{*}sourceName")
@@ -646,12 +757,15 @@ class DRTCModel:
         self.all_controllers.update(self.pid_controllers)
         self.all_controllers.update(self.interval_controllers)
 
+        to_remove = []
         for key in self.all_controllers.keys():
 
             controller = self.all_controllers[key]
-            if key in self.complex_controller_ids and key in self.id_limit_complex_controllers:
-                logger.warning(f"Skipped writing {controller['type']} control for {key}, complex controller already present")
-                continue
+            if self.cc_ids is not None and self.cc_id_limit is not None:
+                if key in self.cc_ids and key in self.cc_id_limit:
+                    logger.warning(f"RtcToolsConfig.xml: Skipped writing {controller['type']} control for {key}, complex controller already present")                    
+                    to_remove.append(key)
+                    continue
 
             a = ET.SubElement(myroot[1], gn_brackets + "rule")
             if controller['type'] == "PID":
@@ -772,6 +886,10 @@ class DRTCModel:
                 f = ET.SubElement(e, gn_brackets + "y")
                 f.text = "[Output]" + str(key) + "/" + controller["steering_variable"]
 
+        # remove controllers that have complex controllers
+        for key in to_remove:
+            del self.all_controllers[key]
+
         # elements that are parsed from user specified files should be inserted at the right place.
         if self.complex_controllers is not None:
             for ctl in self.complex_controllers["toolsconfig_rules"]:
@@ -831,6 +949,10 @@ class DRTCModel:
         for ikey, key in enumerate(self.all_controllers.keys()):
 
             controller = self.all_controllers[key]
+            if self.cc_ids is not None and self.cc_id_limit is not None:
+                if key in self.cc_ids and key in self.cc_id_limit:
+                    logger.warning(f"rtcDataConfig.xml: Skipped writing {controller['type']} control for {key}, complex controller already present")
+                    continue
 
             # te importeren data
             if controller['type'] == 'PID':
@@ -989,6 +1111,10 @@ class DRTCModel:
         for key in self.all_controllers.keys():
 
             controller = self.all_controllers[key]
+            if self.cc_ids is not None and self.cc_id_limit is not None:
+                if key in self.cc_ids and key in self.cc_id_limit:
+                    logger.warning(f"timeseries_import.xml: Skipped writing {controller['type']} control for {key}, complex controller already present")
+                    continue
 
             if controller['type'] == 'Time':
                 # te importeren data
@@ -1136,6 +1262,10 @@ class DRTCModel:
         for key in self.all_controllers.keys():
 
             controller = self.all_controllers[key]
+            if self.cc_ids is not None and self.cc_id_limit is not None:
+                if key in self.cc_ids and key in self.cc_id_limit:
+                    logger.warning(f"state_import.xml: Skipped writing {controller['type']} control for {key}, complex controller already present")
+                    continue
 
             # te importeren data
             a = ET.SubElement(a0, gn_brackets + "treeVectorLeaf")
