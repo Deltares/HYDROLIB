@@ -339,25 +339,26 @@ class DRTCModel:
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def _parse_toolsconfig_item(self, el: ET.Element) -> tuple[bool, Optional[str]]:
         allow = True
-        el_firstchild = next(iter(el), None)
-
-        el_tags = []
         el_firstchild_text = None
+
+        el_firstchild = next(iter(el), None)
+        el_tags = []
         for tag in ["input", "output", "trigger", "condition"]:
             el_tags += el.findall(".//{*}" + tag)
         for el_tag in el_tags:
-            if el_tag.text.startswith("[Input]") or el_tag.text.startswith("[Output]"):
-                el_id = el_tag.text.replace("[Input]", "").replace("[Output]", "")
-                el_id = el_id.split("/")[0]
+            for child in el_tag:
+                if child.text.startswith("[Input]") or child.text.startswith("[Output]"):
+                    child_text = child.text.replace("[Input]", "").replace("[Output]", "")
+                    child_text = child_text.split("/")[0]
 
-                # Always allow observation points
-                if el_id.startswith("Obs"):
-                    continue
+                    # Always allow observation points
+                    if child_text.startswith("Obs"):
+                        continue
 
-                # Check if this is a complex controller but not in the whitelist
-                if allow:
-                    allow = self.allow_struct(el_id.text)
-                    el_firstchild_text = el_firstchild.get("id")
+                    # Check if this is a complex controller but not in the whitelist
+                    if allow:
+                        allow = self.allow_struct(child_text)
+                        el_firstchild_text = el_firstchild.get("id")
 
         return allow, el_firstchild_text
 
