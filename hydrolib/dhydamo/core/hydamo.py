@@ -2141,6 +2141,7 @@ class Structures:
 class ObservationPoints:
     def __init__(self, hydamo):
         self.hydamo = hydamo
+        self.observation_points = gpd.GeoDataFrame().set_geometry([])
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def add_points(
@@ -2160,9 +2161,6 @@ class ObservationPoints:
         snap_distance : float (default is 5 m)
             1d observation poinst within this distance to a branch will be snapped to it. Otherwise they are discarded.
         """
-        if not hasattr(self, "observation_points"):
-            self.observation_points = gpd.GeoDataFrame()
-
         if isinstance(names, str):
             names = [names]
             crds = [crds]

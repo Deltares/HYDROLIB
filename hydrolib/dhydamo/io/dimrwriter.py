@@ -57,7 +57,7 @@ class DIMRWriter:
         proj.semi_major_axis = 6377397.155#; // double
         proj.semi_minor_axis = 6356078.962818189#; // double
         proj.inverse_flattening = 299.1528128#; // double
-        proj.proj4_params = "+prdoj=sterea +lat_0=52.1561605555556 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +units=m +no_defs";
+        proj.proj4_params = "+prdoj=sterea +lat_0=52.1561605555556 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +units=m +no_defs"
         proj.EPSG_code = "EPSG:28992"
         proj.value = "value is equal to EPSG code"
         proj.wkt = "PROJCS[\"Amersfoort / RD New\",\n    GEOGCS[\"Amersfoort\",\n        DATUM[\"Amersfoort\",\n            SPHEROID[\"Bessel 1841\",6377397.155,299.1528128,\n"             
@@ -263,10 +263,12 @@ class DIMRWriter:
             if rtc_model.complex_controllers is not None:
                 complex_config = rtc_model.complex_controllers["dimr_config"][0]
                 for block in complex_config:
-                    if ET.tostring(block).decode().startswith("<coupler"):
+                    block_tag = block.tag.split("}", 1)[-1] if block.tag.startswith("{") else block.tag
+                    if block_tag == "coupler":
                         if block.attrib["name"].lower().startswith("rtc_to_flow"):
                             for iblock in block:
-                                if ET.tostring(iblock).decode().startswith("<item"):
+                                iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
+                                if iblock_tag == "item":
                                     item = ET.SubElement(
                                         couplerrtcfm, gn_brackets + "item"
                                     )
@@ -355,7 +357,8 @@ class DIMRWriter:
             if rtc_model.complex_controllers is not None:
                 complex_config = rtc_model.complex_controllers["dimr_config"][0]
                 for block in complex_config:
-                    if ET.tostring(block).decode().startswith("<coupler"):
+                    block_tag = block.tag.split("}", 1)[-1] if block.tag.startswith("{") else block.tag
+                    if block_tag == "coupler":
                         if block.attrib["name"].lower().startswith("flow_to_rtc"):
                             if not coupler_exists:
                                 couplerfmrtc = ET.Element(gn_brackets + "coupler")
@@ -363,7 +366,8 @@ class DIMRWriter:
                                 couplerfmrtc.tail = "\n"
                                 coupler_exists = True
                             for iblock in block:
-                                if ET.tostring(iblock).decode().startswith("<item"):
+                                iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
+                                if iblock_tag == "item":
                                     item = ET.SubElement(
                                         couplerfmrtc, gn_brackets + "item"
                                     )
