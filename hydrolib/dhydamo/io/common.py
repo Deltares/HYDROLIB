@@ -60,9 +60,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         Empty the dataframe
         """
         if not self.empty:
-            self.iloc[:, 0] = np.nan
-            self.dropna(inplace=True)
-
+            self.drop(self.index, inplace=True)
+            
     def read_shp(
         self,
         path: Union[str, Path],
@@ -329,8 +328,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if not isinstance(geometry, (Polygon, MultiPolygon)):
             raise TypeError("Expected geometry of type Polygon or MultiPolygon")
 
-        # Clip if needed
-        gdf = self.loc[self.intersects(geometry).values]
+        # Clip if needed          
+        gdf = gpd.clip(self, gpd.GeoDataFrame(geometry=[geometry], crs=self.crs))
         if gdf.empty:
             raise ValueError("Found no features within extent geometry.")
 
