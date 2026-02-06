@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 from hydrolib.dhydamo.core import hydamo
 from hydrolib.dhydamo.geometry import mesh
 from shapely.geometry import Point
@@ -76,6 +77,23 @@ def test_hydamo_related():
     _check_related(hydamo, "laterals")
     _check_related(hydamo, "overflows")
     _check_related(hydamo, "sewer_areas")
+
+def test_clip_hydamo_object():
+    extent_file = hydamo_data_path / "test_deelmodel.shp"
+    assert extent_file.exists()
+    extent = gpd.read_file(extent_file).union_all()
+
+    hydamo = HyDAMO(extent_file=extent_file)
+
+    gpkg_file = hydamo_data_path / "Example_model.gpkg"
+    assert gpkg_file.exists()
+
+    # Read branches
+    hydamo.branches.read_gpkg_layer(str(gpkg_file), layer_name="HydroObject", index_col="code", clip=extent)    
+
+    assert hydamo.branches.shape[0] ==  18
+
+    assert np.round(hydamo.branches.loc['W_242208_0'].geometry.length,2) == 426.4
 
 def _hydamo_object_from_gpkg():
     # initialize a hydamo object
