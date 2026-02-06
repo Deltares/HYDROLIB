@@ -145,7 +145,7 @@ class UnpavedIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning(f"No rasterdata available for catchment {cat.code}.")
+                logger.warning("No rasterdata available for catchment %s.", cat.code)
                 continue
             tm = [
                 m
@@ -166,7 +166,12 @@ class UnpavedIO:
                     else:    
                         remainder = intersection_area
                     maxind = np.argmax(list(lu_counts[num].values()))              
-                    print(f'Catchment {cat.code}: subtracting {remainder} m2 from class {maxind} for supplied greenhouse area.')  
+                    logger.info(
+                        "Catchment %s: subtracting %s m2 from class %s for supplied greenhouse area.",
+                        cat.code,
+                        remainder,
+                        maxind,
+                    )
                     lu_counts[num][list(lu_counts[num].keys())[maxind]] = np.max([0., (lu_counts[num][list(lu_counts[num].keys())[maxind]] - np.round(remainder/px_area))])
             
             for i in range(1, 13):
@@ -421,7 +426,7 @@ class PavedIO:
                     all_touched=all_touched,
                 )[0]
                 if 14.0 not in pixels:
-                    logger.warning(f"No paved area in sewer area {sew.code}.")
+                    logger.warning("No paved area in sewer area %s.", sew.code)
                     continue
                 pav_pixels = pixels[14.0]
                 pav_area += pav_pixels * px_area
@@ -518,7 +523,7 @@ class PavedIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning(f"No rasterdata available for catchment {cat.code}.")
+                logger.warning("No rasterdata available for catchment %s.", cat.code)
                 continue
             if sewer_areas is not None:
                 # part of the catchment that is also in a sewer area
@@ -701,7 +706,7 @@ class GreenhouseIO:
             for num, gh in enumerate(greenhouse_areas.itertuples()):
                 # find corresponding meteo-station
                 if mean_elev_gh[num]["median"] is None:
-                    logger.warning(f"No rasterdata available for catchment {gh.code}.")
+                    logger.warning("No rasterdata available for catchment %s.", gh.code)
                     continue
                 tm = [
                     m
@@ -734,7 +739,7 @@ class GreenhouseIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning(f"No rasterdata available for catchment {cat.code}.")
+                logger.warning("No rasterdata available for catchment %s.", cat.code)
                 continue
 
             # find corresponding meteo-station
@@ -751,7 +756,11 @@ class GreenhouseIO:
                     intersection_area = intersection_area[intersection_area > 0.].values[0]                    
                     if 15 in lu_counts[num]:
                         # divide area to subtract between greenhouses and the most occurring area                                                
-                        print(f'Catchment: {cat.code}: subtracting {np.min([(lu_counts[num][15]*px_area, intersection_area)])} m2 from greenhouse area in landuse map.')
+                        logger.info(
+                            "Catchment: %s: subtracting %s m2 from greenhouse area in landuse map.",
+                            cat.code,
+                            np.min([(lu_counts[num][15] * px_area, intersection_area)]),
+                        )
                         lu_counts[num][15] = np.max([0., (lu_counts[num][15] - np.round(intersection_area/px_area))])                                                               
             
             elev = mean_elev[num]["median"]
@@ -1027,7 +1036,10 @@ class ExternalForcingsIO:
      
         drop_idx = catchments[catchments.boundary_node.isin(not_occurring)].index.to_list()
         if any(drop_idx):
-            print(f"{len(drop_idx)} catchments removed because of an area of 0 m2.")
+            logger.warning(
+                "%d catchments removed because of an area of 0 m2.",
+                len(drop_idx),
+            )
             catchments.drop(drop_idx, inplace=True)
 
         for i in not_occurring:
@@ -1058,7 +1070,7 @@ class ExternalForcingsIO:
         
         bnd_drr.index = index
         for num, cat in enumerate(catchments.itertuples()):
-            # print(num, cat.code)
+            # logger.info(num, cat.code)
             if boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid].empty:
                 # raise IndexError(f'{cat.code} not connected to a boundary node. Skipping.')
                 logger.warning(

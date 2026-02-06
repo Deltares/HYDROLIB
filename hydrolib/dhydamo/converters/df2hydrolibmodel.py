@@ -24,6 +24,7 @@ from hydrolib.core.dflowfm.bc.models import (
     TimeSeries,
     Constant,
     QuantityUnitPair,
+    QHTable
 )
 from hydrolib.core.dflowfm.friction.models import FrictGlobal
 from hydrolib.core.dflowfm.obs.models import ObservationPoint
@@ -171,7 +172,7 @@ class Df2HydrolibModel:
         # If any are missing, check if a default cross section definition has been defined
         if (len(default_locs) > 0) & (self.assign_default_profiles):
             if self.hydamo.crosssections.default_definition is None:
-                 print(
+                 logger.warning(
                     "Not all branches have a cross section appointed to them. We assume D-Hydro can interpolate over these branches, otherwise errors will occur."
                 )
             logger.info(
@@ -233,27 +234,41 @@ class Df2HydrolibModel:
     def boundaries_to_dhydro(self) -> None:
         """Convert dataframe of boundaries to ext and bc models"""
         for bound in self.hydamo.external_forcings.boundary_nodes.values():
-            if bound["time"] is None:
+            if bound["vec1"] is None:
                 bnd_bc = Constant(
                     name=bound["nodeid"],
                     function="constant",
                     quantity=bound["quantity"],
-                    unit=bound["value_unit"],
-                    datablock=[[bound["value"]]],
+                    unit=bound["unit2"],
+                    datablock=[[bound["vec2"]]],
                 )
-            else:
+            elif bound['unit1'].startswith('minutes'):
                 bnd_bc = TimeSeries(
                     name=bound["nodeid"],
                     function="timeseries",
                     timeinterpolation="linear",
                     quantityunitpair=[
-                        QuantityUnitPair(quantity="time", unit=bound["time_unit"]),
+                        QuantityUnitPair(quantity="time", unit=bound["unit1"]),
                         QuantityUnitPair(
-                            quantity=bound["quantity"], unit=bound["value_unit"]
+                            quantity=bound["quantity"], unit=bound["unit2"]
                         ),
                     ],
-                    datablock=list(map(list, zip(bound["time"], bound["value"]))),
+                    datablock=list(map(list, zip(bound["vec1"], bound["vec2"]))),
                 )
+            else:
+                bnd_bc = QHTable(                 
+                        name=bound["nodeid"],
+                        function="qhtable",
+                        timeinterpolation="linear",
+                        quantityunitpair=[
+                            QuantityUnitPair(quantity="qhbnd waterlevel", unit=bound["unit2"]),
+                        QuantityUnitPair(
+                            quantity="qhbnd discharge", unit=bound["unit1"]
+                        ),
+                    ],
+                    datablock=list(map(list, zip(bound["vec2"], bound["vec1"]))),
+                )
+
             self.forcingmodel.forcing.append(bnd_bc)
         for bound in self.hydamo.external_forcings.boundary_nodes.values():
             bnd_ext = Boundary(

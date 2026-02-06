@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hydrolib"
-version = "0.4.1"
+version = "0.5.0"
 description = "HYDROLIB tools for hydrodynamic and hydrological modelling workflows"
 authors = ["Deltares"]
 maintainers = [
@@ -14,7 +14,7 @@ python = "^3.10"
 pandas = ">=1.2, <3.0"
 geopandas = ">=1.0.0, <2.0"
 xarray = ">=2023.1.0"
-hydrolib-core = "^0.9.5"
+hydrolib-core = "^0.10.1"
 numpy = ">=1.21 <3.0"
 matplotlib = ">=3.5"
 openpyxl = ">=3"
@@ -52,7 +52,7 @@ poetry2conda = ">=0.3.0"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.4.1"
+version = "0.5.0"
 tag_format = "$version"
 version_files = [
     "hydrolib/post/__init__.py",

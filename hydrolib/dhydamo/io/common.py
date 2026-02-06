@@ -10,7 +10,7 @@ from shapely.geometry import LineString, MultiPolygon, Polygon
 
 from hydrolib.dhydamo.geometry import spatial
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
@@ -60,9 +60,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         Empty the dataframe
         """
         if not self.empty:
-            self.iloc[:, 0] = np.nan
-            self.dropna(inplace=True)
-
+            self.drop(self.index, inplace=True)
+            
     def read_shp(
         self,
         path: Union[str, Path],
@@ -194,14 +193,18 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             gpkg_path = str(gpkg_path)
 
         layerlist = gpd.list_layers(gpkg_path).name.tolist()
-        print(f"Content of gpkg-file {gpkg_path}, containing {len(layerlist)} layers:")
-        print(
+        logger.info(
+            "Content of gpkg-file %s, containing %d layers:",
+            gpkg_path,
+            len(layerlist),
+        )
+        logger.info(
             "\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS"
         )
         for laynum, layer_name in enumerate(layerlist):
             layer = gpd.read_file(gpkg_path, layer=layer_name)
             if layer.empty:
-                logger.warning(f'Layer "{layer_name}" is empty.')
+                logger.warning('Layer "%s" is empty.', layer_name)
                 continue
 
             nfields = len(layer.columns)
@@ -214,8 +217,13 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             else:
                 geom_type = "None"
                 
-            print(
-                f"\t{laynum:5d}\t|\t{layer_name:30s}\t|\t{geom_type}\t|\t{nfeatures:10d}\t|\t{nfields:10d}"
+            logger.info(
+                "\t%5d\t|\t%30s\t|\t%s\t|\t%10d\t|\t%10d",
+                laynum,
+                layer_name,
+                geom_type,
+                nfeatures,
+                nfields,
             )
 
     def read_gpkg_layer(
@@ -230,6 +238,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         check_columns: bool = True,
         check_geotype: bool = True,
         clip: Union[Polygon, MultiPolygon] = None,
+        cliptype: str = "clip",
+        check_3d: bool = True
     ):
         if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
@@ -257,6 +267,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             geom_types = layer.geometry.geom_type.unique()
             if len(geom_types) != 1 or geom_types[0] != "Point":
                 raise ValueError("Can only group Points to LineString")
+            if check_3d and np.isnan(layer.geometry.z.to_numpy()).any():
+                raise ValueError("All geometries need to have a Z coordinate")
+
 
             # Group geometries to lines
             geometries = []
@@ -264,7 +277,11 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             for groupname, group in layer.groupby(groupby_column, sort=False):
                 # Filter branches with too few points
                 if len(group) < 2:
-                    logger.warning(f'Ignoring {groupby_column} "{groupname}": contains less than two points.')
+                    logger.warning(
+                        'Ignoring %s "%s": contains less than two points.',
+                        groupby_column,
+                        groupname,
+                    )
                     continue
 
                 # Determine relative order of points in profile
@@ -286,7 +303,11 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if index_col is not None:
             dupes = gdf[gdf.duplicated(subset=index_col, keep="first")].copy()
             if len(dupes) > 0:
-                logger.warning(f"Index column '{index_col}' contains duplicates ({list(gdf[gdf[index_col].duplicated()].code.unique())}). Adding a suffix to make it unique.")
+                logger.warning(
+                    "Index column '%s' contains duplicates (%s). Adding a suffix to make it unique.",
+                    index_col,
+                    list(gdf[gdf[index_col].duplicated()].code.unique()),
+                )
                 for dupe_id, group in dupes.groupby(by=index_col, sort=False):
                     gdf.loc[group.index, index_col] = [f"{dupe_id}_{i+1}" for i in range(len(group))]
 
@@ -299,17 +320,22 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         )
 
         if clip is not None:
-            self.clip(geometry=clip)
+            self.clip(geometry=clip, cliptype=cliptype)
 
-    def clip(self, geometry: Union[Polygon, MultiPolygon]):
+    def clip(self, geometry: Union[Polygon, MultiPolygon], cliptype: str = "clip"):
         """
         Clip geometry
         """
         if not isinstance(geometry, (Polygon, MultiPolygon)):
             raise TypeError("Expected geometry of type Polygon or MultiPolygon")
 
-        # Clip if needed
-        gdf = self.loc[self.intersects(geometry).values]
+        # Clip if needed          
+        if cliptype == "clip":
+            gdf = gpd.clip(self, gpd.GeoDataFrame(geometry=[geometry], crs=self.crs))
+        elif cliptype == "select":
+            gdf = self.loc[self.intersects(geometry).values]
+        else:
+            raise ValueError(f"Cliptype {cliptype} not recognized. Use 'clip' or 'select'.")
         if gdf.empty:
             raise ValueError("Found no features within extent geometry.")
 

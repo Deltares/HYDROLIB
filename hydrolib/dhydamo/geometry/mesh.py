@@ -325,9 +325,16 @@ def mesh1d_add_branches_from_gdf(
         missing = structures.branchid.isna()
         if missing.any():
             if len(missing) > 5:
-                logger.warning(f"{len(missing)} structures are not linked to a branch (too many to show).")
+                logger.warning(
+                    "%d structures are not linked to a branch (too many to show).",
+                    len(missing),
+                )
             else:
-                logger.warning(f"{len(missing)} structures ({structures.loc[missing, 'id'].values()}) are not linked to a branch.")
+                logger.warning(
+                    "%d structures (%s) are not linked to a branch.",
+                    len(missing),
+                    structures.loc[missing, "id"].values(),
+                )
         ids_offsets = ids_offsets.loc[idx, :]
 
         # For each branch
@@ -336,9 +343,8 @@ def mesh1d_add_branches_from_gdf(
             u, c = np.unique(group.chainage, return_counts=True)
             if any(c > 1):
                 logger.warning(
-                    "Structures {} have the same location.".format(
-                        ", ".join(group.loc[np.isin(group, u[c > 1]), "id"].tolist())
-                    )
+                    "Structures %s have the same location.",
+                    ", ".join(group.loc[np.isin(group, u[c > 1]), "id"].tolist()),
                 )
             # Add to dictionary
             structure_chainage[branchid] = u
@@ -498,8 +504,15 @@ def _filter_links_on_idx(
     mesh1d_indices = contacts.mesh1d_indices[keep]
     mesh2d_indices = contacts.mesh2d_indices[keep]
     if present_links is not None:
-        mesh1d_indices = np.concat([mesh1d_indices, present_links[:,0]])
-        mesh2d_indices = np.concat([mesh2d_indices, present_links[:,1]])
+        mesh1d_indices = np.concatenate([mesh1d_indices, present_links[:,0]])
+        mesh2d_indices = np.concatenate([mesh2d_indices, present_links[:,1]])
+    if mesh1d_indices.size:
+        # De-duplicate while keeping first occurrence
+        pairs = np.column_stack([mesh1d_indices, mesh2d_indices])
+        _, unique_idx = np.unique(pairs, axis=0, return_index=True)
+        unique_idx = np.sort(unique_idx)
+        mesh1d_indices = mesh1d_indices[unique_idx]
+        mesh2d_indices = mesh2d_indices[unique_idx]
     contacts.mesh1d_indices = np.array(mesh1d_indices).astype(np.int32)
     contacts.mesh2d_indices = np.array(mesh2d_indices).astype(np.int32)
     network._link1d2d.meshkernel.contacts_set(contacts)
@@ -585,6 +598,7 @@ def links1d2d_add_links_2d_to_1d_embedded(
     # Generate links
     network._link1d2d._link_from_2d_to_1d_embedded(node_mask, polygons=multipoint)
 
+
 def links1d2d_add_links_2d_to_1d_lateral(
     network: Network,
     dist_factor: Union[float, None] = 2.0,
@@ -622,7 +636,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
         # Note that the provided meshboundaries is a (list of) polygon(s). Holes are provided
         # as polygons as well, which dont make it a valid MultiPolygon
         if isinstance(mpboundaries, Polygon):
-            geom = MultiPolygon([mpboundaries])
+            geom = MultiPolygon([mpboundaries.intersection(within)])
             geometrylist = GeometryList.from_geometry(geom)
         else:
             geom = [geom.intersection(within) for geom in mpboundaries.geoms]
@@ -669,7 +683,8 @@ def links1d2d_add_links_2d_to_1d_lateral(
     keep = []
     for i, (node1d, face2d, node2d) in enumerate(
         zip(nodes1d, faces2d, nodes2d_idx)
-    ):       
+    ):
+        # Triangular grids
         face_node_crds = nodes2d[node2d[node2d > 0.]]                
 
         # Calculate distance between face edge and face center
@@ -692,10 +707,10 @@ def links1d2d_add_links_2d_to_1d_lateral(
         # If the distance to the mesh 2d exterior intersection is smaller than
         # the compared distance, keep it.
         dist = np.hypot(*(face2d - isect_list[0].coords[:][0]))
-        if dist < distance:
+        if dist < dist_factor * distance:
             keep.append(i)
 
-    # # Select the remaining links
+    # Select the remaining links
     _filter_links_on_idx(network, keep, present_links=present_links)
 
 
@@ -710,31 +725,42 @@ def links1d2d_remove_within(
     """
 
     # Create an array with 2d facecenters and 1d nodes, that form the links
+    links = network._link1d2d.link1d2d
     nodes1d = np.stack(
-        [network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1
-    )[network._link1d2d.link1d2d[:, 0]]
+        [
+            network._mesh1d.mesh1d_node_x[links[:, 0]],
+            network._mesh1d.mesh1d_node_y[links[:, 0]],
+        ], axis=1
+    )
     faces2d = np.stack(
-        [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
-    )[network._link1d2d.link1d2d[:, 1]]
+        [
+            network._mesh2d.mesh2d_face_x[links[:, 1]],
+            network._mesh2d.mesh2d_face_y[links[:, 1]],
+        ], axis=1
+    )
 
-    # Create GeometryList MultiPoint object
-    mpgl_faces2d = GeometryList(*faces2d.T.copy())
-    mpgl_nodes1d = GeometryList(*nodes1d.T.copy())
-    idx = np.zeros(len(network._link1d2d.link1d2d), dtype=bool)
+    # Create GeometryList MultiPoint object (dedupe to avoid MK duplicate-point issues)
+    uniq_faces2d, inv_faces2d = np.unique(faces2d, axis=0, return_inverse=True)
+    uniq_nodes1d, inv_nodes1d = np.unique(nodes1d, axis=0, return_inverse=True)
+    mpgl_faces2d = GeometryList(*uniq_faces2d.T.copy())
+    mpgl_nodes1d = GeometryList(*uniq_nodes1d.T.copy())
+    idx_faces = np.zeros(len(uniq_faces2d), dtype=bool)
+    idx_nodes = np.zeros(len(uniq_nodes1d), dtype=bool)
 
     # Check which links intersect the provided area
     for polygon in common.as_polygon_list(within):
         subarea = GeometryList.from_geometry(polygon)
-        idx |= (
+        idx_faces |= (
             network.meshkernel.polygon_get_included_points(subarea, mpgl_faces2d).values
             == 1
         )
-        idx |= (
+        idx_nodes |= (
             network.meshkernel.polygon_get_included_points(subarea, mpgl_nodes1d).values
             == 1
         )
 
     # Remove these links
+    idx = idx_faces[inv_faces2d] | idx_nodes[inv_nodes1d]
     keep = ~idx
     _filter_links_on_idx(network, keep)
 
@@ -756,25 +782,14 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
         logger.warning("No 1d2d-links present.")        
         return None
  
-    # Create an array with 2d facecenters and 1d nodes, that form the links
-    nodes1d = np.stack(
-        [network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1
-    )[network._link1d2d.link1d2d[:, 0]]
-
     # Select 1d nodes that are only present in a single edge
     edge_nodes = network._mesh1d.network1d_edge_nodes
     edgeid, counts = np.unique(edge_nodes, return_counts=True)
     to_remove = edgeid[counts == 1]
 
-    keep = np.ones(len(network._link1d2d.link1d2d), dtype=bool)
-    for i in to_remove:
-        network_node = (
-            network._mesh1d.network1d_node_x[i],
-            network._mesh1d.network1d_node_y[i],
-        )
-        if np.isin(network_node, nodes1d)[0]:
-            index = np.argwhere(np.isin(nodes1d, network_node)).ravel()[0]
-            keep[index] = False
+    # Remove links connected to 1d endpoint nodes.
+    link_nodes = network._link1d2d.link1d2d[:, 0]
+    keep = ~np.isin(link_nodes, to_remove)
 
     _filter_links_on_idx(network, keep)
 

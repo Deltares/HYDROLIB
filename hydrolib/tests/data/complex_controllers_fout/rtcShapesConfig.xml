@@ -1,0 +1,150 @@
+<?xml version="1.0"?>
+<rtcShapesConfig xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.wldelft.nl/fews">
+  <groups>
+    <group>
+      <groupId>pid</groupId>
+      <shapes>
+        <shape>
+          <type>input</type>
+          <x>52</x>
+          <y>146</y>
+          <width>60</width>
+          <height>40</height>
+          <title>ObsS_98143_Water level (op)</title>
+        </shape>
+        <shape>
+          <type>rule</type>
+          <x>417</x>
+          <y>250</y>
+          <width>60</width>
+          <height>40</height>
+          <title>PID Rule</title>
+        </shape>
+        <shape>
+          <type>output</type>
+          <x>655</x>
+          <y>247</y>
+          <width>60</width>
+          <height>40</height>
+          <title>S_98143_Crest level (s)</title>
+        </shape>
+      </shapes>
+    </group>
+    <group>
+      <groupId>interval</groupId>
+      <shapes>
+        <shape>
+          <type>input</type>
+          <x>10</x>
+          <y>10</y>
+          <width>60</width>
+          <height>40</height>
+          <title>ObsS_96789_Water level (op)</title>
+        </shape>
+        <shape>
+          <type>rule</type>
+          <x>419</x>
+          <y>188</y>
+          <width>60</width>
+          <height>40</height>
+          <title>Interval Rule</title>
+        </shape>
+        <shape>
+          <type>output</type>
+          <x>765</x>
+          <y>293</y>
+          <width>60</width>
+          <height>40</height>
+          <title>S_96789_Crest level (s)</title>
+        </shape>
+      </shapes>
+    </group>
+    <group>
+      <groupId>time</groupId>
+      <shapes>
+        <shape>
+          <type>rule</type>
+          <x>191</x>
+          <y>103</y>
+          <width>60</width>
+          <height>40</height>
+          <title>Time Rule</title>
+        </shape>
+        <shape>
+          <type>output</type>
+          <x>596</x>
+          <y>80</y>
+          <width>60</width>
+          <height>40</height>
+          <title>S_96547_Crest level (s)</title>
+        </shape>
+      </shapes>
+    </group>
+    <group>
+      <groupId>reuseObsPoint</groupId>
+      <shapes>
+        <shape>
+          <type>input</type>
+          <x>10</x>
+          <y>10</y>
+          <width>60</width>
+          <height>40</height>
+          <title>ObsS_98143_Water level (op)</title>
+        </shape>
+        <shape>
+          <type>condition</type>
+          <x>219</x>
+          <y>94</y>
+          <width>60</width>
+          <height>40</height>
+          <title>Standard Condition</title>
+        </shape>
+        <shape>
+          <type>rule</type>
+          <x>416</x>
+          <y>127</y>
+          <width>60</width>
+          <height>40</height>
+          <title>Time Rule</title>
+        </shape>
+        <shape>
+          <type>output</type>
+          <x>605</x>
+          <y>105</y>
+          <width>60</width>
+          <height>40</height>
+          <title>S_96840_Crest level (s)</title>
+        </shape>
+      </shapes>
+    </group>
+    <group>
+      <groupId>PIDfout</groupId>
+      <shapes>
+        <shape>
+          <type>input</type>
+          <x>10</x>
+          <y>10</y>
+          <width>60</width>
+          <height>40</height>
+          <title>Obs_ORIF_Discharge (op)</title>
+        </shape>
+        <shape>
+          <type>rule</type>
+          <x>333</x>
+          <y>215</y>
+          <width>60</width>
+          <height>40</height>
+          <title>PID Rule</title>
+        </shape>
+        <shape>
+          <type>output</type>
+          <x>530</x>
+          <y>88</y>
+          <width>60</width>
+          <height>40</height>
+          <title>S_96548_Crest level (s)</title>
+        </shape>
+      </shapes>
+    </group>
+  </groups>
+</rtcShapesConfig>

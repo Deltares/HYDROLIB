@@ -28,49 +28,66 @@ from tests.dhydamo.io import test_from_hydamo
 # path where the input data is located
 data_path = Path("hydrolib/tests/data").resolve()
 assert data_path.exists()
-# path to write the models
-output_path = Path("hydrolib/tests/model").resolve()
-output_path.mkdir(parents=True, exist_ok=True)
-assert output_path.exists()
 
+# path to write the models
+output_path = Path(__file__).parent / ".." / ".." / "model"
+output_path.mkdir(parents=False, exist_ok=True)
 
 def setup_model(hydamo=None, full_test=False):
     fm = FMModel()
     # Set start and stop time
     fm.time.refdate = 20160601
-    fm.time.tstop = 2 * 3600 * 24
+    fm.time.tstop =  48*3600
 
     if hydamo is None:
         hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
-
-    hydamo.structures.convert.weirs(
-        hydamo.weirs,
-        hydamo.profile_group,
-        hydamo.profile_line,
-        hydamo.profile,
-        hydamo.opening,
-        hydamo.management_device,
-    )
-
-    structures = None
+        hydamo = test_from_hydamo._convert_structures(hydamo=hydamo)
+    
     if full_test:
-        structures = hydamo.structures.as_dataframe(
-            rweirs=True,
-            bridges=True,
-            uweirs=True,
-            culverts=True,
-            orifices=True,
-            pumps=True,
-        )
+        hydamo.observationpoints.add_points(
+            [Point(199617,394885), Point(199421,393769), Point(199398,393770)],
+            ["Obs_BV152054", "ObsS_96684","ObsO_test"],
+            locationTypes=["1d", "1d", "1d"],
+            snap_distance=10.0,
+            )
 
+        hydamo.observationpoints.add_points(
+            [Point(200198,396489), Point(201129, 396269), Point(200264, 394761), Point(199665, 395323)],
+            ["ObsS_96544", "ObsP_113GIS", 'Obs_UWR', 'Obs_ORIF'],
+            locationTypes=["1d", "1d","1d", "1d"],
+            snap_distance=10.0,
+        )    
+        hydamo.structures.add_orifice(
+            id="orifice_test",
+            branchid="W_242213_0",
+            chainage=43.0,
+            crestlevel=18.00,
+            gateloweredgelevel=18.5,
+            crestwidth=7.5,
+            corrcoeff=1.0,
+        )
+    structures = hydamo.structures.as_dataframe(
+        rweirs=True,
+        bridges=True,
+        uweirs=True,
+        culverts=True,
+        orifices=True,
+        pumps=True,
+    )
+    if full_test:
+        objects = pd.concat([structures, hydamo.observationpoints.observation_points], axis=0)    
+    else:
+        objects = structures
+    
     mesh.mesh1d_add_branches_from_gdf(
         fm.geometry.netfile.network,
         branches=hydamo.branches,
         branch_name_col="code",
         node_distance=20,
         max_dist_to_struc=None,
-        structures=structures,
+        structures=objects,
     )
+    # crosssections
     hydamo.crosssections.convert.profiles(
         crosssections=hydamo.profile,
         crosssection_roughness=hydamo.profile_roughness,
@@ -81,84 +98,50 @@ def setup_model(hydamo=None, full_test=False):
         branches=hydamo.branches,
         roughness_variant="High",
     )
+    missing = hydamo.crosssections.get_branches_without_crosssection()
+    missing_after_interpolation = mesh.mesh1d_order_numbers_from_attribute(hydamo.branches, 
+            missing, 
+            order_attribute='naam', 
+            network=fm.geometry.netfile.network,  
+            exceptions=['W_1386_0'])
 
-    hydamo.observationpoints.add_points(
-        [Point((200200, 395600)), (200200, 396200)],
-        ["ObsPt1", "ObsPt2"],
-        locationTypes=["1d", "1d"],
-        snap_distance=10.0,
-    )
     # Set a default cross section
-    default = hydamo.crosssections.add_rectangle_definition(
-        height=5.0,
-        width=5.0,
-        closed=False,
-        roughnesstype="StricklerKs",
-        roughnessvalue=30,
-        name="default",
-    )
-    hydamo.crosssections.set_default_definition(definition=default, shift=10.0)
-    hydamo.external_forcings.set_initial_waterdepth(1.5)
+    profiel=np.array([[0,21],[2,19],[7,19],[9,21]])
+    default = hydamo.crosssections.add_yz_definition(yz=profiel, 
+                                                    thalweg = 4.5,
+                                                    roughnesstype='StricklerKs',
+                                                    roughnessvalue=25.0, 
+                                                    name='default'
+                                                    )
+
+    hydamo.crosssections.set_default_definition(definition=default, shift=0.0)
+    hydamo.crosssections.set_default_locations(missing_after_interpolation)   
 
     if full_test:
-        hydamo.observationpoints.add_points(
-            [Point(199617,394885), Point(199421,393769), Point(199398,393770), Point(200198,396489)],
-            ["Obs_BV152054", "ObsS_96684_1","ObsS_96684_2", "ObsS_96544"],
-            locationTypes=["1d", "1d", "1d", "1d"],
-            snap_distance=10.0,
-        )
-
-        # Check how many branches do not have a profile.
-        # One way to fix this is by assigning order numbers to branches, so the 
-        # crosssections are interpolated over branches with the same order. First, 
-        # we assign branches iwth the same 'naam' the same branch order.    
-        missing = hydamo.crosssections.get_branches_without_crosssection()
-        j = 0
-        hydamo.branches["order"] = np.nan
-        for i in hydamo.branches.naam.unique():
-            if i is None:
-                continue
-
-            name_matches = hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "code"]
-            all_missing = all(x in missing for x in name_matches)
-            if not all_missing:
-                hydamo.branches.loc[hydamo.branches.loc[:, "naam"] == i, "order"] = int(j)
-                j = j + 1
-
-        # branch W_1386_0 has a name, but is  single side branch, it's order is no use. Reset it.
-        hydamo.branches.loc[hydamo.branches.code == 'W_1386_0', 'order']  = -1
-
-        # We assign these orders, now as column in the hydamo.branches dataframe, to the network.
-        interpolation = []
-        for i in hydamo.branches.order.unique():
-            if i > 0:
-                mesh.mesh1d_set_branch_order(
-                    fm.geometry.netfile.network,
-                    hydamo.branches.code[hydamo.branches.order == i].to_list(),
-                    idx=int(i),
-                )
-                interpolation = (
-                    interpolation + hydamo.branches.code[hydamo.branches.order == i].to_list()
-                )
+        # storage node
+        hydamo.storagenodes.add_storagenode(       
+            id='sto_test',
+            xy=(141001, 395030),                
+            name='sto_test',
+            usetable="true",
+            levels=' '.join(np.arange(17.1, 19.6, 0.1).astype(str)),
+            storagearea=' '.join(np.arange(100, 1000, 900/25.).astype(str)),
+            interpolate="linear",
+            network=fm.geometry.netfile.network
+            )
         
-        # Check for how many branches no interpolation can be applied.
-        missing_after_interpolation = np.setdiff1d(missing, interpolation)
-        
-        # Set a default cross section
-        profiel=np.array([[0,21],[2,19],[7,19],[9,21]])
-        default = hydamo.crosssections.add_yz_definition(yz=profiel, thalweg = 4.5, roughnesstype='StricklerKs', roughnessvalue=25.0,  name='default')
-        hydamo.crosssections.set_default_definition(definition=default, shift=0.0)
-        hydamo.crosssections.set_default_locations(missing_after_interpolation)
+        # boundary conditions
+    hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network)
+    series = pd.Series(np.sin(np.linspace(2, 8, 120) * -1) + 1.0)
+    series.index = [pd.Timestamp("2016-06-01 00:00:00") + pd.Timedelta(hours=i) for i in range(120)]
+    hydamo.external_forcings.add_boundary_condition(
+        "RVW_01", (197464.0, 392130.0), "dischargebnd", series, fm.geometry.netfile.network
+    )
+    # initial condition
+    hydamo.external_forcings.set_initial_waterdepth(1.5)
 
-        hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network)
-        series = pd.Series(np.sin(np.linspace(2, 8, 120) * -1) + 1.0)
-        series.index = [pd.Timestamp("2016-06-01 00:00:00") + pd.Timedelta(hours=i) for i in range(120)]
-        hydamo.external_forcings.add_boundary_condition(
-            "RVW_01", (197464.0, 392130.0), "dischargebnd", series, fm.geometry.netfile.network
-        )
-        hydamo.external_forcings.set_initial_waterdepth(1.5)
-
-        # Add 2d network
+    # Add 2d network
+    if full_test:
         extent = gpd.read_file(data_path.joinpath("2D_extent.shp")).at[0, "geometry"]
         network = fm.geometry.netfile.network
         mesh.mesh2d_add_rectilinear(network, extent, dx=20, dy=20)
@@ -168,7 +151,7 @@ def setup_model(hydamo=None, full_test=False):
         mesh.links1d2d_remove_1d_endpoints(network)
 
     # main filepath
-    fm.filepath = Path(output_path) / "fm" / "test.mdu"
+    fm.filepath = Path(output_path) / "dflowfm" / "DFM.mdu"
     # we first need to set the forcing model, because it is referred to in the ext model components
     return hydamo, fm
 
@@ -177,8 +160,8 @@ def test_convert_to_hydrolibmodel():
     hydamo, _ = setup_model()
 
     models = Df2HydrolibModel(hydamo)
-    assert len(models.friction_defs) == 3
-    assert len(models.crossdefs) == 353
+    assert len(models.friction_defs) == 4
+    assert len(models.crossdefs) == 443
 
 
 def _add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
@@ -186,18 +169,13 @@ def _add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
 
     if drrmodel is not None:
         hydamo.external_forcings.convert.laterals(
-            hydamo.laterals,
-            overflows=hydamo.overflows,
-            lateral_discharges=None,
+            hydamo.laterals,                        
             rr_boundaries=drrmodel.external_forcings.boundary_nodes
         )
 
 
-    if full_test:
-        models = Df2HydrolibModel(hydamo, assign_default_profiles=True)
-    else:
-        models = Df2HydrolibModel(hydamo)
-
+    models = Df2HydrolibModel(hydamo, assign_default_profiles=True)
+    
     fm.geometry.structurefile = [StructureModel(structure=models.structures)]
     fm.geometry.crosslocfile = CrossLocModel(crosssection=models.crosslocs)
     fm.geometry.crossdeffile = CrossDefModel(definition=models.crossdefs)
@@ -222,7 +200,7 @@ def _add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
         # fm.geometry.inifieldfile.initial[ifield].datafile = OneDFieldModel(global_=onedfield)
 
         # this is a workaround to do the same
-        onedfield_filepath = output_path / "fm" / "initialwaterdepth.ini"
+        onedfield_filepath = output_path / "dflowfm" / "initialwaterdepth.ini"
         onedfieldmodel = OneDFieldModel(global_=onedfield)
         onedfieldmodel.save(filepath=onedfield_filepath)
         fm.geometry.inifieldfile.initial[ifield].datafile = DiskOnlyFileModel(
@@ -235,22 +213,41 @@ def test_add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
     fm = _add_to_filestructure(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
     assert hasattr(fm, "geometry")
     assert hasattr(fm.geometry, "inifieldfile")
-    # this does not work yet
-    # assert hasattr(onedfieldmodel, "filepath")
-
-
+    
 def _write_model(drrmodel=None, hydamo=None, full_test=False):
     fm = _add_to_filestructure(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
+
+    fm.geometry.uniformwidth1d = 1.0            # default  breedte 
+    fm.geometry.bedlevtype = 1                  # 1: at cell center (tiles xz,yz,bl,bob=max(bl)), 2: at face (tiles xu,yu,blu,bob=blu), 3: at face (using mean node values), 4: at face 
+    fm.geometry.changestructuredimensions = 0   # Change the structure dimensions in case these are inconsistent with the channel dimensions.
+
+    fm.sediment.sedimentmodelnr = 0
+
+    fm.numerics.cflmax = 0.7                    # Maximum Courant nr.
+    fm.numerics.advectype = 33                  # Adv type, 0=no, 33=Perot q(uio-u) fast, 3=Perot q(uio-u).
+
+    fm.volumetables.increment = 0.2             # parameter setting advised by Deltares for better performance
+    fm.volumetables.usevolumetables = 1         # parameter setting advised by Deltares for better performance
+
+    fm.restart.restartfile     = None           # Restart file, only from netCDF-file, hence: either *_rst.nc or *_map.nc.
+    fm.restart.restartdatetime = None           # Restart time [YYYYMMDDHHMMSS], only relevant in case of restart from *_map.nc.
+    fm.sediment.sedimentmodelnr = 4
+    fm.output.mapformat=4                       # parameter setting advised by Deltares for better performance
+    fm.output.ncformat = 4                      # parameter setting advised by Deltares for better performance
+    fm.output.ncnoforcedflush = 1               # parameter setting advised by Deltares for better performance
+    fm.output.ncnounlimited = 1      
+
+    if hasattr(fm, 'sediment'):
+        delattr(fm, 'sediment')
 
     dimr = DIMR()
     dimr.component.append(
         FMComponent(
             name="DFM",
-            workingDir=Path(output_path) / "fm",
+            workingDir=Path(output_path) / "dflowfm",
             model=fm,
             inputfile=fm.filepath,
-        )
-        #    RRComponent(name="test", workingDir="."", inputfile=fm.filepath, model=rr)
+        )        
     )
     dimr.save(recurse=True)
 
@@ -258,7 +255,7 @@ def _write_model(drrmodel=None, hydamo=None, full_test=False):
 
 def test_write_model(drrmodel=None, hydamo=None, full_test=False):
     _, output_path = _write_model(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
-    assert (output_path / "fm" / "test.mdu").exists()
-    assert (output_path / "fm" / "crsdef.ini").exists()
-    assert (output_path / "fm" / "network.nc").exists()
-    assert (output_path / "fm" / "initialwaterdepth.ini").exists()
+    assert (output_path / "dflowfm" / "DFM.mdu").exists()
+    assert (output_path / "dflowfm" / "crsdef.ini").exists()
+    assert (output_path / "dflowfm" / "network.nc").exists()
+    assert (output_path / "dflowfm" / "initialwaterdepth.ini").exists()

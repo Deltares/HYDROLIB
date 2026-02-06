@@ -1,5 +1,4 @@
 # coding: latin-1
-import csv
 import logging
 import os
 import re
@@ -646,16 +645,14 @@ class DRRWriter:
             f.write("*jaar maand dag verdamping[mm]\n")
             f.close()
             table = list(self.rrmodel.external_forcings.evap.values())[0]["evap"]
-            table.sort_index().to_csv(
-                filepath,
-                float_format="%.3f",
-                date_format="%#Y  %#m  %#d ",
-                sep=" ",
-                header=False,
-                quoting=csv.QUOTE_NONE,
-                mode="a",
-                escapechar=" ",
-            )
+            table = table.sort_index()
+            date_format = "%#Y  %#m  %#d "
+            float_format = "%.3f"
+            sep = " "
+            with open(filepath, "a") as f:
+                for ts, val in table.items():
+                    date = ts.strftime(date_format)
+                    f.write(f"{date}{sep}{float_format % val}\n")
 
     def _dict_to_df(self):
         """
@@ -688,13 +685,13 @@ class DRRWriter:
             lines = f.readlines()
 
         for i, line in enumerate(lines):
-            if line.lower().startswith(parameter.lower()):
+            if line.lower().strip().startswith(parameter.lower()):
                 items = re.split("=", line)
                 key, oldvalue = items[0], items[1]
                 if not key.strip().lower() == parameter.lower():
                     continue
                 lines[i] = line.replace(
-                    "=" + oldvalue, f"={value}\n".ljust(len(oldvalue) + 1)
+                    "=" + oldvalue, f"={value}\n"
                 )
                 break
 

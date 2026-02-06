@@ -6,7 +6,9 @@ import pandas as pd
 from pydantic.v1 import validate_arguments
 from typing import Optional
 from shapely.geometry import Point
-
+from netCDF4 import Dataset
+from netCDF4 import chartostring
+from pathlib import Path
 from hydrolib.dhydamo.geometry.mesh import Network
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
@@ -160,7 +162,7 @@ class CrossSectionsIO:
 
         # Assign cross-sections to branches
         nnocross = len(self.crosssections.get_branches_without_crosssection())
-        print(
+        logger.info(
             f"Before adding the number of branches without cross section is: {nnocross}."
         )
 
@@ -194,13 +196,13 @@ class CrossSectionsIO:
         ]
 
         nnocross = len(no_crosssection)
-        print(
+        logger.info(
             f"After adding 'dwarsprofielen' the number of branches without cross section is: {nnocross}."
         )
         if nnocross == 0:
-            print("No further branches without a profile.")
+            logger.info("No further branches without a profile.")
         elif param_profile is None:
-            print("No parametrised crossections available for branches.")
+            logger.info("No parametrised crossections available for branches.")
         else:
             # Derive norm cross sections for norm parametrised
             param_profiles_converted = self.crosssections.parametrised_to_profiles(
@@ -257,7 +259,7 @@ class CrossSectionsIO:
                 )
 
         nnocross = len(self.crosssections.get_branches_without_crosssection())
-        print(
+        logger.info(
             f"After adding 'normgeparametriseerd' the number of branches without cross section is: {nnocross}."
         )
 
@@ -355,14 +357,8 @@ class ExternalForcingsIO:
         if rr_boundaries is None:
             rr_boundaries = []
 
-        # in case of 3d points, remove the 3rd dimension
-        locations["geometry2"] = [
-            Point([point.geometry.x, point.geometry.y])
-            for _, point in locations.iterrows()
-        ]
-        locations.drop("geometry", inplace=True, axis=1)
-        locations.rename(columns={"geometry2": "geometry"}, inplace=True)
-
+        locations.geometry = locations.geometry.force_2d()
+        
         latdct = {}
         if overflows is not None:
             locations = pd.concat([locations, overflows], ignore_index=True)
@@ -384,7 +380,8 @@ class ExternalForcingsIO:
             else:
                 if lateral_discharges is None:
                     logger.warning(
-                        f"No lateral_discharges provided. {lateral.code} expects them. Skipping."
+                        "No lateral_discharges provided. %s expects them. Skipping.",
+                        lateral.code,
                     )
                 else:
                     if isinstance(lateral_discharges, pd.Series):
@@ -400,7 +397,8 @@ class ExternalForcingsIO:
                     else:
                         if lateral.code not in lateral_discharges.columns:
                             logger.warning(
-                                f"No data found for {lateral.code}. Skipping."
+                                "No data found for %s. Skipping.",
+                                lateral.code,
                             )
                             continue
 
@@ -423,10 +421,20 @@ class ExternalForcingsIO:
                 discharge=item["discharge"],
             )
 
-
 class StructuresIO:
     def __init__(self, structures):
         self.structures = structures
+
+    def _name_or_nan(self, row):
+        return row.name if "name" in row.index else np.nan
+
+    def _common_structure_kwargs(self, row, id_attr="id"):
+        return {
+            "id": getattr(row, id_attr),
+            "name": self._name_or_nan(row),
+            "branchid": row.branch_id,
+            "chainage": row.branch_offset,
+        }
 
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def generalstructures_from_datamodel(self, generalstructures: pd.DataFrame) -> None:
@@ -437,13 +445,9 @@ class StructuresIO:
         """
 
         for generalstructure_idx, generalstructure in generalstructures.iterrows():
+            base = self._common_structure_kwargs(generalstructure)
             self.structures.add_generalstructure(
-                id=generalstructure.id,
-                name=generalstructure.name
-                if "name" in generalstructure.index
-                else np.nan,
-                branchid=generalstructure.branch_id,
-                chainage=generalstructure.branch_offset,
+                **base,
                 allowedflowdir="both",
                 upstream1width=generalstructure.upstream1width
                 if "upstream1width" in generalstructure.index
@@ -555,6 +559,7 @@ class StructuresIO:
             index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
 
         rweirs = weirs[index == 0]
+        self.structures.hydamo.management.index = self.structures.hydamo.management.globalid
         for weir in rweirs.itertuples():
             weir_opening = opening[opening.stuwid == weir.globalid]
 
@@ -567,7 +572,11 @@ class StructuresIO:
                 name = weir.code
 
             if weir_opening.shape[0] > 1:
-                print(f'Weir {weir.code} contains {weir_opening.shape[0]} openings. Creating a compound structure with a fictional weir for each one.')
+                logger.info(
+                    "Weir %s contains %d openings. Creating a compound structure with a fictional weir for each one.",
+                    weir.code,
+                    weir_opening.shape[0],
+                )
                 cmp_list = []
                 for num_op, (_, op_row) in enumerate(weir_opening.iterrows()):
                     weir_mandev = management_device[
@@ -617,12 +626,19 @@ class StructuresIO:
                             limitflowneg=maxq,
                         )
                     else:
-                        print(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
+                        logger.warning(
+                            'Skipping %s - from "overlaatonderlaat" %s the type of structure could not be determined.',
+                            weir.code,
+                            weir_mandev.overlaatonderlaat,
+                        )
                 self.structures.add_compound(id=f'cmp_{weir.code}', structureids =cmp_list)
                 # self.structures.rweirs_df.drop(weir.code)
             else:
                 if weir_opening.empty:
-                    print(f'Skipping {weir.code} because there is no associated opening.')
+                    logger.warning(
+                        "Skipping %s because there is no associated opening.",
+                        weir.code,
+                    )
                     continue
 
                 weir_id = weir.code
@@ -632,7 +648,10 @@ class StructuresIO:
                     ]
 
                 if weir_mandev.empty:
-                    print(f'Skipping {weir.code} because there is no associated management device.')
+                    logger.warning(
+                        "Skipping %s because there is no associated management device.",
+                        weir.code,
+                    )
                     continue
 
                 if (not self.structures.hydamo.management.empty) & hasattr(self.structures.hydamo.management, 'regelmiddelid'):
@@ -690,7 +709,11 @@ class StructuresIO:
                         limitflowneg=maxq,
                     )
                 else:
-                    print(f'Skipping {weir.code} - from "overlaatonderlaat" {weir_mandev.overlaatonderlaat} the type of structure could not be determined.')
+                    logger.warning(
+                        'Skipping %s - from "overlaatonderlaat" %s the type of structure could not be determined.',
+                        weir.code,
+                        weir_mandev.overlaatonderlaat,
+                    )
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
@@ -736,16 +759,15 @@ class StructuresIO:
                 yvalues=" ".join([f"{yz[0]:7.3f}" for yz in yzvalues]),
                 zvalues=" ".join([f"{yz[1]:7.3f}" for yz in yzvalues]),
             )
-
+        self.structures.hydamo.management.index = self.structures.hydamo.management.globalid
+        
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def weirs_from_datamodel(self, weirs: pd.DataFrame) -> None:
         """ "From parsed data model of weirs"""
         for weir_idx, weir in weirs.iterrows():
+            base = self._common_structure_kwargs(weir)
             self.structures.add_weir(
-                id=weir.id,
-                name=weir.name if "name" in weir.index else np.nan,
-                branchid=weir.branch_id,
-                chainage=weir.branch_offset,
+                **base,
                 crestlevel=weir.crestlevel,
                 crestwidth=weir.crestwidth,
                 corrcoeff=weir.corrcoeff,
@@ -755,11 +777,9 @@ class StructuresIO:
     def orifices_from_datamodel(self, orifices: pd.DataFrame) -> None:
         """ "From parsed data model of orifices"""
         for orifice_idx, orifice in orifices.iterrows():
+            base = self._common_structure_kwargs(orifice)
             self.structures.add_orifice(
-                id=orifice.id,
-                name=orifice.name if "name" in orifice.index else np.nan,
-                branchid=orifice.branch_id,
-                chainage=orifice.branch_offset,
+                **base,
                 allowedflowdir="both",
                 crestlevel=orifice.crestlevel,
                 crestwidth=orifice.crestwidth,
@@ -775,11 +795,9 @@ class StructuresIO:
     def uweirs_from_datamodel(self, uweirs: pd.DataFrame) -> None:
         """ "From parsed data model of universal weirs"""
         for uweir_idx, uweir in uweirs.iterrows():
+            base = self._common_structure_kwargs(uweir)
             self.structures.add_uweir(
-                id=uweir.id,
-                name=uweir.name if "name" in uweir.index else np.nan,
-                branchid=uweir.branch_id,
-                chainage=uweir.branch_offset,
+                **base,
                 crestlevel=uweir.crestlevel,
                 yvalues=uweir.yvalues,
                 zvalues=uweir.zvalues,
@@ -836,11 +854,9 @@ class StructuresIO:
     def bridges_from_datamodel(self, bridges: pd.DataFrame) -> None:
         """ "From parsed data model of bridges"""
         for bridge_idx, bridge in bridges.iterrows():
+            base = self._common_structure_kwargs(bridge, id_attr="code")
             self.structures.add_bridge(
-                id=bridge.code,
-                name=bridge.name if "name" in bridge.index else np.nan,
-                branchid=bridge.branch_id,
-                chainage=bridge.branch_offset,
+                **base,
                 csdefid=bridge.csdefid,
                 shift=0.0,
                 allowedflowdir="both",
@@ -886,7 +902,7 @@ class StructuresIO:
                 }
             else:
                 crosssection = {"shape": "circle", "diameter": 0.40}
-                print(
+                logger.info(
                     f"Culvert {culvert.code} has an unknown shape: {culvert.vormkoker}. Applying a default profile (round - 40cm)"
                 )
 
@@ -963,11 +979,9 @@ class StructuresIO:
 
         # Add to dict
         for culvert_idx, culvert in culverts.iterrows():
+            base = self._common_structure_kwargs(culvert)
             self.structures.add_culvert(
-                id=culvert.id,
-                name=culvert.name if "name" in culvert.index else np.nan,
-                branchid=culvert.branch_id,
-                chainage=culvert.branch_offset,
+                **base,
                 leftlevel=culvert.leftlevel,
                 rightlevel=culvert.rightlevel,
                 crosssection=culvert.crosssectiondefinitionid,
@@ -1005,7 +1019,10 @@ class StructuresIO:
             # find pumps for gemaal
             pumps_subset = pumps[pumps.gemaalid == pumpstation.globalid]
             if pumps_subset.empty:
-                print(f'Skipping {pumpstation.code} because there is no associated pump.')
+                logger.warning(
+                    "Skipping %s because there is no associated pump.",
+                    pumpstation.code,
+                )
                 continue
 
             if "naam" in pumpstation:
@@ -1015,12 +1032,16 @@ class StructuresIO:
             if pumps_subset.shape[0] > 1:
                 # more than one pump
                 cmp_list = []
-                print(f'Pumpstation {pumpstation.code} contains {pumps_subset.shape[0]} openings. Creating a compound structure with a fictional pump for each one.')
+                logger.info(
+                    "Pumpstation %s contains %d openings. Creating a compound structure with a fictional pump for each one.",
+                    pumpstation.code,
+                    pumps_subset.shape[0],
+                )
                 for ipump, (_,pump) in enumerate(pumps_subset.iterrows()):
 
                     pump_control = management[management.pompid== pump.globalid]
                     if pump_control.empty:
-                        print(f'No management found for {pump.code}')
+                        logger.warning("No management found for %s", pump.code)
                         continue
 
                     startlevelsuctionside = [pump_control["bovengrens"]]
@@ -1049,7 +1070,10 @@ class StructuresIO:
                 #  only one pump
                 pump_control = management[management.pompid== pumps_subset.globalid.values[0]]
                 if pump_control.empty:
-                    print(f'Skipping {pumpstation.code} because there is no associated management.')
+                    logger.warning(
+                        "Skipping %s because there is no associated management.",
+                        pumpstation.code,
+                    )
 
                 startlevelsuctionside = [pump_control["bovengrens"]]
                 stoplevelsuctionside = [pump_control["ondergrens"]]
@@ -1076,11 +1100,9 @@ class StructuresIO:
         """From parsed data model of pumps"""
 
         for pump_idx, pump in pumps.iterrows():
+            base = self._common_structure_kwargs(pump)
             self.structures.add_pump(
-                id=pump.id,
-                name=pump.name if "name" in pump.index else np.nan,
-                branchid=pump.branch_id,
-                chainage=pump.branch_offset,
+                **base,
                 orientation="positive",
                 numstages=1,
                 controlside=pump.controlside,
@@ -1121,147 +1143,51 @@ class StructuresIO:
         struc_dict[struc]["chainage"] = offset
         return struc_dict
 
+    def _structure_frames(self):
+        return (
+            self.structures.pumps_df,
+            self.structures.rweirs_df,
+            self.structures.uweirs_df,
+            self.structures.culverts_df,
+            self.structures.bridges_df,
+            self.structures.orifices_df,
+        )
+
+    def _get_structure_location(self, structure_id):
+        branch = None
+        offset = None
+        for df in self._structure_frames():
+            if df.empty:
+                continue
+            match = df[df.id == structure_id]
+            if not match.empty:
+                branch = match.branchid.values[0]
+                offset = match.chainage.values[0]
+        return branch, offset
+
+    def _set_structure_location(self, structure_id, branch, offset):
+        for df in self._structure_frames():
+            if df.empty:
+                continue
+            idx = df.index[df.id == structure_id]
+            if not idx.empty:
+                df.loc[idx, "branchid"] = branch
+                df.loc[idx, "chainage"] = offset
+
     def compound_structures(self, idlist, structurelist):
         # probably the coordinates should all be set to those of the first structure (still to do)
         for c_i, c_id in enumerate(idlist):
+            branch = None
+            offset = None
             # check the substructure coordinates. If they do not coincide, move subsequent structures to the coordinates of the first
             for s_i, struc in enumerate(structurelist[c_i]):
                 if s_i == 0:
                     # find out what type the first structure it is and get its coordinates
-                    if not self.structures.pumps_df.empty:
-                        if struc in list(self.structures.pumps_df.id):
-                            branch = self.structures.pumps_df[
-                                self.structures.pumps_df.id == struc
-                            ].branchid.values[0]
-                            offset = self.structures.pumps_df[
-                                self.structures.pumps_df.id == struc
-                            ].chainage.values[0]
-                    if not self.structures.rweirs_df.empty:
-                        if struc in list(self.structures.rweirs_df.id):
-                            branch = self.structures.rweirs_df[
-                                self.structures.rweirs_df.id == struc
-                            ].branchid.values[0]
-                            offset = self.structures.rweirs_df[
-                                self.structures.rweirs_df.id == struc
-                            ].chainage.values[0]
-                    if not self.structures.uweirs_df.empty:
-                        if struc in list(self.structures.uweirs_df.id):
-                            branch = self.structures.uweirs_df[
-                                self.structures.uweirs_df.id == struc
-                            ].branchid.values[0]
-                            offset = self.structures.uweirs_df[
-                                self.structures.uweirs_df.id == struc
-                            ].chainage.values[0]
-                    if not self.structures.culverts_df.empty:
-                        if struc in list(self.structures.culverts_df.id):
-                            branch = self.structures.culverts_df[
-                                self.structures.culverts_df.id == struc
-                            ].branchid.values[0]
-                            offset = self.structures.culverts_df[
-                                self.structures.culverts_df.id == struc
-                            ].chainage.values[0]
-                    if not self.structures.bridges_df.empty:
-                        if struc in list(self.structures.bridges_df.id):
-                            branch = self.structures.bridges_df[
-                                self.structures.bridges_df.id == struc
-                            ].branchid.values[0]
-                            offset = self.structures.bridges_df[
-                                self.structures.bridges_df.id == struc
-                            ].chainage.values[0]
-                    if not self.structures.orifices_df.empty:
-                        if struc in list(self.structures.orifices_df.id):
-                            branch = self.structures.orifices_df[
-                                self.structures.orifices_df.id == struc
-                            ].branchid.values[0]
-                            offset = self.structures.orifices_df[
-                                self.structures.orifices_df.id == struc
-                            ].chainage.values[0]
+                    branch, offset = self._get_structure_location(struc)
                 else:
                     # move a subsequent structure to the location of the first
-                    if not self.structures.pumps_df.empty:
-                        if struc in list(self.structures.pumps_df.id):
-                            self.structures.pumps_df.loc[
-                                self.structures.pumps_df[
-                                    self.structures.pumps_df.id == struc
-                                ].index,
-                                "branchid",
-                            ] = branch
-                            self.structures.pumps_df.loc[
-                                self.structures.pumps_df[
-                                    self.structures.pumps_df.id == struc
-                                ].index,
-                                "chainage",
-                            ] = offset
-                    if not self.structures.rweirs_df.empty:
-                        if struc in list(self.structures.rweirs_df.id):
-                            self.structures.rweirs_df.loc[
-                                self.structures.rweirs_df[
-                                    self.structures.rweirs_df.id == struc
-                                ].index,
-                                "branchid",
-                            ] = branch
-                            self.structures.rweirs_df.loc[
-                                self.structures.rweirs_df[
-                                    self.structures.rweirs_df.id == struc
-                                ].index,
-                                "chainage",
-                            ] = offset
-                    if not self.structures.uweirs_df.empty:
-                        if struc in list(self.structures.uweirs_df.id):
-                            self.structures.uweirs_df.loc[
-                                self.structures.uweirs_df[
-                                    self.structures.uweirs_df.id == struc
-                                ].index,
-                                "branchid",
-                            ] = branch
-                            self.structures.uweirs_df.loc[
-                                self.structures.uweirs_df[
-                                    self.structures.uweirs_df.id == struc
-                                ].index,
-                                "chainage",
-                            ] = offset
-                    if not self.structures.culverts_df.empty:
-                        if struc in list(self.structures.culverts_df.id):
-                            self.structures.culverts_df.loc[
-                                self.structures.culverts_df[
-                                    self.structures.culverts_df.id == struc
-                                ].index,
-                                "branchid",
-                            ] = branch
-                            self.structures.culverts_df.loc[
-                                self.structures.culverts_df[
-                                    self.structures.culverts_df.id == struc
-                                ].index,
-                                "chainage",
-                            ] = offset
-                    if not self.structures.bridges_df.empty:
-                        if struc in list(self.structures.bridges_df.id):
-                            self.structures.bridges_df.loc[
-                                self.structures.bridges_df[
-                                    self.structures.bridges_df.id == struc
-                                ].index,
-                                "branchid",
-                            ] = branch
-                            self.structures.bridges_df.loc[
-                                self.structures.bridges_df[
-                                    self.structures.bridges_df.id == struc
-                                ].index,
-                                "chainage",
-                            ] = offset
-                    if not self.structures.orifices_df.empty:
-                        if struc in list(self.structures.orifices_df.id):
-                            self.structures.orifices_df.loc[
-                                self.structures.orifices_df[
-                                    self.structures.orifices_df.id == struc
-                                ].index,
-                                "branchid",
-                            ] = branch
-                            self.structures.orifices_df.loc[
-                                self.structures.orifices_df[
-                                    self.structures.orifices_df.id == struc
-                                ].index,
-                                "chainage",
-                            ] = offset
+                    if branch is not None and offset is not None:
+                        self._set_structure_location(struc, branch, offset)
 
             self.structures.add_compound(id=c_id, structureids=structurelist[c_i])
 

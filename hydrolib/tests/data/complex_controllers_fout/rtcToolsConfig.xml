@@ -1,0 +1,105 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rtcToolsConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rtc="http://www.wldelft.nl/fews" xmlns="http://www.wldelft.nl/fews" xsi:schemaLocation="http://www.wldelft.nl/fews C:\Werk\DHYDRO\Test_complexe_controllers\tests\dimrmodel_fout\rtc\rtcToolsConfig.xsd">
+  <general>
+    <description>RTC Model DeltaShell</description>
+    <poolRoutingScheme>Theta</poolRoutingScheme>
+    <theta>0.5</theta>
+  </general>
+  <rules>
+    <rule>
+      <pid id="[PID]pid/PID Rule">
+        <mode>PIDVEL</mode>
+        <settingMin>16</settingMin>
+        <settingMax>17.5</settingMax>
+        <settingMaxSpeed>0.01</settingMaxSpeed>
+        <kp>0</kp>
+        <ki>0.001</ki>
+        <kd>0</kd>
+        <input>
+          <x>[Input]ObsS_98143/Water level (op)</x>
+          <setpointValue>17</setpointValue>
+        </input>
+        <output>
+          <y>[Output]S_98143/Crest level (s)</y>
+          <integralPart>[IP]pid/PID Rule</integralPart>
+          <differentialPart>[DP]pid/PID Rule</differentialPart>
+        </output>
+      </pid>
+    </rule>
+    <rule>
+      <interval id="[IntervalRule]interval/Interval Rule">
+        <settingBelow>18.4</settingBelow>
+        <settingAbove>18</settingAbove>
+        <settingMaxSpeed>0.01</settingMaxSpeed>
+        <deadbandSetpointAbsolute>0.01</deadbandSetpointAbsolute>
+        <input>
+          <x ref="EXPLICIT">[Input]ObsS_96789/Water level (op)</x>
+          <setpoint>[SP]interval/Interval Rule</setpoint>
+        </input>
+        <output>
+          <y>[Output]S_96789/Crest level (s)</y>
+          <status>[Status]interval/Interval Rule</status>
+        </output>
+      </interval>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]time/Time Rule">
+        <input>
+          <x>time/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]S_96547/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]reuseObsPoint/Time Rule">
+        <input>
+          <x>reuseObsPoint/Time Rule</x>
+        </input>
+        <output>
+          <y>[Output]S_96840/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <pid id="[PID]PIDfout/PID Rule">
+        <mode>PIDVEL</mode>
+        <settingMin>14</settingMin>
+        <settingMax>18</settingMax>
+        <settingMaxSpeed>0.01</settingMaxSpeed>
+        <kp>0</kp>
+        <ki>-0.001</ki>
+        <kd>0</kd>
+        <input>
+          <x>[Input]Obs_ORIF/Discharge (op)</x>
+          <setpointValue>0.2</setpointValue>
+        </input>
+        <output>
+          <y>[Output]S_96548/Crest level (s)</y>
+          <integralPart>[IP]PIDfout/PID Rule</integralPart>
+          <differentialPart>[DP]PIDfout/PID Rule</differentialPart>
+        </output>
+      </pid>
+    </rule>
+  </rules>
+  <triggers>
+    <trigger>
+      <standard id="[StandardCondition]reuseObsPoint/Standard Condition">
+        <condition>
+          <x1Series ref="EXPLICIT">[Input]ObsS_98143/Water level (op)</x1Series>
+          <relationalOperator>Greater</relationalOperator>
+          <x2Value>16.9</x2Value>
+        </condition>
+        <true>
+          <trigger>
+            <ruleReference>[TimeRule]reuseObsPoint/Time Rule</ruleReference>
+          </trigger>
+        </true>
+        <output>
+          <status>[Status]reuseObsPoint/Standard Condition</status>
+        </output>
+      </standard>
+    </trigger>
+  </triggers>
+</rtcToolsConfig>
