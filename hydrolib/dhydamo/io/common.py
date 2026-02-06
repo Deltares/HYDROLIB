@@ -238,6 +238,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         check_columns: bool = True,
         check_geotype: bool = True,
         clip: Union[Polygon, MultiPolygon] = None,
+        cliptype: str = "clip",
         check_3d: bool = True
     ):
         if not Path(gpkg_path).exists():
@@ -319,9 +320,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         )
 
         if clip is not None:
-            self.clip(geometry=clip)
+            self.clip(geometry=clip, cliptype=cliptype)
 
-    def clip(self, geometry: Union[Polygon, MultiPolygon]):
+    def clip(self, geometry: Union[Polygon, MultiPolygon], cliptype: str = "clip"):
         """
         Clip geometry
         """
@@ -329,7 +330,12 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             raise TypeError("Expected geometry of type Polygon or MultiPolygon")
 
         # Clip if needed          
-        gdf = gpd.clip(self, gpd.GeoDataFrame(geometry=[geometry], crs=self.crs))
+        if cliptype == "clip":
+            gdf = gpd.clip(self, gpd.GeoDataFrame(geometry=[geometry], crs=self.crs))
+        elif cliptype == "select":
+            gdf = self.loc[self.intersects(geometry).values]
+        else:
+            raise ValueError(f"Cliptype {cliptype} not recognized. Use 'clip' or 'select'.")
         if gdf.empty:
             raise ValueError("Found no features within extent geometry.")
 
