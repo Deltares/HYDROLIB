@@ -36,13 +36,16 @@ class DIMRWriter:
         self.template_dir = Path(os.path.abspath("."))
 
     @validate_arguments
-    def write_runbat(self) -> None:
+    def write_runbat(self, debuglevel=0, runlog=None) -> None:
         """Generates a run.bat to run the model in DIMR. The path to the executable is provided by the user in the class initialization, or set to the default D-Hydro installation folder."""
 
         with open(os.path.join(self.output_path, "run.bat"), "w") as f:
             f.write("@ echo off\n")
             f.write("set OMP_NUM_THREADS=2\n")
-            f.write('call "' + str(self.run_dimr) + '"\n')
+            if runlog is None:
+                f.write('call "' + str(self.run_dimr) + '" -d ' + str(debuglevel) + '\n')
+            else:
+                f.write('call "' + str(self.run_dimr) + '" -d ' + str(debuglevel) + ' > ' + str(runlog) + '\n')
 
     @validate_arguments
     def add_crs(self) -> None:
