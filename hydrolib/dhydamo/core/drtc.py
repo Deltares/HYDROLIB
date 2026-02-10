@@ -906,7 +906,7 @@ class DRTCModel:
 
         self.finish_file(myroot, configfile, self.output_path / "rtcToolsConfig.xml")
         
-def write_dataconfig(self) -> None:
+    def write_dataconfig(self) -> None:
         """Function to write RtcDataConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
         generalname = "http://www.wldelft.nl/fews"
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
