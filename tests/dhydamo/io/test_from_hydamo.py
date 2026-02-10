@@ -302,8 +302,8 @@ def _add_structures_manually():
     hydamo.structures.add_rweir(
         id="rwtest",
         name="rwtest",
-        branchid="W_1386_0",
-        chainage=2.0,
+        branchid="W_1486_0",
+        chainage=12.0,
         crestlevel=18.0,
         crestwidth=3.0,
         corrcoeff=1.0,
@@ -312,8 +312,8 @@ def _add_structures_manually():
     hydamo.structures.add_orifice(
         id="otest",
         name="otest",
-        branchid="W_1386_0",
-        chainage=5.0,
+        branchid="W_1486_0",
+        chainage=62.0,
         crestlevel=18.0,
         crestwidth=3.0,
         corrcoeff=1.0,
@@ -327,8 +327,8 @@ def _add_structures_manually():
     hydamo.structures.add_uweir(
         id="uwtest",
         name="uwtest",
-        branchid="W_1386_0",
-        chainage=6.0,
+        branchid="W_1486_0",
+        chainage=112.0,
         dischargecoeff=0.9,
         crestlevel=18.0,
         numlevels=3,
@@ -339,10 +339,10 @@ def _add_structures_manually():
     hydamo.structures.add_bridge(
         id="btest",
         name="btest",
-        branchid="W_1386_0",
-        chainage=7.0,
+        branchid="W_1486_0",
+        chainage=112.0,
         length=8.0,
-        csdefid="rect_3.60",
+        csdefid="B_11547",
         inletlosscoeff=0.9,
         outletlosscoeff=0.9,
         shift=0.0,
@@ -353,8 +353,8 @@ def _add_structures_manually():
     hydamo.structures.add_culvert(
         id="ctest",
         name="ctest",
-        branchid="W_1386_0",
-        chainage=8.0,
+        branchid="W_1486_0",
+        chainage=212.0,
         leftlevel=18.0,
         rightlevel=17.0,
         length=30.0,
@@ -368,23 +368,25 @@ def _add_structures_manually():
     hydamo.structures.add_pump(
         id="ptest",
         name="ptest",
-        branchid="W_1386_0",
-        chainage=9.0,
+        branchid="W_1486_0",
+        chainage=412.0,
         capacity=1.0,
-        startlevelsuctionside=[14.0],
-        stoplevelsuctionside=[13.8],
+        startlevelsuctionside=[17.5],
+        stoplevelsuctionside=[17.3],
     )
 
     return hydamo
 
 def test_add_structures_manually():
     hydamo = _add_structures_manually()
+    hydamo.structures.orifices_df.loc[hydamo.structures.orifices_df.id == 'orifice_test', 'gateloweredgelevel'] == 18.
+    
     assert "rwtest" in hydamo.structures.rweirs_df.id.values[0]
     assert "otest" in hydamo.structures.orifices_df.id.values[0]
     assert "uwtest" in hydamo.structures.uweirs_df.id.values[0]
     assert "btest" in hydamo.structures.bridges_df.id.values[0]
     assert "ctest" in hydamo.structures.culverts_df.id.values[0]
-    assert "ptest" in hydamo.structures.pumps_df.id.values[0]
+    assert "ptest" in hydamo.structures.pumps_df.id.values[0]    
 
 def test_observationpoints():
     hydamo, _ = _hydamo_object_from_gpkg()

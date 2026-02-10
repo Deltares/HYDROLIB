@@ -236,6 +236,9 @@ def _write_model(drrmodel=None, hydamo=None, full_test=False):
     fm.output.ncformat = 4                      # parameter setting advised by Deltares for better performance
     fm.output.ncnoforcedflush = 1               # parameter setting advised by Deltares for better performance
     fm.output.ncnounlimited = 1      
+    fm.output.outputdir = "output"
+    fm.output.statsinterval            = [1]       # Interval [s] between screen step outputs in seconds simulation time, if negative in seconds wall clock time.
+    fm.output.timingsinterval          =  ""    # Timings output interval TimingsInterval.
 
     if hasattr(fm, 'sediment'):
         delattr(fm, 'sediment')
@@ -249,7 +252,7 @@ def _write_model(drrmodel=None, hydamo=None, full_test=False):
             inputfile=fm.filepath,
         )        
     )
-    dimr.save(recurse=True)
+    dimr.save(recurse=True)    
 
     return fm, output_path
 
