@@ -243,7 +243,7 @@ class DRTCModel:
     ) -> tuple[list[DRTCStructure], set[str]]:
         if not isinstance(complex_controllers_folder, list):
             complex_controllers_folder = [complex_controllers_folder]
-        
+
         # Find complex controller structs and referred observation points
         complex_controller_structs = []
         for folder in complex_controllers_folder:
@@ -270,7 +270,7 @@ class DRTCModel:
             msg = f"Duplicate complex controller ids found: {duplicates}"
             logger.error(msg)
             raise ValueError(msg)
-        
+
         # Refined list of structures with single definitions.
         complex_controller_structs = list(check_cc.values())
 
@@ -764,7 +764,7 @@ class DRTCModel:
             controller = self.all_controllers[key]
             if self.cc_ids is not None and self.cc_id_limit is not None:
                 if key in self.cc_ids and key in self.cc_id_limit:
-                    logger.warning(f"RtcToolsConfig.xml: Skipped writing {controller['type']} control for {key}, complex controller already present")                    
+                    logger.warning(f"RtcToolsConfig.xml: Skipped writing {controller['type']} control for {key}, complex controller already present")
                     to_remove.append(key)
                     continue
 
@@ -905,7 +905,7 @@ class DRTCModel:
                     myroot[2].append(ET.fromstring(ctl))
 
         self.finish_file(myroot, configfile, self.output_path / "rtcToolsConfig.xml")
-        
+
     def write_dataconfig(self) -> None:
         """Function to write RtcDataConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
         generalname = "http://www.wldelft.nl/fews"
@@ -955,14 +955,14 @@ class DRTCModel:
                     continue
 
             # te importeren data
-            if controller['type'] == 'PID':                
+            if controller['type'] == 'PID':
 
                 input_id = "[Input]" + controller["observation_point"] + "/" +  controller["target_variable"]
-                
+
                 if myroot[0].find(f".//*[@id='{input_id}']") is None:
                     a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
-                    a.set("id", input_id)                    
-              
+                    a.set("id", input_id)
+
                     b = ET.SubElement(a, gn_brackets + "OpenMIExchangeItem")
 
                     c = ET.SubElement(b, gn_brackets + "elementId")
@@ -971,7 +971,7 @@ class DRTCModel:
                     d = ET.SubElement(b, gn_brackets + "quantityId")
                     d.text = controller["target_variable"]
 
-                    e = ET.SubElement(b, gn_brackets + "unit")                    
+                    e = ET.SubElement(b, gn_brackets + "unit")
                     e.text = "m" if controller['target_variable'] == 'Water level (op)' else "m^3/s"
 
                     # If a time dependent setpoint is required, add the Time Rule
@@ -997,12 +997,12 @@ class DRTCModel:
 
             elif controller['type'] == 'Interval':
                 a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
-                
+
                 input_id = "[Input]" + controller["observation_point"] + "/" +  controller["target_variable"]
-                
+
                 if myroot.find(f".//*[@id='{input_id}']") is None:
-                    a.set("id", input_id)            
-            
+                    a.set("id", input_id)
+
                     b = ET.SubElement(a, gn_brackets + "OpenMIExchangeItem")
 
                     c = ET.SubElement(b, gn_brackets + "elementId")
@@ -1012,7 +1012,7 @@ class DRTCModel:
                     d.text = controller["target_variable"]
 
                     e = ET.SubElement(b, gn_brackets + "unit")
-                    e.text = "m" if controller['target_variable'] == 'Water level (op)' else "m^3/s"          
+                    e.text = "m" if controller['target_variable'] == 'Water level (op)' else "m^3/s"
                     if type(controller['setpoint']) is pd.Series:
                         a2 = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
 
@@ -1084,7 +1084,7 @@ class DRTCModel:
             for ctl in self.complex_controllers["dataconfig_export"]:
                 myroot[1].append(ET.fromstring(ctl))
         self.finish_file(myroot, configfile, self.output_path / "rtcDataConfig.xml")
-    
+
     def write_timeseries_import(self) -> None:
         """Function to write timeseries_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
         generalname = "http://www.wldelft.nl/fews/PI"
