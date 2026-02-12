@@ -461,14 +461,14 @@ class ExternalForcingsIO:
         times = pd.date_range(start=refdate, end=refdate+pd.Timedelta(hours=np.max(his_time)/3600.), freq=f'{interval_seconds}S')
     
         if location_type == 'weir':
-            type = 'weirgen'
-            loc_ids = chartostring(his[f'{type}_name'][:])
+            dtype = 'weirgen'
+            loc_ids = chartostring(his[f'{dtype}_name'][:])
             coord_string_x = 'weir_input_geom_node_coordx'
             coord_string_y = 'weir_input_geom_node_coordy'
          
         elif location_type == 'observation_point':
-            type = 'station'
-            loc_ids = chartostring(his[f'{type}_name'][:])
+            dtype = 'station'
+            loc_ids = chartostring(his[f'{dtype}_name'][:])
             coord_string_x = 'station_x_coordinate'
             coord_string_y = 'station_y_coordinate'
         elif location_type == 'pump':                 
@@ -476,25 +476,25 @@ class ExternalForcingsIO:
             coord_string_y = f'{location_type}_input_geom_node_coordy'
             loc_ids = chartostring(his[f'{location_type}_name'][:])       
             if variable == 'discharge':
-                type = 'pump_structure'
+                dtype = 'pump_structure'
             else:
-                type = location_type
+                dtype = location_type
         elif location_type == 'uweir':
-            type = 'uniweir'
-            loc_ids = chartostring(his[f'{type}_name'][:])
-            coord_string_x = f'{type}_input_geom_node_coordx'
-            coord_string_y = f'{type}_input_geom_node_coordy'   
+            dtype = 'uniweir'
+            loc_ids = chartostring(his[f'{dtype}_name'][:])
+            coord_string_x = f'{dtype}_input_geom_node_coordx'
+            coord_string_y = f'{dtype}_input_geom_node_coordy'   
         elif location_type == 'compound':
-            type = 'cmpstru'
-            loc_ids = chartostring(his[f'{type}_name'][:])            
+            dtype = 'cmpstru'
+            loc_ids = chartostring(his[f'{dtype}_name'][:])            
         else:
-            type = location_type
-            loc_ids = chartostring(his[f'{type}_name'][:])
-            coord_string_x = f'{type}_input_geom_node_coordx'
-            coord_string_y = f'{type}_input_geom_node_coordy'
+            dtype = location_type
+            loc_ids = chartostring(his[f'{dtype}_name'][:])
+            coord_string_x = f'{dtype}_input_geom_node_coordx'
+            coord_string_y = f'{dtype}_input_geom_node_coordy'
         try:
             loc_index = np.where(loc_ids == location_id)[0][0]       
-        except:
+        except Exception:
             raise ValueError(f'Location ID {location_id} of type {location_type} not found in {his_file}. Available IDs: {loc_ids}') 
         
         
@@ -502,7 +502,7 @@ class ExternalForcingsIO:
             variable = 's1up'
         elif variable == 'waterlevel_downstream':
             variable = 's1dn'
-        if type != 'cmpstru':
+        if dtype != 'cmpstru':
             loc_x = his[coord_string_x][:][loc_index]
             loc_y = his[coord_string_y][:][loc_index]
                     
@@ -514,7 +514,7 @@ class ExternalForcingsIO:
         if location_type == 'observation_point':
             timeseries = his['waterlevel'][:,loc_index]
         else:
-            timeseries = his[f'{type}_{variable}'][:, loc_index]
+            timeseries = his[f'{dtype}_{variable}'][:, loc_index]
         loc_series = pd.Series(timeseries, index=times, name=location_id)
         if starttime is not None:
             loc_series = loc_series.loc[starttime:endtime]            
