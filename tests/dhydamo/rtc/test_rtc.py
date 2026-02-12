@@ -101,7 +101,6 @@ def test_setup_rtc_model(hydamo=None):
     assert len(rtcd.interval_controllers) == 1
     assert len(rtcd.cc_ids) == 2
     assert len(rtcd.all_controllers) == 8
-5
 
 def test_complex_controller_already_present(caplog, hydamo=None):
     with caplog.at_level(logging.INFO, logger="hydrolib.dhydamo.core.drtc"):
