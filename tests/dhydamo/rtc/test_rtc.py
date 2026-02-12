@@ -96,12 +96,12 @@ def _setup_rtc_model(hydamo=None, fm=None, output_path=None):
 def test_setup_rtc_model(hydamo=None):
     rtcd = _setup_rtc_model(hydamo=hydamo)
     rtcd.write_xml_v1()
-    assert len(rtcd.pid_controllers) == 3
+    assert len(rtcd.pid_controllers) == 5
     assert len(rtcd.time_controllers) == 2
     assert len(rtcd.interval_controllers) == 1
     assert len(rtcd.cc_ids) == 2
-    assert len(rtcd.all_controllers) == 6
-
+    assert len(rtcd.all_controllers) == 8
+5
 
 def test_complex_controller_already_present(caplog, hydamo=None):
     with caplog.at_level(logging.INFO, logger="hydrolib.dhydamo.core.drtc"):
@@ -116,11 +116,11 @@ def test_complex_controller_already_present(caplog, hydamo=None):
     expected_msg = "RtcToolsConfig.xml: Skipped writing Time control for S_96684, complex controller already present"
     assert expected_msg in caplog.messages
 
-    assert len(rtcd.pid_controllers) == 3
+    assert len(rtcd.pid_controllers) == 5
     assert len(rtcd.time_controllers) == 3
     assert len(rtcd.interval_controllers) == 1
     assert len(rtcd.cc_ids) == 2
-    assert len(rtcd.all_controllers) == 6
+    assert len(rtcd.all_controllers) == 8
 
 def test_complex_controller_multiple_folders(hydamo=None):
     data_path = Path("hydrolib/tests/data").resolve()
@@ -215,11 +215,11 @@ def test_complex_controller_fourtypes(caplog, hydamo=None):
     check_msg = "RtcToolsConfig.xml: Skipped writing Time control for S_96840, complex controller already present"
     assert check_msg in caplog.messages
 
-    assert len(rtcd.pid_controllers) == 3
+    assert len(rtcd.pid_controllers) == 5
     assert len(rtcd.time_controllers) == 2
     assert len(rtcd.interval_controllers) == 1
     assert len(rtcd.cc_ids) == 6
-    assert len(rtcd.all_controllers) == 5
+    assert len(rtcd.all_controllers) == 7
 
 
 def test_complex_controller_fourtypes_limit(caplog, hydamo=None):
@@ -260,11 +260,11 @@ def test_complex_controller_fourtypes_limit(caplog, hydamo=None):
     assert check_msg2 in caplog.messages
     assert check_msg3 in caplog.messages
 
-    assert len(rtcd.pid_controllers) == 3
+    assert len(rtcd.pid_controllers) == 5
     assert len(rtcd.time_controllers) == 2
     assert len(rtcd.interval_controllers) == 1
     assert len(rtcd.cc_ids) == 6
-    assert len(rtcd.all_controllers) == 6
+    assert len(rtcd.all_controllers) == 8
 
 def test_complex_controller_wrong(caplog, hydamo=None):
     data_path = Path("hydrolib/tests/data").resolve()
