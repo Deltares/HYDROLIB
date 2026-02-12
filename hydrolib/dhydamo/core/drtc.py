@@ -1000,6 +1000,8 @@ class DRTCModel:
         generalname = "http://www.wldelft.nl/fews"
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
         gn_brackets = "{" + generalname + "}"
+        m3unit = "m^3/s"
+        munit = "m"
 
         # registering namespaces
         ET.register_namespace("", generalname)
@@ -1061,7 +1063,7 @@ class DRTCModel:
                     d.text = controller["target_variable"]
 
                     e = ET.SubElement(b, gn_brackets + "unit")
-                    e.text = "m" if controller['target_variable'] == 'Water level (op)' else "m^3/s"
+                    e.text = munit if controller['target_variable'] == 'Water level (op)' else m3unit
 
                     # If a time dependent setpoint is required, add the Time Rule
                     if type(controller['setpoint']) is pd.Series:
@@ -1101,7 +1103,7 @@ class DRTCModel:
                     d.text = controller["target_variable"]
 
                     e = ET.SubElement(b, gn_brackets + "unit")
-                    e.text = "m" if controller['target_variable'] == 'Water level (op)' else "m^3/s"
+                    e.text = munit if controller['target_variable'] == 'Water level (op)' else m3unit
                     if type(controller['setpoint']) is pd.Series:
                         a2 = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
 
@@ -1150,7 +1152,7 @@ class DRTCModel:
             j.text = controller["steering_variable"]
 
             k = ET.SubElement(g, gn_brackets + "unit")
-            k.text = "m^3/s" if controller["steering_variable"] == 'Capacity (p)' else "m"
+            k.text = m3unit if controller["steering_variable"] == 'Capacity (p)' else munit
 
         for ikey, key in enumerate(self.all_controllers.keys()):
             controller = self.all_controllers[key]
