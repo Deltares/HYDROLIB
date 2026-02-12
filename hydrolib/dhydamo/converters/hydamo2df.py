@@ -493,7 +493,7 @@ class ExternalForcingsIO:
             coord_string_x = f'{dtype}_input_geom_node_coordx'
             coord_string_y = f'{dtype}_input_geom_node_coordy'
         try:
-            loc_index = np.where(loc_ids == location_id)[0][0]       
+            loc_index = np.nonzero(loc_ids == location_id)[0][0]
         except Exception:
             raise ValueError(f'Location ID {location_id} of type {location_type} not found in {his_file}. Available IDs: {loc_ids}') 
         
