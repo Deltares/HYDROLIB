@@ -430,7 +430,7 @@ class ExternalForcingsIO:
                                   variable: str = None,
                                   starttime: Optional[Union[str, pd.Timestamp]] = None,
                                   endtime: Optional[Union[str, pd.Timestamp]] = None,
-                                ) -> None:        
+                                ) -> tuple[Optional[Point], pd.Series]:
       
         """
         Obtain boundary from results of another model
