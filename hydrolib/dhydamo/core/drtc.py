@@ -299,68 +299,99 @@ class DRTCModel:
     def _load_complex_controller_structs(
         self, complex_controllers_folder: Union[list[Union[str, Path]], str, Path],
     ) -> tuple[list[DRTCStructure], set[str]]:
-        if not isinstance(complex_controllers_folder, list):
-            complex_controllers_folder = [complex_controllers_folder]
+        folders = self._as_folder_list(complex_controllers_folder)
+        complex_controller_structs = self._collect_complex_controller_structs(folders)
+        complex_controller_structs, complex_controller_ids = self._deduplicate_complex_controller_structs(
+            complex_controller_structs
+        )
+        self._validate_complex_controller_structs(complex_controller_structs)
+        return complex_controller_structs, complex_controller_ids
 
-        # Find complex controller structs and referred observation points
+    @staticmethod
+    @validate_arguments
+    def _as_folder_list(
+        complex_controllers_folder: Union[list[Union[str, Path]], str, Path]
+    ) -> list[Union[str, Path]]:
+        if isinstance(complex_controllers_folder, list):
+            return complex_controllers_folder
+        return [complex_controllers_folder]
+
+    @validate_arguments
+    def _collect_complex_controller_structs(
+        self, folders: list[Union[str, Path]]
+    ) -> list[DRTCStructure]:
+        # Find complex controller structs and referred observation points.
         complex_controller_structs = []
-        for folder in complex_controllers_folder:
+        for folder in folders:
             for filepath in Path(folder).iterdir():
-                if filepath.name == "dimr_config.xml":
-                    tree = ET.parse(filepath)
-                    root = tree.getroot()
-                    structs = self._parse_referenced_structures(root)
-                    complex_controller_structs.extend(structs)
+                if filepath.name != "dimr_config.xml":
+                    continue
+                root = ET.parse(filepath).getroot()
+                complex_controller_structs.extend(self._parse_referenced_structures(root))
+        return complex_controller_structs
 
-        # observation points can be found multiple times, but we want to list
-        # these only once. Structures can only be defined once.
+    @validate_arguments
+    def _deduplicate_complex_controller_structs(
+        self, complex_controller_structs: list[DRTCStructure]
+    ) -> tuple[list[DRTCStructure], set[str]]:
+        # Observation points can be referenced multiple times, but we keep one entry.
+        # Other structures can only be defined once.
         duplicates = []
-        check_cc = {}
+        unique_structs = {}
         for fs in complex_controller_structs:
-            if fs.struct_name in check_cc:
-                if fs.struct_type != "observations":
-                    duplicates.append(fs.struct_name)
-            else:
-                check_cc[fs.struct_name] = fs
+            if fs.struct_name not in unique_structs:
+                unique_structs[fs.struct_name] = fs
+                continue
+            if fs.struct_type != "observations":
+                duplicates.append(fs.struct_name)
 
-        # Raise an error for duplicate structures
-        if len(duplicates) > 0:
+        if duplicates:
             msg = f"Duplicate complex controller ids found: {duplicates}"
             logger.error(msg)
             raise ValueError(msg)
 
-        # Refined list of structures with single definitions.
-        complex_controller_structs = list(check_cc.values())
+        deduplicated_structs = list(unique_structs.values())
+        complex_controller_ids = set(unique_structs.keys())
+        return deduplicated_structs, complex_controller_ids
 
-        # Build a set of unique controller ids.
-        complex_controller_ids = set(check_cc.keys())
+    @validate_arguments
+    def _validate_complex_controller_structs(
+        self, complex_controller_structs: list[DRTCStructure]
+    ) -> None:
+        struct_ids_by_type = self._get_struct_ids_by_type()
+        missing_structs = []
+        unknown_types = set()
 
-        # Validate that referenced structures exist in HyDAMO.
-        struct_ids_by_type = {
+        for fs in complex_controller_structs:
+            if fs.struct_type not in struct_ids_by_type:
+                unknown_types.add(fs.struct_type)
+                continue
+            if fs.struct_name not in struct_ids_by_type[fs.struct_type]:
+                missing_structs.append(f"{fs.struct_type}/{fs.struct_name}")
+
+        if unknown_types:
+            logger.warning(
+                "Skipping HyDAMO complex controller validation for unsupported structure types: %s",
+                sorted(unknown_types),
+            )
+
+        if missing_structs:
+            msg = f"Complex controller structures not found in HyDAMO: {missing_structs}"
+            logger.error(msg)
+            raise ValueError(msg)
+
+    @validate_arguments
+    def _get_struct_ids_by_type(self) -> dict[str, set[str]]:
+        return {
             "observations": set(self.hydamo.observationpoints.observation_points.get("name", [])),
-            "weirs": set(self.hydamo.structures.rweirs_df.get("id", [])) | set(self.hydamo.structures.uweirs_df.get("id", [])),
+            "weirs": set(self.hydamo.structures.rweirs_df.get("id", []))
+            | set(self.hydamo.structures.uweirs_df.get("id", [])),
             "orifices": set(self.hydamo.structures.orifices_df.get("id", [])),
             "pumps": set(self.hydamo.structures.pumps_df.get("id", [])),
             "generalstructures": set(self.hydamo.structures.generalstructures_df.get("id", [])),
             "culverts": set(self.hydamo.structures.culverts_df.get("id", [])),
             "bridges": set(self.hydamo.structures.bridges_df.get("id", [])),
         }
-        missing_structs = []
-        unknown_types = set()
-        for fs in complex_controller_structs:
-            if fs.struct_type in struct_ids_by_type:
-                if fs.struct_name not in struct_ids_by_type[fs.struct_type]:
-                    missing_structs.append(f"{fs.struct_type}/{fs.struct_name}")
-            else:
-                unknown_types.add(fs.struct_type)
-        if unknown_types:
-            logger.warning("Skipping HyDAMO complex controller validation for unsupported structure types: %s", sorted(unknown_types))
-        if missing_structs:
-            msg = f"Complex controller structures not found in HyDAMO: {missing_structs}"
-            logger.error(msg)
-            raise ValueError(msg)
-
-        return complex_controller_structs, complex_controller_ids
 
     @validate_arguments
     def _load_complex_controllers(
