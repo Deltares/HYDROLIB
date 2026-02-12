@@ -77,16 +77,15 @@ class DRTCModel:
         self.cc_structs = None
         self.cc_ids = None
         self.cc_id_limit = None
-        if not rtc_onlytimeseries:
-            if complex_controllers_folder is not None:
-                # Build whitelist set of allowed controller ids.
-                if len(id_limit_complex_controllers) == 0:
-                    msg = "Explicit list of allowed complex controller structures is required (id_limit_complex_controllers)"
-                    logger.error(msg)
-                    raise ValueError(msg)
-                self.cc_id_limit = set(id_limit_complex_controllers)
-                self.cc_structs, self.cc_ids = self._load_complex_controller_structs(complex_controllers_folder)
-                self.complex_controllers = self._load_complex_controllers(complex_controllers_folder)
+        if not rtc_onlytimeseries and complex_controllers_folder is not None:
+            # Build whitelist set of allowed controller ids.
+            if len(id_limit_complex_controllers) == 0:
+                msg = "Explicit list of allowed complex controller structures is required (id_limit_complex_controllers)"
+                logger.error(msg)
+                raise ValueError(msg)
+            self.cc_id_limit = set(id_limit_complex_controllers)
+            self.cc_structs, self.cc_ids = self._load_complex_controller_structs(complex_controllers_folder)
+            self.complex_controllers = self._load_complex_controllers(complex_controllers_folder)
 
         # copy files from the template RTC-folder
         self.template_dir = Path(__file__).resolve().parent / ".." / "resources" / "RTC"
