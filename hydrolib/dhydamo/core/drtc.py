@@ -140,7 +140,9 @@ class DRTCModel:
                 logger.warning(f'For {pmp} a controller is defined in hydamo.management, but no timeseries is provided for it.')
 
     @validate_arguments
-    def parse_complex_controller(self, xml_folder: Union[Path, str]) -> tuple[dict[str, ET.Element], list[DRTCStructure]]:
+    def parse_complex_controller(
+        self, xml_folder: Union[Path, str]
+    ) -> dict[str, list[Union[str, ET.Element]]]:
         """Method to parse user-specified 'complex' controllers
 
         Args:
@@ -150,90 +152,147 @@ class DRTCModel:
             dict: dict of list with the data in the files. Every key is a RTC-file, including the DIMR-config.
         """
         files = [p for p in Path(xml_folder).iterdir() if p.suffix == ".xml"]
-        savedict = {}
-        savedict["dataconfig_import"] = []
-        savedict["dataconfig_export"] = []
-        savedict["toolsconfig_rules"] = []
-        savedict["toolsconfig_triggers"] = []
-        savedict["timeseries"] = []
-        savedict["state"] = []
-        savedict["dimr_config"] = []
+        savedict = self._init_complex_controller_data()
+        handlers = {
+            "rtcDataConfig.xml": self._parse_cc_rtc_dataconfig,
+            "rtcToolsConfig.xml": self._parse_cc_rtc_toolsconfig,
+            "timeseries_import.xml": self._parse_cc_timeseries,
+            "state_import.xml": self._parse_cc_state,
+            "dimr_config.xml": self._parse_cc_dimr_config,
+        }
+
         for filepath in files:
-            tree = ET.parse(filepath)
-            root = tree.getroot()
-            if filepath.name == "rtcDataConfig.xml":
-                children = self._parse_unique_children(root)
-                if "importSeries" in children:
-                    for num, el in enumerate(children["importSeries"]):#[1:]:
-                        if 'PITimeSeries' in ET.tostring(el).decode() and num == 0:
-                            continue
-                        allow, el_text = self._parse_dataconfig_item(el)
-                        if not allow:
-                            logger.info(
-                                "rtcDataConfig.xml: Skipped importSeries item for elementId '%s' (not allowed by complex controller filter).",
-                                el_text,
-                            )
-                            continue
-                        savedict["dataconfig_import"].append(ET.tostring(el).decode())
-                if "exportSeries" in children:
-                    for el in children["exportSeries"]:#[2:]:
-                        if ('PITimeSeries' not in ET.tostring(el).decode()) and ('CSVTimeSeries' not in ET.tostring(el).decode()):
-                            allow, el_text = self._parse_dataconfig_item(el)
-                            if not allow:
-                                logger.info(
-                                    "rtcDataConfig.xml: Skipped exportSeries item for elementId '%s' (not allowed by complex controller filter).",
-                                    el_text,
-                                )
-                                continue
-                            savedict["dataconfig_export"].append(ET.tostring(el).decode())
-            elif filepath.name == "rtcToolsConfig.xml":
-                children = self._parse_unique_children(root)
-                if "rules" in children:
-                    for el in children["rules"]:
-                        allow, el_text = self._parse_toolsconfig_item(el)
-                        if not allow:
-                            logger.info(
-                                "rtcToolsConfig.xml: Skipped rule element '%s' (not allowed by complex controller filter).",
-                                el_text,
-                            )
-                            continue
-                        savedict["toolsconfig_rules"].append(ET.tostring(el).decode())
-                if "triggers" in children:
-                    for el in children["triggers"]:
-                        allow, el_text = self._parse_toolsconfig_item(el)
-                        if not allow:
-                            logger.info(
-                                "rtcToolsConfig.xml: Skipped trigger element '%s' (not allowed by complex controller filter).",
-                                el_text,
-                            )
-                            continue
-                        savedict["toolsconfig_triggers"].append(ET.tostring(el).decode())
-            elif filepath.name == "timeseries_import.xml":
-                for el in root:
-                    savedict["timeseries"].append(ET.tostring(el).decode())
-            elif filepath.name == "state_import.xml":
-                for el in root[0]:
-                    savedict["state"].append(ET.tostring(el).decode())
-            elif filepath.name == "dimr_config.xml":
-                red_root = copy.deepcopy(root)
-                for el in list(red_root):
-                    for el_name, el_target in zip(["rtc_to_flow", "flow_to_rtc"], ["targetName", "sourceName"]):
-                        if "name" not in el.attrib or el.attrib["name"] != el_name:
-                            continue
-                        for sub_el in list(el):
-                            target = sub_el.find(".//{*}" + el_target)
-                            allow, el_text = self._parse_dimr_item(target)
-                            if not allow:
-                                logger.info(
-                                    "dimr_config.xml: Skipped %s element with '%s' '%s' (not allowed by complex controller filter).",
-                                    el_name,
-                                    el_target,
-                                    el_text,
-                                )
-                                el.remove(sub_el)
-                savedict["dimr_config"].append(red_root)
+            handler = handlers.get(filepath.name)
+            if handler is None:
+                continue
+            root = ET.parse(filepath).getroot()
+            handler(root, savedict)
 
         return savedict
+
+    @staticmethod
+    @validate_arguments
+    def _init_complex_controller_data() -> dict[str, list[Union[str, ET.Element]]]:
+        return {
+            "dataconfig_import": [],
+            "dataconfig_export": [],
+            "toolsconfig_rules": [],
+            "toolsconfig_triggers": [],
+            "timeseries": [],
+            "state": [],
+            "dimr_config": [],
+        }
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def _parse_cc_rtc_dataconfig(
+        self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
+    ) -> None:
+        children = self._parse_unique_children(root)
+        import_series = children.get("importSeries")
+        if import_series is not None:
+            for num, el in enumerate(import_series):
+                xml_text = ET.tostring(el).decode()
+                if "PITimeSeries" in xml_text and num == 0:
+                    continue
+                allow, el_text = self._parse_dataconfig_item(el)
+                if not allow:
+                    logger.info(
+                        "rtcDataConfig.xml: Skipped importSeries item for elementId '%s' (not allowed by complex controller filter).",
+                        el_text,
+                    )
+                    continue
+                savedict["dataconfig_import"].append(xml_text)
+
+        export_series = children.get("exportSeries")
+        if export_series is not None:
+            for el in export_series:
+                xml_text = ET.tostring(el).decode()
+                if "PITimeSeries" in xml_text or "CSVTimeSeries" in xml_text:
+                    continue
+                allow, el_text = self._parse_dataconfig_item(el)
+                if not allow:
+                    logger.info(
+                        "rtcDataConfig.xml: Skipped exportSeries item for elementId '%s' (not allowed by complex controller filter).",
+                        el_text,
+                    )
+                    continue
+                savedict["dataconfig_export"].append(xml_text)
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def _parse_cc_rtc_toolsconfig(
+        self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
+    ) -> None:
+        children = self._parse_unique_children(root)
+
+        rules = children.get("rules")
+        if rules is not None:
+            for el in rules:
+                allow, el_text = self._parse_toolsconfig_item(el)
+                if not allow:
+                    logger.info(
+                        "rtcToolsConfig.xml: Skipped rule element '%s' (not allowed by complex controller filter).",
+                        el_text,
+                    )
+                    continue
+                savedict["toolsconfig_rules"].append(ET.tostring(el).decode())
+
+        triggers = children.get("triggers")
+        if triggers is not None:
+            for el in triggers:
+                allow, el_text = self._parse_toolsconfig_item(el)
+                if not allow:
+                    logger.info(
+                        "rtcToolsConfig.xml: Skipped trigger element '%s' (not allowed by complex controller filter).",
+                        el_text,
+                    )
+                    continue
+                savedict["toolsconfig_triggers"].append(ET.tostring(el).decode())
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def _parse_cc_timeseries(
+        self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
+    ) -> None:
+        for el in root:
+            savedict["timeseries"].append(ET.tostring(el).decode())
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def _parse_cc_state(
+        self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
+    ) -> None:
+        for el in root[0]:
+            savedict["state"].append(ET.tostring(el).decode())
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def _parse_cc_dimr_config(
+        self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
+    ) -> None:
+        red_root = copy.deepcopy(root)
+        for coupler_name, coupler_target in (
+            ("rtc_to_flow", "targetName"),
+            ("flow_to_rtc", "sourceName"),
+        ):
+            self._filter_dimr_coupler_items(red_root, coupler_name, coupler_target)
+        savedict["dimr_config"].append(red_root)
+
+    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    def _filter_dimr_coupler_items(
+        self, red_root: ET.Element, coupler_name: str, coupler_target: str
+    ) -> None:
+        for coupler in list(red_root):
+            if coupler.attrib.get("name") != coupler_name:
+                continue
+            for sub_el in list(coupler):
+                target = sub_el.find(".//{*}" + coupler_target)
+                allow, el_text = self._parse_dimr_item(target)
+                if allow:
+                    continue
+                logger.info(
+                    "dimr_config.xml: Skipped %s element with '%s' '%s' (not allowed by complex controller filter).",
+                    coupler_name,
+                    coupler_target,
+                    el_text,
+                )
+                coupler.remove(sub_el)
 
 
     @validate_arguments
@@ -306,7 +365,7 @@ class DRTCModel:
     @validate_arguments
     def _load_complex_controllers(
         self, complex_controllers_folder: Union[list[Union[str, Path]], str, Path],
-    ) -> dict[str, list[str]]:
+    ) -> dict[str, list[Union[str, ET.Element]]]:
         """Normalize input folders, merge parsed controllers, and validate unique IDs."""
         if isinstance(complex_controllers_folder, list):
             complex_controllers = {}
