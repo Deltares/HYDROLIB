@@ -15,6 +15,8 @@ from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
 
+NO_RASTERDATA_WARNING = "No rasterdata available for catchment %s."
+
 
 class UnpavedIO:
     def __init__(self, unpaved):
@@ -145,7 +147,7 @@ class UnpavedIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning("No rasterdata available for catchment %s.", cat.code)
+                logger.warning(NO_RASTERDATA_WARNING, cat.code)
                 continue
             tm = [
                 m
@@ -523,7 +525,7 @@ class PavedIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning("No rasterdata available for catchment %s.", cat.code)
+                logger.warning(NO_RASTERDATA_WARNING, cat.code)
                 continue
             if sewer_areas is not None:
                 # part of the catchment that is also in a sewer area
@@ -706,7 +708,7 @@ class GreenhouseIO:
             for num, gh in enumerate(greenhouse_areas.itertuples()):
                 # find corresponding meteo-station
                 if mean_elev_gh[num]["median"] is None:
-                    logger.warning("No rasterdata available for catchment %s.", gh.code)
+                    logger.warning(NO_RASTERDATA_WARNING, gh.code)
                     continue
                 tm = [
                     m
@@ -739,7 +741,7 @@ class GreenhouseIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning("No rasterdata available for catchment %s.", cat.code)
+                logger.warning(NO_RASTERDATA_WARNING, cat.code)
                 continue
 
             # find corresponding meteo-station

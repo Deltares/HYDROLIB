@@ -16,6 +16,10 @@ from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 logger = logging.getLogger(__name__)
 
+TIMESERIES_IMPORT_XML = "timeseries_import.xml"
+INPUT_PREFIX = "[Input]"
+OUTPUT_PREFIX = "[Output]"
+
 
 @dataclass
 class DRTCStructure:
@@ -156,7 +160,7 @@ class DRTCModel:
         handlers = {
             "rtcDataConfig.xml": self._parse_cc_rtc_dataconfig,
             "rtcToolsConfig.xml": self._parse_cc_rtc_toolsconfig,
-            "timeseries_import.xml": self._parse_cc_timeseries,
+            TIMESERIES_IMPORT_XML: self._parse_cc_timeseries,
             "state_import.xml": self._parse_cc_state,
             "dimr_config.xml": self._parse_cc_dimr_config,
         }
@@ -436,8 +440,8 @@ class DRTCModel:
             el_tags += el.findall(".//{*}" + tag)
         for el_tag in el_tags:
             for child in el_tag:
-                if child.text.startswith("[Input]") or child.text.startswith("[Output]"):
-                    child_text = child.text.replace("[Input]", "").replace("[Output]", "")
+                if child.text.startswith(INPUT_PREFIX) or child.text.startswith(OUTPUT_PREFIX):
+                    child_text = child.text.replace(INPUT_PREFIX, "").replace(OUTPUT_PREFIX, "")
                     child_text = child_text.split("/")[0]
 
                     # Always allow observation points
@@ -891,7 +895,7 @@ class DRTCModel:
 
                 k = ET.SubElement(j, gn_brackets + "x")
                 k.text = (
-                    "[Input]"
+                    INPUT_PREFIX
                     + controller["observation_point"]
                     + "/"
                     + controller["target_variable"]
@@ -910,7 +914,7 @@ class DRTCModel:
                 m = ET.SubElement(b, gn_brackets + "output")
 
                 o = ET.SubElement(m, gn_brackets + "y")
-                o.text = "[Output]" + str(key) + "/" + controller["steering_variable"]
+                o.text = OUTPUT_PREFIX + str(key) + "/" + controller["steering_variable"]
 
                 p = ET.SubElement(m, gn_brackets + "integralPart")
                 p.text = "[IP]" + "Control group " + str(key) + "/PID Rule"
@@ -942,7 +946,7 @@ class DRTCModel:
 
                 k = ET.SubElement(j, gn_brackets + "x") # leave ref = "EXPLICIT" out for now
                 k.text = (
-                    "[Input]"
+                    INPUT_PREFIX
                     + controller["observation_point"]
                     + "/"
                     + controller["target_variable"]
@@ -955,7 +959,7 @@ class DRTCModel:
                 m = ET.SubElement(b, gn_brackets + "output")
 
                 o = ET.SubElement(m, gn_brackets + "y")
-                o.text = "[Output]" + str(key) + "/" + controller["steering_variable"]
+                o.text = OUTPUT_PREFIX + str(key) + "/" + controller["steering_variable"]
 
                 p = ET.SubElement(m, gn_brackets + "status")
                 p.text = "[Status]" + "Control group " + str(key) + "/Interval Rule"
@@ -974,7 +978,7 @@ class DRTCModel:
                 e = ET.SubElement(b, gn_brackets + "output")
 
                 f = ET.SubElement(e, gn_brackets + "y")
-                f.text = "[Output]" + str(key) + "/" + controller["steering_variable"]
+                f.text = OUTPUT_PREFIX + str(key) + "/" + controller["steering_variable"]
 
         # remove controllers that have complex controllers
         for key in to_remove:
@@ -1011,7 +1015,7 @@ class DRTCModel:
         configfile = ET.parse(self.template_dir / "rtcDataConfig_empty.xml")
         myroot = configfile.getroot()
 
-        timeseries_length = len(ET.parse(self.output_path / 'timeseries_import.xml').getroot())
+        timeseries_length = len(ET.parse(self.output_path / TIMESERIES_IMPORT_XML).getroot())
 
         # implementing standard settings import and exportdata
         a0 = ET.SubElement(myroot[1], gn_brackets + "CSVTimeSeriesFile")
@@ -1032,7 +1036,7 @@ class DRTCModel:
             # only if timeseries are written to the import
             a4 = ET.SubElement(myroot[0], gn_brackets + "PITimeSeriesFile")
             a5 = ET.SubElement(a4, gn_brackets + "timeSeriesFile")
-            a5.text = "timeseries_import.xml"
+            a5.text = TIMESERIES_IMPORT_XML
             a6 = ET.SubElement(a4, gn_brackets + "useBinFile")
             a6.text = "false"
 
@@ -1048,7 +1052,7 @@ class DRTCModel:
             # te importeren data
             if controller['type'] == 'PID':
 
-                input_id = "[Input]" + controller["observation_point"] + "/" +  controller["target_variable"]
+                input_id = INPUT_PREFIX + controller["observation_point"] + "/" +  controller["target_variable"]
 
                 if myroot[0].find(f".//*[@id='{input_id}']") is None:
                     a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
@@ -1089,7 +1093,7 @@ class DRTCModel:
             elif controller['type'] == 'Interval':
                 a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
 
-                input_id = "[Input]" + controller["observation_point"] + "/" +  controller["target_variable"]
+                input_id = INPUT_PREFIX + controller["observation_point"] + "/" +  controller["target_variable"]
 
                 if myroot.find(f".//*[@id='{input_id}']") is None:
                     a.set("id", input_id)
@@ -1141,7 +1145,7 @@ class DRTCModel:
 
             # te exporteren data:
             f = ET.SubElement(myroot[1], gn_brackets + "timeSeries")
-            f.set("id", "[Output]" + str(key) + "/" + controller["steering_variable"])
+            f.set("id", OUTPUT_PREFIX + str(key) + "/" + controller["steering_variable"])
 
             g = ET.SubElement(f, gn_brackets + "OpenMIExchangeItem")
 
@@ -1195,7 +1199,7 @@ class DRTCModel:
             controller = self.all_controllers[key]
             if self.cc_ids is not None and self.cc_id_limit is not None:
                 if key in self.cc_ids and key in self.cc_id_limit:
-                    logger.warning(f"timeseries_import.xml: Skipped writing {controller['type']} control for {key}, complex controller already present")
+                    logger.warning(f"{TIMESERIES_IMPORT_XML}: Skipped writing {controller['type']} control for {key}, complex controller already present")
                     continue
 
             if controller['type'] == 'Time':
@@ -1323,7 +1327,7 @@ class DRTCModel:
             for ctl in self.complex_controllers["timeseries"]:
                 myroot.append(ET.fromstring(ctl))
 
-        self.finish_file(myroot, configfile, self.output_path / "timeseries_import.xml")
+        self.finish_file(myroot, configfile, self.output_path / TIMESERIES_IMPORT_XML)
 
     def write_state_import(self) -> None:
         """Function to write state_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
@@ -1351,7 +1355,7 @@ class DRTCModel:
 
             # te importeren data
             a = ET.SubElement(a0, gn_brackets + "treeVectorLeaf")
-            a.attrib = {"id": "[Output]" + key + "/" + controller["steering_variable"]}
+            a.attrib = {"id": OUTPUT_PREFIX + key + "/" + controller["steering_variable"]}
             b = ET.SubElement(a, gn_brackets + "vector")
             if controller['type'] == 'PID':
                 b.text = str(controller["upper_bound"])
