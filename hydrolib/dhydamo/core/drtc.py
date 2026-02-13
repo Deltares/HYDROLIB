@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional, Union
 from dataclasses import dataclass
 import pandas as pd
-from pydantic.v1 import validate_arguments
+from pydantic.v1 import ConfigDict, validate_arguments
 
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
@@ -27,7 +27,7 @@ class DRTCStructure:
 class DRTCModel:
     """Main class to generate RTC-module files."""
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
         hydamo: HyDAMO,
@@ -183,7 +183,7 @@ class DRTCModel:
             "dimr_config": [],
         }
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_cc_rtc_dataconfig(
         self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
     ) -> None:
@@ -218,7 +218,7 @@ class DRTCModel:
                     continue
                 savedict["dataconfig_export"].append(xml_text)
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_cc_rtc_toolsconfig(
         self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
     ) -> None:
@@ -248,21 +248,21 @@ class DRTCModel:
                     continue
                 savedict["toolsconfig_triggers"].append(ET.tostring(el).decode())
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_cc_timeseries(
         self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
     ) -> None:
         for el in root:
             savedict["timeseries"].append(ET.tostring(el).decode())
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_cc_state(
         self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
     ) -> None:
         for el in root[0]:
             savedict["state"].append(ET.tostring(el).decode())
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_cc_dimr_config(
         self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
     ) -> None:
@@ -274,7 +274,7 @@ class DRTCModel:
             self._filter_dimr_coupler_items(red_root, coupler_name, coupler_target)
         savedict["dimr_config"].append(red_root)
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _filter_dimr_coupler_items(
         self, red_root: ET.Element, coupler_name: str, coupler_target: str
     ) -> None:
@@ -411,7 +411,7 @@ class DRTCModel:
 
         return complex_controllers
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_dataconfig_item(self, el: ET.Element) -> tuple[bool, Optional[str]]:
         allow = True
         el_id = el.find(".//{*}elementId")
@@ -425,7 +425,7 @@ class DRTCModel:
 
         return allow, el_text
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_toolsconfig_item(self, el: ET.Element) -> tuple[bool, Optional[str]]:
         allow = True
         el_firstchild_text = None
@@ -452,7 +452,7 @@ class DRTCModel:
         return allow, el_firstchild_text
 
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_dimr_item(self, target: Optional[ET.Element]) -> tuple[bool, Optional[str]]:
         allow = True
         el_text = None
@@ -480,7 +480,7 @@ class DRTCModel:
         return allow, el_text
 
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_referenced_structures(self, root: ET.Element) -> list[DRTCStructure]:
         structures = []
         rtc_to_flow = root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")
@@ -491,7 +491,7 @@ class DRTCModel:
         return structures
 
     @staticmethod
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_unique_children(root: ET.Element):
         # Store xml sections by tag, this function assumes unique children.
         children = {}
@@ -507,7 +507,7 @@ class DRTCModel:
 
         return children
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def from_hydamo(
         self, pid_settings: Optional[dict]=None, interval_settings: Optional[dict]=None, timeseries: Optional[pd.DataFrame]=None
     ) -> None:
@@ -639,7 +639,7 @@ class DRTCModel:
                     f"{management.typecontroller} is not a valid controller type - skipped."
                 )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def add_time_controller(
         self,
         structure_id: str = None,
@@ -665,7 +665,7 @@ class DRTCModel:
             "extrapolation_option": extrapolation_option,
         }
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def add_pid_controller(
         self,
         structure_id: str = None,
@@ -715,7 +715,7 @@ class DRTCModel:
             "extrapolation_option": extrapolation_option,
         }
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def add_interval_controller(
         self,
         structure_id: str = None,
