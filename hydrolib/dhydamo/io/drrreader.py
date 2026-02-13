@@ -6,7 +6,7 @@ from typing import Union
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from pydantic.v1 import validate_arguments, StrictStr
+from pydantic.v1 import ConfigDict, validate_arguments, StrictStr
 from rasterstats import zonal_stats
 from rasterio.transform import from_origin
 from tqdm.auto import tqdm
@@ -20,7 +20,7 @@ class UnpavedIO:
     def __init__(self, unpaved):
         self.unpaved = unpaved
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def unpaved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
@@ -216,7 +216,7 @@ class UnpavedIO:
             for unpaved in unpaved_drr.to_dict("records")
         ]
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def ernst_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
@@ -263,7 +263,7 @@ class PavedIO:
     def __init__(self, paved):
         self.paved = paved
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def paved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
@@ -616,7 +616,7 @@ class GreenhouseIO:
     def __init__(self, greenhouse):
         self.greenhouse = greenhouse
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def greenhouse_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
@@ -784,7 +784,7 @@ class OpenwaterIO:
     def __init__(self, openwater):
         self.openwater = openwater
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def openwater_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
@@ -851,7 +851,7 @@ class ExternalForcingsIO:
     def __init__(self, external_forcings):
         self.external_forcings = external_forcings
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def seepage_from_input(
         self, catchments: ExtendedGeoDataFrame, seepage_folder: Union[Path, str]
     ) -> None:
@@ -900,7 +900,7 @@ class ExternalForcingsIO:
         [self.external_forcings.add_seepage(*sep) for sep in result.items()]
 
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def precip_from_input(
         self,
         areas: ExtendedGeoDataFrame,
@@ -940,7 +940,7 @@ class ExternalForcingsIO:
         else:
             self.external_forcings.precip = str(precip_file)
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def evap_from_input(
         self,
         areas: ExtendedGeoDataFrame,
@@ -983,7 +983,7 @@ class ExternalForcingsIO:
         else:
             self.external_forcings.evap = str(evap_file)
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def boundary_from_input(
         self,
         boundary_nodes: ExtendedGeoDataFrame,

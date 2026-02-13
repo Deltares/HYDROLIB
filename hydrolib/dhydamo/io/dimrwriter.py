@@ -66,7 +66,7 @@ class DIMRWriter:
         proj.wkt = "PROJCS[\"Amersfoort / RD New\",\n    GEOGCS[\"Amersfoort\",\n        DATUM[\"Amersfoort\",\n            SPHEROID[\"Bessel 1841\",6377397.155,299.1528128,\n"             
         netf.close()   
 
-    #@validate_arguments(config=dict(arbitrary_types_allowed=True))
+    #@validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def write_dimrconfig(
         self, fm: FMModel, rr_model: DRRModel = None, rtc_model: DRTCModel = None
     ) -> None:

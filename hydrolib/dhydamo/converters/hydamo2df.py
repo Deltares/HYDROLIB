@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Union
 import numpy as np
 import pandas as pd
-from pydantic.v1 import validate_arguments
+from pydantic.v1 import ConfigDict, validate_arguments
 from typing import Optional
 from shapely.geometry import Point
 from netCDF4 import Dataset
@@ -23,7 +23,7 @@ class CrossSectionsIO:
     def __init__(self, crosssections):
         self.crosssections = crosssections
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def from_datamodel(
         self, crsdefs: pd.DataFrame = None, crslocs: pd.DataFrame = None
     ) -> None:
@@ -98,7 +98,7 @@ class CrossSectionsIO:
                 else:
                     raise NotImplementedError
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def profiles(
         self,
         branches: ExtendedGeoDataFrame, # = None,
@@ -287,7 +287,7 @@ class ExternalForcingsIO:
     def __init__(self, external_forcings):
         self.external_forcings = external_forcings
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def boundaries(
         self, boundary_conditions: ExtendedGeoDataFrame, mesh1d: Network = None
     ) -> None:
@@ -332,7 +332,7 @@ class ExternalForcingsIO:
                 key, item["geometry"], item["quantity"], item["value"], mesh1d=mesh1d
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def laterals(
         self,
         locations: ExtendedGeoDataFrame,
@@ -422,7 +422,7 @@ class ExternalForcingsIO:
             )
 
             
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def timeseries_from_other_model(self,
                                   his_file: Union[Path, str] = None, 
                                   location_type: str = None,
@@ -538,7 +538,7 @@ class StructuresIO:
             "chainage": row.branch_offset,
         }
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def generalstructures_from_datamodel(self, generalstructures: pd.DataFrame) -> None:
         """From parsed data model of orifices
 
@@ -634,7 +634,7 @@ class StructuresIO:
                 else np.nan,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def weirs(
         self,
         weirs: ExtendedGeoDataFrame = None,
@@ -863,7 +863,7 @@ class StructuresIO:
             )
         self.structures.hydamo.management.index = self.structures.hydamo.management.globalid
         
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def weirs_from_datamodel(self, weirs: pd.DataFrame) -> None:
         """ "From parsed data model of weirs"""
         for weir_idx, weir in weirs.iterrows():
@@ -875,7 +875,7 @@ class StructuresIO:
                 corrcoeff=weir.corrcoeff,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def orifices_from_datamodel(self, orifices: pd.DataFrame) -> None:
         """ "From parsed data model of orifices"""
         for orifice_idx, orifice in orifices.iterrows():
@@ -893,7 +893,7 @@ class StructuresIO:
                 limitflowneg=orifice.limitflowneg,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def uweirs_from_datamodel(self, uweirs: pd.DataFrame) -> None:
         """ "From parsed data model of universal weirs"""
         for uweir_idx, uweir in uweirs.iterrows():
@@ -907,7 +907,7 @@ class StructuresIO:
                 dischargecoeff=uweir.dischargecoeff,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def bridges(
         self,
         bridges: ExtendedGeoDataFrame,
@@ -952,7 +952,7 @@ class StructuresIO:
                 friction=bridge.ruwheid,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def bridges_from_datamodel(self, bridges: pd.DataFrame) -> None:
         """ "From parsed data model of bridges"""
         for bridge_idx, bridge in bridges.iterrows():
@@ -969,7 +969,7 @@ class StructuresIO:
                 friction=bridge.ruwheid,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def culverts(
         self,
         culverts: ExtendedGeoDataFrame,
@@ -1073,7 +1073,7 @@ class StructuresIO:
                 bedfriction=culvert.ruwheid,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def culverts_from_datamodel(self, culverts: pd.DataFrame) -> None:
         """
         From parsed model of culverts
@@ -1102,7 +1102,7 @@ class StructuresIO:
                 frictionvalue=culvert.frictionvalue,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def pumps(
         self,
         pumpstations: ExtendedGeoDataFrame,
@@ -1197,7 +1197,7 @@ class StructuresIO:
                     stopleveldeliveryside=stoplevelsuctionside,
                 )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def pumps_from_datamodel(self, pumps: pd.DataFrame) -> None:
         """From parsed data model of pumps"""
 
