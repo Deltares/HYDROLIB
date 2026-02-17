@@ -282,6 +282,39 @@ def test_dimrwriter_deduplicates_coupler_items(hydamo=None):
     ) in flow_to_rtc_pairs
 
 
+def test_dimrwriter_flow_to_rtc_components_for_complex_only(hydamo=None):
+    data_path = Path("hydrolib/tests/data").resolve()
+    assert data_path.exists()
+
+    output_path = Path("hydrolib/tests/model").resolve()
+    if hydamo is None:
+        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+
+    rtcd = DRTCModel(
+        hydamo,
+        fm,
+        output_path=output_path,
+        complex_controllers_folder=data_path / "complex_controllers_1",
+        id_limit_complex_controllers=["S_96684", "ObsS_96684"],
+        rtc_timestep=60.0,
+    )
+    rtcd.write_xml_v1()
+
+    dimrwriter = DIMRWriter(output_path=output_path)
+    dimrwriter.write_dimrconfig(fm, rtc_model=rtcd)
+
+    root = ET.parse(output_path / "dimr_config.xml").getroot()
+    coupler = root.find(".//{*}coupler[@name='flow_to_rtc']")
+    assert coupler is not None
+
+    source_component = coupler.find("./{*}sourceComponent")
+    target_component = coupler.find("./{*}targetComponent")
+    assert source_component is not None
+    assert target_component is not None
+    assert source_component.text == "DFM"
+    assert target_component.text == "Real_Time_Control"
+
+
 def test_drtc_deduplicates_complex_fragments(hydamo=None):
     data_path = Path("hydrolib/tests/data").resolve()
     assert data_path.exists()

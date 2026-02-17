@@ -386,6 +386,19 @@ class DIMRWriter:
                                 couplerfmrtc = ET.Element(gn_brackets + "coupler")
                                 couplerfmrtc.attrib = {"name": "flow_to_rtc"}
                                 couplerfmrtc.tail = "\n"
+
+                                sourcefmrtc = ET.SubElement(
+                                    couplerfmrtc, gn_brackets + "sourceComponent"
+                                )
+                                sourcefmrtc.text = "DFM"
+                                sourcefmrtc.tail = "\n"
+
+                                targetfmrtc = ET.SubElement(
+                                    couplerfmrtc, gn_brackets + "targetComponent"
+                                )
+                                targetfmrtc.text = "Real_Time_Control"
+                                targetfmrtc.tail = "\n"
+
                                 coupler_exists = True
                             for iblock in block:
                                 iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
