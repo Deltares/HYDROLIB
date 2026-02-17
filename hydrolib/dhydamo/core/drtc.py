@@ -164,7 +164,16 @@ class DRTCModel:
             dict: dict of list with the data in the files. Every key is a RTC-file, including the DIMR-config.
         """
         files = [p for p in Path(xml_folder).iterdir() if p.suffix == ".xml"]
-        savedict = self._init_complex_controller_data()
+        savedict = {
+            "dataconfig_import": [],
+            "dataconfig_export": [],
+            "toolsconfig_rules": [],
+            "toolsconfig_triggers": [],
+            "timeseries": [],
+            "state": [],
+            "dimr_config": [],
+        }
+
         handlers = {
             "rtcDataConfig.xml": self._parse_cc_rtc_dataconfig,
             "rtcToolsConfig.xml": self._parse_cc_rtc_toolsconfig,
@@ -178,27 +187,14 @@ class DRTCModel:
             if handler is None:
                 continue
             root = ET.parse(filepath).getroot()
-            handler(root, savedict)
+            savedict = handler(root, savedict)
 
         return savedict
-
-    @staticmethod
-    @validate_arguments
-    def _init_complex_controller_data() -> dict[str, list[Union[str, ET.Element]]]:
-        return {
-            "dataconfig_import": [],
-            "dataconfig_export": [],
-            "toolsconfig_rules": [],
-            "toolsconfig_triggers": [],
-            "timeseries": [],
-            "state": [],
-            "dimr_config": [],
-        }
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_cc_rtc_dataconfig(
         self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
-    ) -> None:
+    ) -> dict[str, list[Union[str, ET.Element]]]:
         children = self._parse_unique_children(root)
         import_series = children.get("importSeries")
         if import_series is not None:
@@ -230,10 +226,12 @@ class DRTCModel:
                     continue
                 savedict["dataconfig_export"].append(xml_text)
 
+        return savedict
+
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_cc_rtc_toolsconfig(
         self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
-    ) -> None:
+    ) -> dict[str, list[Union[str, ET.Element]]]:
         children = self._parse_unique_children(root)
 
         rules = children.get("rules")
@@ -260,24 +258,30 @@ class DRTCModel:
                     continue
                 savedict["toolsconfig_triggers"].append(ET.tostring(el).decode())
 
+        return savedict
+
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_cc_timeseries(
         self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
-    ) -> None:
+    ) -> dict[str, list[Union[str, ET.Element]]]:
         for el in root:
             savedict["timeseries"].append(ET.tostring(el).decode())
+
+        return savedict
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_cc_state(
         self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
-    ) -> None:
+    ) -> dict[str, list[Union[str, ET.Element]]]:
         for el in root[0]:
             savedict["state"].append(ET.tostring(el).decode())
+
+        return savedict
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_cc_dimr_config(
         self, root: ET.Element, savedict: dict[str, list[Union[str, ET.Element]]]
-    ) -> None:
+    ) -> dict[str, list[Union[str, ET.Element]]]:
         red_root = copy.deepcopy(root)
         for coupler_name, coupler_target in (
             ("rtc_to_flow", "targetName"),
@@ -285,6 +289,8 @@ class DRTCModel:
         ):
             self._filter_dimr_coupler_items(red_root, coupler_name, coupler_target)
         savedict["dimr_config"].append(red_root)
+
+        return savedict
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _filter_dimr_coupler_items(
@@ -305,7 +311,6 @@ class DRTCModel:
                     el_text,
                 )
                 coupler.remove(sub_el)
-
 
     @validate_arguments
     def _load_complex_controller_structs(
@@ -420,7 +425,67 @@ class DRTCModel:
         else:
             complex_controllers = self.parse_complex_controller(Path(complex_controllers_folder))
 
+        # Keep a single merged DIMR root so downstream writers can consume index 0.
+        complex_controllers["dimr_config"] = self._merge_dimr_config_roots(
+            complex_controllers.get("dimr_config", [])
+        )
+
         return complex_controllers
+
+    @staticmethod
+    def get_item_pair(item: ET.Element) -> Optional[tuple[str, str]]:
+        source = item.find(".//{*}sourceName")
+        target = item.find(".//{*}targetName")
+        if source is None or target is None or source.text is None or target.text is None:
+            return None
+        return source.text, target.text
+
+    @staticmethod
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def _merge_dimr_config_roots(dimr_roots: list[ET.Element]) -> list[ET.Element]:
+        """Merge multiple dimr_config roots into one by combining coupler items."""
+        if len(dimr_roots) <= 1:
+            return dimr_roots
+
+        # Use the first root as canonical structure/template for the merged result.
+        # Remove all couplers first
+        merged_root = copy.deepcopy(dimr_roots[0])
+        for coupler in merged_root.findall("./{*}coupler"):
+            merged_root.remove(coupler)
+
+        # Merge couplers and items
+        seen_items_by_coupler = {}
+        for root in dimr_roots:
+            for coupler in root.findall("./{*}coupler"):
+                coupler_name = coupler.attrib.get("name")
+                if coupler_name is None:
+                    continue
+
+                if coupler_name not in seen_items_by_coupler:
+                    # Add this coupler without items
+                    mc = copy.deepcopy(coupler)
+                    for item in mc.findall("./{*}item"):
+                        mc.remove(item)
+                    merged_root.append(mc)
+
+                    # Initialize tracking reference
+                    seen_items_by_coupler[coupler_name] = {
+                        "reference": mc,
+                        "items": set(),
+                    }
+
+                # Only add unseen coupler items
+                for item in coupler.findall("./{*}item"):
+                    mitem = copy.deepcopy(item)
+                    pair = DRTCModel.get_item_pair(mitem)
+                    if pair is None:
+                        continue
+
+                    if pair not in seen_items_by_coupler[coupler_name]["items"]:
+                        seen_items_by_coupler[coupler_name]["items"].add(pair)
+                        seen_items_by_coupler[coupler_name]["reference"].append(mitem)
+
+        return [merged_root]
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_dataconfig_item(self, el: ET.Element) -> tuple[bool, Optional[str]]:

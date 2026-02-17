@@ -177,7 +177,49 @@ def test_complex_controller_multiple_folders(hydamo=None):
     )
 
     for key in rtcd.complex_controllers.keys():
-        assert len(rtcd1.complex_controllers[key]) + len(rtcd2.complex_controllers[key]) == len(rtcd.complex_controllers[key])
+        if key == "dimr_config":
+            assert len(rtcd.complex_controllers[key]) == 1
+        else:
+            assert len(rtcd1.complex_controllers[key]) + len(rtcd2.complex_controllers[key]) == len(rtcd.complex_controllers[key])
+
+def test_complex_controller_multiple_folders_dimr_merged(hydamo=None):
+    data_path = Path("hydrolib/tests/data").resolve()
+    assert data_path.exists()
+
+    output_path = Path("hydrolib/tests/model").resolve()
+    if hydamo is None:
+        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+
+    hydamo.structures.add_uweir(
+        id="uweir_test",
+        branchid="W_242213_0",
+        chainage=2.0,
+        crestlevel=18.00,
+        crestwidth=7.5,
+        dischargecoeff=1.0,
+        numlevels=4,
+        yvalues="0.0 1.0 2.0 3.0",
+        zvalues="19.0 18.0 18.2 19",
+    )
+
+    rtcd = DRTCModel(
+        hydamo,
+        fm,
+        output_path=output_path,
+        complex_controllers_folder=[
+            data_path / "complex_controllers_1",
+            data_path / "complex_controllers_2",
+        ],
+        id_limit_complex_controllers=["S_96684", "ObsS_96684", "uweir_test"],
+        rtc_timestep=60.0,
+    )
+    root = rtcd.complex_controllers["dimr_config"][0]
+    targets = {
+        el.text
+        for el in root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")
+    }
+    assert "weirs/S_96684/crestLevel" in targets
+    assert "weirs/uweir_test/crestLevel" in targets
 
 
 def test_complex_controller_fourtypes(caplog, hydamo=None):
