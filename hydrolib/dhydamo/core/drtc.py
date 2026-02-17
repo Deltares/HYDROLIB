@@ -76,6 +76,9 @@ class DRTCModel:
         self.output_path = output_path / "rtc"
         self.output_path.mkdir(parents=True, exist_ok=True)
 
+        # Save object id by type
+        self.struct_ids_by_type = self._get_struct_ids_by_type()
+
         # parse user-provided controllers
         self.complex_controllers = None
         self.cc_structs = None
@@ -113,13 +116,18 @@ class DRTCModel:
             self.complex_controllers  = None
 
     @validate_arguments
-    def allow_struct(self, cc_id: str):
-        allow = True
-        if self.cc_ids is not None and self.cc_id_limit is not None:
-            if cc_id in self.cc_ids and cc_id not in self.cc_id_limit:
-                allow = False
+    def allow_struct(self, cc_id: str, allow_observations: bool = False) -> bool:
+        """Return whether a structure id is allowed by the complex-controller filter."""
+        if allow_observations and cc_id in self.struct_ids_by_type["observations"]:
+            return True
 
-        return allow
+        if self.cc_ids is None or self.cc_id_limit is None:
+            return True
+
+        if cc_id in self.cc_ids and cc_id not in self.cc_id_limit:
+            return False
+        else:
+            return True
 
     @validate_arguments
     def check_timeseries(self, timeseries):
@@ -362,15 +370,14 @@ class DRTCModel:
     def _validate_complex_controller_structs(
         self, complex_controller_structs: list[DRTCStructure]
     ) -> None:
-        struct_ids_by_type = self._get_struct_ids_by_type()
         missing_structs = []
         unknown_types = set()
 
         for fs in complex_controller_structs:
-            if fs.struct_type not in struct_ids_by_type:
+            if fs.struct_type not in self.struct_ids_by_type:
                 unknown_types.add(fs.struct_type)
                 continue
-            if fs.struct_name not in struct_ids_by_type[fs.struct_type]:
+            if fs.struct_name not in self.struct_ids_by_type[fs.struct_type]:
                 missing_structs.append(f"{fs.struct_type}/{fs.struct_name}")
 
         if unknown_types:
@@ -418,14 +425,14 @@ class DRTCModel:
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _parse_dataconfig_item(self, el: ET.Element) -> tuple[bool, Optional[str]]:
         allow = True
-        el_id = el.find(".//{*}elementId")
+        el_text = None
 
         # Check if this is a complex controller but not in the whitelist
         # Always allow observation points
-        el_text = None
-        if el_id is not None and not el_id.text.startswith("Obs"):
-            allow = self.allow_struct(el_id.text)
+        el_id = el.find(".//{*}elementId")
+        if el_id is not None:
             el_text = el_id.text
+            allow = self.allow_struct(el_text, allow_observations=True)
 
         return allow, el_text
 
@@ -444,13 +451,10 @@ class DRTCModel:
                     child_text = child.text.replace(INPUT_PREFIX, "").replace(OUTPUT_PREFIX, "")
                     child_text = child_text.split("/")[0]
 
-                    # Always allow observation points
-                    if child_text.startswith("Obs"):
-                        continue
-
                     # Check if this is a complex controller but not in the whitelist
+                    # Always allow observation points
                     if allow:
-                        allow = self.allow_struct(child_text)
+                        allow = self.allow_struct(child_text, allow_observations=True)
                         el_firstchild_text = el_firstchild.get("id")
 
         return allow, el_firstchild_text
