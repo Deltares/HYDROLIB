@@ -19,12 +19,17 @@ logger = logging.getLogger(__name__)
 class DRRWriter:
     """Writer for RR files"""
 
-    def __init__(self, rrmodel, output_dir, name, wwtp=None):
+    def __init__(self, rrmodel, output_dir, name=None, wwtp=None):
         self.rrmodel = rrmodel
         # self.geometries = parent.geometries
         # self.boundary_conditions = parent.boundary_conditions
         self.output_dir = os.path.join(output_dir, "rr")
-        self.name = name
+        
+        if name is not None:
+            logger.warning(
+                "The 'name' parameter is deprecated and will be removed in a future version.",                
+        )
+
         hydamo = HyDAMO()
         self.version = hydamo.version
 
