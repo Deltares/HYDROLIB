@@ -262,6 +262,7 @@ def test_dimrwriter_deduplicates_coupler_items(hydamo=None):
     dimrwriter.write_dimrconfig(fm, rtc_model=rtcd)
 
     root = ET.parse(output_path / "dimr_config.xml").getroot()
+    flow_to_rtc_pairs = []
     for coupler_name in ("flow_to_rtc", "rtc_to_flow"):
         pairs = []
         for item in root.findall(f".//{{*}}coupler[@name='{coupler_name}']/{{*}}item"):
@@ -270,8 +271,15 @@ def test_dimrwriter_deduplicates_coupler_items(hydamo=None):
             if source is None or target is None:
                 continue
             pairs.append((source.text, target.text))
+        if coupler_name == "flow_to_rtc":
+            flow_to_rtc_pairs = pairs
 
         assert len(pairs) == len(set(pairs))
+
+    assert (
+        "observations/ObsO_test/discharge",
+        "[Input]ObsO_test/Discharge (op)",
+    ) in flow_to_rtc_pairs
 
 
 def test_drtc_deduplicates_complex_fragments(hydamo=None):

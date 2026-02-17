@@ -359,7 +359,12 @@ class DIMRWriter:
 
                 # Loop through all interval controllers
                 for i in rtc_model.interval_controllers.keys():
-                    source_name = f"observations/{rtc_model.interval_controllers[i]['observation_point']}/water_level"
+                    if rtc_model.interval_controllers[i]["target_variable"] == "Discharge (op)":
+                        source_name = f"observations/{rtc_model.interval_controllers[i]['observation_point']}/discharge"
+                    elif rtc_model.interval_controllers[i]["target_variable"] == "Water level (op)":
+                        source_name = f"observations/{rtc_model.interval_controllers[i]['observation_point']}/water_level"
+                    else:
+                        raise ValueError("Invalid target variable in controller: should be discharge or water level.")
                     target_name = f"[Input]{rtc_model.interval_controllers[i]['observation_point']}/{rtc_model.interval_controllers[i]['target_variable']}"
                     self._add_unique_coupler_item(
                         couplerfmrtc,
