@@ -1,5 +1,6 @@
 import logging
 import sys
+import xml.etree.ElementTree as ET
 
 sys.path.insert(0, r".")
 from pathlib import Path
@@ -9,6 +10,7 @@ import pandas as pd
 from shapely.geometry import Point
 
 from hydrolib.dhydamo.core.drtc import DRTCModel
+from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
 
 
@@ -220,6 +222,56 @@ def test_complex_controller_multiple_folders_dimr_merged(hydamo=None):
     }
     assert "weirs/S_96684/crestLevel" in targets
     assert "weirs/uweir_test/crestLevel" in targets
+
+
+def test_dimrwriter_deduplicates_coupler_items(hydamo=None):
+    data_path = Path("hydrolib/tests/data").resolve()
+    assert data_path.exists()
+
+    output_path = Path("hydrolib/tests/model").resolve()
+    if hydamo is None:
+        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+
+    hydamo.structures.add_uweir(
+        id="uweir_test",
+        branchid="W_242213_0",
+        chainage=2.0,
+        crestlevel=18.00,
+        crestwidth=7.5,
+        dischargecoeff=1.0,
+        numlevels=4,
+        yvalues="0.0 1.0 2.0 3.0",
+        zvalues="19.0 18.0 18.2 19",
+    )
+
+    rtcd = DRTCModel(
+        hydamo,
+        fm,
+        output_path=output_path,
+        complex_controllers_folder=[
+            data_path / "complex_controllers_1",
+            data_path / "complex_controllers_2",
+        ],
+        id_limit_complex_controllers=["S_96684", "ObsS_96684", "uweir_test"],
+        rtc_timestep=60.0,
+    )
+    _add_default_simple_control(data_path, hydamo, rtcd)
+    rtcd.write_xml_v1()
+
+    dimrwriter = DIMRWriter(output_path=output_path)
+    dimrwriter.write_dimrconfig(fm, rtc_model=rtcd)
+
+    root = ET.parse(output_path / "dimr_config.xml").getroot()
+    for coupler_name in ("flow_to_rtc", "rtc_to_flow"):
+        pairs = []
+        for item in root.findall(f".//{{*}}coupler[@name='{coupler_name}']/{{*}}item"):
+            source = item.find("./{*}sourceName")
+            target = item.find("./{*}targetName")
+            if source is None or target is None:
+                continue
+            pairs.append((source.text, target.text))
+
+        assert len(pairs) == len(set(pairs))
 
 
 def test_complex_controller_fourtypes(caplog, hydamo=None):

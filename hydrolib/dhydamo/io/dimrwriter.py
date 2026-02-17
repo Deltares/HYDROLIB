@@ -66,6 +66,34 @@ class DIMRWriter:
         proj.wkt = "PROJCS[\"Amersfoort / RD New\",\n    GEOGCS[\"Amersfoort\",\n        DATUM[\"Amersfoort\",\n            SPHEROID[\"Bessel 1841\",6377397.155,299.1528128,\n"             
         netf.close()   
 
+    @staticmethod
+    def _add_unique_coupler_item(
+        coupler: ET.Element,
+        source_name: str,
+        target_name: str,
+        seen_pairs: set[tuple[str, str]],
+        gn_brackets: str,
+    ) -> None:
+        if source_name is None or target_name is None:
+            return
+
+        pair = (source_name, target_name)
+        if pair in seen_pairs:
+            return
+        seen_pairs.add(pair)
+
+        item = ET.SubElement(coupler, gn_brackets + "item")
+        item.text = ""
+        item.tail = "\n"
+
+        source = ET.SubElement(item, gn_brackets + "sourceName")
+        source.text = source_name
+        source.tail = "\n"
+
+        target = ET.SubElement(item, gn_brackets + "targetName")
+        target.text = target_name
+        target.tail = "\n"
+
     #@validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def write_dimrconfig(
         self, fm: FMModel, rr_model: DRRModel = None, rtc_model: DRTCModel = None
@@ -247,20 +275,17 @@ class DIMRWriter:
                       "Capacity (p)": ["pumps","capacity"]
                       }
 
+            rtc_to_flow_seen_pairs = set()
 
             for i in rtc_model.all_controllers.keys():
                 svar=rtc_model.all_controllers[i]['steering_variable']
-
-                item = ET.SubElement(couplerrtcfm, gn_brackets + "item")
-                item.text = ""
-                item.tail = "\n"
-
-                source = ET.SubElement(item, gn_brackets + "sourceName")
-                source.text = f"[Output]{i}/{svar}"
-                source.tail = "\n"
-                target = ET.SubElement(item, gn_brackets + "targetName")
-                target.text = f"{rtcdict[svar][0]}/{i}/{rtcdict[svar][1]}"
-                target.tail = "\n"
+                self._add_unique_coupler_item(
+                    couplerrtcfm,
+                    f"[Output]{i}/{svar}",
+                    f"{rtcdict[svar][0]}/{i}/{rtcdict[svar][1]}",
+                    rtc_to_flow_seen_pairs,
+                    gn_brackets,
+                )
 
             # check if there are user-specified controller that should be included
             if rtc_model.complex_controllers is not None:
@@ -272,23 +297,15 @@ class DIMRWriter:
                             for iblock in block:
                                 iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
                                 if iblock_tag == "item":
-                                    item = ET.SubElement(
-                                        couplerrtcfm, gn_brackets + "item"
+                                    source = iblock.find(".//{*}sourceName")
+                                    target = iblock.find(".//{*}targetName")
+                                    self._add_unique_coupler_item(
+                                        couplerrtcfm,
+                                        source.text if source is not None else None,
+                                        target.text if target is not None else None,
+                                        rtc_to_flow_seen_pairs,
+                                        gn_brackets,
                                     )
-                                    item.text = ""
-                                    item.tail = "\n"
-
-                                    source = ET.SubElement(
-                                        item, gn_brackets + "sourceName"
-                                    )
-                                    source.text = iblock[0].text
-                                    source.tail = "\n"
-
-                                    target = ET.SubElement(
-                                        item, gn_brackets + "targetName"
-                                    )
-                                    target.text = iblock[1].text
-                                    target.tail = "\n"
 
             logrtcfm = ET.SubElement(couplerrtcfm, gn_brackets + "logger")
             logrtcfm.text = ""
@@ -306,6 +323,7 @@ class DIMRWriter:
 
             # the Fm to RTC coupler is not always needed. It is for PID controllers.
             coupler_exists = False
+            flow_to_rtc_seen_pairs = set()
             if bool(rtc_model.pid_controllers) or bool(rtc_model.interval_controllers):
                 couplerfmrtc = ET.Element(gn_brackets + "coupler")
                 couplerfmrtc.attrib = {"name": "flow_to_rtc"}
@@ -324,36 +342,32 @@ class DIMRWriter:
                 targetfmrtc.tail = "\n"
 
                 for i in rtc_model.pid_controllers.keys():
-                    item = ET.SubElement(couplerfmrtc, gn_brackets + "item")
-                    item.text = ""
-                    item.tail = "\n"
-
-                    source = ET.SubElement(item, gn_brackets + "sourceName")
                     if rtc_model.pid_controllers[i]['target_variable'] == 'Discharge (op)':
-                        source.text = f"observations/{rtc_model.pid_controllers[i]['observation_point']}/discharge"
+                        source_name = f"observations/{rtc_model.pid_controllers[i]['observation_point']}/discharge"
                     elif rtc_model.pid_controllers[i]['target_variable'] == 'Water level (op)':
-                        source.text = f"observations/{rtc_model.pid_controllers[i]['observation_point']}/water_level"
+                        source_name = f"observations/{rtc_model.pid_controllers[i]['observation_point']}/water_level"
                     else:
                         raise ValueError('Invalid target variable in controller: should bo discharge or water level.')
-                    source.tail = "\n"
-
-                    target = ET.SubElement(item, gn_brackets + "targetName")
-                    target.text = f"[Input]{rtc_model.pid_controllers[i]['observation_point']}/{rtc_model.pid_controllers[i]['target_variable']}"
-                    target.tail = "\n"
+                    target_name = f"[Input]{rtc_model.pid_controllers[i]['observation_point']}/{rtc_model.pid_controllers[i]['target_variable']}"
+                    self._add_unique_coupler_item(
+                        couplerfmrtc,
+                        source_name,
+                        target_name,
+                        flow_to_rtc_seen_pairs,
+                        gn_brackets,
+                    )
 
                 # Loop through all interval controllers
                 for i in rtc_model.interval_controllers.keys():
-                    item = ET.SubElement(couplerfmrtc, gn_brackets + "item")
-                    item.text = ""
-                    item.tail = "\n"
-
-                    source = ET.SubElement(item, gn_brackets + "sourceName")
-                    source.text = f"observations/{rtc_model.interval_controllers[i]['observation_point']}/water_level"
-                    source.tail = "\n"
-
-                    target = ET.SubElement(item, gn_brackets + "targetName")
-                    target.text = f"[Input]{rtc_model.interval_controllers[i]['observation_point']}/{rtc_model.interval_controllers[i]['target_variable']}"
-                    target.tail = "\n"
+                    source_name = f"observations/{rtc_model.interval_controllers[i]['observation_point']}/water_level"
+                    target_name = f"[Input]{rtc_model.interval_controllers[i]['observation_point']}/{rtc_model.interval_controllers[i]['target_variable']}"
+                    self._add_unique_coupler_item(
+                        couplerfmrtc,
+                        source_name,
+                        target_name,
+                        flow_to_rtc_seen_pairs,
+                        gn_brackets,
+                    )
 
                 coupler_exists = True
             # it could be that are no PID controllers, but there are complex controllers
@@ -371,23 +385,15 @@ class DIMRWriter:
                             for iblock in block:
                                 iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
                                 if iblock_tag == "item":
-                                    item = ET.SubElement(
-                                        couplerfmrtc, gn_brackets + "item"
+                                    source = iblock.find(".//{*}sourceName")
+                                    target = iblock.find(".//{*}targetName")
+                                    self._add_unique_coupler_item(
+                                        couplerfmrtc,
+                                        source.text if source is not None else None,
+                                        target.text if target is not None else None,
+                                        flow_to_rtc_seen_pairs,
+                                        gn_brackets,
                                     )
-                                    item.text = ""
-                                    item.tail = "\n"
-
-                                    source = ET.SubElement(
-                                        item, gn_brackets + "sourceName"
-                                    )
-                                    source.text = iblock[0].text
-                                    source.tail = "\n"
-
-                                    target = ET.SubElement(
-                                        item, gn_brackets + "targetName"
-                                    )
-                                    target.text = iblock[1].text
-                                    target.tail = "\n"
             # in any of those two cases, add the controllers and the logger
             if coupler_exists:
                 logrtc = ET.SubElement(couplerfmrtc, gn_brackets + "logger")
