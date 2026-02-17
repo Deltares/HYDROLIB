@@ -274,6 +274,80 @@ def test_dimrwriter_deduplicates_coupler_items(hydamo=None):
         assert len(pairs) == len(set(pairs))
 
 
+def test_drtc_deduplicates_complex_fragments(hydamo=None):
+    data_path = Path("hydrolib/tests/data").resolve()
+    assert data_path.exists()
+
+    output_path = Path("hydrolib/tests/model").resolve()
+    if hydamo is None:
+        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+
+    hydamo.structures.add_uweir(
+        id="uweir_test",
+        branchid="W_242213_0",
+        chainage=2.0,
+        crestlevel=18.00,
+        crestwidth=7.5,
+        dischargecoeff=1.0,
+        numlevels=4,
+        yvalues="0.0 1.0 2.0 3.0",
+        zvalues="19.0 18.0 18.2 19",
+    )
+
+    rtcd = DRTCModel(
+        hydamo,
+        fm,
+        output_path=output_path,
+        complex_controllers_folder=[
+            data_path / "complex_controllers_1",
+            data_path / "complex_controllers_2",
+        ],
+        id_limit_complex_controllers=["S_96684", "ObsS_96684", "uweir_test"],
+        rtc_timestep=60.0,
+    )
+    _add_default_simple_control(data_path, hydamo, rtcd)
+
+    # Inject duplicate complex snippets explicitly.
+    rtcd.complex_controllers["dataconfig_import"].append(
+        rtcd.complex_controllers["dataconfig_import"][0]
+    )
+    rtcd.complex_controllers["dataconfig_export"].append(
+        rtcd.complex_controllers["dataconfig_export"][0]
+    )
+    rtcd.complex_controllers["timeseries"].append(
+        rtcd.complex_controllers["timeseries"][0]
+    )
+    rtcd.complex_controllers["state"].append(rtcd.complex_controllers["state"][0])
+
+    rtcd.write_xml_v1()
+
+    rtc_data_root = ET.parse(output_path / "rtc" / "rtcDataConfig.xml").getroot()
+    dataconfig_ids = [
+        el.attrib["id"]
+        for el in rtc_data_root.findall(".//{*}timeSeries")
+        if "id" in el.attrib
+    ]
+    assert len(dataconfig_ids) == len(set(dataconfig_ids))
+
+    ts_root = ET.parse(output_path / "rtc" / "timeseries_import.xml").getroot()
+    ts_keys = []
+    for series in ts_root.findall("./{*}series"):
+        location = series.find("./{*}header/{*}locationId")
+        parameter = series.find("./{*}header/{*}parameterId")
+        if location is None or parameter is None:
+            continue
+        ts_keys.append(f"{location.text}|{parameter.text}")
+    assert len(ts_keys) == len(set(ts_keys))
+
+    state_root = ET.parse(output_path / "rtc" / "state_import.xml").getroot()
+    state_ids = [
+        leaf.attrib["id"]
+        for leaf in state_root.findall(".//{*}treeVectorLeaf")
+        if "id" in leaf.attrib
+    ]
+    assert len(state_ids) == len(set(state_ids))
+
+
 def test_complex_controller_fourtypes(caplog, hydamo=None):
     data_path = Path("hydrolib/tests/data").resolve()
     assert data_path.exists()

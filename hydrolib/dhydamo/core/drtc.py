@@ -6,7 +6,7 @@ import xml.dom.minidom
 import xml.etree.ElementTree as ET
 from datetime import datetime as dt
 from pathlib import Path
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 from dataclasses import dataclass
 import pandas as pd
 from pydantic.v1 import ConfigDict, validate_arguments
@@ -579,6 +579,74 @@ class DRTCModel:
             children[tag] = child
 
         return children
+
+    @staticmethod
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def _strip_namespace(tag: str) -> str:
+        return tag.split("}", 1)[-1] if tag.startswith("{") else tag
+
+    @staticmethod
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def _dataconfig_timeseries_key(el: ET.Element) -> Optional[str]:
+        if DRTCModel._strip_namespace(el.tag) != "timeSeries":
+            return None
+        return el.attrib.get("id")
+
+    @staticmethod
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def _timeseries_series_key(el: ET.Element) -> Optional[str]:
+        if DRTCModel._strip_namespace(el.tag) != "series":
+            return None
+        location = el.find("./{*}header/{*}locationId")
+        parameter = el.find("./{*}header/{*}parameterId")
+        if location is None or parameter is None:
+            return None
+        if location.text is None or parameter.text is None:
+            return None
+        return f"{location.text}|{parameter.text}"
+
+    @staticmethod
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def _state_leaf_key(el: ET.Element) -> Optional[str]:
+        if DRTCModel._strip_namespace(el.tag) != "treeVectorLeaf":
+            return None
+        return el.attrib.get("id")
+
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def _append_unique_elements(
+        self,
+        parent: ET.Element,
+        elements: list[Union[str, ET.Element]],
+        key_getter: Callable[[ET.Element], Optional[str]],
+        file_label: str,
+    ) -> None:
+        seen_keys = set()
+        seen_raw_xml = set()
+
+        for child in list(parent):
+            key = key_getter(child)
+            if key is not None:
+                seen_keys.add(key)
+            else:
+                seen_raw_xml.add(ET.tostring(child, encoding="unicode"))
+
+        for item in elements:
+            element = ET.fromstring(item) if isinstance(item, str) else copy.deepcopy(item)
+            key = key_getter(element)
+            if key is not None:
+                if key in seen_keys:
+                    logger.warning("%s: Skipped writing %s, id already present", file_label, key)
+                    continue
+                seen_keys.add(key)
+                parent.append(element)
+                continue
+
+            raw_xml = ET.tostring(element, encoding="unicode")
+            if raw_xml in seen_raw_xml:
+                logger.warning("%s: Skipped writing duplicate XML fragment", file_label)
+                continue
+            seen_raw_xml.add(raw_xml)
+            parent.append(element)
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def from_hydamo(
@@ -1243,10 +1311,18 @@ class DRTCModel:
 
         # the parsed complex controllers should be inserted at the right place
         if self.complex_controllers is not None:
-            for ctl in self.complex_controllers["dataconfig_import"]:
-                myroot[0].append(ET.fromstring(ctl))
-            for ctl in self.complex_controllers["dataconfig_export"]:
-                myroot[1].append(ET.fromstring(ctl))
+            self._append_unique_elements(
+                parent=myroot[0],
+                elements=self.complex_controllers["dataconfig_import"],
+                key_getter=self._dataconfig_timeseries_key,
+                file_label="rtcDataConfig.xml",
+            )
+            self._append_unique_elements(
+                parent=myroot[1],
+                elements=self.complex_controllers["dataconfig_export"],
+                key_getter=self._dataconfig_timeseries_key,
+                file_label="rtcDataConfig.xml",
+            )
         self.finish_file(myroot, configfile, self.output_path / "rtcDataConfig.xml")
 
     def write_timeseries_import(self) -> None:
@@ -1393,8 +1469,12 @@ class DRTCModel:
                     }
 
         if self.complex_controllers is not None:
-            for ctl in self.complex_controllers["timeseries"]:
-                myroot.append(ET.fromstring(ctl))
+            self._append_unique_elements(
+                parent=myroot,
+                elements=self.complex_controllers["timeseries"],
+                key_getter=self._timeseries_series_key,
+                file_label=TIMESERIES_IMPORT_XML,
+            )
 
         self.finish_file(myroot, configfile, self.output_path / TIMESERIES_IMPORT_XML)
 
@@ -1435,7 +1515,11 @@ class DRTCModel:
 
         # the parsed complex controllers should be inserted at the right place
         if self.complex_controllers is not None:
-            for ctl in self.complex_controllers["state"]:
-                myroot[0].append(ET.fromstring(ctl))
+            self._append_unique_elements(
+                parent=myroot[0],
+                elements=self.complex_controllers["state"],
+                key_getter=self._state_leaf_key,
+                file_label="state_import.xml",
+            )
 
         self.finish_file(myroot, configfile, self.output_path / "state_import.xml")
