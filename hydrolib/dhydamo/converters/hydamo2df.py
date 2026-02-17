@@ -661,7 +661,6 @@ class StructuresIO:
             index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
 
         rweirs = weirs[index == 0]
-        self.structures.hydamo.management.index = self.structures.hydamo.management.globalid
         for weir in rweirs.itertuples():
             weir_opening = opening[opening.stuwid == weir.globalid]
 
@@ -688,8 +687,7 @@ class StructuresIO:
                     weir_id = f'{weir.code}_{num_op+1}'
                     if (not self.structures.hydamo.management.empty) & (hasattr(self.structures.hydamo.management, 'regelmiddelid')):
                         if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).item():
-                            idx = self.structures.hydamo.management[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze()].index.values[0]
-                            self.structures.hydamo.management.loc[idx, 'stuwid'] =weir_id
+                            self.structures.hydamo.management.loc[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze(), 'stuwid'] = weir_id
                     if weir_mandev.overlaatonderlaat.squeeze().lower() == 'overlaat':
                         cmp_list.append(weir_id)
                         self.structures.add_rweir(id=weir_id,
@@ -758,9 +756,7 @@ class StructuresIO:
 
                 if (not self.structures.hydamo.management.empty) & hasattr(self.structures.hydamo.management, 'regelmiddelid'):
                     if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).item():
-                        idx = self.structures.hydamo.management[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze()].index.values[0]
-                        self.structures.hydamo.management.loc[idx, 'stuwid'] = weir_id
-
+                        self.structures.hydamo.management.loc[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze(), 'stuwid'] = weir_id
 
                 if isinstance(weir_mandev.overlaatonderlaat, pd.Series):
                     overlaatonderlaat = weir_mandev.overlaatonderlaat.squeeze()
@@ -861,7 +857,6 @@ class StructuresIO:
                 yvalues=" ".join([f"{yz[0]:7.3f}" for yz in yzvalues]),
                 zvalues=" ".join([f"{yz[1]:7.3f}" for yz in yzvalues]),
             )
-        self.structures.hydamo.management.index = self.structures.hydamo.management.globalid
         
     @validate_arguments(config=dict(arbitrary_types_allowed=True))
     def weirs_from_datamodel(self, weirs: pd.DataFrame) -> None:
