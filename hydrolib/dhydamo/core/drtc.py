@@ -1327,13 +1327,9 @@ class DRTCModel:
                 key_getter=self._dataconfig_timeseries_key,
                 file_label=RTC_DATA_CONFIG_XML,
             )
-<<<<<<< HEAD
-        self.finish_file(myroot, configfile, self.output_path / "rtcDataConfig.xml")
         
-=======
         self.finish_file(myroot, configfile, self.output_path / RTC_DATA_CONFIG_XML)
 
->>>>>>> 63873fd8c122824ad592a25188d01c7949260e54
     def write_timeseries_import(self) -> None:
         """Function to write timeseries_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
         generalname = "http://www.wldelft.nl/fews/PI"
