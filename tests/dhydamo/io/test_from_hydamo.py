@@ -93,7 +93,7 @@ def test_clip_hydamo_object():
 
     assert hydamo.branches.shape[0] ==  18
 
-    assert np.round(hydamo.branches.loc['W_242208_0'].geometry.length,2) == 426.4
+    assert np.isclose(np.round(hydamo.branches.loc['W_242208_0'].geometry.length, 2), 426.4)
 
 def _hydamo_object_from_gpkg():
     # initialize a hydamo object
@@ -183,9 +183,9 @@ def _hydamo_object_from_gpkg():
 def test_hydamo_object_from_gpkg():
     hydamo, len_profile_before = _hydamo_object_from_gpkg()
 
-    assert np.round(hydamo.clipgeo.area) == 139373665
+    assert np.isclose(np.round(hydamo.clipgeo.area), 139373665)
     assert len(hydamo.branches) == 61
-    assert np.round(hydamo.branches.length.sum()) == 28371
+    assert np.isclose(np.round(hydamo.branches.length.sum()), 28371)
     assert len_profile_before == 359
     # seven profiles are too far from a branch and are dropped
     assert len(hydamo.profile) == 352
@@ -198,18 +198,18 @@ def test_hydamo_object_from_gpkg():
     )
     assert len(hydamo.management_device) == 32
     assert len(hydamo.weirs) == 25
-    assert np.round(hydamo.weirs.doorstroombreedte.mean()) == 2
+    assert np.isclose(np.round(hydamo.weirs.doorstroombreedte.mean()), 2)
     assert len(hydamo.culverts) == 90
-    assert np.round(hydamo.culverts.length.sum()) == 2498
+    assert np.isclose(np.round(hydamo.culverts.length.sum()), 2498)
     assert len(hydamo.pumps) == 1
     assert len(hydamo.bridges) == 1
-    assert np.round(hydamo.bridges.branch_offset.values[0]) == 182
+    assert np.isclose(np.round(hydamo.bridges.branch_offset.values[0]), 182)
     assert len(hydamo.boundary_conditions) == 1
     assert not hydamo.boundary_conditions.branch_offset.empty
     assert len(hydamo.catchments) == 121
-    assert np.round(hydamo.catchments.oppervlakt.sum()) == 2662
+    assert np.isclose(np.round(hydamo.catchments.oppervlakt.sum()), 2662)
     assert len(hydamo.laterals) == 121
-    assert np.round(hydamo.laterals.afvoer.mean()) == 0
+    assert np.isclose(np.round(hydamo.laterals.afvoer.mean()), 0)
 
 def _convert_structures(hydamo=None):
     # iniate a hydamo object
@@ -500,8 +500,8 @@ def test_add_initialfields():
 
     hydamo.external_forcings.set_initial_waterdepth(1.5)
 
-    assert (
-        np.round(hydamo.external_forcings.initial_waterdepth_polygons.waterdepth.values[0]) == 2
+    assert np.isclose(
+        np.round(hydamo.external_forcings.initial_waterdepth_polygons.waterdepth.values[0]), 2
     )
 
 
@@ -516,7 +516,6 @@ def test_write_laterals():
     series.plot()
     hydamo.external_forcings.add_lateral("LAT_01", "W_242209_0", "5.0", series)
 
-    assert (
-        np.round(np.mean(hydamo.external_forcings.lateral_nodes["LAT_01"]["value"]))
-        == 1
+    assert np.isclose(
+        np.round(np.mean(hydamo.external_forcings.lateral_nodes["LAT_01"]["value"])), 1
     )
