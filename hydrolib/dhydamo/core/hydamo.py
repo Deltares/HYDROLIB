@@ -7,7 +7,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
-from pydantic.v1 import validate_arguments
+from pydantic.v1 import ConfigDict, validate_arguments
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, Point, Polygon, MultiPolygon
 from tqdm.auto import tqdm
@@ -32,7 +32,7 @@ class HyDAMO:
     for network, structures, cross sections, observation points, storage nodes and external forcings.
     """
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(self, extent_file: Union[Path, str] = None) -> None:
         """Initiate subclasses and IO-methods
 
@@ -376,7 +376,7 @@ class HyDAMO:
             required_columns=["code", "geometry"],            
         )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def list_to_str(self, lst: Union[list, np.ndarray]) -> str:
         """Converts list to string
 
@@ -917,7 +917,7 @@ class Network:
         # save
         self.branch_groups = groups.copy()
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def get_node_idx_offset(
         self, branch_id: str, pt: shapely.geometry.Point, nnodes: int = 1
     ) -> tuple:
@@ -1256,7 +1256,7 @@ class CrossSections:
         )
         return gdf
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def crosssection_to_yzprofiles(
         self,
         crosssections: Union[gpd.GeoDataFrame, ExtendedGeoDataFrame],
@@ -1337,7 +1337,7 @@ class CrossSections:
 
         return cssdct
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def parametrised_to_profiles(
         self,
         parametrised: ExtendedDataFrame,
@@ -1717,7 +1717,7 @@ class ExternalForcings:
             "branchid": None,
         }
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def add_lateral(
         self,
         id: str,
@@ -2081,7 +2081,7 @@ class Structures:
         )
         self.compounds_df = pd.concat([self.compounds_df, dct], ignore_index=True)
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def as_dataframe(
         self,
         generalstructures: bool = False,
@@ -2143,7 +2143,7 @@ class ObservationPoints:
         self.hydamo = hydamo
         self.observation_points = gpd.GeoDataFrame().set_geometry([])
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def add_points(
         self, crds: list, names: list, locationTypes=None, snap_distance: float = 5.0
     ) -> None:

@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Union
 import numpy as np
 import pandas as pd
-from pydantic.v1 import validate_arguments
+from pydantic.v1 import ConfigDict, validate_arguments
 from typing import Optional
 from shapely.geometry import Point
 from netCDF4 import Dataset
@@ -23,7 +23,7 @@ class CrossSectionsIO:
     def __init__(self, crosssections):
         self.crosssections = crosssections
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def from_datamodel(
         self, crsdefs: pd.DataFrame = None, crslocs: pd.DataFrame = None
     ) -> None:
@@ -98,7 +98,7 @@ class CrossSectionsIO:
                 else:
                     raise NotImplementedError
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def profiles(
         self,
         branches: ExtendedGeoDataFrame, # = None,
@@ -287,7 +287,7 @@ class ExternalForcingsIO:
     def __init__(self, external_forcings):
         self.external_forcings = external_forcings
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def boundaries(
         self, boundary_conditions: ExtendedGeoDataFrame, mesh1d: Network = None
     ) -> None:
@@ -332,7 +332,7 @@ class ExternalForcingsIO:
                 key, item["geometry"], item["quantity"], item["value"], mesh1d=mesh1d
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def laterals(
         self,
         locations: ExtendedGeoDataFrame,
@@ -422,7 +422,7 @@ class ExternalForcingsIO:
             )
 
             
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def timeseries_from_other_model(self,
                                   his_file: Union[Path, str] = None, 
                                   location_type: str = None,
@@ -430,7 +430,7 @@ class ExternalForcingsIO:
                                   variable: str = None,
                                   starttime: Optional[Union[str, pd.Timestamp]] = None,
                                   endtime: Optional[Union[str, pd.Timestamp]] = None,
-                                ) -> None:        
+                                ) -> tuple[Optional[Point], pd.Series]:
       
         """
         Obtain boundary from results of another model
@@ -461,14 +461,14 @@ class ExternalForcingsIO:
         times = pd.date_range(start=refdate, end=refdate+pd.Timedelta(hours=np.max(his_time)/3600.), freq=f'{interval_seconds}S')
     
         if location_type == 'weir':
-            type = 'weirgen'
-            loc_ids = chartostring(his[f'{type}_name'][:])
+            dtype = 'weirgen'
+            loc_ids = chartostring(his[f'{dtype}_name'][:])
             coord_string_x = 'weir_input_geom_node_coordx'
             coord_string_y = 'weir_input_geom_node_coordy'
          
         elif location_type == 'observation_point':
-            type = 'station'
-            loc_ids = chartostring(his[f'{type}_name'][:])
+            dtype = 'station'
+            loc_ids = chartostring(his[f'{dtype}_name'][:])
             coord_string_x = 'station_x_coordinate'
             coord_string_y = 'station_y_coordinate'
         elif location_type == 'pump':                 
@@ -476,25 +476,25 @@ class ExternalForcingsIO:
             coord_string_y = f'{location_type}_input_geom_node_coordy'
             loc_ids = chartostring(his[f'{location_type}_name'][:])       
             if variable == 'discharge':
-                type = 'pump_structure'
+                dtype = 'pump_structure'
             else:
-                type = location_type
+                dtype = location_type
         elif location_type == 'uweir':
-            type = 'uniweir'
-            loc_ids = chartostring(his[f'{type}_name'][:])
-            coord_string_x = f'{type}_input_geom_node_coordx'
-            coord_string_y = f'{type}_input_geom_node_coordy'   
+            dtype = 'uniweir'
+            loc_ids = chartostring(his[f'{dtype}_name'][:])
+            coord_string_x = f'{dtype}_input_geom_node_coordx'
+            coord_string_y = f'{dtype}_input_geom_node_coordy'   
         elif location_type == 'compound':
-            type = 'cmpstru'
-            loc_ids = chartostring(his[f'{type}_name'][:])            
+            dtype = 'cmpstru'
+            loc_ids = chartostring(his[f'{dtype}_name'][:])            
         else:
-            type = location_type
-            loc_ids = chartostring(his[f'{type}_name'][:])
-            coord_string_x = f'{type}_input_geom_node_coordx'
-            coord_string_y = f'{type}_input_geom_node_coordy'
+            dtype = location_type
+            loc_ids = chartostring(his[f'{dtype}_name'][:])
+            coord_string_x = f'{dtype}_input_geom_node_coordx'
+            coord_string_y = f'{dtype}_input_geom_node_coordy'
         try:
-            loc_index = np.where(loc_ids == location_id)[0][0]       
-        except:
+            loc_index = np.nonzero(loc_ids == location_id)[0][0]
+        except Exception:
             raise ValueError(f'Location ID {location_id} of type {location_type} not found in {his_file}. Available IDs: {loc_ids}') 
         
         
@@ -502,7 +502,7 @@ class ExternalForcingsIO:
             variable = 's1up'
         elif variable == 'waterlevel_downstream':
             variable = 's1dn'
-        if type != 'cmpstru':
+        if dtype != 'cmpstru':
             loc_x = his[coord_string_x][:][loc_index]
             loc_y = his[coord_string_y][:][loc_index]
                     
@@ -514,7 +514,7 @@ class ExternalForcingsIO:
         if location_type == 'observation_point':
             timeseries = his['waterlevel'][:,loc_index]
         else:
-            timeseries = his[f'{type}_{variable}'][:, loc_index]
+            timeseries = his[f'{dtype}_{variable}'][:, loc_index]
         loc_series = pd.Series(timeseries, index=times, name=location_id)
         if starttime is not None:
             loc_series = loc_series.loc[starttime:endtime]            
@@ -538,7 +538,7 @@ class StructuresIO:
             "chainage": row.branch_offset,
         }
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def generalstructures_from_datamodel(self, generalstructures: pd.DataFrame) -> None:
         """From parsed data model of orifices
 
@@ -634,7 +634,7 @@ class StructuresIO:
                 else np.nan,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def weirs(
         self,
         weirs: ExtendedGeoDataFrame = None,
@@ -858,7 +858,7 @@ class StructuresIO:
                 zvalues=" ".join([f"{yz[1]:7.3f}" for yz in yzvalues]),
             )
         
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def weirs_from_datamodel(self, weirs: pd.DataFrame) -> None:
         """ "From parsed data model of weirs"""
         for weir_idx, weir in weirs.iterrows():
@@ -870,7 +870,7 @@ class StructuresIO:
                 corrcoeff=weir.corrcoeff,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def orifices_from_datamodel(self, orifices: pd.DataFrame) -> None:
         """ "From parsed data model of orifices"""
         for orifice_idx, orifice in orifices.iterrows():
@@ -888,7 +888,7 @@ class StructuresIO:
                 limitflowneg=orifice.limitflowneg,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def uweirs_from_datamodel(self, uweirs: pd.DataFrame) -> None:
         """ "From parsed data model of universal weirs"""
         for uweir_idx, uweir in uweirs.iterrows():
@@ -902,7 +902,7 @@ class StructuresIO:
                 dischargecoeff=uweir.dischargecoeff,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def bridges(
         self,
         bridges: ExtendedGeoDataFrame,
@@ -947,7 +947,7 @@ class StructuresIO:
                 friction=bridge.ruwheid,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def bridges_from_datamodel(self, bridges: pd.DataFrame) -> None:
         """ "From parsed data model of bridges"""
         for bridge_idx, bridge in bridges.iterrows():
@@ -964,7 +964,7 @@ class StructuresIO:
                 friction=bridge.ruwheid,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def culverts(
         self,
         culverts: ExtendedGeoDataFrame,
@@ -1068,7 +1068,7 @@ class StructuresIO:
                 bedfriction=culvert.ruwheid,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def culverts_from_datamodel(self, culverts: pd.DataFrame) -> None:
         """
         From parsed model of culverts
@@ -1097,7 +1097,7 @@ class StructuresIO:
                 frictionvalue=culvert.frictionvalue,
             )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def pumps(
         self,
         pumpstations: ExtendedGeoDataFrame,
@@ -1192,7 +1192,7 @@ class StructuresIO:
                     stopleveldeliveryside=stoplevelsuctionside,
                 )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def pumps_from_datamodel(self, pumps: pd.DataFrame) -> None:
         """From parsed data model of pumps"""
 

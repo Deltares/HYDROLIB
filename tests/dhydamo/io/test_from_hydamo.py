@@ -379,7 +379,7 @@ def _add_structures_manually():
 
 def test_add_structures_manually():
     hydamo = _add_structures_manually()
-    hydamo.structures.orifices_df.loc[hydamo.structures.orifices_df.id == 'orifice_test', 'gateloweredgelevel'] == 18.
+    # hydamo.structures.orifices_df.loc[hydamo.structures.orifices_df.id == 'orifice_test', 'gateloweredgelevel'] == 18.
     
     assert "rwtest" in hydamo.structures.rweirs_df.id.values[0]
     assert "otest" in hydamo.structures.orifices_df.id.values[0]

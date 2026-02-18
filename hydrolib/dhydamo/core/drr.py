@@ -5,7 +5,7 @@ from typing import Union
 
 import pandas as pd
 import rasterio
-from pydantic.v1 import validate_arguments
+from pydantic.v1 import ConfigDict, validate_arguments
 
 from hydrolib.dhydamo.io import drrreader
 
@@ -84,19 +84,19 @@ class ExternalForcings:
         self.precip = {}
         self.evap = {}
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def add_precip(self, id: str, series: pd.Series):
         self.precip[id] = {"precip": series}
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def add_evap(self, id: str, series: pd.Series):
         self.evap[id] = {"evap": series}
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def add_seepage(self, id: str, series: pd.Series):
         self.seepage[id] = {"seepage": series}
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def add_boundary_node(self, id: str, px: str, py: str):
         self.boundary_nodes[id] = {"id": id, "px": px, "py": py}
 
