@@ -17,6 +17,9 @@ from hydrolib.dhydamo.core.hydamo import HyDAMO
 logger = logging.getLogger(__name__)
 
 TIMESERIES_IMPORT_XML = "timeseries_import.xml"
+RTC_DATA_CONFIG_XML = "rtcDataConfig.xml"
+RTC_TOOLS_CONFIG_XML = "rtcToolsConfig.xml"
+STATE_IMPORT_XML = "state_import.xml"
 INPUT_PREFIX = "[Input]"
 OUTPUT_PREFIX = "[Output]"
 
@@ -175,10 +178,10 @@ class DRTCModel:
         }
 
         handlers = {
-            "rtcDataConfig.xml": self._parse_cc_rtc_dataconfig,
-            "rtcToolsConfig.xml": self._parse_cc_rtc_toolsconfig,
+            RTC_DATA_CONFIG_XML: self._parse_cc_rtc_dataconfig,
+            RTC_TOOLS_CONFIG_XML: self._parse_cc_rtc_toolsconfig,
             TIMESERIES_IMPORT_XML: self._parse_cc_timeseries,
-            "state_import.xml": self._parse_cc_state,
+            STATE_IMPORT_XML: self._parse_cc_state,
             "dimr_config.xml": self._parse_cc_dimr_config,
         }
 
@@ -205,7 +208,7 @@ class DRTCModel:
                 allow, el_text = self._parse_dataconfig_item(el)
                 if not allow:
                     logger.info(
-                        "rtcDataConfig.xml: Skipped importSeries item for elementId '%s' (not allowed by complex controller filter).",
+                        f"{RTC_DATA_CONFIG_XML}: Skipped importSeries item for elementId '%s' (not allowed by complex controller filter).",
                         el_text,
                     )
                     continue
@@ -220,7 +223,7 @@ class DRTCModel:
                 allow, el_text = self._parse_dataconfig_item(el)
                 if not allow:
                     logger.info(
-                        "rtcDataConfig.xml: Skipped exportSeries item for elementId '%s' (not allowed by complex controller filter).",
+                        f"{RTC_DATA_CONFIG_XML}: Skipped exportSeries item for elementId '%s' (not allowed by complex controller filter).",
                         el_text,
                     )
                     continue
@@ -240,7 +243,7 @@ class DRTCModel:
                 allow, el_text = self._parse_toolsconfig_item(el)
                 if not allow:
                     logger.info(
-                        "rtcToolsConfig.xml: Skipped rule element '%s' (not allowed by complex controller filter).",
+                        f"{RTC_TOOLS_CONFIG_XML}: Skipped rule element '%s' (not allowed by complex controller filter).",
                         el_text,
                     )
                     continue
@@ -252,7 +255,7 @@ class DRTCModel:
                 allow, el_text = self._parse_toolsconfig_item(el)
                 if not allow:
                     logger.info(
-                        "rtcToolsConfig.xml: Skipped trigger element '%s' (not allowed by complex controller filter).",
+                        f"{RTC_TOOLS_CONFIG_XML}: Skipped trigger element '%s' (not allowed by complex controller filter).",
                         el_text,
                     )
                     continue
@@ -1134,7 +1137,7 @@ class DRTCModel:
                 else:
                     myroot[2].append(ET.fromstring(ctl))
 
-        self.finish_file(myroot, configfile, self.output_path / "rtcToolsConfig.xml")
+        self.finish_file(myroot, configfile, self.output_path / RTC_TOOLS_CONFIG_XML)
 
     def write_dataconfig(self) -> None:
         """Function to write RtcDataConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
@@ -1183,7 +1186,7 @@ class DRTCModel:
             controller = self.all_controllers[key]
             if self.cc_ids is not None and self.cc_id_limit is not None:
                 if key in self.cc_ids and key in self.cc_id_limit:
-                    logger.warning(f"rtcDataConfig.xml: Skipped writing {controller['type']} control for {key}, complex controller already present")
+                    logger.warning(f"{RTC_DATA_CONFIG_XML}: Skipped writing {controller['type']} control for {key}, complex controller already present")
                     continue
 
             # te importeren data
@@ -1225,7 +1228,7 @@ class DRTCModel:
                         e2 = ET.SubElement(b2, gn_brackets + "extrapolationOption")
                         e2.text = controller['extrapolation_option'] # Changed from Block: HL
                 else:
-                    logger.warning(f"rtcDataConfig.xml: Skipped writing {input_id}, observation point already present")
+                    logger.warning(f"{RTC_DATA_CONFIG_XML}: Skipped writing {input_id}, observation point already present")
 
             elif controller['type'] == 'Interval':
                 a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
@@ -1315,15 +1318,15 @@ class DRTCModel:
                 parent=myroot[0],
                 elements=self.complex_controllers["dataconfig_import"],
                 key_getter=self._dataconfig_timeseries_key,
-                file_label="rtcDataConfig.xml",
+                file_label=RTC_DATA_CONFIG_XML,
             )
             self._append_unique_elements(
                 parent=myroot[1],
                 elements=self.complex_controllers["dataconfig_export"],
                 key_getter=self._dataconfig_timeseries_key,
-                file_label="rtcDataConfig.xml",
+                file_label=RTC_DATA_CONFIG_XML,
             )
-        self.finish_file(myroot, configfile, self.output_path / "rtcDataConfig.xml")
+        self.finish_file(myroot, configfile, self.output_path / RTC_DATA_CONFIG_XML)
 
     def write_timeseries_import(self) -> None:
         """Function to write timeseries_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
@@ -1499,7 +1502,7 @@ class DRTCModel:
             controller = self.all_controllers[key]
             if self.cc_ids is not None and self.cc_id_limit is not None:
                 if key in self.cc_ids and key in self.cc_id_limit:
-                    logger.warning(f"state_import.xml: Skipped writing {controller['type']} control for {key}, complex controller already present")
+                    logger.warning(f"{STATE_IMPORT_XML}: Skipped writing {controller['type']} control for {key}, complex controller already present")
                     continue
 
             # te importeren data
@@ -1519,7 +1522,7 @@ class DRTCModel:
                 parent=myroot[0],
                 elements=self.complex_controllers["state"],
                 key_getter=self._state_leaf_key,
-                file_label="state_import.xml",
+                file_label=STATE_IMPORT_XML,
             )
 
-        self.finish_file(myroot, configfile, self.output_path / "state_import.xml")
+        self.finish_file(myroot, configfile, self.output_path / STATE_IMPORT_XML)
