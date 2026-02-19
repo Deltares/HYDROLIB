@@ -1,5 +1,7 @@
 import sys
 
+from hydrolib.dhydamo.core import hydamo
+
 sys.path.insert(0, r".")
 from pathlib import Path
 
@@ -43,20 +45,21 @@ def setup_model(hydamo=None, full_test=False):
         hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
         hydamo = test_from_hydamo._convert_structures(hydamo=hydamo)
     
-    if full_test:
+    if full_test:        
         hydamo.observationpoints.add_points(
             [Point(199617,394885), Point(199421,393769), Point(199398,393770)],
             ["Obs_BV152054", "ObsS_96684","ObsO_test"],
             locationTypes=["1d", "1d", "1d"],
             snap_distance=10.0,
-            )
+        )
 
         hydamo.observationpoints.add_points(
-            [Point(200198,396489), Point(201129, 396269), Point(200264, 394761), Point(199665, 395323)],
-            ["ObsS_96544", "ObsP_113GIS", 'Obs_UWR', 'Obs_ORIF'],
+            [Point(200198,396489), Point(201129, 396269), Point(199996, 393899), Point(199665, 395323)],
+            ["ObsS_96544", "ObsP_113GIS", 'ObsS_96789', 'Obs_ORIF'],
             locationTypes=["1d", "1d","1d", "1d"],
             snap_distance=10.0,
-        )    
+        )
+
         hydamo.structures.add_orifice(
             id="orifice_test",
             branchid="W_242213_0",

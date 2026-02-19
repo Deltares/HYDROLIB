@@ -5,9 +5,9 @@
       <timeSeriesFile>timeseries_import.xml</timeSeriesFile>
       <useBinFile>false</useBinFile>
     </PITimeSeriesFile>
-    <timeSeries id="[Input]ObsS_96684/Water level (op)">
+    <timeSeries id="[Input]ObsS_96789/Water level (op)">
       <OpenMIExchangeItem>
-        <elementId>ObsS_96684</elementId>
+        <elementId>ObsS_96789</elementId>
         <quantityId>Water level (op)</quantityId>
         <unit>m</unit>
       </OpenMIExchangeItem>
@@ -19,14 +19,14 @@
       <timeSeriesFile>timeseries_export.xml</timeSeriesFile>
       <useBinFile>false</useBinFile>
     </PITimeSeriesFile>
-    <timeSeries id="[Output]uweir_test/Crest level (s)">
+    <timeSeries id="[Output]S_96789/Crest level (s)">
       <OpenMIExchangeItem>
-        <elementId>uweir_test</elementId>
+        <elementId>S_96789</elementId>
         <quantityId>Crest level (s)</quantityId>
         <unit>m</unit>
       </OpenMIExchangeItem>
     </timeSeries>
-  <timeSeries id="[IP]Control group uweir_test/PID Rule" /> 
-  <timeSeries id="[DP]Control group uweir_test/PID Rule" /> 
+  <timeSeries id="[IP]Control group S_96789/PID Rule" /> 
+  <timeSeries id="[DP]Control group S_96789/PID Rule" /> 
   </exportSeries>
 </rtcDataConfig>

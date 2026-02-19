@@ -7,22 +7,22 @@
   </general>
   <rules>
     <rule>
-	<pid id="[PID]Control group uweir_test/PID Rule">
+	<pid id="[PID]Control group S_96789/PID Rule">
             <mode>PIDVEL</mode> 
-	    <settingMin>17.0</settingMin> 
+	    <settingMin>16.0</settingMin> 
 	    <settingMax>19.0</settingMax> 
 	    <settingMaxSpeed>0.00033</settingMaxSpeed> 
 	    <kp>0.0</kp> 
 	    <ki>0.0001</ki> 
 	    <kd>0.0</kd> 
 	    <input>
-	        <x>[Input]ObsS_96684/Water level (op)</x> 
+	        <x>[Input]ObsS_96789/Water level (op)</x> 
 		<setpointValue>17.0</setpointValue> 
 	    </input>
             <output>
-		<y>[Output]uweir_test/Crest level (s)</y> 
-		<integralPart>[IP]Control group uweir_test/PID Rule</integralPart> 
-          	<differentialPart>[DP]Control group uweir_test/PID Rule</differentialPart> 
+		<y>[Output]S_96789/Crest level (s)</y> 
+		<integralPart>[IP]Control group S_96789/PID Rule</integralPart> 
+          	<differentialPart>[DP]Control group S_96789/PID Rule</differentialPart> 
       	    </output>
 	</pid>
     </rule>

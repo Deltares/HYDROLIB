@@ -131,22 +131,11 @@ def test_complex_controller_multiple_folders(hydamo=None):
     if hydamo is None:
         hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
 
-    hydamo.structures.add_uweir(
-        id="uweir_test",
-        branchid="W_242213_0",
-        chainage=2.0,
-        crestlevel=18.00,
-        crestwidth=7.5,
-        dischargecoeff=1.0,
-        numlevels=4,
-        yvalues="0.0 1.0 2.0 3.0",
-        zvalues="19.0 18.0 18.2 19",
-    )
-
+ 
     id_limit_complex_controllers = [
         "S_96684",
         "ObsS_96684",
-        "uweir_test"
+        "ObsS_96789"
     ]
 
     rtcd1 = DRTCModel(
@@ -192,18 +181,6 @@ def test_complex_controller_multiple_folders_dimr_merged(hydamo=None):
     if hydamo is None:
         hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
 
-    hydamo.structures.add_uweir(
-        id="uweir_test",
-        branchid="W_242213_0",
-        chainage=2.0,
-        crestlevel=18.00,
-        crestwidth=7.5,
-        dischargecoeff=1.0,
-        numlevels=4,
-        yvalues="0.0 1.0 2.0 3.0",
-        zvalues="19.0 18.0 18.2 19",
-    )
-
     rtcd = DRTCModel(
         hydamo,
         fm,
@@ -212,7 +189,7 @@ def test_complex_controller_multiple_folders_dimr_merged(hydamo=None):
             data_path / "complex_controllers_1",
             data_path / "complex_controllers_2",
         ],
-        id_limit_complex_controllers=["S_96684", "ObsS_96684", "uweir_test"],
+        id_limit_complex_controllers=["S_96684", "S_96789", "ObsS_96684", "ObsS_96789"], 
         rtc_timestep=60.0,
     )
     root = rtcd.complex_controllers["dimr_config"][0]
@@ -221,7 +198,7 @@ def test_complex_controller_multiple_folders_dimr_merged(hydamo=None):
         for el in root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")
     }
     assert "weirs/S_96684/crestLevel" in targets
-    assert "weirs/uweir_test/crestLevel" in targets
+    assert "weirs/S_96789/crestLevel" in targets
 
 
 def test_dimrwriter_deduplicates_coupler_items(hydamo=None):
@@ -232,18 +209,6 @@ def test_dimrwriter_deduplicates_coupler_items(hydamo=None):
     if hydamo is None:
         hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
 
-    hydamo.structures.add_uweir(
-        id="uweir_test",
-        branchid="W_242213_0",
-        chainage=2.0,
-        crestlevel=18.00,
-        crestwidth=7.5,
-        dischargecoeff=1.0,
-        numlevels=4,
-        yvalues="0.0 1.0 2.0 3.0",
-        zvalues="19.0 18.0 18.2 19",
-    )
-
     rtcd = DRTCModel(
         hydamo,
         fm,
@@ -252,7 +217,7 @@ def test_dimrwriter_deduplicates_coupler_items(hydamo=None):
             data_path / "complex_controllers_1",
             data_path / "complex_controllers_2",
         ],
-        id_limit_complex_controllers=["S_96684", "ObsS_96684", "uweir_test"],
+        id_limit_complex_controllers=["S_96684", "ObsS_96684", "ObsS_96789"], 
         rtc_timestep=60.0,
     )
     _add_default_simple_control(data_path, hydamo, rtcd)
@@ -323,18 +288,6 @@ def test_drtc_deduplicates_complex_fragments(hydamo=None):
     if hydamo is None:
         hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
 
-    hydamo.structures.add_uweir(
-        id="uweir_test",
-        branchid="W_242213_0",
-        chainage=2.0,
-        crestlevel=18.00,
-        crestwidth=7.5,
-        dischargecoeff=1.0,
-        numlevels=4,
-        yvalues="0.0 1.0 2.0 3.0",
-        zvalues="19.0 18.0 18.2 19",
-    )
-
     rtcd = DRTCModel(
         hydamo,
         fm,
@@ -343,7 +296,7 @@ def test_drtc_deduplicates_complex_fragments(hydamo=None):
             data_path / "complex_controllers_1",
             data_path / "complex_controllers_2",
         ],
-        id_limit_complex_controllers=["S_96684", "ObsS_96684", "uweir_test"],
+        id_limit_complex_controllers=["S_96684","S_96789" , "ObsS_96684"],
         rtc_timestep=60.0,
     )
     _add_default_simple_control(data_path, hydamo, rtcd)
