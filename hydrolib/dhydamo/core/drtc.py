@@ -1191,13 +1191,13 @@ class DRTCModel:
                     continue
 
             # te importeren data
-            if controller['type'] == 'PID':                
+            if controller['type'] == 'PID':
 
-                input_id = "[Input]" + controller["observation_point"] + "/" +  controller["target_variable"]
+                input_id = INPUT_PREFIX + controller["observation_point"] + "/" +  controller["target_variable"]
 
                 if myroot[0].find(f".//*[@id='{input_id}']") is None:
                     a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
-                    a.set("id", input_id)                    
+                    a.set("id", input_id)
 
                     b = ET.SubElement(a, gn_brackets + "OpenMIExchangeItem")
 
@@ -1207,8 +1207,8 @@ class DRTCModel:
                     d = ET.SubElement(b, gn_brackets + "quantityId")
                     d.text = controller["target_variable"]
 
-                    e = ET.SubElement(b, gn_brackets + "unit")                    
-                    e.text = "m" if controller['target_variable'] == 'Water level (op)' else "m^3/s"
+                    e = ET.SubElement(b, gn_brackets + "unit")
+                    e.text = munit if controller['target_variable'] == 'Water level (op)' else m3unit
 
                     # If a time dependent setpoint is required, add the Time Rule
                     if type(controller['setpoint']) is pd.Series:
@@ -1234,10 +1234,10 @@ class DRTCModel:
             elif controller['type'] == 'Interval':
                 a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
 
-                input_id = "[Input]" + controller["observation_point"] + "/" +  controller["target_variable"]
+                input_id = INPUT_PREFIX + controller["observation_point"] + "/" +  controller["target_variable"]
 
                 if myroot.find(f".//*[@id='{input_id}']") is None:
-                    a.set("id", input_id)            
+                    a.set("id", input_id)
 
                     b = ET.SubElement(a, gn_brackets + "OpenMIExchangeItem")
 
@@ -1248,7 +1248,7 @@ class DRTCModel:
                     d.text = controller["target_variable"]
 
                     e = ET.SubElement(b, gn_brackets + "unit")
-                    e.text = "m" if controller['target_variable'] == 'Water level (op)' else "m^3/s"          
+                    e.text = munit if controller['target_variable'] == 'Water level (op)' else m3unit
                     if type(controller['setpoint']) is pd.Series:
                         a2 = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
 
@@ -1297,7 +1297,7 @@ class DRTCModel:
             j.text = controller["steering_variable"]
 
             k = ET.SubElement(g, gn_brackets + "unit")
-            k.text = "m^3/s" if controller["steering_variable"] == 'Capacity (p)' else "m"
+            k.text = m3unit if controller["steering_variable"] == 'Capacity (p)' else munit
 
         for ikey, key in enumerate(self.all_controllers.keys()):
             controller = self.all_controllers[key]
@@ -1327,7 +1327,7 @@ class DRTCModel:
                 key_getter=self._dataconfig_timeseries_key,
                 file_label=RTC_DATA_CONFIG_XML,
             )
-        
+
         self.finish_file(myroot, configfile, self.output_path / RTC_DATA_CONFIG_XML)
 
     def write_timeseries_import(self) -> None:
