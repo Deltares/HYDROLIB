@@ -33,7 +33,6 @@ mplleaflet = ">=0.0.5"
 ipython = ">=8.29.0"
 shapely = ">=2.0.2"
 xlrd = ">=2.0.1"
-rioxarray = "0.18.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=6.2"
