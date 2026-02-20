@@ -424,28 +424,35 @@ class ExternalForcingsIO:
             
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def timeseries_from_other_model(self,
-                                  his_file: Union[Path, str] = None, 
-                                  location_type: str = None,
-                                  location_id: str =None, 
-                                  variable: str = None,
+                                  his_file: Union[Path, str],
+                                  location_type: str,
+                                  location_id: str, 
+                                  variable: str,
                                   starttime: Optional[Union[str, pd.Timestamp]] = None,
                                   endtime: Optional[Union[str, pd.Timestamp]] = None,
                                 ) -> tuple[Optional[Point], pd.Series]:
-      
         """
-        Obtain boundary from results of another model
-
-        Parameters
-        ----------
-        locations: gpd.GeoDataFrame
-            GeoDataFrame with at least 'geometry' (Point) and the column 'code'
-        lateral_discharges: pd.DataFrame
-            DataFrame with lateral discharges. The index should be a time object (datetime or similar).
-        rr_boundaries: pd.DataFrame
-            DataFrame with RR-catchments that are coupled
-        """                  
+        Obtain timeseries from results from a different model. The HIS.nc file is read and a time series is extracted for the specified location/discharge combination.
+        Point geometry and timeseries (pd.Series) are returned. 
         
-        # if timesteps are strings, convert them to datetime objects
+
+        Args:
+            his_file (Union[Path, str]): _description_.
+            location_type (str): type of location. One of ['weir', 'observation_point', 'pump', 'uweir', 'bridge', culvert']. 
+            location_id (str): ID of the location to read from the HIS-file
+            variable (str): variable to read. One of ['discharge', 'waterlevel', 'waterlevel_upstream', 'waterlevel_downstream']
+            starttime (Optional[Union[str, pd.Timestamp]], optional): start of selected time period for the output. Defaults to None.
+            endtime (Optional[Union[str, pd.Timestamp]], optional): end of selected time period for the output. Defaults to None.
+
+        Raises:
+            ValueError: if no data can be found for the specified location and variable.
+
+        Returns:
+            tuple[Optional[Point], pd.Series]: Point geometry of the location (if available) and the timeseries as a pandas Series.
+        """
+
+
+       # if timesteps are strings, convert them to datetime objects
         if starttime is not None:
             if isinstance(starttime, str):
                 starttime = pd.to_datetime(starttime)
@@ -496,8 +503,7 @@ class ExternalForcingsIO:
             loc_index = np.nonzero(loc_ids == location_id)[0][0]
         except Exception:
             raise ValueError(f'Location ID {location_id} of type {location_type} not found in {his_file}. Available IDs: {loc_ids}') 
-        
-        
+                
         if variable == 'waterlevel_upstream':
             variable = 's1up'
         elif variable == 'waterlevel_downstream':
