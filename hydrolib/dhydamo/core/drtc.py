@@ -47,17 +47,33 @@ class DRTCModel:
         rtc_timestep: Union[int, float] = 60,
 
     ) -> None:
-        """Initialization of the DRTCModel class. (empty) lists/dicts and filepaths are initialized. Also, complex controllers are parsed. Template files are (already) copied to the output folder.
+        """Initialize the DRTCModel.
+
+        Internal controller dictionaries and output paths are initialized, optional
+        complex-controller XML is parsed, and RTC template files are copied to the
+        output folder.
 
         Args:
             hydamo (instance of HyDAMO): data structure containing the HyDAMO DAMO2.2
-            fm (instance of FMModel): model structure set up for Hydrolib-core
-            output_path (str or Windows-path, optional): path where the rtc-files are placed. Defaults to None.
-            rtc_onlytimeseries (bool): defines the rtc mode: only time series or actual controllers. Defaults to False (actual controllers)
-            rtc_timeseriesdata (pd.DataFrame): timeseries in case they are used instead of controllers. Defaults to None.
-            complex_controllers_folder (list[Path or str] or Path or str, optional): Path where users can put xml-files that will be imported in the RTC-model. Defaults to None.
-            id_limit_complex_controllers (list[str], optional): whitelist of id's to couple to the complex controller logic. Defaults to None (all complex controller logic will be imported)
-            rtc_timestep (Union[int, float], optional): Time step of the RTC model. Defaults to 60 seconds.
+            fm (instance of FMModel): model structure setup for Hydrolib-core
+            output_path (str or Path, optional): base path where an `rtc` subfolder
+                is created for generated RTC files. Defaults to the current working
+                directory.
+            rtc_onlytimeseries (bool): if True, build RTC control from
+                `rtc_timeseriesdata` only. If True, `complex_controllers_folder` is
+                ignored. Defaults to False.
+            rtc_timeseriesdata (pd.DataFrame, optional): time series data used when
+                `rtc_onlytimeseries=True`. Column names are expected to match
+                structure IDs. Defaults to None.
+            complex_controllers_folder (list[Path or str] or Path or str, optional):
+                folder(s) with custom RTC XML files to import when
+                `rtc_onlytimeseries=False`. Defaults to None.
+            id_limit_complex_controllers (list[str], optional): whitelist of IDs that
+                may be coupled to complex controller logic. Required when
+                `complex_controllers_folder` is provided. An empty list means no IDs
+                are allowed.
+            rtc_timestep (Union[int, float], optional): Time step of the RTC model. 
+                Defaults to 60 seconds.
         """
         self.hydamo = hydamo
 
@@ -73,31 +89,59 @@ class DRTCModel:
         self.interval_controllers = {}
 
         # set up the output path
-        if output_path is None:
-            self.output_path = Path(".")
-
-        self.output_path = output_path / "rtc"
+        base_output_path = Path(".") if output_path is None else Path(output_path)
+        self.output_path = base_output_path / "rtc"
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # Save object id by type
-        self.struct_ids_by_type = self._get_struct_ids_by_type()
+        self.struct_ids_by_type = DRTCModel._get_struct_ids_by_type(self.hydamo)
 
         # parse user-provided controllers
         self.complex_controllers = None
         self.cc_structs = None
         self.cc_ids = None
         self.cc_id_limit = None
-        if not rtc_onlytimeseries and complex_controllers_folder is not None:
+        if rtc_onlytimeseries and complex_controllers_folder is not None:
+            # User supplied controllers in timeseries_only mode, emit warning
+            logger.warning(
+                "`complex_controllers_folder` is ignored because `rtc_onlytimeseries=True`. "
+                "Set `rtc_onlytimeseries=False` to enable complex controllers."
+            )
+        elif not rtc_onlytimeseries and complex_controllers_folder is not None:
+            if id_limit_complex_controllers is None:
+                # When complex_controllers_folder is supplied, the whitelist
+                # needs to be supplied as well
+                raise SyntaxError(
+                    "Missing required `id_limit_complex_controllers` while "
+                    "`complex_controllers_folder` is provided. Supply a list of "
+                    "allowed IDs to couple to complex controller logic."
+                )
+
             # Discover all complex controller related structures and id's
-            self.cc_structs, self.cc_ids = self._load_complex_controller_structs(complex_controllers_folder)
-            # Build whitelist set of allowed controller ids.
-            if id_limit_complex_controllers is None or len(id_limit_complex_controllers) == 0:
-                self.cc_id_limit = set(self.cc_ids)
-                limit_source_msg = "User-supplied allowed complex controller id's is empty, using all available"
+            self.cc_structs, self.cc_ids = self._load_complex_controller_structs(
+                complex_controllers_folder,
+                self.struct_ids_by_type,
+            )
+            logger.info(
+                "Found %d complex controller structures referenced in XML: %s",
+                len(self.cc_structs),
+                self.cc_ids,
+            )
+
+            # Save whitelist of allowed controller ids.
+            self.cc_id_limit = set(id_limit_complex_controllers)
+            if len(self.cc_id_limit) == 0:
+                logger.warning(
+                    "`id_limit_complex_controllers` is empty. No IDs are allowed, "
+                    "so all complex controller references will be filtered out."
+                )
             else:
-                self.cc_id_limit = set(id_limit_complex_controllers)
-                limit_source_msg = "User-supplied allowed complex controller id's"
-            logger.info("%s: %s", limit_source_msg, self.cc_id_limit)
+                logger.info(
+                    "Applying complex controller ID filter with %d allowed IDs: %s",
+                    len(self.cc_id_limit),
+                    self.cc_id_limit,
+                )
+
             # Load complex controllers
             self.complex_controllers = self._load_complex_controllers(complex_controllers_folder)
 
@@ -319,16 +363,32 @@ class DRTCModel:
                 )
                 coupler.remove(sub_el)
 
+    @staticmethod
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def find_complex_controller_ids(
+        complex_controllers_folder: Union[list[Union[str, Path]], str, Path],
+        hydamo: HyDAMO,
+    ) -> set[str]:
+        # Do not return observation point IDs in this public method.
+        struct_ids_by_type = DRTCModel._get_struct_ids_by_type(hydamo)
+        cc_structs, _ = DRTCModel._load_complex_controller_structs(complex_controllers_folder, struct_ids_by_type)
+        cc_ids = set([cc.struct_name for cc in cc_structs if cc.struct_type != "observations"])
+
+        return cc_ids
+
+
+    @staticmethod
     @validate_arguments
     def _load_complex_controller_structs(
-        self, complex_controllers_folder: Union[list[Union[str, Path]], str, Path],
+        complex_controllers_folder: Union[list[Union[str, Path]], str, Path],
+        struct_ids_by_type: dict[str, set[str]]
     ) -> tuple[list[DRTCStructure], set[str]]:
-        folders = self._as_folder_list(complex_controllers_folder)
-        complex_controller_structs = self._collect_complex_controller_structs(folders)
-        complex_controller_structs, complex_controller_ids = self._deduplicate_complex_controller_structs(
+        folders = DRTCModel._as_folder_list(complex_controllers_folder)
+        complex_controller_structs = DRTCModel._collect_complex_controller_structs(folders)
+        complex_controller_structs, complex_controller_ids = DRTCModel._deduplicate_complex_controller_structs(
             complex_controller_structs
         )
-        self._validate_complex_controller_structs(complex_controller_structs)
+        DRTCModel._validate_complex_controller_structs(complex_controller_structs, struct_ids_by_type)
         return complex_controller_structs, complex_controller_ids
 
     @staticmethod
@@ -340,9 +400,10 @@ class DRTCModel:
             return complex_controllers_folder
         return [complex_controllers_folder]
 
+    @staticmethod
     @validate_arguments
     def _collect_complex_controller_structs(
-        self, folders: list[Union[str, Path]]
+        folders: list[Union[str, Path]]
     ) -> list[DRTCStructure]:
         # Find complex controller structs and referred observation points.
         complex_controller_structs = []
@@ -351,12 +412,13 @@ class DRTCModel:
                 if filepath.name != "dimr_config.xml":
                     continue
                 root = ET.parse(filepath).getroot()
-                complex_controller_structs.extend(self._parse_referenced_structures(root))
+                complex_controller_structs.extend(DRTCModel._parse_referenced_structures(root))
         return complex_controller_structs
 
-    @validate_arguments
+    @staticmethod
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _deduplicate_complex_controller_structs(
-        self, complex_controller_structs: list[DRTCStructure]
+        complex_controller_structs: list[DRTCStructure]
     ) -> tuple[list[DRTCStructure], set[str]]:
         # Observation points can be referenced multiple times, but we keep one entry.
         # Other structures can only be defined once.
@@ -378,18 +440,20 @@ class DRTCModel:
         complex_controller_ids = set(unique_structs.keys())
         return deduplicated_structs, complex_controller_ids
 
-    @validate_arguments
+    @staticmethod
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _validate_complex_controller_structs(
-        self, complex_controller_structs: list[DRTCStructure]
+        complex_controller_structs: list[DRTCStructure],
+        struct_ids_by_type: dict[str, set[str]]
     ) -> None:
         missing_structs = []
         unknown_types = set()
 
         for fs in complex_controller_structs:
-            if fs.struct_type not in self.struct_ids_by_type:
+            if fs.struct_type not in struct_ids_by_type:
                 unknown_types.add(fs.struct_type)
                 continue
-            if fs.struct_name not in self.struct_ids_by_type[fs.struct_type]:
+            if fs.struct_name not in struct_ids_by_type[fs.struct_type]:
                 missing_structs.append(f"{fs.struct_type}/{fs.struct_name}")
 
         if unknown_types:
@@ -403,17 +467,18 @@ class DRTCModel:
             logger.error(msg)
             raise ValueError(msg)
 
-    @validate_arguments
-    def _get_struct_ids_by_type(self) -> dict[str, set[str]]:
+    @staticmethod
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def _get_struct_ids_by_type(hydamo: HyDAMO) -> dict[str, set[str]]:
         return {
-            "observations": set(self.hydamo.observationpoints.observation_points.get("name", [])),
-            "weirs": set(self.hydamo.structures.rweirs_df.get("id", []))
-            | set(self.hydamo.structures.uweirs_df.get("id", [])),
-            "orifices": set(self.hydamo.structures.orifices_df.get("id", [])),
-            "pumps": set(self.hydamo.structures.pumps_df.get("id", [])),
-            "generalstructures": set(self.hydamo.structures.generalstructures_df.get("id", [])),
-            "culverts": set(self.hydamo.structures.culverts_df.get("id", [])),
-            "bridges": set(self.hydamo.structures.bridges_df.get("id", [])),
+            "observations": set(hydamo.observationpoints.observation_points.get("name", [])),
+            "weirs": set(hydamo.structures.rweirs_df.get("id", []))
+            | set(hydamo.structures.uweirs_df.get("id", [])),
+            "orifices": set(hydamo.structures.orifices_df.get("id", [])),
+            "pumps": set(hydamo.structures.pumps_df.get("id", [])),
+            "generalstructures": set(hydamo.structures.generalstructures_df.get("id", [])),
+            "culverts": set(hydamo.structures.culverts_df.get("id", [])),
+            "bridges": set(hydamo.structures.bridges_df.get("id", [])),
         }
 
     @validate_arguments
@@ -560,8 +625,9 @@ class DRTCModel:
         return allow, el_text
 
 
+    @staticmethod
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
-    def _parse_referenced_structures(self, root: ET.Element) -> list[DRTCStructure]:
+    def _parse_referenced_structures(root: ET.Element) -> list[DRTCStructure]:
         structures = []
         rtc_to_flow = root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")
         flow_to_rtc = root.findall(".//{*}coupler[@name='flow_to_rtc']/{*}item/{*}sourceName")
