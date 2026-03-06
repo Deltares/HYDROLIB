@@ -690,6 +690,21 @@ class StructuresIO:
                         management_device.kunstwerkopeningid
                         == op_row.globalid
                     ]
+                    
+                    if weir_mandev.empty:
+                        logger.warning(
+                            "Skipping %s because there is no associated management device.",
+                            opening.code,
+                        )
+                        continue
+                    if weir_mandev.shape[0] > 1:
+                        logger.warning(
+                            "Multiple management devices associated to %s. Taking the first one.",
+                            opening.code,
+                        )
+                        weir_mandev = weir_mandev.iloc[[0]]                    
+
+
                     weir_id = f'{weir.code}_{num_op+1}'
                     if (not self.structures.hydamo.management.empty) & (hasattr(self.structures.hydamo.management, 'regelmiddelid')):
                         if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).item():
@@ -759,6 +774,13 @@ class StructuresIO:
                         weir.code,
                     )
                     continue
+                if weir_mandev.shape[0] > 1:
+                    logger.warning(
+                        "Multiple management devices associated to %s. Taking the first one.",
+                        weir.code,
+                    )
+                    weir_mandev = weir_mandev.iloc[[0]]                    
+
 
                 if (not self.structures.hydamo.management.empty) & hasattr(self.structures.hydamo.management, 'regelmiddelid'):
                     if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).item():
