@@ -6,6 +6,7 @@ from typing import Union
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import shapely
 from shapely.geometry import LineString, MultiPolygon, Polygon
 
 from hydrolib.dhydamo.geometry import spatial
@@ -322,7 +323,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if clip is not None:
             self.clip(geometry=clip, cliptype=cliptype)
 
-    def clip(self, geometry: Union[Polygon, MultiPolygon], cliptype: str = "clip"):
+    def clip(self, geometry: Union[Polygon, MultiPolygon], cliptype: str = "clip", clip_and_drop: bool = True):
         """
         Clip geometry
         """
@@ -331,7 +332,38 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # Clip if needed          
         if cliptype == "clip":
+            pre_geomtypes = self.geom_type.unique().tolist()
+            if "Polygon" in pre_geomtypes and "MultiPolygon" not in pre_geomtypes:
+                pre_geomtypes.append("MultiPolygon")
+            if "MultiPolygon" in pre_geomtypes and "Polygon" not in pre_geomtypes:
+                pre_geomtypes.append("Polygon")
             gdf = gpd.clip(self, gpd.GeoDataFrame(geometry=[geometry], crs=self.crs))
+            if clip_and_drop:
+                # Reduce to allowed 
+                gdf = gpd.GeoDataFrame(gdf, crs=gdf.crs)
+                rem = gdf[~gdf.geom_type.isin(pre_geomtypes)]
+                # Explode to deal with geometry collections
+                rem = rem.explode(ignore_index=False, index_parts=False)
+                rem = rem[rem.geom_type.isin(pre_geomtypes)]
+                gdf = pd.concat([gdf[gdf.geom_type.isin(pre_geomtypes)], rem], ignore_index=False)
+                # Merge duplicate indices to single multigeometry
+                keep = []
+                for idx, group in gdf.groupby(level=0, sort=False):
+                    if len(group) == 1:
+                        keep.append(group.iloc[0].copy())
+                    elif len(group) > 1:
+                        row = group.iloc[0].copy()
+                        geoms = group.geometry.tolist()
+                        geom = shapely.union_all(geoms)
+                        if geom.geom_type not in pre_geomtypes:
+                            logger.warning(
+                                "Cannot deduplicate index '%s': clipping resulted in split geometries, using the first geometry.",
+                                idx,
+                            )
+                            geom = geoms[0]
+                        row.at["geometry"] = geom
+                        keep.append(row)
+                gdf = gpd.GeoDataFrame(keep, crs=gdf.crs)
         elif cliptype == "select":
             gdf = self.loc[self.intersects(geometry).values]
         else:

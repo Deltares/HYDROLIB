@@ -5,7 +5,13 @@ import pandas as pd
 import geopandas as gpd
 from hydrolib.dhydamo.core import hydamo
 from hydrolib.dhydamo.geometry import mesh
-from shapely.geometry import Point
+from shapely.geometry import (
+    LineString,
+    MultiPolygon,
+    Point,
+    Polygon,
+)
+from shapely.geometry.base import BaseGeometry
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 from hydrolib.core.dflowfm.mdu.models import FMModel
@@ -14,6 +20,51 @@ from hydrolib.core.dflowfm.mdu.models import FMModel
 hydamo_data_path = (
     Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
 )
+
+
+def _mixed_extended_geometries():
+    gdf = gpd.GeoDataFrame(
+        {
+            "code": [
+                "polygon_result",
+                "multipolygon_result",
+                "point_result",
+                "geometrycollection_result",
+            ],
+            "geometry": [
+                Polygon([(-1.0, 0.5), (1.0, 0.5), (1.0, 1.5), (-1.0, 1.5)]),
+                MultiPolygon(
+                    [
+                        Polygon(
+                            [(0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)]
+                        ),
+                        Polygon(
+                            [(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)]
+                        ),
+                    ]
+                ),
+                Polygon([(2.0, 2.0), (3.0, 2.0), (2.0, 3.0)]),
+                MultiPolygon(
+                    [
+                        Polygon(
+                            [(-1.0, 0.2), (0.5, 0.2), (0.5, 1.2), (-1.0, 1.2)]
+                        ),
+                        Polygon(
+                            [(1.2, 0.5), (2.5, 0.5), (2.5, 1.5), (1.2, 1.5)]
+                        ),
+                        Polygon(
+                            [(2.0, 2.0), (3.0, 2.0), (2.0, 3.0)]
+                        ),
+                    ]
+                ),
+            ],
+        },
+        crs="EPSG:28992",
+    )
+    geoms = ExtendedGeoDataFrame(geotype=BaseGeometry, required_columns=["code"])
+    geoms.set_data(gdf, index_col="code")
+    return geoms
+
 
 def _check_related(hydamo, hydamo_name):
     # assert type of object
@@ -94,6 +145,61 @@ def test_clip_hydamo_object():
     assert hydamo.branches.shape[0] ==  18
 
     assert np.isclose(np.round(hydamo.branches.loc['W_242208_0'].geometry.length, 2), 426.4)
+
+
+def test_clip_extended_geodataframe():
+    geoms = _mixed_extended_geometries()
+    extent = Polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
+    assert set(geoms.geometry.geom_type.tolist()) == {"Polygon", "MultiPolygon"}
+
+    geoms.clip(extent, cliptype="clip", clip_and_drop=False)
+
+    assert geoms.shape[0] == 4
+    assert geoms.loc["polygon_result"].geometry.geom_type == "Polygon"
+    assert geoms.loc["multipolygon_result"].geometry.geom_type == "MultiPolygon"
+    assert geoms.loc["point_result"].geometry.geom_type == "Point"
+    assert geoms.loc["geometrycollection_result"].geometry.geom_type == "GeometryCollection"
+
+def test_clip_and_drop_extended_geodataframe():
+    geoms = _mixed_extended_geometries()
+    extent = Polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
+    assert set(geoms.geometry.geom_type.tolist()) == {"Polygon", "MultiPolygon"}
+
+    geoms.clip(extent, cliptype="clip", clip_and_drop=True)
+
+    assert geoms.shape[0] == 3
+    assert not geoms.index.has_duplicates
+    assert geoms.index.tolist().count("geometrycollection_result") == 1
+    assert geoms.loc["polygon_result"].geometry.geom_type == "Polygon"
+    assert geoms.loc["multipolygon_result"].geometry.geom_type == "MultiPolygon"
+    assert "point_result" not in geoms.index
+    assert geoms.loc["geometrycollection_result"].geometry.geom_type == "MultiPolygon"
+
+
+def test_clip_and_drop_linestring_uses_first_with_warning(caplog):
+    gdf = gpd.GeoDataFrame(
+        {
+            "code": ["line_split"],
+            "geometry": [LineString([(-1.0, 1.0), (5.0, 1.0)])],
+        },
+        crs="EPSG:28992",
+    )
+    lines = ExtendedGeoDataFrame(geotype=LineString, required_columns=["code"])
+    lines.set_data(gdf, index_col="code")
+
+    extent = Polygon(
+        [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)],
+        holes=[[(1.0, 0.5), (3.0, 0.5), (3.0, 1.5), (1.0, 1.5)]],
+    )
+
+    with caplog.at_level("WARNING"):
+        lines.clip(extent, cliptype="clip", clip_and_drop=True)
+
+    assert "Cannot deduplicate index" in caplog.text
+    assert lines.shape[0] == 1
+    assert lines.index.tolist() == ["line_split"]
+    assert lines.geometry.iloc[0].geom_type == "LineString"
+
 
 def _hydamo_object_from_gpkg():
     # initialize a hydamo object
