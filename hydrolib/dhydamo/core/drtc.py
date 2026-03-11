@@ -72,7 +72,7 @@ class DRTCModel:
                 may be coupled to complex controller logic. Required when
                 `complex_controllers_folder` is provided. An empty list means no IDs
                 are allowed.
-            rtc_timestep (Union[int, float], optional): Time step of the RTC model. 
+            rtc_timestep (Union[int, float], optional): Time step of the RTC model.
                 Defaults to 60 seconds.
         """
         self.hydamo = hydamo
@@ -121,6 +121,7 @@ class DRTCModel:
             self.cc_structs, self.cc_ids = self._load_complex_controller_structs(
                 complex_controllers_folder,
                 self.struct_ids_by_type,
+                log_validation=True,
             )
             logger.info(
                 "Found %d complex controller structures referenced in XML: %s",
@@ -369,9 +370,10 @@ class DRTCModel:
         complex_controllers_folder: Union[list[Union[str, Path]], str, Path],
         hydamo: HyDAMO,
     ) -> set[str]:
-        # Do not return observation point IDs in this public method.
+        # Do not log validation warnings in this method
         struct_ids_by_type = DRTCModel._get_struct_ids_by_type(hydamo)
-        cc_structs, _ = DRTCModel._load_complex_controller_structs(complex_controllers_folder, struct_ids_by_type)
+        cc_structs, _ = DRTCModel._load_complex_controller_structs(complex_controllers_folder, struct_ids_by_type, log_validation=False)
+        # Do not return observation point IDs in this method
         cc_ids = set([cc.struct_name for cc in cc_structs if cc.struct_type != "observations"])
 
         return cc_ids
@@ -381,15 +383,15 @@ class DRTCModel:
     @validate_arguments
     def _load_complex_controller_structs(
         complex_controllers_folder: Union[list[Union[str, Path]], str, Path],
-        struct_ids_by_type: dict[str, set[str]]
+        struct_ids_by_type: dict[str, set[str]],
+        log_validation: bool = True,
     ) -> tuple[list[DRTCStructure], set[str]]:
         folders = DRTCModel._as_folder_list(complex_controllers_folder)
-        complex_controller_structs = DRTCModel._collect_complex_controller_structs(folders)
-        complex_controller_structs, complex_controller_ids = DRTCModel._deduplicate_complex_controller_structs(
-            complex_controller_structs
-        )
-        DRTCModel._validate_complex_controller_structs(complex_controller_structs, struct_ids_by_type)
-        return complex_controller_structs, complex_controller_ids
+        cc_structs = DRTCModel._collect_complex_controller_structs(folders)
+        cc_structs, cc_ids = DRTCModel._deduplicate_complex_controller_structs(cc_structs)
+        cc_structs, cc_ids = DRTCModel._validate_complex_controller_structs(cc_structs, struct_ids_by_type, log_validation)
+
+        return cc_structs, cc_ids
 
     @staticmethod
     @validate_arguments
@@ -444,28 +446,20 @@ class DRTCModel:
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def _validate_complex_controller_structs(
         complex_controller_structs: list[DRTCStructure],
-        struct_ids_by_type: dict[str, set[str]]
-    ) -> None:
-        missing_structs = []
-        unknown_types = set()
-
+        struct_ids_by_type: dict[str, set[str]],
+        log_validation: bool
+    ) -> tuple[list[DRTCStructure], set[str]]:
+        validated_cc_structs = []
         for fs in complex_controller_structs:
-            if fs.struct_type not in struct_ids_by_type:
-                unknown_types.add(fs.struct_type)
-                continue
-            if fs.struct_name not in struct_ids_by_type[fs.struct_type]:
-                missing_structs.append(f"{fs.struct_type}/{fs.struct_name}")
+            if fs.struct_type not in struct_ids_by_type or fs.struct_name not in struct_ids_by_type[fs.struct_type]:
+                msg = f"Complex controller structure not found in HyDAMO, will not be used: {fs.struct_type}/{fs.struct_name}"
+                if log_validation:
+                    logger.warning(msg)
+            else:
+                validated_cc_structs.append(fs)
+        validated_cc_ids = set([fs.struct_name for fs in validated_cc_structs])
 
-        if unknown_types:
-            logger.warning(
-                "Skipping HyDAMO complex controller validation for unsupported structure types: %s",
-                sorted(unknown_types),
-            )
-
-        if missing_structs:
-            msg = f"Complex controller structures not found in HyDAMO: {missing_structs}"
-            logger.error(msg)
-            raise ValueError(msg)
+        return validated_cc_structs, validated_cc_ids
 
     @staticmethod
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
