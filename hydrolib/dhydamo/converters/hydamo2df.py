@@ -693,14 +693,16 @@ class StructuresIO:
                     
                     if weir_mandev.empty:
                         logger.warning(
-                            "Skipping %s because there is no associated management device.",
-                            opening.code,
+                            "Skipping opening %s (weir %s) because there is no associated management device.",
+                            op_row.code,
+                            weir.code
                         )
                         continue
                     if weir_mandev.shape[0] > 1:
                         logger.warning(
-                            "Multiple management devices associated to %s. Taking the first one.",
-                            opening.code,
+                            "Multiple management devices associated to opening %s (weir %s). Taking the first one.",
+                            op_row.code,
+                            weir.code
                         )
                         weir_mandev = weir_mandev.iloc[[0]]                    
 
@@ -748,7 +750,7 @@ class StructuresIO:
                         )
                     else:
                         logger.warning(
-                            'Skipping %s - from "overlaatonderlaat" %s the type of structure could not be determined.',
+                            'Skipping weir %s - from "overlaatonderlaat" %s the type of structure could not be determined.',
                             weir.code,
                             weir_mandev.overlaatonderlaat,
                         )
@@ -757,7 +759,7 @@ class StructuresIO:
             else:
                 if weir_opening.empty:
                     logger.warning(
-                        "Skipping %s because there is no associated opening.",
+                        "Skipping weir %s because there is no associated opening.",
                         weir.code,
                     )
                     continue
@@ -770,14 +772,16 @@ class StructuresIO:
 
                 if weir_mandev.empty:
                     logger.warning(
-                        "Skipping %s because there is no associated management device.",
-                        weir.code,
+                        "Skipping opening %s (weir %s) because there is no associated management device.",
+                        weir_opening.code.squeeze(),
+                        weir_id
                     )
                     continue
                 if weir_mandev.shape[0] > 1:
                     logger.warning(
-                        "Multiple management devices associated to %s. Taking the first one.",
-                        weir.code,
+                        "Multiple management devices associated to opening %s (weir %s). Taking the first one.",
+                        weir_opening.code.squeeze(),
+                        weir_id
                     )
                     weir_mandev = weir_mandev.iloc[[0]]                    
 

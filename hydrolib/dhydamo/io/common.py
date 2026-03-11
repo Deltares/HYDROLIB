@@ -239,7 +239,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         check_columns: bool = True,
         check_geotype: bool = True,
         clip: Union[Polygon, MultiPolygon] = None,
-        cliptype: str = "clip",
+        cliptype: str = "select",
         check_3d: bool = True
     ):
         if not Path(gpkg_path).exists():
@@ -323,7 +323,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if clip is not None:
             self.clip(geometry=clip, cliptype=cliptype)
 
-    def clip(self, geometry: Union[Polygon, MultiPolygon], cliptype: str = "clip", clip_and_drop: bool = True):
+    def clip(self, geometry: Union[Polygon, MultiPolygon], cliptype: str = "select", clip_and_drop: bool = True):
         """
         Clip geometry
         """
