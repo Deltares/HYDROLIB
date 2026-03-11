@@ -140,7 +140,7 @@ def test_clip_hydamo_object():
     assert gpkg_file.exists()
 
     # Read branches
-    hydamo.branches.read_gpkg_layer(str(gpkg_file), layer_name="HydroObject", index_col="code", clip=extent)    
+    hydamo.branches.read_gpkg_layer(str(gpkg_file), layer_name="HydroObject", index_col="code", clip=extent, cliptype="clip")    
 
     assert hydamo.branches.shape[0] ==  18
 
