@@ -7,7 +7,7 @@ from pydantic.v1 import validate_arguments
 import netCDF4 as nc
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.core.drr import DRRModel
-from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.core.dflowfm.mdu.models import FMaddModel
 
 
 class DIMRWriter:
@@ -52,13 +52,15 @@ class DIMRWriter:
         """Reads the Netcdf file and addes the required attributes for a valid CRS."""        
         if netcdf_path is None:
             netfile = list((self.output_path / 'dflowfm').glob('*.nc'))[0]
+            if not netfile.exists():
+                raise FileNotFoundError(f"Netcdf file not found in {self.output_path / 'dflowfm'}. Provide the correct path via the netcdf_path argument.")
         else:
             if netcdf_path.is_dir():
                 netfile = list(netcdf_path.glob('*.nc'))[0]
             elif netcdf_path.is_file():
                 netfile = netcdf_path  
             else:        
-                raise FileNotFoundError(f"Netcdf file not found at {netfile}.")   
+                raise FileNotFoundError(f"Netcdf file not found at {netcdf_path}.")   
         netf = nc.Dataset(netfile, 'r+')
         netf.Conventions =  'CF-1.8 UGRID-1.0 Deltares-0.10'
         proj = netf.createVariable('projected_coordinate_system','i4')
