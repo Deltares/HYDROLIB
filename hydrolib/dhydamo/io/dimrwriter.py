@@ -7,7 +7,7 @@ from pydantic.v1 import validate_arguments
 import netCDF4 as nc
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.core.drr import DRRModel
-from hydrolib.core.dflowfm.mdu.models import FMaddModel
+from hydrolib.core.dflowfm.mdu.models import FMModel
 
 
 class DIMRWriter:
