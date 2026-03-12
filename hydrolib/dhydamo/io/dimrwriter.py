@@ -48,9 +48,17 @@ class DIMRWriter:
                 f.write('call "' + str(self.run_dimr) + '" -d ' + str(debuglevel) + ' > ' + str(runlog) + '\n')
 
     @validate_arguments
-    def add_crs(self) -> None:
+    def add_crs(self, netcdf_path: Union[str, Path] = None) -> None:
         """Reads the Netcdf file and addes the required attributes for a valid CRS."""        
-        netfile = list((self.output_path / 'dflowfm').glob('*.nc'))[0]
+        if netcdf_path is None:
+            netfile = list((self.output_path / 'dflowfm').glob('*.nc'))[0]
+        else:
+            if netcdf_path.is_dir():
+                netfile = list(netcdf_path.glob('*.nc'))[0]
+            elif netcdf_path.is_file():
+                netfile = netcdf_path  
+            else:        
+                raise FileNotFoundError(f"Netcdf file not found at {netfile}.")   
         netf = nc.Dataset(netfile, 'r+')
         netf.Conventions =  'CF-1.8 UGRID-1.0 Deltares-0.10'
         proj = netf.createVariable('projected_coordinate_system','i4')
