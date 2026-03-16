@@ -1748,7 +1748,6 @@ class ExternalForcings:
 
         self.lateral_nodes[id] = {
             "id": id,
-            "name": id,
             "type": "discharge",
             "locationtype": "1d",
             "branchid": branchid,

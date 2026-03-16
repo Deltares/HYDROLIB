@@ -286,8 +286,7 @@ class Df2HydrolibModel:
             if isinstance(lateral["discharge"], str):
                 # realtime boundary
                 lat_ext = Lateral(
-                    id=key,
-                    name=key,
+                    id=key,                    
                     locationType="1d",
                     branchId=lateral["branchid"],
                     chainage=lateral["chainage"],
@@ -319,8 +318,7 @@ class Df2HydrolibModel:
                     )
                 self.forcingmodel.forcing.append(lat_bc)
                 lat_ext = Lateral(
-                    id=key,
-                    name=key,
+                    id=key,                    
                     locationtype=lateral["locationtype"],
                     branchId=lateral["branchid"],
                     chainage=lateral["chainage"],
