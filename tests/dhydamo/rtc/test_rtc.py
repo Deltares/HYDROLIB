@@ -80,7 +80,7 @@ def _setup_rtc_model(hydamo=None, fm=None, output_path=None):
         output_path = Path("hydrolib/tests/model").resolve()
 
     if hydamo is None:
-        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+        hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
     drtcmodel = DRTCModel(
         hydamo,
@@ -129,7 +129,7 @@ def test_complex_controller_multiple_folders(hydamo=None):
 
     output_path = Path("hydrolib/tests/model").resolve()
     if hydamo is None:
-        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+        hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
  
     id_limit_complex_controllers = [
@@ -179,7 +179,7 @@ def test_complex_controller_multiple_folders_dimr_merged(hydamo=None):
 
     output_path = Path("hydrolib/tests/model").resolve()
     if hydamo is None:
-        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+        hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
     rtcd = DRTCModel(
         hydamo,
@@ -207,7 +207,7 @@ def test_dimrwriter_deduplicates_coupler_items(hydamo=None):
 
     output_path = Path("hydrolib/tests/model").resolve()
     if hydamo is None:
-        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+        hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
     rtcd = DRTCModel(
         hydamo,
@@ -253,7 +253,7 @@ def test_dimrwriter_flow_to_rtc_components_for_complex_only(hydamo=None):
 
     output_path = Path("hydrolib/tests/model").resolve()
     if hydamo is None:
-        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+        hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
     rtcd = DRTCModel(
         hydamo,
@@ -286,7 +286,7 @@ def test_drtc_deduplicates_complex_fragments(hydamo=None):
 
     output_path = Path("hydrolib/tests/model").resolve()
     if hydamo is None:
-        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+        hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
     rtcd = DRTCModel(
         hydamo,
@@ -347,7 +347,7 @@ def test_complex_controller_fourtypes(caplog, hydamo=None):
     assert data_path.exists()
     output_path = Path("hydrolib/tests/model").resolve()
     if hydamo is None:
-        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+        hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
     hydamo.observationpoints.add_points(
         [Point(200064,395087), Point(200775,395209), Point(201585,395162), Point(199877,393954)],
@@ -388,7 +388,7 @@ def test_complex_controller_fourtypes_limit(caplog, hydamo=None):
     assert data_path.exists()
     output_path = Path("hydrolib/tests/model").resolve()
     if hydamo is None:
-        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+        hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
     hydamo.observationpoints.add_points(
         [Point(200064,395087), Point(200775,395209), Point(201585,395162), Point(199877,393954)],
@@ -432,7 +432,7 @@ def test_complex_controller_wrong(caplog, hydamo=None):
     assert data_path.exists()
     output_path = Path("hydrolib/tests/model").resolve()
     if hydamo is None:
-        hydamo, fm = setup_model(hydamo=hydamo, full_test=True)
+        hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
     hydamo.observationpoints.add_points(
         [Point(200064,395087), Point(200775,395209), Point(201585,395162), Point(199877,393954)],

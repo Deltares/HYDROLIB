@@ -1,7 +1,6 @@
 import logging
 import os
 from pathlib import Path
-from typing import Union
 
 import pandas as pd
 import rasterio
@@ -34,7 +33,7 @@ class DRRModel:
         self.dimr_path = ""
 
     @validate_arguments
-    def read_raster(self, file: Union[str, Path], static: bool = False) -> tuple:
+    def read_raster(self, file: str | Path, static: bool = False) -> tuple:
         """
         Method to read a raster. All rasterio types are accepted, plus IDF: in that case the iMod-package is used to read the IDF raster (IDF is cusomary for MODFLOW/SIMGRO models.)
 

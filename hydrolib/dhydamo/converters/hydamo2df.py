@@ -1,14 +1,13 @@
 import logging
 from enum import Enum
-from typing import Union
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+from netCDF4 import Dataset, chartostring
 from pydantic.v1 import ConfigDict, validate_arguments
-from typing import Optional
 from shapely.geometry import Point
-from netCDF4 import Dataset
-from netCDF4 import chartostring
-from pathlib import Path
+
 from hydrolib.dhydamo.geometry.mesh import Network
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
@@ -103,12 +102,12 @@ class CrossSectionsIO:
         self,
         branches: ExtendedGeoDataFrame, # = None,
         roughness_variant: RoughnessVariant,# =None,
-        crosssections: Optional[ExtendedGeoDataFrame] = None,
-        crosssection_roughness: Optional[ExtendedDataFrame] = None,
-        profile_groups: Optional[ExtendedDataFrame] = None,
-        profile_lines: Optional[ExtendedGeoDataFrame] = None,
-        param_profile: Optional[ExtendedDataFrame] = None,
-        param_profile_values: Optional[ExtendedDataFrame] = None,
+        crosssections: ExtendedGeoDataFrame | None = None,
+        crosssection_roughness: ExtendedDataFrame | None = None,
+        profile_groups: ExtendedDataFrame | None = None,
+        profile_lines: ExtendedGeoDataFrame | None = None,
+        param_profile: ExtendedDataFrame | None = None,
+        param_profile_values: ExtendedDataFrame | None = None,
     ) -> None:
         """
         Method to add cross section from hydamo files. Two files
@@ -126,13 +125,13 @@ class CrossSectionsIO:
             groupidx = [
                 idx
                 for idx, group in profile_groups.iterrows()
-                if ("brugid" in profile_groups.columns) & (not pd.isnull(group.brugid))
+                if ("brugid" in profile_groups.columns) & (not pd.isna(group.brugid))
             ]
 
             groupidx = groupidx + [
                 idx
                 for idx, group in profile_groups.iterrows()
-                if ("stuwid" in profile_groups.columns) & (not pd.isnull(group.stuwid))
+                if ("stuwid" in profile_groups.columns) & (not pd.isna(group.stuwid))
             ]
 
             # index of the lines that are associated to these groups
@@ -140,7 +139,7 @@ class CrossSectionsIO:
                 profile_lines[
                     profile_lines["profielgroepid"]
                     == profile_groups.loc[grindex, "globalid"]
-                ].index.values[0]
+                ].index.to_numpy()[0]
                 for grindex in groupidx
             ]
             # index of the profiles associated to these lines
@@ -148,7 +147,7 @@ class CrossSectionsIO:
                 crosssections[
                     crosssections["profiellijnid"]
                     == profile_lines.loc[lindex, "globalid"]
-                ].index.values[0]
+                ].index.to_numpy()[0]
                 for lindex in lineidx
             ]
             # make a copy and drop the profiles corresponding to a structure
@@ -336,10 +335,10 @@ class ExternalForcingsIO:
     def laterals(
         self,
         locations: ExtendedGeoDataFrame,
-        overflows: Optional[ExtendedGeoDataFrame] = None,
-        greenhouse_laterals: Optional[ExtendedGeoDataFrame] = None,
-        lateral_discharges: Optional[Union[pd.DataFrame, pd.Series]]=None,
-        rr_boundaries: Optional[dict] = None,
+        overflows: ExtendedGeoDataFrame | None = None,
+        greenhouse_laterals: ExtendedGeoDataFrame | None = None,
+        lateral_discharges: pd.DataFrame | pd.Series | None=None,
+        rr_boundaries: dict | None = None,
     ) -> None:
         """
         Process laterals
@@ -424,13 +423,13 @@ class ExternalForcingsIO:
             
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def timeseries_from_other_model(self,
-                                  his_file: Union[Path, str],
+                                  his_file: Path | str,
                                   location_type: str,
                                   location_id: str, 
                                   variable: str,
-                                  starttime: Optional[Union[str, pd.Timestamp]] = None,
-                                  endtime: Optional[Union[str, pd.Timestamp]] = None,
-                                ) -> tuple[Optional[Point], pd.Series]:
+                                  starttime: str | pd.Timestamp | None = None,
+                                  endtime: str | pd.Timestamp | None = None,
+                                ) -> tuple[Point | None, pd.Series]:
         """
         Obtain timeseries from results from a different model. The HIS.nc file is read and a time series is extracted for the specified location/discharge combination.
         Point geometry and timeseries (pd.Series) are returned. 
@@ -646,10 +645,10 @@ class StructuresIO:
         weirs: ExtendedGeoDataFrame = None,
         profile_groups = None,
         profile_lines = None,
-        profiles: Optional[ExtendedGeoDataFrame] = None,
+        profiles: ExtendedGeoDataFrame | None = None,
         opening: ExtendedDataFrame = None,
         management_device: ExtendedDataFrame = None,
-        usevelocityheight: Optional[str] = "true",
+        usevelocityheight: str | None = "true",
     ) -> None:
         """
         Method to convert HyDAMO weirs to DFlowFM structures: regular weirs, orifices and universal weirs.
@@ -662,7 +661,7 @@ class StructuresIO:
         if not self.structures.hydamo.management.empty:
             self.structures.hydamo.management['stuwid'] = None
 
-        index = np.zeros((len(weirs.code)))
+        index = np.zeros(len(weirs.code))
         if profile_groups is not None and hasattr(profile_groups, "stuwid"):
             index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
 
@@ -725,24 +724,24 @@ class StructuresIO:
                                                  )
                     elif weir_mandev.overlaatonderlaat.squeeze().lower() == 'onderlaat':
                         cmp_list.append(weir_id)
-                        if "maximaaldebiet" not in weir_mandev or pd.isnull(weir_mandev.maximaaldebiet.values[0]):
+                        if "maximaaldebiet" not in weir_mandev or pd.isna(weir_mandev.maximaaldebiet.to_numpy()[0]):
                             limitflow = "false"
                             maxq = 0.0
                         else:
                             limitflow = "true"
-                            maxq = float(weir_mandev.maximaaldebiet.values[0])
+                            maxq = float(weir_mandev.maximaaldebiet.to_numpy()[0])
                         self.structures.add_orifice(
                             id=weir_id,
                             name=name,
                             branchid=weir.branch_id,
                             chainage=weir.branch_offset,
-                            crestlevel=float(weir_opening.laagstedoorstroomhoogte.values[0]),
-                            crestwidth=float(weir_opening.laagstedoorstroombreedte.values[0]),
+                            crestlevel=float(weir_opening.laagstedoorstroomhoogte.to_numpy()[0]),
+                            crestwidth=float(weir_opening.laagstedoorstroombreedte.to_numpy()[0]),
                             corrcoeff=weir.afvoercoefficient,
                             allowedflowdir="both",
                             usevelocityheight=usevelocityheight,
-                            gateloweredgelevel=float(weir_opening.laagstedoorstroomhoogte.values[0])
-                            + float(weir_mandev.hoogteopening.values[0]),
+                            gateloweredgelevel=float(weir_opening.laagstedoorstroomhoogte.to_numpy()[0])
+                            + float(weir_mandev.hoogteopening.to_numpy()[0]),
                             uselimitflowpos=limitflow,
                             limitflowpos=maxq,
                             uselimitflowneg=limitflow,
@@ -767,7 +766,7 @@ class StructuresIO:
                 weir_id = weir.code
                 weir_mandev = management_device[
                         management_device.kunstwerkopeningid
-                        == weir_opening.globalid.values[0]
+                        == weir_opening.globalid.to_numpy()[0]
                     ]
 
                 if weir_mandev.empty:
@@ -804,8 +803,8 @@ class StructuresIO:
                         name=name,
                         branchid=weir.branch_id,
                         chainage=weir.branch_offset,
-                        crestlevel=weir_opening.laagstedoorstroomhoogte.values[0],
-                        crestwidth=weir_opening.laagstedoorstroombreedte.values[0],
+                        crestlevel=weir_opening.laagstedoorstroomhoogte.to_numpy()[0],
+                        crestwidth=weir_opening.laagstedoorstroombreedte.to_numpy()[0],
                         corrcoeff=weir.afvoercoefficient,
                         allowedflowdir="both",
                         usevelocityheight=usevelocityheight,
@@ -815,24 +814,24 @@ class StructuresIO:
                     overlaatonderlaat.lower()
                     == "onderlaat"
                 ):
-                    if "maximaaldebiet" not in weir_mandev or pd.isnull(weir_mandev.maximaaldebiet.values[0]):
+                    if "maximaaldebiet" not in weir_mandev or pd.isna(weir_mandev.maximaaldebiet.to_numpy()[0]):
                         limitflow = "false"
                         maxq = 0.0
                     else:
                         limitflow = "true"
-                        maxq = float(weir_mandev.maximaaldebiet.values[0])
+                        maxq = float(weir_mandev.maximaaldebiet.to_numpy()[0])
                     self.structures.add_orifice(
                         id=weir_id,
                         name=name,
                         branchid=weir.branch_id,
                         chainage=weir.branch_offset,
-                        crestlevel=float(weir_opening.laagstedoorstroomhoogte.values[0]),
-                        crestwidth=float(weir_opening.laagstedoorstroombreedte.values[0]),
+                        crestlevel=float(weir_opening.laagstedoorstroomhoogte.to_numpy()[0]),
+                        crestwidth=float(weir_opening.laagstedoorstroombreedte.to_numpy()[0]),
                         corrcoeff=weir.afvoercoefficient,
                         allowedflowdir="both",
                         usevelocityheight=usevelocityheight,
-                        gateloweredgelevel=float(weir_opening.laagstedoorstroomhoogte.values[0])
-                        + float(weir_mandev.hoogteopening.values[0]),
+                        gateloweredgelevel=float(weir_opening.laagstedoorstroomhoogte.to_numpy()[0])
+                        + float(weir_mandev.hoogteopening.to_numpy()[0]),
                         uselimitflowpos=limitflow,
                         limitflowpos=maxq,
                         uselimitflowneg=limitflow,
@@ -857,9 +856,9 @@ class StructuresIO:
             if (profiles is not None) & ("stuwid" in profile_groups):
                 group = profile_groups[profile_groups["stuwid"] == uweir.globalid]
                 line = profile_lines[
-                    profile_lines["profielgroepid"] == group["globalid"].values[0]
+                    profile_lines["profielgroepid"] == group["globalid"].to_numpy()[0]
                 ]
-                prof = profiles[profiles["profiellijnid"] == line["globalid"].values[0]]
+                prof = profiles[profiles["profiellijnid"] == line["globalid"].to_numpy()[0]]
                 if not prof.empty:
                     counts = len(prof.geometry.iloc[0].coords[:])
                     xyz = np.vstack(prof.geometry.iloc[0].coords[:])
@@ -869,7 +868,7 @@ class StructuresIO:
                     ]
                     yzvalues = np.c_[length, xyz[:, -1] - np.min(xyz[:, -1])]
 
-            if not hasattr(uweir, 'laagstedoorstroomhoogte') or pd.isnull(uweir.laagstedoorstroomhoogte):
+            if not hasattr(uweir, 'laagstedoorstroomhoogte') or pd.isna(uweir.laagstedoorstroomhoogte):
                 kruinhoogte = np.min(xyz[:,-1])
             else:
                 kruinhoogte = uweir.laagstedoorstroomhoogte
@@ -951,9 +950,9 @@ class StructuresIO:
             # first search in yz-profiles
             group = profile_groups[profile_groups["brugid"] == bridge.globalid]
             line = profile_lines[
-                profile_lines["profielgroepid"] == group["globalid"].values[0]
+                profile_lines["profielgroepid"] == group["globalid"].to_numpy()[0]
             ]
-            prof = profiles[profiles["profiellijnid"] == line["globalid"].values[0]]
+            prof = profiles[profiles["profiellijnid"] == line["globalid"].to_numpy()[0]]
 
             if len(prof) == 0:
                 raise ValueError(f"{bridge.code} is not found in any cross-section.")
@@ -963,7 +962,7 @@ class StructuresIO:
             else:
                 name = bridge.code
 
-            profile_id = prof.code.values[0]
+            profile_id = prof.code.to_numpy()[0]
             self.structures.add_bridge(
                 id=bridge.code,
                 name=name,
@@ -1000,7 +999,7 @@ class StructuresIO:
     def culverts(
         self,
         culverts: ExtendedGeoDataFrame,
-        management_device: Optional[ExtendedDataFrame] = None,
+        management_device: ExtendedDataFrame | None = None,
     ) -> None:
         """
         Method to convert HyDAMO culverts to DFlowFM culverts. Devices like a valve and a slide can be schematized from the management_device object.
@@ -1197,7 +1196,7 @@ class StructuresIO:
 
             else:
                 #  only one pump
-                pump_control = management[management.pompid== pumps_subset.globalid.values[0]]
+                pump_control = management[management.pompid== pumps_subset.globalid.to_numpy()[0]]
                 if pump_control.empty:
                     logger.warning(
                         "Skipping %s because there is no associated management.",
@@ -1217,7 +1216,7 @@ class StructuresIO:
                     orientation="positive",
                     numstages=1,
                     controlside="suctionside",
-                    capacity=pumps_subset.maximalecapaciteit.values[0]/60.,
+                    capacity=pumps_subset.maximalecapaciteit.to_numpy()[0]/60.,
                     startlevelsuctionside=startlevelsuctionside,
                     stoplevelsuctionside=stoplevelsuctionside,
                     startleveldeliveryside=startlevelsuctionside,
@@ -1290,8 +1289,8 @@ class StructuresIO:
                 continue
             match = df[df.id == structure_id]
             if not match.empty:
-                branch = match.branchid.values[0]
-                offset = match.chainage.values[0]
+                branch = match.branchid.to_numpy()[0]
+                offset = match.chainage.to_numpy()[0]
         return branch, offset
 
     def _set_structure_location(self, structure_id, branch, offset):

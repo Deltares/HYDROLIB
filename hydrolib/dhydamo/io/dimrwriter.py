@@ -2,12 +2,13 @@
 import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Union
-from pydantic.v1 import validate_arguments
+
 import netCDF4 as nc
-from hydrolib.dhydamo.core.drtc import DRTCModel
-from hydrolib.dhydamo.core.drr import DRRModel
+from pydantic.v1 import validate_arguments
+
 from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.dhydamo.core.drr import DRRModel
+from hydrolib.dhydamo.core.drtc import DRTCModel
 
 
 class DIMRWriter:
@@ -15,7 +16,7 @@ class DIMRWriter:
 
     @validate_arguments
     def __init__(
-        self, dimr_path: str = None, output_path: Union[str, Path] = None
+        self, dimr_path: str = None, output_path: str | Path = None
     ) -> None:
         """Class initialization for the DIMR writer. This is a temporary fix to include writers for RR and RTC, that are not yet fully included in Hydrolib-core, or have bugs. Eventually, this file should be redundant as this functionality is fully included in Hydrolib-core
 
@@ -48,7 +49,7 @@ class DIMRWriter:
                 f.write('call "' + str(self.run_dimr) + '" -d ' + str(debuglevel) + ' > ' + str(runlog) + '\n')
 
     @validate_arguments
-    def add_crs(self, netcdf_path: Union[str, Path] = None) -> None:
+    def add_crs(self, netcdf_path: str | Path = None) -> None:
         """Reads the Netcdf file and addes the required attributes for a valid CRS."""        
         if netcdf_path is None:
             netfile = list((self.output_path / 'dflowfm').glob('*.nc'))[0]

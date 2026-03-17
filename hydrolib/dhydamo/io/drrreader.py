@@ -2,14 +2,15 @@ import logging
 import os
 import warnings
 from pathlib import Path
-from typing import Union
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from pydantic.v1 import ConfigDict, validate_arguments, StrictStr
-from rasterstats import zonal_stats
+from pydantic.v1 import ConfigDict, StrictStr, validate_arguments
 from rasterio.transform import from_origin
+from rasterstats import zonal_stats
 from tqdm.auto import tqdm
+
 from hydrolib.dhydamo.io import idfreader
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
@@ -26,12 +27,12 @@ class UnpavedIO:
     def unpaved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: Union[StrictStr, Path],
-        surface_level: Union[StrictStr, Path],
-        soiltype: Union[StrictStr, Path],
-        surface_storage: Union[StrictStr, Path, float],
-        infiltration_capacity: Union[StrictStr, Path, float],
-        initial_gwd: Union[StrictStr, Path, float],
+        landuse: StrictStr | Path,
+        surface_level: StrictStr | Path,
+        soiltype: StrictStr | Path,
+        surface_storage: StrictStr | Path | float,
+        infiltration_capacity: StrictStr | Path | float,
+        initial_gwd: StrictStr | Path | float,
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,        
         greenhouse_areas: ExtendedGeoDataFrame = None
@@ -161,7 +162,7 @@ class UnpavedIO:
             if greenhouse_areas is not None:
                 if cat.geometry.intersects(greenhouse_areas.geometry).any():
                     intersection_area = cat.geometry.intersection(greenhouse_areas.geometry).area
-                    intersection_area = intersection_area[intersection_area > 0.].values[0]                    
+                    intersection_area = intersection_area[intersection_area > 0.].to_numpy()[0]                    
                     if 15 in lu_counts[num]:
                         # divide area to subtract between greenhouses and the most occurring area
                         remainder = np.max([0., intersection_area - float(lu_counts[num][15]*px_area)])                                                
@@ -269,11 +270,11 @@ class PavedIO:
     def paved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: Union[StrictStr, Path],
-        surface_level: Union[StrictStr, Path],
-        street_storage:Union[StrictStr, Path, float],
-        sewer_storage:Union[StrictStr, Path,  float],
-        pump_capacity:Union[StrictStr, Path, float],
+        landuse: StrictStr | Path,
+        surface_level: StrictStr | Path,
+        street_storage:StrictStr | Path | float,
+        sewer_storage:StrictStr | Path | float,
+        pump_capacity:StrictStr | Path | float,
         meteo_areas: ExtendedGeoDataFrame,
         overflows: ExtendedGeoDataFrame = None,
         sewer_areas: ExtendedGeoDataFrame = None,
@@ -622,9 +623,9 @@ class GreenhouseIO:
     def greenhouse_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: Union[Path, str],
-        surface_level: Union[Path, str],
-        roof_storage: Union[StrictStr,float],
+        landuse: Path | str,
+        surface_level: Path | str,
+        roof_storage: StrictStr | float,
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,        
         greenhouse_areas: ExtendedGeoDataFrame=None,
@@ -734,7 +735,7 @@ class GreenhouseIO:
                 gh_drr.at[gh.code, "meteo_area"] = str(ms)
                 gh_drr.at[gh.code, "px"] = f"{gh.geometry.centroid.coords[0][0]:.0f}"
                 gh_drr.at[gh.code, "py"] = f"{gh.geometry.centroid.coords[0][1]:.0f}"
-                latcode = greenhouse_laterals[greenhouse_laterals.codegerelateerdobject == gh.code].code.values[0]
+                latcode = greenhouse_laterals[greenhouse_laterals.codegerelateerdobject == gh.code].code.to_numpy()[0]
                 gh_drr.at[gh.code, "boundary_node"] = str(latcode)           
             [self.greenhouse.add_greenhouse(**gh) for gh in gh_drr.to_dict("records")]
 
@@ -755,7 +756,7 @@ class GreenhouseIO:
             if greenhouse_areas is not None:
                 if cat.geometry.intersects(greenhouse_areas.geometry).any():
                     intersection_area = cat.geometry.intersection(greenhouse_areas.geometry).area
-                    intersection_area = intersection_area[intersection_area > 0.].values[0]                    
+                    intersection_area = intersection_area[intersection_area > 0.].to_numpy()[0]                    
                     if 15 in lu_counts[num]:
                         # divide area to subtract between greenhouses and the most occurring area                                                
                         logger.info(
@@ -790,7 +791,7 @@ class OpenwaterIO:
     def openwater_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: Union[Path, str],
+        landuse: Path | str,
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,
     ) -> None:
@@ -855,7 +856,7 @@ class ExternalForcingsIO:
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def seepage_from_input(
-        self, catchments: ExtendedGeoDataFrame, seepage_folder: Union[Path, str]
+        self, catchments: ExtendedGeoDataFrame, seepage_folder: Path | str
     ) -> None:
         """Perform zonal statistics to derive seepage time series per catchment. Time steps are derived from the data
 
@@ -874,7 +875,7 @@ class ExternalForcingsIO:
         ):
             if file.endswith('.idf'):
                 dataset = idfreader.open(os.path.join(seepage_folder, file))                                
-                array = dataset.squeeze().values
+                array = dataset.squeeze().to_numpy()
                 header = idfreader.header(os.path.join(seepage_folder, file), pattern=None)
                 affine = from_origin(
                     header["xmin"], header["ymax"], header["dx"], header["dx"]
@@ -906,8 +907,8 @@ class ExternalForcingsIO:
     def precip_from_input(
         self,
         areas: ExtendedGeoDataFrame,
-        precip_folder: Union[Path, str] = None,
-        precip_file: Union[Path, str] = None,
+        precip_folder: Path | str = None,
+        precip_file: Path | str = None,
     ) -> None:
         """Create time series of precipitation for every meteo_area, based on zonal statistics from rasters.
 
@@ -946,8 +947,8 @@ class ExternalForcingsIO:
     def evap_from_input(
         self,
         areas: ExtendedGeoDataFrame,
-        evap_folder: Union[Path, str] = None,
-        evap_file: Union[Path, str] = None,
+        evap_folder: Path | str = None,
+        evap_file: Path | str = None,
     ) -> None:
         """Create time series of evaporation for every meteo_area, based on zonal statistics from rasters.
 

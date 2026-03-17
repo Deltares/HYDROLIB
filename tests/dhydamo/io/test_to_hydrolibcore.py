@@ -1,15 +1,11 @@
 import sys
 
-from hydrolib.dhydamo.core import hydamo
-
 sys.path.insert(0, r".")
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from shapely.geometry import Point
-
 from hydrolib.core.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
 from hydrolib.core.dflowfm.ext.models import ExtModel
 from hydrolib.core.dflowfm.friction.models import FrictionModel
@@ -21,6 +17,7 @@ from hydrolib.core.dflowfm.structure.models import StructureModel
 
 # and from hydrolib-core
 from hydrolib.core.dimr.models import DIMR, FMComponent
+from shapely.geometry import Point
 
 # Importing relevant classes from Hydrolib-dhydamo
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
@@ -35,15 +32,16 @@ assert data_path.exists()
 output_path = Path(__file__).parent / ".." / ".." / "model"
 output_path.mkdir(parents=False, exist_ok=True)
 
-def setup_model(hydamo=None, full_test=False):
+def setup_model(hydamo_obj=None, full_test=False):
     fm = FMModel()
     # Set start and stop time
     fm.time.refdate = 20160601
     fm.time.tstop =  48*3600
+    hydamo = hydamo_obj
 
     if hydamo is None:
         hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
-        hydamo = test_from_hydamo._convert_structures(hydamo=hydamo)
+        hydamo = test_from_hydamo._convert_structures(hydamo_obj=hydamo)
     
     if full_test:        
         hydamo.observationpoints.add_points(
@@ -167,8 +165,8 @@ def test_convert_to_hydrolibmodel():
     assert len(models.crossdefs) == 443
 
 
-def _add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
-    hydamo, fm = setup_model(hydamo=hydamo, full_test=full_test)
+def _add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False):
+    hydamo, fm = setup_model(hydamo_obj=hydamo_obj, full_test=full_test)
 
     if drrmodel is not None:
         hydamo.external_forcings.convert.laterals(
@@ -212,13 +210,13 @@ def _add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
 
     return fm
 
-def test_add_to_filestructure(drrmodel=None, hydamo=None, full_test=False):
-    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
+def test_add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False):
+    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test)
     assert hasattr(fm, "geometry")
     assert hasattr(fm.geometry, "inifieldfile")
     
-def _write_model(drrmodel=None, hydamo=None, full_test=False):
-    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
+def _write_model(drrmodel=None, hydamo_obj=None, full_test=False):
+    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test)
 
     fm.geometry.uniformwidth1d = 1.0            # default  breedte 
     fm.geometry.bedlevtype = 1                  # 1: at cell center (tiles xz,yz,bl,bob=max(bl)), 2: at face (tiles xu,yu,blu,bob=blu), 3: at face (using mean node values), 4: at face 
@@ -259,8 +257,8 @@ def _write_model(drrmodel=None, hydamo=None, full_test=False):
 
     return fm, output_path
 
-def test_write_model(drrmodel=None, hydamo=None, full_test=False):
-    _, output_path = _write_model(drrmodel=drrmodel, hydamo=hydamo, full_test=full_test)
+def test_write_model(drrmodel=None, hydamo_obj=None, full_test=False):
+    _, output_path = _write_model(drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test)
     assert (output_path / "dflowfm" / "DFM.mdu").exists()
     assert (output_path / "dflowfm" / "crsdef.ini").exists()
     assert (output_path / "dflowfm" / "network.nc").exists()

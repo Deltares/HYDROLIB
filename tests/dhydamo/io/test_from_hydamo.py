@@ -1,10 +1,9 @@
 from pathlib import Path
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-from hydrolib.dhydamo.core import hydamo
-from hydrolib.dhydamo.geometry import mesh
+from hydrolib.core.dflowfm.mdu.models import FMModel
 from shapely.geometry import (
     LineString,
     MultiPolygon,
@@ -12,10 +11,10 @@ from shapely.geometry import (
     Polygon,
 )
 from shapely.geometry.base import BaseGeometry
-from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
-from hydrolib.core.dflowfm.mdu.models import FMModel
 
+from hydrolib.dhydamo.core.hydamo import HyDAMO
+from hydrolib.dhydamo.geometry import mesh
+from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 
 hydamo_data_path = (
     Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
@@ -66,20 +65,20 @@ def _mixed_extended_geometries():
     return geoms
 
 
-def _check_related(hydamo, hydamo_name):
+def _check_related(hydamo_obj, hydamo_name):
     # assert type of object
-    extendedgdf = getattr(hydamo, hydamo_name)
+    extendedgdf = getattr(hydamo_obj, hydamo_name)
     assert isinstance(extendedgdf, ExtendedGeoDataFrame)
 
     # Check relations recursively
     if extendedgdf.related is not None:
         for target_str, relation in extendedgdf.related.items():
             print(f"{target_str}:")
-            _recursive_check_related(hydamo, hydamo_name, target_str, **relation)
+            _recursive_check_related(hydamo_obj, hydamo_name, target_str, **relation)
 
-def _recursive_check_related(hydamo, source_str, target_str, via, on, coupled_to):
-    source = getattr(hydamo, source_str)
-    target = getattr(hydamo, target_str)
+def _recursive_check_related(hydamo_obj, source_str, target_str, via, on, coupled_to):
+    source = getattr(hydamo_obj, source_str)
+    target = getattr(hydamo_obj, target_str)
 
     assert not source.empty
     assert not target.empty
@@ -88,7 +87,9 @@ def _recursive_check_related(hydamo, source_str, target_str, via, on, coupled_to
 
     if coupled_to is not None:
         for next_target_str, next_relation in coupled_to.items():
-            return _recursive_check_related(hydamo, target_str, next_target_str, **next_relation)
+            return _recursive_check_related(
+                hydamo_obj, target_str, next_target_str, **next_relation
+            )
 
 def test_hydamo_related():
     # all data is contained in one geopackage called 'Example model'
@@ -281,7 +282,7 @@ def _hydamo_object_from_gpkg():
     # read laterals
     hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
     hydamo.laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=5000)
-    hydamo.catchments['boundary_node'] = [hydamo.laterals[hydamo.laterals.globalid==c['lateraleknoopid']].code.values[0] for _,c in hydamo.catchments.iterrows()]
+    hydamo.catchments['boundary_node'] = [hydamo.laterals[hydamo.laterals.globalid==c['lateraleknoopid']].code.to_numpy()[0] for _,c in hydamo.catchments.iterrows()]
         
     return hydamo, len_profile_before
 
@@ -295,11 +296,11 @@ def test_hydamo_object_from_gpkg():
     assert len_profile_before == 359
     # seven profiles are too far from a branch and are dropped
     assert len(hydamo.profile) == 352
-    assert hydamo.profile.geom_type.values[0] == "LineString"
+    assert hydamo.profile.geom_type.to_numpy()[0] == "LineString"
     # the dataset contains two profile groups (a bridge and a uweir)
     assert hydamo.profile_group.shape == (2, 4)
     # a profile_lines' profielgroepid's should correspond to profile_group globalids
-    assert hydamo.profile_line.profielgroepid.values[0] in list(
+    assert hydamo.profile_line.profielgroepid.to_numpy()[0] in list(
         hydamo.profile_group.globalid
     )
     assert len(hydamo.management_device) == 32
@@ -309,7 +310,7 @@ def test_hydamo_object_from_gpkg():
     assert np.isclose(np.round(hydamo.culverts.length.sum()), 2498)
     assert len(hydamo.pumps) == 1
     assert len(hydamo.bridges) == 1
-    assert np.isclose(np.round(hydamo.bridges.branch_offset.values[0]), 182)
+    assert np.isclose(np.round(hydamo.bridges.branch_offset.to_numpy()[0]), 182)
     assert len(hydamo.boundary_conditions) == 1
     assert not hydamo.boundary_conditions.branch_offset.empty
     assert len(hydamo.catchments) == 121
@@ -317,40 +318,40 @@ def test_hydamo_object_from_gpkg():
     assert len(hydamo.laterals) == 121
     assert np.isclose(np.round(hydamo.laterals.afvoer.mean()), 0)
 
-def _convert_structures(hydamo=None):
+def _convert_structures(hydamo_obj=None):
     # iniate a hydamo object
-    if hydamo is None:
-        hydamo, _ = _hydamo_object_from_gpkg()
+    if hydamo_obj is None:
+        hydamo_obj, _ = _hydamo_object_from_gpkg()
 
     # Convert
-    hydamo.structures.convert.weirs(
-        weirs=hydamo.weirs,
-        profile_groups=hydamo.profile_group,
-        profile_lines=hydamo.profile_line,
-        profiles=hydamo.profile,
-        opening=hydamo.opening,
-        management_device=hydamo.management_device,
+    hydamo_obj.structures.convert.weirs(
+        weirs=hydamo_obj.weirs,
+        profile_groups=hydamo_obj.profile_group,
+        profile_lines=hydamo_obj.profile_line,
+        profiles=hydamo_obj.profile,
+        opening=hydamo_obj.opening,
+        management_device=hydamo_obj.management_device,
     )
 
-    hydamo.structures.convert.culverts(
-        hydamo.culverts, management_device=hydamo.management_device
+    hydamo_obj.structures.convert.culverts(
+        hydamo_obj.culverts, management_device=hydamo_obj.management_device
     )
 
-    hydamo.structures.convert.bridges(
-        hydamo.bridges,
-        profile_groups=hydamo.profile_group,
-        profile_lines=hydamo.profile_line,
-        profiles=hydamo.profile,
+    hydamo_obj.structures.convert.bridges(
+        hydamo_obj.bridges,
+        profile_groups=hydamo_obj.profile_group,
+        profile_lines=hydamo_obj.profile_line,
+        profiles=hydamo_obj.profile,
     )
 
-    hydamo.structures.convert.pumps(
-        hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
+    hydamo_obj.structures.convert.pumps(
+        hydamo_obj.pumpstations, pumps=hydamo_obj.pumps, management=hydamo_obj.management
     )
 
-    return hydamo
+    return hydamo_obj
 
-def test_convert_structures(hydamo=None):
-    hydamo = _convert_structures(hydamo=hydamo)
+def test_convert_structures(hydamo_obj=None):
+    hydamo = _convert_structures(hydamo_obj=hydamo_obj)
     # one weir is converted to an orifice, one tol a universal weir. w weirs have in total 4 extra openings, so fictional weirs are added.
     assert hydamo.structures.rweirs_df.shape[0] == hydamo.weirs.shape[0] - 2 + 4
     assert len(hydamo.structures.compounds_df)==2
@@ -394,7 +395,7 @@ def test_convert_crosssections():
 
     # check whether the bridge profile in in the crosssection definitions
     assert (
-        hydamo.structures.bridges_df.csdefid.values[0]
+        hydamo.structures.bridges_df.csdefid.to_numpy()[0]
         in hydamo.crosssections.crosssection_def.keys()
     )
     assert "default" in hydamo.crosssections.crosssection_def.keys()
@@ -487,12 +488,12 @@ def test_add_structures_manually():
     hydamo = _add_structures_manually()
     # hydamo.structures.orifices_df.loc[hydamo.structures.orifices_df.id == 'orifice_test', 'gateloweredgelevel'] == 18.
     
-    assert "rwtest" in hydamo.structures.rweirs_df.id.values[0]
-    assert "otest" in hydamo.structures.orifices_df.id.values[0]
-    assert "uwtest" in hydamo.structures.uweirs_df.id.values[0]
-    assert "btest" in hydamo.structures.bridges_df.id.values[0]
-    assert "ctest" in hydamo.structures.culverts_df.id.values[0]
-    assert "ptest" in hydamo.structures.pumps_df.id.values[0]    
+    assert "rwtest" in hydamo.structures.rweirs_df.id.to_numpy()[0]
+    assert "otest" in hydamo.structures.orifices_df.id.to_numpy()[0]
+    assert "uwtest" in hydamo.structures.uweirs_df.id.to_numpy()[0]
+    assert "btest" in hydamo.structures.bridges_df.id.to_numpy()[0]
+    assert "ctest" in hydamo.structures.culverts_df.id.to_numpy()[0]
+    assert "ptest" in hydamo.structures.pumps_df.id.to_numpy()[0]    
 
 def test_observationpoints():
     hydamo, _ = _hydamo_object_from_gpkg()
@@ -607,7 +608,7 @@ def test_add_initialfields():
     hydamo.external_forcings.set_initial_waterdepth(1.5)
 
     assert np.isclose(
-        np.round(hydamo.external_forcings.initial_waterdepth_polygons.waterdepth.values[0]), 2
+        np.round(hydamo.external_forcings.initial_waterdepth_polygons.waterdepth.to_numpy()[0]), 2
     )
 
 

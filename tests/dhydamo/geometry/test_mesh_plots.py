@@ -61,7 +61,7 @@ def test_plot_1d_add_branch_from_linestring():
 
 @pytest.mark.plot
 @pytest.mark.parametrize(
-    "b_within, b_branchids, b_refine, max_length, b_plot, outcome",
+    ('b_within', 'b_branchids', 'b_refine', 'max_length', 'b_plot', 'outcome'),
     [
         (False, False, False, np.inf, True, 15),
         (False, False, False, 1, True, 11),
@@ -76,7 +76,7 @@ def test_plot_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_
 
 @pytest.mark.plot
 @pytest.mark.parametrize(
-    "b_within, b_branchids, b_refine, max_length, b_plot, outcome",
+    ('b_within', 'b_branchids', 'b_refine', 'max_length', 'b_plot', 'outcome'),
     [
         (False, False, False, np.inf, True, 38),
         (False, False, False, 1, True, 1),
@@ -91,7 +91,7 @@ def test_plot_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refi
 
 @pytest.mark.plot
 @pytest.mark.parametrize(
-    "b_within, b_branchids, b_refine, b_plot, outcome",
+    ('b_within', 'b_branchids', 'b_refine', 'b_plot', 'outcome'),
     [
         (False, False, False, True, 24),
         (True, False, False, True, 11),

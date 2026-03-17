@@ -1,15 +1,17 @@
 
 import pathlib
 import subprocess
-from unittest import result
-import pytest
+
 import matplotlib.pyplot as plt
-from tests.dhydamo.io import test_to_hydrolibcore, test_from_hydamo
-from tests.dhydamo.rtc import test_rtc
-from tests.dhydamo.rr import test_setup_rr
+import numpy as np
+import pytest
+
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
 from hydrolib.dhydamo.io.drrwriter import DRRWriter
-import numpy as np
+from tests.dhydamo.io import test_from_hydamo, test_to_hydrolibcore
+from tests.dhydamo.rr import test_setup_rr
+from tests.dhydamo.rtc import test_rtc
+
 
 def _find_dimr(dhydro_path="C:/Program Files/Deltares", version=None):
     dimr_path = None
@@ -39,13 +41,13 @@ def _find_dimr(dhydro_path="C:/Program Files/Deltares", version=None):
 def test_run_model(version=None):
     # Read hydamo object only once    
     hydamo = test_from_hydamo._add_structures_manually()
-    hydamo = test_from_hydamo._convert_structures(hydamo=hydamo)
+    hydamo = test_from_hydamo._convert_structures(hydamo_obj=hydamo)
 
     # Add RR component
     drrmodel = test_setup_rr._setup_rr_model(hydamo=hydamo)
   
     # Setup model
-    fm, output_path = test_to_hydrolibcore._write_model(drrmodel=drrmodel, hydamo=hydamo, full_test=True)
+    fm, output_path = test_to_hydrolibcore._write_model(drrmodel=drrmodel, hydamo_obj=hydamo, full_test=True)
     
     # write RR
     drrmodel.d3b_parameters["Timestepsize"] = "60" 
@@ -87,7 +89,7 @@ output_path.mkdir(parents=False, exist_ok=True)
 @pytest.mark.slow
 @pytest.mark.skipif(_find_dimr() is None, reason="D-Hydro not installed or run_dimr.bat not found")
 @pytest.mark.parametrize(
-    "his_file, location_type, location_id, variable",
+    ("his_file", "location_type", "location_id", "variable"),
      [  (output_path / 'dflowfm' / 'output' / 'DFM_his.nc', 'observation_point', 'ObsP_113GIS' , 'waterlevel'           ),           
         (output_path / 'dflowfm' / 'output' / 'DFM_his.nc', 'weir'             , 'S_96550'     , 'discharge'            ),            
         (output_path / 'dflowfm' / 'output' / 'DFM_his.nc', 'weir'             , 'S_96550'     , 'waterlevel_upstream'  ),  

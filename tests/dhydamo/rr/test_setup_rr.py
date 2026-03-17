@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from hydrolib.dhydamo.core.drr import DRRModel
-from hydrolib.dhydamo.io.drrwriter import DRRWriter
 from tests.dhydamo.io import test_from_hydamo
 
 

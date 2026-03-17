@@ -1,5 +1,6 @@
 import logging
 from itertools import product
+from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
@@ -7,10 +8,7 @@ import pandas as pd
 import PIL.Image
 import PIL.ImageDraw
 import rasterio
-
 from rasterio.windows import Window
-from pathlib import Path
-from typing import Union
 
 from hydrolib.dhydamo.geometry import common
 
@@ -159,7 +157,7 @@ def raster_in_parts(
     xparts = np.linspace(0, f.shape[1], nx + 1).astype(int)
     yparts = np.linspace(0, f.shape[0], ny + 1).astype(int)
 
-    pts = facedata[["facex", "facey"]].values
+    pts = facedata[["facex", "facey"]].to_numpy()
 
     for ix, iy in product(range(nx), range(ny)):
         part = RasterPart(
@@ -233,7 +231,7 @@ def check_geodateframe_rasterstats(facedata):
         facedata["crds"] = [row.coords[:] for row in facedata.geometry]
 
 
-def raster_stats_fine_cells(rasterpath: Union[str, Path], facedata, stats=["mean"]):
+def raster_stats_fine_cells(rasterpath: str | Path, facedata, stats=["mean"]):
     """
     Calculate statistic from a raster, where the raster resoltion is (much)
     smaller than the cell size.
