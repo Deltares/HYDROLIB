@@ -602,6 +602,32 @@ def test_add_boundaries():
     assert len(hydamo.external_forcings.boundary_nodes.keys()) == 1
 
 
+def test_add_boundary_condition_accepts_integer_value():
+    class _DummyMesh1DState:
+        def __init__(self):
+            self.mesh1d_node_id = np.array([1])
+            self.mesh1d_node_x = np.array([197464.0])
+            self.mesh1d_node_y = np.array([392130.0])
+
+    class _DummyMesh1D:
+        def __init__(self):
+            self._mesh1d = _DummyMesh1DState()
+
+    hydamo = HyDAMO()
+    hydamo.external_forcings.add_boundary_condition(
+        "RVW_INT",
+        (197464.0, 392130.0),
+        "dischargebnd",
+        1,
+        _DummyMesh1D(),
+    )
+
+    boundary = hydamo.external_forcings.boundary_nodes["RVW_INT"]
+    assert boundary["vec1"] is None
+    assert boundary["vec2"] == 1.0
+    assert boundary["unit2"] == "m3/s"
+
+
 def test_add_initialfields():
     hydamo, _ = _hydamo_object_from_gpkg()
 

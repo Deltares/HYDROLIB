@@ -1,4 +1,5 @@
 import logging
+import numbers
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -1639,9 +1640,9 @@ class ExternalForcings:
             startdate = value.index[0].strftime("%Y-%m-%d %H:%M:%S")
             unit1 =  f"minutes since {startdate}"
             unit2 = "m3/s" if quantity == "dischargebnd" else "m"            
-        elif isinstance(value, float):
+        elif isinstance(value, numbers.Real):
             vec1 = None
-            vec2 = value
+            vec2 = float(value)
             startdate = "0000-00-00 00:00:00"
             unit1 =  f"minutes since {startdate}"
             unit2 = "m3/s" if quantity == "dischargebnd" else "m"
