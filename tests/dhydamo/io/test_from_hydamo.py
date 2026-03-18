@@ -624,7 +624,8 @@ def test_add_boundary_condition_accepts_integer_value():
 
     boundary = hydamo.external_forcings.boundary_nodes["RVW_INT"]
     assert boundary["vec1"] is None
-    assert boundary["vec2"] == 1.0
+    assert isinstance(boundary["vec2"], float)
+    assert int(boundary["vec2"]) == 1
     assert boundary["unit2"] == "m3/s"
 
 
