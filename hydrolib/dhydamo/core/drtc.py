@@ -1274,34 +1274,35 @@ class DRTCModel:
 
                     e = ET.SubElement(b, gn_brackets + "unit")
                     e.text = munit if controller['target_variable'] == 'Water level (op)' else m3unit
-
-                    # If a time dependent setpoint is required, add the Time Rule
-                    if type(controller['setpoint']) is pd.Series:
-                        a2 = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
-
-                        a2.set("id", f"[SP]Control group {key}/PID Rule")
-                        b2 = ET.SubElement(a2, gn_brackets + "PITimeSeries")
-
-                        c2 = ET.SubElement(b2, gn_brackets + "locationId")
-                        c2.text = f"[PID]Control group {key}/PID Rule"
-
-                        d2 = ET.SubElement(b2, gn_brackets + "parameterId")
-                        d2.text = "SP"
-
-                        e2 = ET.SubElement(b2, gn_brackets + "interpolationOption")
-                        e2.text = controller['interpolation_option']
-
-                        e2 = ET.SubElement(b2, gn_brackets + "extrapolationOption")
-                        e2.text = controller['extrapolation_option'] # Changed from Block: HL
+                   
                 else:
                     logger.warning(f"{RTC_DATA_CONFIG_XML}: Skipped writing {input_id}, observation point already present")
+                        
+                # If a time dependent setpoint is required, add the Time Rule
+                if type(controller['setpoint']) is pd.Series:
+                    a2 = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
 
-            elif controller['type'] == 'Interval':
-                a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
+                    a2.set("id", f"[SP]Control group {key}/PID Rule")
+                    b2 = ET.SubElement(a2, gn_brackets + "PITimeSeries")
+
+                    c2 = ET.SubElement(b2, gn_brackets + "locationId")
+                    c2.text = f"[PID]Control group {key}/PID Rule"
+
+                    d2 = ET.SubElement(b2, gn_brackets + "parameterId")
+                    d2.text = "SP"
+
+                    e2 = ET.SubElement(b2, gn_brackets + "interpolationOption")
+                    e2.text = controller['interpolation_option']
+
+                    e2 = ET.SubElement(b2, gn_brackets + "extrapolationOption")  
+                    e2.text = controller['extrapolation_option'] # Changed from Block: HL
+
+            elif controller['type'] == 'Interval':               
 
                 input_id = INPUT_PREFIX + controller["observation_point"] + "/" +  controller["target_variable"]
-
                 if myroot.find(f".//*[@id='{input_id}']") is None:
+                    a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
+                    
                     a.set("id", input_id)
 
                     b = ET.SubElement(a, gn_brackets + "OpenMIExchangeItem")
@@ -1314,23 +1315,26 @@ class DRTCModel:
 
                     e = ET.SubElement(b, gn_brackets + "unit")
                     e.text = munit if controller['target_variable'] == 'Water level (op)' else m3unit
-                    if type(controller['setpoint']) is pd.Series:
-                        a2 = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
+                else:
+                    logger.warning(f"{RTC_DATA_CONFIG_XML}: Skipped writing {input_id}, observation point already present")
+                
+                if type(controller['setpoint']) is pd.Series:
+                    a2 = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
 
-                        a2.set("id", f"[SP]Control group {key}/Interval Rule")
-                        b3 = ET.SubElement(a2, gn_brackets + "PITimeSeries")
+                    a2.set("id", f"[SP]Control group {key}/Interval Rule")
+                    b3 = ET.SubElement(a2, gn_brackets + "PITimeSeries")
 
-                        c3 = ET.SubElement(b3, gn_brackets + "locationId")
-                        c3.text = f"[IntervalRule]Control group {key}/Interval Rule"
+                    c3 = ET.SubElement(b3, gn_brackets + "locationId")
+                    c3.text = f"[IntervalRule]Control group {key}/Interval Rule"
 
-                        d3 = ET.SubElement(b3, gn_brackets + "parameterId")
-                        d3.text = "SP"
+                    d3 = ET.SubElement(b3, gn_brackets + "parameterId")
+                    d3.text = "SP"
 
-                        e3 = ET.SubElement(b3, gn_brackets + "interpolationOption")
-                        e3.text = controller['interpolation_option']
+                    e3 = ET.SubElement(b3, gn_brackets + "interpolationOption")
+                    e3.text = controller['interpolation_option']
 
-                        f3 = ET.SubElement(b3, gn_brackets + "extrapolationOption")
-                        f3.text = controller['extrapolation_option'] # Changed from Block: HL
+                    f3 = ET.SubElement(b3, gn_brackets + "extrapolationOption")
+                    f3.text = controller['extrapolation_option'] # Changed from Block: HL
 
             else:
                 a = ET.SubElement(myroot[0], gn_brackets + "timeSeries")
