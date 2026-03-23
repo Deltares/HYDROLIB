@@ -177,10 +177,9 @@ class DRTCModel:
         if self.cc_ids is None or self.cc_id_limit is None:
             return True
 
-        if cc_id in self.cc_ids and cc_id not in self.cc_id_limit:
-            return False
-        else:
-            return True
+        # The structure should exist in the HyDAMO model and be allowed
+        present_and_allowed = cc_id in self.cc_ids and cc_id in self.cc_id_limit
+        return present_and_allowed
 
     @validate_arguments
     def check_timeseries(self, timeseries):
