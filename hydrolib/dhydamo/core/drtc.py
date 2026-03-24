@@ -169,17 +169,35 @@ class DRTCModel:
             self.complex_controllers  = None
 
     @validate_arguments
-    def allow_struct(self, cc_id: str, allow_observations: bool = False) -> bool:
-        """Return whether a structure id is allowed by the complex-controller filter."""
+    def allow_struct(
+        self,
+        cc_id: str,
+        allow_observations: bool = False,
+        allow_if_filter_inactive: bool = True,
+        allow_if_not_referenced: bool = False,
+    ) -> bool:
+        """Return whether a structure id is allowed by the complex-controller filter.
+
+        Args:
+            cc_id (str): Structure or observation id to evaluate.
+            allow_observations (bool, optional): If True, pass through observation
+                ids that exist in the HyDAMO model. Defaults to False.
+            allow_if_filter_inactive (bool, optional): Return value when no complex
+                controller filter is active (`cc_ids` or `cc_id_limit` is None).
+                Defaults to True.
+            allow_if_not_referenced (bool, optional): Return value when filtering is
+                active, but `cc_id` is not part of `cc_ids`. Defaults to False.
+        """
         if allow_observations and cc_id in self.struct_ids_by_type["observations"]:
             return True
 
         if self.cc_ids is None or self.cc_id_limit is None:
-            return True
+            return allow_if_filter_inactive
 
-        # The structure should exist in the HyDAMO model and be allowed
-        present_and_allowed = cc_id in self.cc_ids and cc_id in self.cc_id_limit
-        return present_and_allowed
+        if cc_id not in self.cc_ids:
+            return allow_if_not_referenced
+
+        return cc_id in self.cc_id_limit
 
     @validate_arguments
     def check_timeseries(self, timeseries):
@@ -563,7 +581,14 @@ class DRTCModel:
         el_id = el.find(".//{*}elementId")
         if el_id is not None:
             el_text = el_id.text
-            allow = self.allow_struct(el_text, allow_observations=True)
+            # In complex-controller fragments: keep observation ids, keep all when no filter is configured,
+            # but reject ids that are not part of referenced/validated complex-controller structures.
+            allow = self.allow_struct(
+                cc_id=el_text,
+                allow_observations=True,
+                allow_if_filter_inactive=True,
+                allow_if_not_referenced=False,
+            )
 
         return allow, el_text
 
@@ -585,7 +610,14 @@ class DRTCModel:
                     # Check if this is a complex controller but not in the whitelist
                     # Always allow observation points
                     if allow:
-                        allow = self.allow_struct(child_text, allow_observations=True)
+                        # In tools fragments: keep observation ids, keep all when no filter is configured,
+                        # but reject ids that are not referenced by validated complex-controller structures.
+                        allow = self.allow_struct(
+                            cc_id=child_text,
+                            allow_observations=True,
+                            allow_if_filter_inactive=True,
+                            allow_if_not_referenced=False,
+                        )
                         el_firstchild_text = el_firstchild.get("id")
 
         return allow, el_firstchild_text
@@ -602,16 +634,16 @@ class DRTCModel:
         if len(parts) < 3:
             return allow, target.text
 
-        struct_type, struct_id, _ = parts
+        _, struct_id, _ = parts
 
         # Check if this is a complex controller but not in the whitelist
-        # Always allow observation points
-        if (
-            struct_type != "observations"
-            and self.cc_ids is not None
-            and self.cc_id_limit is not None
-            and struct_id in self.cc_ids
-            and struct_id not in self.cc_id_limit
+        # For DIMR coupler items: keep observation ids and keep non-complex/non-referenced ids,
+        # and only filter out referenced complex-controller ids that are not in the whitelist.
+        if not self.allow_struct(
+            cc_id=struct_id,
+            allow_observations=True,
+            allow_if_filter_inactive=True,
+            allow_if_not_referenced=True,
         ):
             allow = False
             el_text = target.text
@@ -1059,11 +1091,19 @@ class DRTCModel:
         for key in self.all_controllers.keys():
 
             controller = self.all_controllers[key]
-            if self.cc_ids is not None and self.cc_id_limit is not None:
-                if key in self.cc_ids and key in self.cc_id_limit:
-                    logger.warning(f"RtcToolsConfig.xml: Skipped writing {controller['type']} control for {key}, complex controller already present")
-                    to_remove.append(key)
-                    continue
+            # For simple controllers: skip only when this id has an allowed complex controller.
+            # If filtering is inactive or the id is not a referenced complex id, do not skip.
+            if self.allow_struct(
+                cc_id=key,
+                allow_observations=False,
+                allow_if_filter_inactive=False,
+                allow_if_not_referenced=False,
+            ):
+                logger.warning(
+                    f"RtcToolsConfig.xml: Skipped writing {controller['type']} control for {key}, complex controller already present"
+                )
+                to_remove.append(key)
+                continue
 
             a = ET.SubElement(myroot[1], gn_brackets + "rule")
             if controller['type'] == "PID":
@@ -1249,10 +1289,18 @@ class DRTCModel:
         for ikey, key in enumerate(self.all_controllers.keys()):
 
             controller = self.all_controllers[key]
-            if self.cc_ids is not None and self.cc_id_limit is not None:
-                if key in self.cc_ids and key in self.cc_id_limit:
-                    logger.warning(f"{RTC_DATA_CONFIG_XML}: Skipped writing {controller['type']} control for {key}, complex controller already present")
-                    continue
+            # For simple controllers: skip only when this id has an allowed complex controller.
+            # If filtering is inactive or the id is not a referenced complex id, do not skip.
+            if self.allow_struct(
+                cc_id=key,
+                allow_observations=False,
+                allow_if_filter_inactive=False,
+                allow_if_not_referenced=False,
+            ):
+                logger.warning(
+                    f"{RTC_DATA_CONFIG_XML}: Skipped writing {controller['type']} control for {key}, complex controller already present"
+                )
+                continue
 
             # te importeren data
             if controller['type'] == 'PID':
@@ -1415,10 +1463,18 @@ class DRTCModel:
         for key in self.all_controllers.keys():
 
             controller = self.all_controllers[key]
-            if self.cc_ids is not None and self.cc_id_limit is not None:
-                if key in self.cc_ids and key in self.cc_id_limit:
-                    logger.warning(f"{TIMESERIES_IMPORT_XML}: Skipped writing {controller['type']} control for {key}, complex controller already present")
-                    continue
+            # For simple controllers: skip only when this id has an allowed complex controller.
+            # If filtering is inactive or the id is not a referenced complex id, do not skip.
+            if self.allow_struct(
+                cc_id=key,
+                allow_observations=False,
+                allow_if_filter_inactive=False,
+                allow_if_not_referenced=False,
+            ):
+                logger.warning(
+                    f"{TIMESERIES_IMPORT_XML}: Skipped writing {controller['type']} control for {key}, complex controller already present"
+                )
+                continue
 
             if controller['type'] == 'Time':
                 # te importeren data
@@ -1570,10 +1626,18 @@ class DRTCModel:
         for key in self.all_controllers.keys():
 
             controller = self.all_controllers[key]
-            if self.cc_ids is not None and self.cc_id_limit is not None:
-                if key in self.cc_ids and key in self.cc_id_limit:
-                    logger.warning(f"{STATE_IMPORT_XML}: Skipped writing {controller['type']} control for {key}, complex controller already present")
-                    continue
+            # For simple controllers: skip only when this id has an allowed complex controller.
+            # If filtering is inactive or the id is not a referenced complex id, do not skip.
+            if self.allow_struct(
+                cc_id=key,
+                allow_observations=False,
+                allow_if_filter_inactive=False,
+                allow_if_not_referenced=False,
+            ):
+                logger.warning(
+                    f"{STATE_IMPORT_XML}: Skipped writing {controller['type']} control for {key}, complex controller already present"
+                )
+                continue
 
             # te importeren data
             a = ET.SubElement(a0, gn_brackets + "treeVectorLeaf")
