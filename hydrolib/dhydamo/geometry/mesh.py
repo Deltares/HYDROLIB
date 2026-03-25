@@ -322,16 +322,17 @@ def mesh1d_add_branches_from_gdf(
         idx = structures["branchid"] != ""
         missing = structures.branchid.isna()
         if missing.any():
-            if len(missing) > 5:
+            n_missing = int(missing.sum())
+            if n_missing > 5:
                 logger.warning(
                     "%d structures are not linked to a branch (too many to show).",
-                    len(missing),
+                    n_missing,
                 )
             else:
                 logger.warning(
                     "%d structures (%s) are not linked to a branch.",
-                    len(missing),
-                    structures.loc[missing, "id"].values(),
+                    n_missing,
+                    structures.loc[missing, "id"].to_list(),
                 )
         ids_offsets = ids_offsets.loc[idx, :]
 

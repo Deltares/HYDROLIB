@@ -2,8 +2,10 @@ import platform
 import sys
 from pathlib import Path
 
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pytest
 from meshkernel.py_structures import DeleteMeshOption
 from shapely.affinity import translate
@@ -811,3 +813,32 @@ def test_mesh1d_add_branches_from_gdf(do_plot=False):
 
     # number of mesh nodes
     assert len(network._mesh1d.mesh1d_node_x) == 1421
+
+
+def test_mesh1d_add_branches_from_gdf_logs_missing_branchid(caplog):
+    fmmodel = FMModel()
+    network = fmmodel.geometry.netfile.network
+
+    branches = gpd.GeoDataFrame(
+        {"code": ["branch_1"], "geometry": [LineString([(0.0, 0.0), (10.0, 0.0)])]}
+    )
+    structures = pd.DataFrame(
+        {
+            "branchid": [None, "branch_1"],
+            "chainage": [3.0, 7.0],
+            "id": ["s_missing", "s_ok"],
+        }
+    )
+
+    with caplog.at_level("WARNING", logger="hydrolib.dhydamo.geometry.mesh"):
+        mesh.mesh1d_add_branches_from_gdf(
+            network,
+            branches=branches,
+            branch_name_col="code",
+            node_distance=2,
+            max_dist_to_struc=None,
+            structures=structures,
+        )
+
+    assert "1 structures (['s_missing']) are not linked to a branch." in caplog.text
+    assert len(network._mesh1d.network1d_node_x) > 0
