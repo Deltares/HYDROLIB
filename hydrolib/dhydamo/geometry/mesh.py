@@ -780,8 +780,10 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
         logger.warning("No 1d2d-links present.")        
         return None
  
-    # Select 1d nodes that are only present in a single edge
-    edge_nodes = network._mesh1d.network1d_edge_nodes
+    # Select mesh1d nodes that are only present in a single edge.
+    # link1d2d[:, 0] stores mesh1d node indices, so endpoint detection must
+    # use the same mesh1d index space.
+    edge_nodes = network._mesh1d.mesh1d_edge_nodes
     edgeid, counts = np.unique(edge_nodes, return_counts=True)
     to_remove = edgeid[counts == 1]
 

@@ -617,6 +617,54 @@ def test_linkd1d2d_remove_links_within_small_polygon(do_plot=False):
     assert len(network._link1d2d.link1d2d_id) == 0
 
 
+def test_links1d2d_remove_1d_endpoints(do_plot=False):
+    fmmodel = FMModel()
+    network = fmmodel.geometry.netfile.network
+
+    # Build a small network where both branch-end nodes get a 1d2d link.
+    mesh.mesh1d_add_branch_from_linestring(
+        network, LineString([(0, 0), (4, 0)]), node_distance=1
+    )
+    mesh.mesh2d_add_rectilinear(
+        network,
+        box(-1, -1, 5, 1),
+        dx=1,
+        dy=1,
+        deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
+    )
+    mesh.links1d2d_add_links_1d_to_2d(network)
+
+    # Derive endpoint nodes in the same index space as link1d2d[:, 0].
+    edge_nodes = network._mesh1d.mesh1d_edge_nodes
+    node_ids, counts = np.unique(edge_nodes, return_counts=True)
+    endpoints = node_ids[counts == 1]
+
+    link_nodes_before = network._link1d2d.link1d2d[:, 0]
+    n_endpoint_links_before = np.isin(link_nodes_before, endpoints).sum()
+    assert n_endpoint_links_before > 0
+
+    if do_plot:
+        fig, axs = plt.subplots(figsize=(10, 3), ncols=2, constrained_layout=True)
+        viz.plot_network(network, ax=axs[0])
+        axs[0].set_title("Before")
+        axs[0].set_aspect(1.0)
+        axs[0].autoscale_view()
+
+    mesh.links1d2d_remove_1d_endpoints(network)
+
+    link_nodes_after = network._link1d2d.link1d2d[:, 0]
+    n_endpoint_links_after = np.isin(link_nodes_after, endpoints).sum()
+    assert n_endpoint_links_after == 0
+
+    if do_plot:
+        viz.plot_network(network, ax=axs[1])
+        axs[1].set_title("After")
+        axs[1].set_aspect(1.0)
+        axs[1].autoscale_view()
+        plt.show()
+        fig.savefig(test_figure_path / "test_links1d2d_remove_1d_endpoints_mk.png")
+
+
 def _prepare_hydamo(culverts: bool = False):
     # initialize a hydamo object
     extent_file = hydamo_data_path / "OLO_stroomgebied_incl.maas.shp"
