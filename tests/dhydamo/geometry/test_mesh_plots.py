@@ -119,5 +119,12 @@ def test_plot_links1d2d_remove_1d_endpoints():
 
 
 @pytest.mark.plot
+def test_plot_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint():
+    test_mesh.test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(
+        do_plot=True
+    )
+
+
+@pytest.mark.plot
 def test_plot_mesh1d_add_branches_from_gdf():
     test_mesh.test_mesh1d_add_branches_from_gdf(do_plot=True)

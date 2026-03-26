@@ -667,6 +667,64 @@ def test_links1d2d_remove_1d_endpoints(do_plot=False):
         fig.savefig(test_figure_path / "test_links1d2d_remove_1d_endpoints_mk.png")
 
 
+def test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(do_plot=False):
+    fmmodel = FMModel()
+    network = fmmodel.geometry.netfile.network
+
+    mesh.mesh1d_add_branch_from_linestring(
+        network, LineString([(0, 0), (4, 0)]), node_distance=1
+    )
+    mesh.mesh2d_add_rectilinear(
+        network,
+        box(-1, -1, 5, 1),
+        dx=1,
+        dy=1,
+        deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
+    )
+
+    n_faces = len(network._mesh2d.mesh2d_face_x)
+    assert n_faces >= 4
+
+    # Set links manually: three links on endpoint node 0, one on interior node 2.
+    contacts = network._link1d2d.meshkernel.contacts_get()
+    contacts.mesh1d_indices = np.array([0, 0, 0, 2], dtype=np.int32)
+    contacts.mesh2d_indices = np.array([0, 1, 2, 3], dtype=np.int32)
+    network._link1d2d.meshkernel.contacts_set(contacts)
+
+    edge_nodes = network._mesh1d.mesh1d_edge_nodes
+    node_ids, counts = np.unique(edge_nodes, return_counts=True)
+    endpoints = node_ids[counts == 1]
+    assert 0 in endpoints
+
+    link_nodes_before = network._link1d2d.link1d2d[:, 0]
+    assert np.isin(link_nodes_before, [0]).sum() == 3
+    assert np.isin(link_nodes_before, [2]).sum() == 1
+
+    if do_plot:
+        fig, axs = plt.subplots(figsize=(10, 3), ncols=2, constrained_layout=True)
+        viz.plot_network(network, ax=axs[0])
+        axs[0].set_title("Before")
+        axs[0].set_aspect(1.0)
+        axs[0].autoscale_view()
+
+    mesh.links1d2d_remove_1d_endpoints(network)
+
+    link_nodes_after = network._link1d2d.link1d2d[:, 0]
+    assert np.isin(link_nodes_after, endpoints).sum() == 0
+    assert np.isin(link_nodes_after, [2]).sum() == 1
+
+    if do_plot:
+        viz.plot_network(network, ax=axs[1])
+        axs[1].set_title("After")
+        axs[1].set_aspect(1.0)
+        axs[1].autoscale_view()
+        plt.show()
+        fig.savefig(
+            test_figure_path
+            / "test_links1d2d_remove_1d_endpoints_removes_all_matches_mk.png"
+        )
+
+
 def _prepare_hydamo(culverts: bool = False):
     # initialize a hydamo object
     extent_file = hydamo_data_path / "OLO_stroomgebied_incl.maas.shp"
