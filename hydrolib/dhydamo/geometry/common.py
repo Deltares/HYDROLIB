@@ -1,4 +1,3 @@
-from typing import List, Union
 
 import numpy as np
 from shapely.geometry import (
@@ -41,10 +40,8 @@ def _as_geometry_list(geometry, singletype, multitype):
 
 
 def as_linestring_list(
-    linestring: Union[
-        LineString, MultiLineString, List[Union[LineString, MultiLineString]]
-    ]
-) -> List[LineString]:
+    linestring: LineString | MultiLineString | list[LineString | MultiLineString]
+) -> list[LineString]:
     """Returns a list of LineStrings from a given LineString or MultiLineString. Useful for
     iterating over varying multi of single type geometries.
 
@@ -58,8 +55,8 @@ def as_linestring_list(
 
 
 def as_polygon_list(
-    polygon: Union[Polygon, MultiPolygon, List[Union[Polygon, MultiPolygon]]]
-) -> List[Polygon]:
+    polygon: Polygon | MultiPolygon | list[Polygon | MultiPolygon]
+) -> list[Polygon]:
     """Returns a list of Polygons from a given Polygon or MultiPolygon. Useful for
     iterating over varying multi of single type geometries.
 
@@ -73,8 +70,8 @@ def as_polygon_list(
 
 
 def as_point_list(
-    point: Union[Point, MultiPoint, List[Union[Point, MultiPoint]]]
-) -> List[Point]:
+    point: Point | MultiPoint | list[Point | MultiPoint]
+) -> list[Point]:
     """Returns a list of Point from a given Point or MultiPoint. Useful for
     iterating over varying multi of single type geometries.
 

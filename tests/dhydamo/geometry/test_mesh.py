@@ -2,12 +2,14 @@ import platform
 import sys
 from pathlib import Path
 
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pytest
 from meshkernel.py_structures import DeleteMeshOption
 from shapely.affinity import translate
-from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box
+from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box, MultiPoint
 
 sys.path.append(".")
 from hydrolib.core.dflowfm.mdu.models import FMModel
@@ -451,7 +453,7 @@ def _prepare_1d2d_mesh(second_branch: bool = False):
     return network, within, branchids, branches
 
 @pytest.mark.parametrize(
-    "b_within, b_branchids, b_refine, max_length, b_plot, outcome",
+    ("b_within", "b_branchids", "b_refine", "max_length", "b_plot", "outcome"),
     [
         (False, False, False, np.inf, False, 15),
         (False, False, False, 1, False, 11),
@@ -489,13 +491,13 @@ def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_lengt
 
 
 @pytest.mark.parametrize(
-    "b_within, b_branchids, b_refine, max_length, b_plot, outcome",
+    ("b_within", "b_branchids", "b_refine", "max_length", "b_plot", "outcome"),
     [
-        (False, False, False, np.inf, False, 26),
+        (False, False, False, np.inf, False, 38),
         (False, False, False, 1, False, 1),
-        (True, False, False, np.inf, False, 18),
+        (True, False, False, np.inf, False, 30),
         (False, True, False,  np.inf, False, 0),
-        (False, False, True,  np.inf, False, 27),
+        (False, False, True,  np.inf, False, 39),
     ],
 )
 def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
@@ -527,7 +529,7 @@ def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, m
 
 
 @pytest.mark.parametrize(
-    "b_within, b_branchids, b_refine, b_plot, outcome",
+    ("b_within", "b_branchids", "b_refine", "b_plot", "outcome"),
     [
         (False, False, False, False, 24),
         (True, False, False, False, 11),
@@ -570,6 +572,7 @@ def test_linkd1d2d_remove_links_within_polygon(do_plot=False):
 
     # Generate all links
     mesh.links1d2d_add_links_1d_to_2d(network)
+    mesh.links1d2d_remove_within(network, within)
 
     # Plot to verify
     if do_plot:
@@ -585,6 +588,141 @@ def test_linkd1d2d_remove_links_within_polygon(do_plot=False):
 
         plt.show()
         fig.savefig(test_figure_path / "test_linkd1d2d_remove_links_within_polygon_mk.png")
+    
+    assert len(network._link1d2d.link1d2d_id) == 4
+
+
+def test_linkd1d2d_remove_links_within_small_polygon(do_plot=False):
+    network, _, _, _ = _prepare_1d2d_mesh()
+
+    # Generate all links
+    mesh.links1d2d_add_links_1d_to_2d(network)
+    coords1d = np.vstack([network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y]).T
+    within = MultiPoint(coords1d).buffer(0.1)
+    mesh.links1d2d_remove_within(network, within)
+
+    # Plot to verify
+    if do_plot:
+        fig, ax = plt.subplots(figsize=(5, 5))
+
+        viz.plot_network(network, ax=ax)
+
+        for polygon in common.as_polygon_list(within):
+            ax.fill(*polygon.exterior.coords.xy, color="r", ls="-", lw=0, alpha=0.05)
+            ax.plot(*polygon.exterior.coords.xy, color="r", ls="-", lw=0.5)
+        ax.set_aspect(1.0)
+        ax.autoscale_view()
+
+        plt.show()
+        fig.savefig(test_figure_path / "test_linkd1d2d_remove_links_within_small_polygon_mk.png")
+    
+    assert len(network._link1d2d.link1d2d_id) == 0
+
+
+def test_links1d2d_remove_1d_endpoints(do_plot=False):
+    fmmodel = FMModel()
+    network = fmmodel.geometry.netfile.network
+
+    # Build a small network where both branch-end nodes get a 1d2d link.
+    mesh.mesh1d_add_branch_from_linestring(
+        network, LineString([(0, 0), (4, 0)]), node_distance=1
+    )
+    mesh.mesh2d_add_rectilinear(
+        network,
+        box(-1, -1, 5, 1),
+        dx=1,
+        dy=1,
+        deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
+    )
+    mesh.links1d2d_add_links_1d_to_2d(network)
+
+    # Derive endpoint nodes in the same index space as link1d2d[:, 0].
+    edge_nodes = network._mesh1d.mesh1d_edge_nodes
+    node_ids, counts = np.unique(edge_nodes, return_counts=True)
+    endpoints = node_ids[counts == 1]
+
+    link_nodes_before = network._link1d2d.link1d2d[:, 0]
+    n_endpoint_links_before = np.isin(link_nodes_before, endpoints).sum()
+    assert n_endpoint_links_before > 0
+
+    if do_plot:
+        fig, axs = plt.subplots(figsize=(10, 3), ncols=2, constrained_layout=True)
+        viz.plot_network(network, ax=axs[0])
+        axs[0].set_title("Before")
+        axs[0].set_aspect(1.0)
+        axs[0].autoscale_view()
+
+    mesh.links1d2d_remove_1d_endpoints(network)
+
+    link_nodes_after = network._link1d2d.link1d2d[:, 0]
+    n_endpoint_links_after = np.isin(link_nodes_after, endpoints).sum()
+    assert n_endpoint_links_after == 0
+
+    if do_plot:
+        viz.plot_network(network, ax=axs[1])
+        axs[1].set_title("After")
+        axs[1].set_aspect(1.0)
+        axs[1].autoscale_view()
+        plt.show()
+        fig.savefig(test_figure_path / "test_links1d2d_remove_1d_endpoints_mk.png")
+
+
+def test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(do_plot=False):
+    fmmodel = FMModel()
+    network = fmmodel.geometry.netfile.network
+
+    mesh.mesh1d_add_branch_from_linestring(
+        network, LineString([(0, 0), (4, 0)]), node_distance=1
+    )
+    mesh.mesh2d_add_rectilinear(
+        network,
+        box(-1, -1, 5, 1),
+        dx=1,
+        dy=1,
+        deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
+    )
+
+    n_faces = len(network._mesh2d.mesh2d_face_x)
+    assert n_faces >= 4
+
+    # Set links manually: three links on endpoint node 0, one on interior node 2.
+    contacts = network._link1d2d.meshkernel.contacts_get()
+    contacts.mesh1d_indices = np.array([0, 0, 0, 2], dtype=np.int32)
+    contacts.mesh2d_indices = np.array([0, 1, 2, 3], dtype=np.int32)
+    network._link1d2d.meshkernel.contacts_set(contacts)
+
+    edge_nodes = network._mesh1d.mesh1d_edge_nodes
+    node_ids, counts = np.unique(edge_nodes, return_counts=True)
+    endpoints = node_ids[counts == 1]
+    assert 0 in endpoints
+
+    link_nodes_before = network._link1d2d.link1d2d[:, 0]
+    assert np.isin(link_nodes_before, [0]).sum() == 3
+    assert np.isin(link_nodes_before, [2]).sum() == 1
+
+    if do_plot:
+        fig, axs = plt.subplots(figsize=(10, 3), ncols=2, constrained_layout=True)
+        viz.plot_network(network, ax=axs[0])
+        axs[0].set_title("Before")
+        axs[0].set_aspect(1.0)
+        axs[0].autoscale_view()
+
+    mesh.links1d2d_remove_1d_endpoints(network)
+
+    link_nodes_after = network._link1d2d.link1d2d[:, 0]
+    assert np.isin(link_nodes_after, endpoints).sum() == 0
+    assert np.isin(link_nodes_after, [2]).sum() == 1
+
+    if do_plot:
+        viz.plot_network(network, ax=axs[1])
+        axs[1].set_title("After")
+        axs[1].set_aspect(1.0)
+        axs[1].autoscale_view()
+        plt.show()
+        fig.savefig(
+            test_figure_path
+            / "test_links1d2d_remove_1d_endpoints_removes_all_matches_mk.png"
+        )
 
 
 def _prepare_hydamo(culverts: bool = False):
@@ -636,7 +774,7 @@ def _prepare_hydamo(culverts: bool = False):
 
 @pytest.mark.skipif(platform.system() == "Darwin", reason="Skip on macOS")
 @pytest.mark.parametrize(
-    "where, fill_option, fill_value, outcome",
+    ("where", "fill_option", "fill_value", "outcome"),
     [
         ("face", "interpolate", 10.0, 8716.507),
         ("face", "fill_value", 10.0, 8716.507),
@@ -733,3 +871,32 @@ def test_mesh1d_add_branches_from_gdf(do_plot=False):
 
     # number of mesh nodes
     assert len(network._mesh1d.mesh1d_node_x) == 1421
+
+
+def test_mesh1d_add_branches_from_gdf_logs_missing_branchid(caplog):
+    fmmodel = FMModel()
+    network = fmmodel.geometry.netfile.network
+
+    branches = gpd.GeoDataFrame(
+        {"code": ["branch_1"], "geometry": [LineString([(0.0, 0.0), (10.0, 0.0)])]}
+    )
+    structures = pd.DataFrame(
+        {
+            "branchid": [None, "branch_1"],
+            "chainage": [3.0, 7.0],
+            "id": ["s_missing", "s_ok"],
+        }
+    )
+
+    with caplog.at_level("WARNING", logger="hydrolib.dhydamo.geometry.mesh"):
+        mesh.mesh1d_add_branches_from_gdf(
+            network,
+            branches=branches,
+            branch_name_col="code",
+            node_distance=2,
+            max_dist_to_struc=None,
+            structures=structures,
+        )
+
+    assert "1 structures (['s_missing']) are not linked to a branch." in caplog.text
+    assert len(network._mesh1d.network1d_node_x) > 0

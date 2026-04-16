@@ -2,3 +2,10 @@ site_name: dhydamo
 
 nav:
   - Home: "index.md"
+  - API reference:
+      - Overview: "reference/api.md"
+      - Package: "reference/api/package.md"
+      - Core: "reference/api/core.md"
+      - Converters: "reference/api/converters.md"
+      - IO: "reference/api/io.md"
+      - Geometry: "reference/api/geometry.md"

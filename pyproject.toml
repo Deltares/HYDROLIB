@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hydrolib"
-version = "0.4.1"
+version = "0.5.0"
 description = "HYDROLIB tools for hydrodynamic and hydrological modelling workflows"
 authors = ["Deltares"]
 maintainers = [
@@ -14,7 +14,7 @@ python = "^3.10"
 pandas = ">=1.2, <3.0"
 geopandas = ">=1.0.0, <2.0"
 xarray = ">=2023.1.0"
-hydrolib-core = "^0.9.5"
+hydrolib-core = "^0.10.1"
 numpy = ">=1.21 <3.0"
 matplotlib = ">=3.5"
 openpyxl = ">=3"
@@ -38,12 +38,17 @@ xlrd = ">=2.0.1"
 pytest = ">=6.2"
 black = { version = "*", allow-prereleases = true }
 isort = ">=5.8"
-mkdocs = ">=1.1"
-mkdocs-material = "^7.1"
-mkdocstrings = "^0.15"
-mkdocs-autorefs = "^0.1"
+mkdocs = ">=1.6,<2.0"
+mkdocs-material = ">=9.7,<10.0"
+mkdocstrings = ">=1.0,<2.0"
+mkdocstrings-python = ">=2.0,<3.0"
+mkdocs-autorefs = ">=1.4,<2.0"
 pytest-cov = ">=2.11"
-pymdown-extensions = ">=8.1"
+pymdown-extensions = ">=10.0,<11.0"
+mkdocs-jupyter = ">=0.26,<1.0"
+mkdocs-macros-plugin = ">=1.5,<2.0"
+mkdocs-material-extensions = ">=1.3,<2.0"
+mkdocs-monorepo-plugin = ">=1.1,<2.0"
 commitizen = "^2.17"
 flake8 = ">=3.9"
 mypy = ">=0.910"
@@ -52,7 +57,7 @@ poetry2conda = ">=0.3.0"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.4.1"
+version = "0.5.0"
 tag_format = "$version"
 version_files = [
     "hydrolib/post/__init__.py",

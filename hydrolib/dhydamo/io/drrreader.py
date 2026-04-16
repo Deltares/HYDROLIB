@@ -2,34 +2,37 @@ import logging
 import os
 import warnings
 from pathlib import Path
-from typing import Union
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from pydantic.v1 import validate_arguments, StrictStr
-from rasterstats import zonal_stats
+from pydantic.v1 import ConfigDict, StrictStr, validate_arguments
 from rasterio.transform import from_origin
+from rasterstats import zonal_stats
 from tqdm.auto import tqdm
+
 from hydrolib.dhydamo.io import idfreader
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
 logger = logging.getLogger(__name__)
+
+NO_RASTERDATA_WARNING = "No rasterdata available for catchment %s."
 
 
 class UnpavedIO:
     def __init__(self, unpaved):
         self.unpaved = unpaved
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def unpaved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: Union[StrictStr, Path],
-        surface_level: Union[StrictStr, Path],
-        soiltype: Union[StrictStr, Path],
-        surface_storage: Union[StrictStr, Path, float],
-        infiltration_capacity: Union[StrictStr, Path, float],
-        initial_gwd: Union[StrictStr, Path, float],
+        landuse: StrictStr | Path,
+        surface_level: StrictStr | Path,
+        soiltype: StrictStr | Path,
+        surface_storage: StrictStr | Path | float,
+        infiltration_capacity: StrictStr | Path | float,
+        initial_gwd: StrictStr | Path | float,
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,        
         greenhouse_areas: ExtendedGeoDataFrame = None
@@ -145,7 +148,7 @@ class UnpavedIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning(f"No rasterdata available for catchment {cat.code}.")
+                logger.warning(NO_RASTERDATA_WARNING, cat.code)
                 continue
             tm = [
                 m
@@ -159,14 +162,19 @@ class UnpavedIO:
             if greenhouse_areas is not None:
                 if cat.geometry.intersects(greenhouse_areas.geometry).any():
                     intersection_area = cat.geometry.intersection(greenhouse_areas.geometry).area
-                    intersection_area = intersection_area[intersection_area > 0.].values[0]                    
+                    intersection_area = intersection_area[intersection_area > 0.].to_numpy()[0]                    
                     if 15 in lu_counts[num]:
                         # divide area to subtract between greenhouses and the most occurring area
                         remainder = np.max([0., intersection_area - float(lu_counts[num][15]*px_area)])                                                
                     else:    
                         remainder = intersection_area
                     maxind = np.argmax(list(lu_counts[num].values()))              
-                    print(f'Catchment {cat.code}: subtracting {remainder} m2 from class {maxind} for supplied greenhouse area.')  
+                    logger.info(
+                        "Catchment %s: subtracting %s m2 from class %s for supplied greenhouse area.",
+                        cat.code,
+                        remainder,
+                        maxind,
+                    )
                     lu_counts[num][list(lu_counts[num].keys())[maxind]] = np.max([0., (lu_counts[num][list(lu_counts[num].keys())[maxind]] - np.round(remainder/px_area))])
             
             for i in range(1, 13):
@@ -211,7 +219,7 @@ class UnpavedIO:
             for unpaved in unpaved_drr.to_dict("records")
         ]
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def ernst_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
@@ -258,15 +266,15 @@ class PavedIO:
     def __init__(self, paved):
         self.paved = paved
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def paved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: Union[StrictStr, Path],
-        surface_level: Union[StrictStr, Path],
-        street_storage:Union[StrictStr, Path, float],
-        sewer_storage:Union[StrictStr, Path,  float],
-        pump_capacity:Union[StrictStr, Path, float],
+        landuse: StrictStr | Path,
+        surface_level: StrictStr | Path,
+        street_storage:StrictStr | Path | float,
+        sewer_storage:StrictStr | Path | float,
+        pump_capacity:StrictStr | Path | float,
         meteo_areas: ExtendedGeoDataFrame,
         overflows: ExtendedGeoDataFrame = None,
         sewer_areas: ExtendedGeoDataFrame = None,
@@ -421,7 +429,7 @@ class PavedIO:
                     all_touched=all_touched,
                 )[0]
                 if 14.0 not in pixels:
-                    logger.warning(f"No paved area in sewer area {sew.code}.")
+                    logger.warning("No paved area in sewer area %s.", sew.code)
                     continue
                 pav_pixels = pixels[14.0]
                 pav_area += pav_pixels * px_area
@@ -518,7 +526,7 @@ class PavedIO:
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning(f"No rasterdata available for catchment {cat.code}.")
+                logger.warning(NO_RASTERDATA_WARNING, cat.code)
                 continue
             if sewer_areas is not None:
                 # part of the catchment that is also in a sewer area
@@ -611,13 +619,13 @@ class GreenhouseIO:
     def __init__(self, greenhouse):
         self.greenhouse = greenhouse
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def greenhouse_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: Union[Path, str],
-        surface_level: Union[Path, str],
-        roof_storage: Union[StrictStr,float],
+        landuse: Path | str,
+        surface_level: Path | str,
+        roof_storage: StrictStr | float,
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,        
         greenhouse_areas: ExtendedGeoDataFrame=None,
@@ -701,7 +709,7 @@ class GreenhouseIO:
             for num, gh in enumerate(greenhouse_areas.itertuples()):
                 # find corresponding meteo-station
                 if mean_elev_gh[num]["median"] is None:
-                    logger.warning(f"No rasterdata available for catchment {gh.code}.")
+                    logger.warning(NO_RASTERDATA_WARNING, gh.code)
                     continue
                 tm = [
                     m
@@ -727,14 +735,14 @@ class GreenhouseIO:
                 gh_drr.at[gh.code, "meteo_area"] = str(ms)
                 gh_drr.at[gh.code, "px"] = f"{gh.geometry.centroid.coords[0][0]:.0f}"
                 gh_drr.at[gh.code, "py"] = f"{gh.geometry.centroid.coords[0][1]:.0f}"
-                latcode = greenhouse_laterals[greenhouse_laterals.codegerelateerdobject == gh.code].code.values[0]
+                latcode = greenhouse_laterals[greenhouse_laterals.codegerelateerdobject == gh.code].code.to_numpy()[0]
                 gh_drr.at[gh.code, "boundary_node"] = str(latcode)           
             [self.greenhouse.add_greenhouse(**gh) for gh in gh_drr.to_dict("records")]
 
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if mean_elev[num]["median"] is None:
-                logger.warning(f"No rasterdata available for catchment {cat.code}.")
+                logger.warning(NO_RASTERDATA_WARNING, cat.code)
                 continue
 
             # find corresponding meteo-station
@@ -748,10 +756,14 @@ class GreenhouseIO:
             if greenhouse_areas is not None:
                 if cat.geometry.intersects(greenhouse_areas.geometry).any():
                     intersection_area = cat.geometry.intersection(greenhouse_areas.geometry).area
-                    intersection_area = intersection_area[intersection_area > 0.].values[0]                    
+                    intersection_area = intersection_area[intersection_area > 0.].to_numpy()[0]                    
                     if 15 in lu_counts[num]:
                         # divide area to subtract between greenhouses and the most occurring area                                                
-                        print(f'Catchment: {cat.code}: subtracting {np.min([(lu_counts[num][15]*px_area, intersection_area)])} m2 from greenhouse area in landuse map.')
+                        logger.info(
+                            "Catchment: %s: subtracting %s m2 from greenhouse area in landuse map.",
+                            cat.code,
+                            np.min([(lu_counts[num][15] * px_area, intersection_area)]),
+                        )
                         lu_counts[num][15] = np.max([0., (lu_counts[num][15] - np.round(intersection_area/px_area))])                                                               
             
             elev = mean_elev[num]["median"]
@@ -775,11 +787,11 @@ class OpenwaterIO:
     def __init__(self, openwater):
         self.openwater = openwater
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def openwater_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
-        landuse: Union[Path, str],
+        landuse: Path | str,
         meteo_areas: ExtendedGeoDataFrame,
         zonalstats_alltouched: bool = None,
     ) -> None:
@@ -842,9 +854,9 @@ class ExternalForcingsIO:
     def __init__(self, external_forcings):
         self.external_forcings = external_forcings
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def seepage_from_input(
-        self, catchments: ExtendedGeoDataFrame, seepage_folder: Union[Path, str]
+        self, catchments: ExtendedGeoDataFrame, seepage_folder: Path | str
     ) -> None:
         """Perform zonal statistics to derive seepage time series per catchment. Time steps are derived from the data
 
@@ -863,7 +875,7 @@ class ExternalForcingsIO:
         ):
             if file.endswith('.idf'):
                 dataset = idfreader.open(os.path.join(seepage_folder, file))                                
-                array = dataset.squeeze().values
+                array = dataset.squeeze().to_numpy()
                 header = idfreader.header(os.path.join(seepage_folder, file), pattern=None)
                 affine = from_origin(
                     header["xmin"], header["ymax"], header["dx"], header["dx"]
@@ -891,12 +903,12 @@ class ExternalForcingsIO:
         [self.external_forcings.add_seepage(*sep) for sep in result.items()]
 
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def precip_from_input(
         self,
         areas: ExtendedGeoDataFrame,
-        precip_folder: Union[Path, str] = None,
-        precip_file: Union[Path, str] = None,
+        precip_folder: Path | str = None,
+        precip_file: Path | str = None,
     ) -> None:
         """Create time series of precipitation for every meteo_area, based on zonal statistics from rasters.
 
@@ -931,12 +943,12 @@ class ExternalForcingsIO:
         else:
             self.external_forcings.precip = str(precip_file)
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def evap_from_input(
         self,
         areas: ExtendedGeoDataFrame,
-        evap_folder: Union[Path, str] = None,
-        evap_file: Union[Path, str] = None,
+        evap_folder: Path | str = None,
+        evap_file: Path | str = None,
     ) -> None:
         """Create time series of evaporation for every meteo_area, based on zonal statistics from rasters.
 
@@ -974,7 +986,7 @@ class ExternalForcingsIO:
         else:
             self.external_forcings.evap = str(evap_file)
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def boundary_from_input(
         self,
         boundary_nodes: ExtendedGeoDataFrame,
@@ -1027,7 +1039,10 @@ class ExternalForcingsIO:
      
         drop_idx = catchments[catchments.boundary_node.isin(not_occurring)].index.to_list()
         if any(drop_idx):
-            print(f"{len(drop_idx)} catchments removed because of an area of 0 m2.")
+            logger.warning(
+                "%d catchments removed because of an area of 0 m2.",
+                len(drop_idx),
+            )
             catchments.drop(drop_idx, inplace=True)
 
         for i in not_occurring:
@@ -1058,7 +1073,7 @@ class ExternalForcingsIO:
         
         bnd_drr.index = index
         for num, cat in enumerate(catchments.itertuples()):
-            # print(num, cat.code)
+            # logger.info(num, cat.code)
             if boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid].empty:
                 # raise IndexError(f'{cat.code} not connected to a boundary node. Skipping.')
                 logger.warning(

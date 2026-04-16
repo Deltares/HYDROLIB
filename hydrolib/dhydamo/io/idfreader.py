@@ -56,7 +56,7 @@ def _check_cellsizes(cellsizes):
             # all ndarrays
             dx0, dy0 = cellsizes[0]
             for dx, dy in cellsizes[1:]:
-                if ~np.allclose(dx0, dx) or ~np.allclose(dy0, dy):
+                if not np.allclose(dx0, dx) or not np.allclose(dy0, dy):
                     raise ValueError(msg)
         except ValueError:
             # some ndarrays, some floats

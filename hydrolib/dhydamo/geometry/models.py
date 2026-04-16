@@ -1,14 +1,14 @@
+import numpy as np
 from meshkernel import GeometryList as GeometryListMK
 from shapely.geometry import (
-    Point,
-    MultiPoint,
     LineString,
     MultiLineString,
-    Polygon,
+    MultiPoint,
     MultiPolygon,
+    Point,
+    Polygon,
 )
-import numpy as np
-from typing import Union, List
+
 from hydrolib.core.dflowfm.net.models import split_by
 
 
@@ -34,7 +34,7 @@ class GeometryList(GeometryListMK):
             raise TypeError(f"Geometry type {type(geometry)} not understood.")
 
     @classmethod
-    def _from_simple(cls, geometry: Union[LineString, Point]):
+    def _from_simple(cls, geometry: LineString | Point):
         # Extract coordinates from geometry
         x_crds, y_crds = np.array(geometry.coords[:]).T
         gl = cls(x_coordinates=x_crds, y_coordinates=y_crds)
@@ -73,7 +73,7 @@ class GeometryList(GeometryListMK):
         return gl
 
     @classmethod
-    def _from_multigeometry(cls, multigeometry: Union[MultiLineString, MultiPolygon]):
+    def _from_multigeometry(cls, multigeometry: MultiLineString | MultiPolygon):
         x_crds = []
         y_crds = []
         cls.inner_outer_separator = -998
@@ -107,8 +107,8 @@ class GeometryList(GeometryListMK):
         return cls._from_multigeometry(multipoint)
 
     def _to_polygon(
-        self, geometries: List[GeometryListMK], is_multi: bool
-    ) -> Union[Polygon, MultiPolygon]:
+        self, geometries: list[GeometryListMK], is_multi: bool
+    ) -> Polygon | MultiPolygon:
         polygons = []
         for geometry in geometries:
             parts = [
@@ -122,8 +122,8 @@ class GeometryList(GeometryListMK):
             return polygons[0] if len(polygons)==1 else None
 
     def _to_linestring(
-        self, geometries: List[GeometryListMK], is_multi: bool
-    ) -> Union[LineString, MultiLineString]:
+        self, geometries: list[GeometryListMK], is_multi: bool
+    ) -> LineString | MultiLineString:
         linestrings = [
             LineString(np.stack([p.x_coordinates, p.y_coordinates], axis=1))
             for p in geometries
@@ -134,8 +134,8 @@ class GeometryList(GeometryListMK):
             return linestrings[0]
 
     def _to_points(
-        self, geometries: List[GeometryListMK], is_multi: bool
-    ) -> Union[Point, MultiPoint]:
+        self, geometries: list[GeometryListMK], is_multi: bool
+    ) -> Point | MultiPoint:
         points = [
             Point(np.stack([p.x_coordinates, p.y_coordinates], axis=1))
             for p in geometries

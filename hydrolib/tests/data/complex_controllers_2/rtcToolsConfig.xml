@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rtcToolsConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rtc="http://www.wldelft.nl/fews" xmlns="http://www.wldelft.nl/fews" xsi:schemaLocation="http://www.wldelft.nl/fews D:\4390.10\HYDROLIB\hydrolib\tests\New%20folder\New%20folder%20(2)\rtc\rtcToolsConfig.xsd">
+  <general>
+    <description>RTC Model DeltaShell</description>
+    <poolRoutingScheme>Theta</poolRoutingScheme>
+    <theta>0.5</theta>
+  </general>
+  <rules>
+    <rule>
+	<pid id="[PID]Control group S_96789/PID Rule">
+            <mode>PIDVEL</mode> 
+	    <settingMin>16.0</settingMin> 
+	    <settingMax>19.0</settingMax> 
+	    <settingMaxSpeed>0.00033</settingMaxSpeed> 
+	    <kp>0.0</kp> 
+	    <ki>0.0001</ki> 
+	    <kd>0.0</kd> 
+	    <input>
+	        <x>[Input]ObsS_96789/Water level (op)</x> 
+		<setpointValue>17.0</setpointValue> 
+	    </input>
+            <output>
+		<y>[Output]S_96789/Crest level (s)</y> 
+		<integralPart>[IP]Control group S_96789/PID Rule</integralPart> 
+          	<differentialPart>[DP]Control group S_96789/PID Rule</differentialPart> 
+      	    </output>
+	</pid>
+    </rule>
+  </rules>    
+</rtcToolsConfig>
