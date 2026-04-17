@@ -1,5 +1,5 @@
 
-## 0.5.0 (2026-04-16)
+## 0.5.0 (2026-04-17)
 This release contains bugfixes, improvements and new features for D-HyDAMO. See table below. 
 
 | New functionality                                                      | Description                                                                                                                                                                                  | Adjustments to workflow?                                                                                                                                        | Link to D-HyDAMO Wiki |
@@ -22,6 +22,7 @@ This release contains bugfixes, improvements and new features for D-HyDAMO. See 
 | Wrong units RTC                                                        | In RTC XML-files, always 'm’ was used as a unit. Now it is m3/s for discharge.                                                            | n/a                                                                                                                                                          | n/a                         |
 | Error at writing EVP file in  RR                                       | Combination of separator/escape characters are no longer accepted by pandas – swe changed the formatting.                                                   | n/a                                                                                                                                                          | n/a                         |
 | Wrongly removing of laterals                                           | After updating the geopandas  version, all laterals were dropped. This is now prevented, irrespective of the geopandas version.                                  | n/a                                                                                                                                                          | n/a                         |
+
 
 ## 0.4.1 (2025-06-02)
 This patch release includes fixes to use zonal statistics for the rainfall-runoff section in the D-HyDAMO tool. Zonal statistics does not longer accept extended geodataframes.
