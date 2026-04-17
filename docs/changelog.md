@@ -1,6 +1,4 @@
 
-## 0.5.0 (2026-04-17)
-
 ## 0.4.1 (2025-06-02)
 This patch release includes fixes to use zonal statistics for the rainfall-runoff section in the D-HyDAMO tool. Zonal statistics does not longer accept extended geodataframes.
 
