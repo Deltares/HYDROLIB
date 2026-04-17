@@ -75,6 +75,7 @@ nav:
       - Installation: "guides/setup.md"
       - Contributing: "guides/contributing.md"
       - Documentation: "guides/documentation.md"
+      - Release workflow: guides/release-workflow.md
   - Tools:
       - D-HyDAMO plugin: "!include ./hydrolib/dhydamo/mkdocs.yml"
       - Profile Optimizer: "!include ./hydrolib/profile_optimizer/mkdocs.yml"
