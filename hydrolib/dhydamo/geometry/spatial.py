@@ -1,5 +1,4 @@
 import logging
-from typing import List, Tuple
 
 import geopandas as gpd
 import numpy as np
@@ -15,6 +14,7 @@ from shapely.geometry import (
     box,
 )
 from shapely.prepared import prep
+
 from hydrolib.dhydamo.geometry import common
 
 logger = logging.getLogger(__name__)
@@ -155,11 +155,20 @@ def find_nearest_branch(branches, geometries, method='overal', maxdist=5):
             # Determine nearest
             if dist.min() < maxdist:
                 branchidxmin = dist.idxmin()
-                geometries.at[geometry.Index, 'branch_id'] = dist.idxmin()
+                geometries.at[geometry.Index, 'branch_id'] = branchidxmin
                 if isinstance(geometry.geometry, Point):
                     geo = geometry.geometry
                 else:
                     geo = geometry.geometry.centroid
+
+                if (dist < maxdist).sum() > 1:
+                    logger.info(
+                        "Geometry centroid %s has multiple branches with maxdist=%s and method=%s: %s",
+                        geo,
+                        maxdist,
+                        method,
+                        dist.index[dist < maxdist].to_list(),
+                    )
 
                 # Calculate offset
                 branchgeo = branches.at[branchidxmin, 'geometry']
@@ -167,7 +176,7 @@ def find_nearest_branch(branches, geometries, method='overal', maxdist=5):
                 offset = max(mindist, min(branchgeo.length - mindist, round(branchgeo.project(geo), 3)))
                 geometries.at[geometry.Index, 'branch_offset'] = offset
 
-def orthogonal_line(line: LineString, offset: float, width: float=1.0) -> List[Tuple[float]]:
+def orthogonal_line(line: LineString, offset: float, width: float=1.0) -> list[tuple[float]]:
     """
     Parameters
     ----------

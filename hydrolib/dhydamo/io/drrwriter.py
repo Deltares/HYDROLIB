@@ -1,5 +1,4 @@
 # coding: latin-1
-import csv
 import logging
 import os
 import re
@@ -20,12 +19,17 @@ logger = logging.getLogger(__name__)
 class DRRWriter:
     """Writer for RR files"""
 
-    def __init__(self, rrmodel, output_dir, name, wwtp=None):
+    def __init__(self, rrmodel, output_dir, name=None, wwtp=None):
         self.rrmodel = rrmodel
         # self.geometries = parent.geometries
         # self.boundary_conditions = parent.boundary_conditions
         self.output_dir = os.path.join(output_dir, "rr")
-        self.name = name
+        
+        if name is not None:
+            logger.warning(
+                "The 'name' parameter is deprecated and will be removed in a future version.",                
+        )
+
         hydamo = HyDAMO()
         self.version = hydamo.version
 
@@ -646,16 +650,14 @@ class DRRWriter:
             f.write("*jaar maand dag verdamping[mm]\n")
             f.close()
             table = list(self.rrmodel.external_forcings.evap.values())[0]["evap"]
-            table.sort_index().to_csv(
-                filepath,
-                float_format="%.3f",
-                date_format="%#Y  %#m  %#d ",
-                sep=" ",
-                header=False,
-                quoting=csv.QUOTE_NONE,
-                mode="a",
-                escapechar=" ",
-            )
+            table = table.sort_index()
+            date_format = "%#Y  %#m  %#d "
+            float_format = "%.3f"
+            sep = " "
+            with open(filepath, "a") as f:
+                for ts, val in table.items():
+                    date = ts.strftime(date_format)
+                    f.write(f"{date}{sep}{float_format % val}\n")
 
     def _dict_to_df(self):
         """
@@ -684,17 +686,17 @@ class DRRWriter:
         """
         Change parameter value in delft3b.ini file
         """
-        with open(os.path.join(self.output_dir, "DELFT_3B.INI"), "r") as f:
+        with open(os.path.join(self.output_dir, "DELFT_3B.INI")) as f:
             lines = f.readlines()
 
         for i, line in enumerate(lines):
-            if line.lower().startswith(parameter.lower()):
+            if line.lower().strip().startswith(parameter.lower()):
                 items = re.split("=", line)
                 key, oldvalue = items[0], items[1]
                 if not key.strip().lower() == parameter.lower():
                     continue
                 lines[i] = line.replace(
-                    "=" + oldvalue, f"={value}\n".ljust(len(oldvalue) + 1)
+                    "=" + oldvalue, f"={value}\n"
                 )
                 break
 

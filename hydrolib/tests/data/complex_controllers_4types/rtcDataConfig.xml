@@ -1,0 +1,86 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rtcDataConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rtc="http://www.wldelft.nl/fews" xmlns="http://www.wldelft.nl/fews" xsi:schemaLocation="http://www.wldelft.nl/fews C:\Werk\DHYDRO\Test_complexe_controllers\tests\dimrmodel_4types\rtc\rtcDataConfig.xsd">
+  <importSeries>
+    <PITimeSeriesFile>
+      <timeSeriesFile>timeseries_import.xml</timeSeriesFile>
+      <useBinFile>false</useBinFile>
+    </PITimeSeriesFile>
+    <timeSeries id="[Input]ObsS_98143/Water level (op)">
+      <OpenMIExchangeItem>
+        <elementId>ObsS_98143</elementId>
+        <quantityId>Water level (op)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Input]ObsS_96789/Water level (op)">
+      <OpenMIExchangeItem>
+        <elementId>ObsS_96789</elementId>
+        <quantityId>Water level (op)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[SP]interval/Interval Rule">
+      <PITimeSeries>
+        <locationId>[IntervalRule]interval/Interval Rule</locationId>
+        <parameterId>SP</parameterId>
+        <interpolationOption>BLOCK</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="time/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]time/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>LINEAR</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+    <timeSeries id="reuseObsPoint/Time Rule">
+      <PITimeSeries>
+        <locationId>[TimeRule]reuseObsPoint/Time Rule</locationId>
+        <parameterId>TimeSeries</parameterId>
+        <interpolationOption>LINEAR</interpolationOption>
+        <extrapolationOption>BLOCK</extrapolationOption>
+      </PITimeSeries>
+    </timeSeries>
+  </importSeries>
+  <exportSeries>
+    <CSVTimeSeriesFile decimalSeparator="." delimiter="," adjointOutput="false"></CSVTimeSeriesFile>
+    <PITimeSeriesFile>
+      <timeSeriesFile>timeseries_export.xml</timeSeriesFile>
+      <useBinFile>false</useBinFile>
+    </PITimeSeriesFile>
+    <timeSeries id="[Output]S_98143/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>S_98143</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[IP]pid/PID Rule" />
+    <timeSeries id="[DP]pid/PID Rule" />
+    <timeSeries id="[Output]S_96789/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>S_96789</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Status]interval/Interval Rule" />
+    <timeSeries id="[Output]S_96547/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>S_96547</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Output]S_96840/Crest level (s)">
+      <OpenMIExchangeItem>
+        <elementId>S_96840</elementId>
+        <quantityId>Crest level (s)</quantityId>
+        <unit>m</unit>
+      </OpenMIExchangeItem>
+    </timeSeries>
+    <timeSeries id="[Status]reuseObsPoint/Standard Condition" />
+  </exportSeries>
+</rtcDataConfig>

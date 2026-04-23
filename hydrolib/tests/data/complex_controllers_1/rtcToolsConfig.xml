@@ -1,0 +1,54 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rtcToolsConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rtc="http://www.wldelft.nl/fews" xmlns="http://www.wldelft.nl/fews" xsi:schemaLocation="http://www.wldelft.nl/fews D:\4390.10\HYDROLIB\hydrolib\tests\New%20folder\New%20folder%20(2)\rtc\rtcToolsConfig.xsd">
+  <general>
+    <description>RTC Model DeltaShell</description>
+    <poolRoutingScheme>Theta</poolRoutingScheme>
+    <theta>0.5</theta>
+  </general>
+  <rules>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group 1/Time Rule True">
+        <input>
+          <x>Control Group 1/Time Rule True</x>
+        </input>
+        <output>
+          <y>[Output]S_96684/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+    <rule>
+      <timeAbsolute id="[TimeRule]Control Group 1/Time rule False">
+        <input>
+          <x>Control Group 1/Time rule False</x>
+        </input>
+        <output>
+          <y>[Output]S_96684/Crest level (s)</y>
+        </output>
+      </timeAbsolute>
+    </rule>
+  </rules>
+  <triggers>
+    <trigger>
+      <standard id="[StandardCondition]Control Group 1/Standard Condition">
+        <condition>
+          <x1Series ref="EXPLICIT">[Input]ObsS_96684/Water level (op)</x1Series>
+          <relationalOperator>Greater</relationalOperator>
+          <x2Value>18.5</x2Value>
+        </condition>
+        <true>
+          <trigger>
+            <ruleReference>[TimeRule]Control Group 1/Time Rule True</ruleReference>
+          </trigger>
+        </true>
+        <false>
+          <trigger>
+            <ruleReference>[TimeRule]Control Group 1/Time rule False</ruleReference>
+          </trigger>
+        </false>
+        <output>
+          <status>[Status]Control Group 1/Standard Condition</status>
+        </output>
+      </standard>
+    </trigger>
+  </triggers>
+</rtcToolsConfig>

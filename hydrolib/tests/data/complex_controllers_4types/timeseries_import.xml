@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<TimeSeries xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.wldelft.nl/fews/PI" xsi:schemaLocation="http://www.wldelft.nl/fews/PI C:\Werk\DHYDRO\Test_complexe_controllers\tests\dimrmodel_4types\rtc\pi_timeseries.xsd" version="1.2">
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[IntervalRule]interval/Interval Rule</locationId>
+      <parameterId>SP</parameterId>
+      <timeStep unit="minute" multiplier="5" divider="1" />
+      <startDate date="2016-06-01" time="00:00:00" />
+      <endDate date="2016-06-03" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="2016-06-01" time="00:00:00" value="18.2" />
+    <event date="2016-06-03" time="00:00:00" value="18.2" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]time/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="5" divider="1" />
+      <startDate date="2016-06-01" time="00:00:00" />
+      <endDate date="2016-06-03" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="2016-06-01" time="00:00:00" value="13.2" />
+    <event date="2016-06-03" time="00:00:00" value="13.2" />
+  </series>
+  <series>
+    <header>
+      <type>instantaneous</type>
+      <locationId>[TimeRule]reuseObsPoint/Time Rule</locationId>
+      <parameterId>TimeSeries</parameterId>
+      <timeStep unit="minute" multiplier="5" divider="1" />
+      <startDate date="2016-06-01" time="00:00:00" />
+      <endDate date="2016-06-03" time="00:00:00" />
+      <missVal>-999.0</missVal>
+      <stationName />
+      <units />
+    </header>
+    <event date="2016-06-01" time="00:00:00" value="16" />
+    <event date="2016-06-03" time="00:00:00" value="16" />
+  </series>
+</TimeSeries>

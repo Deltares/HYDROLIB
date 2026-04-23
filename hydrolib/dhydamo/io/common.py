@@ -2,15 +2,16 @@ import logging
 import re
 from copy import deepcopy
 from pathlib import Path
-from typing import Union
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import shapely
 from shapely.geometry import LineString, MultiPolygon, Polygon
 
 from hydrolib.dhydamo.geometry import spatial
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
@@ -30,7 +31,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         else:
             kwargs["columns"] = required_columns
 
-        super(ExtendedGeoDataFrame, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.required_columns = required_columns[:]
         self.geotype = geotype
@@ -60,17 +61,16 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         Empty the dataframe
         """
         if not self.empty:
-            self.iloc[:, 0] = np.nan
-            self.dropna(inplace=True)
-
+            self.drop(self.index, inplace=True)
+            
     def read_shp(
         self,
-        path: Union[str, Path],
+        path: str | Path,
         index_col: str = None,
         column_mapping: dict = None,
         check_columns: bool = True,
         proj_crs=None,
-        clip: Union[Polygon, MultiPolygon] = None,
+        clip: Polygon | MultiPolygon = None,
         check_geotype: bool = True,
         id_col: str = "code",
         filter_cols: bool = False,
@@ -98,8 +98,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # Drop features without geometry
         total_features = len(gdf)
-        missing_features = len(gdf.index[gdf.geometry.isnull()])
-        gdf.drop(gdf.index[gdf.geometry.isnull()], inplace=True)  # temporary fix
+        gdf.drop(gdf.index[gdf.geometry.isna()], inplace=True)  # temporary fix
+        missing_features = len(gdf.index[gdf.geometry.isna()])
         logger.debug(
             f"{missing_features} out of {total_features} do not have a geometry"
         )
@@ -110,7 +110,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # Check number of entries
         if gdf.empty:
-            raise IOError("Imported shapefile contains no rows.")
+            raise OSError("Imported shapefile contains no rows.")
 
         # Add data to class GeoDataFrame
         self.set_data(
@@ -141,9 +141,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         # Copy content
         for col, values in gdf.items():
             if str(values.dtype) == "geometry":
-                self.set_geometry(values.values, inplace=True)
+                self.set_geometry(values.to_numpy(), inplace=True)
             else:
-                self[col] = values.values
+                self[col] = values.to_numpy()
 
         if index_col is None:
             self.index = gdf.index
@@ -186,7 +186,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                 )
             )
 
-    def show_gpkg(self, gpkg_path: Union[str, Path]):
+    def show_gpkg(self, gpkg_path: str | Path):
         if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
 
@@ -194,14 +194,18 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             gpkg_path = str(gpkg_path)
 
         layerlist = gpd.list_layers(gpkg_path).name.tolist()
-        print(f"Content of gpkg-file {gpkg_path}, containing {len(layerlist)} layers:")
-        print(
+        logger.info(
+            "Content of gpkg-file %s, containing %d layers:",
+            gpkg_path,
+            len(layerlist),
+        )
+        logger.info(
             "\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS"
         )
         for laynum, layer_name in enumerate(layerlist):
             layer = gpd.read_file(gpkg_path, layer=layer_name)
             if layer.empty:
-                logger.warning(f'Layer "{layer_name}" is empty.')
+                logger.warning('Layer "%s" is empty.', layer_name)
                 continue
 
             nfields = len(layer.columns)
@@ -214,13 +218,18 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             else:
                 geom_type = "None"
                 
-            print(
-                f"\t{laynum:5d}\t|\t{layer_name:30s}\t|\t{geom_type}\t|\t{nfeatures:10d}\t|\t{nfields:10d}"
+            logger.info(
+                "\t%5d\t|\t%30s\t|\t%s\t|\t%10d\t|\t%10d",
+                laynum,
+                layer_name,
+                geom_type,
+                nfeatures,
+                nfields,
             )
 
     def read_gpkg_layer(
         self,
-        gpkg_path: Union[str, Path],
+        gpkg_path: str | Path,
         layer_name: str,
         index_col: str = None,
         groupby_column: str = None,
@@ -229,7 +238,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         column_mapping: dict = None,
         check_columns: bool = True,
         check_geotype: bool = True,
-        clip: Union[Polygon, MultiPolygon] = None,
+        clip: Polygon | MultiPolygon = None,
+        cliptype: str = "select",
+        check_3d: bool = True
     ):
         if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
@@ -257,6 +268,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             geom_types = layer.geometry.geom_type.unique()
             if len(geom_types) != 1 or geom_types[0] != "Point":
                 raise ValueError("Can only group Points to LineString")
+            if check_3d and np.isnan(layer.geometry.z.to_numpy()).any():
+                raise ValueError("All geometries need to have a Z coordinate")
+
 
             # Group geometries to lines
             geometries = []
@@ -264,7 +278,11 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             for groupname, group in layer.groupby(groupby_column, sort=False):
                 # Filter branches with too few points
                 if len(group) < 2:
-                    logger.warning(f'Ignoring {groupby_column} "{groupname}": contains less than two points.')
+                    logger.warning(
+                        'Ignoring %s "%s": contains less than two points.',
+                        groupby_column,
+                        groupname,
+                    )
                     continue
 
                 # Determine relative order of points in profile
@@ -286,7 +304,11 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if index_col is not None:
             dupes = gdf[gdf.duplicated(subset=index_col, keep="first")].copy()
             if len(dupes) > 0:
-                logger.warning(f"Index column '{index_col}' contains duplicates ({list(gdf[gdf[index_col].duplicated()].code.unique())}). Adding a suffix to make it unique.")
+                logger.warning(
+                    "Index column '%s' contains duplicates (%s). Adding a suffix to make it unique.",
+                    index_col,
+                    list(gdf[gdf[index_col].duplicated()].code.unique()),
+                )
                 for dupe_id, group in dupes.groupby(by=index_col, sort=False):
                     gdf.loc[group.index, index_col] = [f"{dupe_id}_{i+1}" for i in range(len(group))]
 
@@ -299,17 +321,53 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         )
 
         if clip is not None:
-            self.clip(geometry=clip)
+            self.clip(geometry=clip, cliptype=cliptype)
 
-    def clip(self, geometry: Union[Polygon, MultiPolygon]):
+    def clip(self, geometry: Polygon | MultiPolygon, cliptype: str = "select", clip_and_drop: bool = True):
         """
         Clip geometry
         """
         if not isinstance(geometry, (Polygon, MultiPolygon)):
             raise TypeError("Expected geometry of type Polygon or MultiPolygon")
 
-        # Clip if needed
-        gdf = self.loc[self.intersects(geometry).values]
+        # Clip if needed          
+        if cliptype == "clip":
+            pre_geomtypes = self.geom_type.unique().tolist()
+            if "Polygon" in pre_geomtypes and "MultiPolygon" not in pre_geomtypes:
+                pre_geomtypes.append("MultiPolygon")
+            if "MultiPolygon" in pre_geomtypes and "Polygon" not in pre_geomtypes:
+                pre_geomtypes.append("Polygon")
+            gdf = gpd.clip(self, gpd.GeoDataFrame(geometry=[geometry], crs=self.crs))
+            if clip_and_drop:
+                # Reduce to allowed 
+                gdf = gpd.GeoDataFrame(gdf, crs=gdf.crs)
+                rem = gdf[~gdf.geom_type.isin(pre_geomtypes)]
+                # Explode to deal with geometry collections
+                rem = rem.explode(ignore_index=False, index_parts=False)
+                rem = rem[rem.geom_type.isin(pre_geomtypes)]
+                gdf = pd.concat([gdf[gdf.geom_type.isin(pre_geomtypes)], rem], ignore_index=False)
+                # Merge duplicate indices to single multigeometry
+                keep = []
+                for idx, group in gdf.groupby(level=0, sort=False):
+                    if len(group) == 1:
+                        keep.append(group.iloc[0].copy())
+                    elif len(group) > 1:
+                        row = group.iloc[0].copy()
+                        geoms = group.geometry.tolist()
+                        geom = shapely.union_all(geoms)
+                        if geom.geom_type not in pre_geomtypes:
+                            logger.warning(
+                                "Cannot deduplicate index '%s': clipping resulted in split geometries, using the first geometry.",
+                                idx,
+                            )
+                            geom = geoms[0]
+                        row.at["geometry"] = geom
+                        keep.append(row)
+                gdf = gpd.GeoDataFrame(keep, crs=gdf.crs)
+        elif cliptype == "select":
+            gdf = self.loc[self.intersects(geometry).to_numpy()]
+        else:
+            raise ValueError(f"Cliptype {cliptype} not recognized. Use 'clip' or 'select'.")
         if gdf.empty:
             raise ValueError("Found no features within extent geometry.")
 
@@ -355,7 +413,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
     def merge_columns(self, col1, col2, rename_col):
         """merge columns"""
 
-        if col1 or col2 in self.columns.values:
+        if col1 or col2 in self.columns.to_numpy():
             try:
                 self[rename_col] = self[col1] + self[col2]
             except Exception:
@@ -374,7 +432,7 @@ class ExtendedDataFrame(pd.DataFrame):
     _metadata = ["required_columns"] + pd.DataFrame._metadata
 
     def __init__(self, required_columns=None, *args, **kwargs):
-        super(ExtendedDataFrame, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         if required_columns is None:
             required_columns = []
@@ -399,7 +457,7 @@ class ExtendedDataFrame(pd.DataFrame):
 
         # Copy content
         for col, values in df.items():
-            self[col] = values.values
+            self[col] = values.to_numpy()
 
         if index_col is None:
             self.index = df.index
@@ -413,7 +471,7 @@ class ExtendedDataFrame(pd.DataFrame):
         self._check_columns()
 
     def add_data(self, df):
-        if not np.in1d(df.columns, self.columns).all():
+        if not np.isin(df.columns, self.columns).all():
             raise KeyError(
                 "The new df contains columns that are not present in the current df."
             )
@@ -445,7 +503,7 @@ class ExtendedDataFrame(pd.DataFrame):
 
     def read_gpkg_layer(
         self,
-        gpkg_path: Union[str, Path],
+        gpkg_path: str | Path,
         layer_name: str = None,
         column_mapping: dict = None,
         index_col: str = None,

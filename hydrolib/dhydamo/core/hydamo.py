@@ -1,28 +1,29 @@
 import logging
+import numbers
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Union
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
-from pydantic.v1 import validate_arguments
+from pydantic.v1 import ConfigDict, validate_arguments
+from rasterstats import zonal_stats
 from scipy.spatial import KDTree
-from shapely.geometry import LineString, Point, Polygon, MultiPolygon
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from tqdm.auto import tqdm
+
 from hydrolib import dhydamo
 from hydrolib.dhydamo.converters.hydamo2df import (
     CrossSectionsIO,
     ExternalForcingsIO,
     RoughnessVariant,
+    StorageNodesIO,
     StructuresIO,
-    StorageNodesIO
 )
-from rasterstats import zonal_stats
+from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
-from hydrolib.dhydamo.core.drr import DRRModel
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +33,8 @@ class HyDAMO:
     for network, structures, cross sections, observation points, storage nodes and external forcings.
     """
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
-    def __init__(self, extent_file: Union[Path, str] = None) -> None:
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def __init__(self, extent_file: Path | str = None) -> None:
         """Initiate subclasses and IO-methods
 
         Args:
@@ -281,7 +282,7 @@ class HyDAMO:
 
         # RR catchments
         self.catchments = ExtendedGeoDataFrame(
-            geotype=Union[Polygon, MultiPolygon],
+            geotype=Polygon | MultiPolygon,
             required_columns=["code", "geometry", "globalid", "lateraleknoopid"],
             related={
                 "laterals": {
@@ -376,8 +377,8 @@ class HyDAMO:
             required_columns=["code", "geometry"],            
         )
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
-    def list_to_str(self, lst: Union[list, np.ndarray]) -> str:
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def list_to_str(self, lst: list | np.ndarray) -> str:
         """Converts list to string
 
         Args:
@@ -413,9 +414,9 @@ class HyDAMO:
 
         # Determine which labels need to be drop for the first object based on
         # nan values for branch_offset.
-        drop_idx = extendedgdf[pd.isnull(extendedgdf.branch_offset)].index.values
+        drop_idx = extendedgdf[pd.isna(extendedgdf.branch_offset)].index.to_numpy()
         drop_list = [(extendedgdf, drop_idx)]
-        print(f"dropping objects with indices: {drop_idx}")
+        logger.info("dropping objects with indices: %s", drop_idx)
 
         # Find out which labels need to be dropped from related objects
         if drop_related and extendedgdf.related is not None:
@@ -428,10 +429,14 @@ class HyDAMO:
 
     def _recursive_drop_related(self, drop_list, source, drop_idx, target_str, via, on, coupled_to):
         target = getattr(self, target_str)
-        drop_related = source.loc[drop_idx, via].values
-        drop_idx = target[target[on].isin(drop_related)].index.values
+        drop_related = source.loc[drop_idx, via].to_numpy()
+        drop_idx = target[target[on].isin(drop_related)].index.to_numpy()
         drop_list.append((target, drop_idx))
-        print(f"  - dropping objects from '{target_str}' with indices: {drop_idx}")
+        logger.info(
+            "  - dropping objects from '%s' with indices: %s",
+            target_str,
+            drop_idx,
+        )
 
         if coupled_to is not None:
             for next_target_str, next_relation in coupled_to.items():
@@ -587,7 +592,8 @@ class Network:
         )
         bedlevels_crs_branches = self.hydamo.crosssections.get_bottom_levels()
         branch_order = self.mesh1d.get_values("nbranchorder", as_array=True)
-        self.make_branches_to_node_map(), self.make_nodes_to_branch_map()
+        self.make_branches_to_node_map()
+        self.make_nodes_to_branch_map()
         nodes_dict = {
             n: {"up": [], "down": []} for n in self.branches_to_node_map.keys()
         }
@@ -677,8 +683,9 @@ class Network:
                             n = 0
                             max_tries += 1
                     if max_tries > 500:
-                        print(
-                            f"Can't fix correct directions branch groups {all_branches}"
+                        logger.warning(
+                            "Can't fix correct directions branch groups %s",
+                            all_branches,
                         )
                         break
 
@@ -912,7 +919,7 @@ class Network:
         # save
         self.branch_groups = groups.copy()
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def get_node_idx_offset(
         self, branch_id: str, pt: shapely.geometry.Point, nnodes: int = 1
     ) -> tuple:
@@ -1251,12 +1258,12 @@ class CrossSections:
         )
         return gdf
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def crosssection_to_yzprofiles(
         self,
-        crosssections: Union[gpd.GeoDataFrame, ExtendedGeoDataFrame],
+        crosssections: gpd.GeoDataFrame | ExtendedGeoDataFrame,
         roughness: ExtendedDataFrame,
-        branches: Union[ExtendedGeoDataFrame, None],
+        branches: ExtendedGeoDataFrame | None,
         roughness_variant: RoughnessVariant = None,
     ) -> dict:
         """
@@ -1292,7 +1299,7 @@ class CrossSections:
 
             # determine thalweg
             if branches is not None:
-                branche_geom = branches[branches.code == css.branch_id].geometry.values
+                branche_geom = branches[branches.code == css.branch_id].geometry.to_numpy()
 
                 if css.geometry.intersection(branche_geom[0]).geom_type == "MultiPoint":
                     thalweg_xyz = css.geometry.intersection(branche_geom[0]).geoms[0].coords[
@@ -1326,13 +1333,13 @@ class CrossSections:
                 "thalweg": thalweg,
                 "typeruwheid": roughness[
                     roughness["profielpuntid"] == css.globalid
-                ].typeruwheid.values[0],
+                ].typeruwheid.to_numpy()[0],
                 "ruwheid": float(ruwheid.iloc[0]),
             }
 
         return cssdct
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def parametrised_to_profiles(
         self,
         parametrised: ExtendedDataFrame,
@@ -1368,81 +1375,80 @@ class CrossSections:
             ]
 
             # Drop profiles for which not enough data is available to write (as rectangle)
-            # nulls = pd.isnull(parambranches[['bodembreedte', 'bodemhoogtebenedenstrooms', 'bodemhoogtebovenstrooms']]).any(axis=1).values
+            # nulls = pd.isna(parambranches[['bodembreedte', 'bodemhoogtebenedenstrooms', 'bodemhoogtebovenstrooms']]).any(axis=1).to_numpy()
             # parambranches = parambranches.drop(ExtendedGeoDataFrame(geotype=LineString), parambranches.index[nulls], index_col='code',axis=0)
             # parambranches.drop(parambranches.index[nulls], inplace=True)
 
-            if pd.isnull(
+            if pd.isna(
                 values[values.soortparameter == "bodemhoogte benedenstrooms"].waarde
-            ).values[0]:
+            ).to_numpy()[0]:
                 logger.warning(
-                    "bodemhoogte benedenstrooms not available for profile {}.".format(
-                        param.globalid
-                    )
+                    "bodemhoogte benedenstrooms not available for profile %s.",
+                    param.globalid,
                 )
-            if pd.isnull(values[values.soortparameter == "bodembreedte"].waarde).values[
+            if pd.isna(values[values.soortparameter == "bodembreedte"].waarde).to_numpy()[
                 0
             ]:
                 logger.warning(
-                    "bodembreedte not available for profile {}.".format(param.globalid)
+                    "bodembreedte not available for profile %s.",
+                    param.globalid,
                 )
-            if pd.isnull(
+            if pd.isna(
                 values[values.soortparameter == "bodemhoogte bovenstrooms"].waarde
-            ).values[0]:
+            ).to_numpy()[0]:
                 logger.warning(
-                    "bodemhoogte bovenstrooms not available for profile {}.".format(
-                        param.globalid
-                    )
+                    "bodemhoogte bovenstrooms not available for profile %s.",
+                    param.globalid,
                 )
 
             # Determine characteristics
-            botlev_upper = values[ values.soortparameter == "bodemhoogte bovenstrooms" ].waarde.values[0]
-            botlev_lower = values[ values.soortparameter == "bodemhoogte benedenstrooms" ].waarde.values[0]            
+            botlev_upper = values[ values.soortparameter == "bodemhoogte bovenstrooms" ].waarde.to_numpy()[0]
+            botlev_lower = values[ values.soortparameter == "bodemhoogte benedenstrooms" ].waarde.to_numpy()[0]            
 
-            if pd.isnull(
+            if pd.isna(
                 values[values.soortparameter == "taludhelling linkerzijde"].waarde
-            ).values[0]:
+            ).to_numpy()[0]:
                 css_type = "rectangle"
             else:
                 css_type = "trapezium"
                 dh1 = (
                     values[
                         values.soortparameter == "hoogte insteek linkerzijde"
-                    ].waarde.values[0]
+                    ].waarde.to_numpy()[0]
                     - (botlev_upper + botlev_lower)/2.
                 )
                 dh2 = (
                     values[
                         values.soortparameter == "hoogte insteek rechterzijde"
-                    ].waarde.values[0]
+                    ].waarde.to_numpy()[0]
                     - (botlev_upper + botlev_lower)/2.
                 )
                 # height = (dh1 + dh2) / 2.0
                 # Determine maximum flow width and slope (both needed for output)
                 maxflowwidth = (
-                    values[values.soortparameter == "bodembreedte"].waarde.values[0]
+                    values[values.soortparameter == "bodembreedte"].waarde.to_numpy()[0]
                     + values[
                         values.soortparameter == "taludhelling linkerzijde"
-                    ].waarde.values[0]
+                    ].waarde.to_numpy()[0]
                     * dh1
                     + values[
                         values.soortparameter == "taludhelling rechterzijde"
-                    ].waarde.values[0]
+                    ].waarde.to_numpy()[0]
                     * dh2
                 )
                 slope = (
                     values[
                         values.soortparameter == "taludhelling linkerzijde"
-                    ].waarde.values[0]
+                    ].waarde.to_numpy()[0]
                     + values[
                         values.soortparameter == "taludhelling rechterzijde"
-                    ].waarde.values[0]
+                    ].waarde.to_numpy()[0]
                 ) / 2.0
 
             if roughness_variant == RoughnessVariant.LOW:
-                roughness = values.ruwheidlaag.values[0]
+                roughness = values.ruwheidlaag.to_numpy()[0]
             elif roughness_variant == RoughnessVariant.HIGH:
-                roughness = values.ruwheidhoog.values[0]
+                roughness = values.ruwheidhoog.to_numpy()[0]
             else:
                 raise ValueError(
                     'Invalid value for roughness_variant; should be "High" or "Low".'
@@ -1454,14 +1460,14 @@ class CrossSections:
                     "slope": round(slope, 2),
                     "maximumflowwidth": round(maxflowwidth, 1),
                     "bottomwidth": round(
-                        values[values.soortparameter == "bodembreedte"].waarde.values[
+                        values[values.soortparameter == "bodembreedte"].waarde.to_numpy()[
                             0
                         ],
                         3,
                     ),
                     "closed": 0,
                     "thalweg": 0.0,
-                    "typeruwheid": values.typeruwheid.values[0],
+                    "typeruwheid": values.typeruwheid.to_numpy()[0],
                     "ruwheid": roughness,
                     "bottomlevel_upper": botlev_upper,
                     "bottomlevel_lower": botlev_lower,
@@ -1471,14 +1477,14 @@ class CrossSections:
                     "type": css_type,
                     "height": 5.0,
                     "width": round(
-                        values[values.soortparameter == "bodembreedte"].waarde.values[
+                        values[values.soortparameter == "bodembreedte"].waarde.to_numpy()[
                             0
                         ],
                         3,
                     ),
                     "closed": 0,
                     "thalweg": 0.0,
-                    "typeruwheid": values.typeruwheid.values[0],
+                    "typeruwheid": values.typeruwheid.to_numpy()[0],
                     "ruwheid": roughness,
                     "bottomlevel_upper": botlev_upper,
                     "bottomlevel_lower": botlev_lower,
@@ -1513,7 +1519,7 @@ class ExternalForcings:
         """
         # Get name is not given as input
         if name is None:
-            name = "wlevpoly{:04d}".format(len(self.initial_waterlevel_polygons) + 1)
+            name = f"wlevpoly{len(self.initial_waterlevel_polygons) + 1:04d}"
 
         # Add to geodataframe
         if polygon is None:
@@ -1557,7 +1563,7 @@ class ExternalForcings:
         """
         # Get name is not given as input
         if name is None:
-            name = "wlevpoly{:04d}".format(len(self.initial_waterdepth_polygons) + 1)
+            name = f"wlevpoly{len(self.initial_waterdepth_polygons) + 1:04d}"
         # Add to geodataframe
         if polygon is None:
             new_df = pd.DataFrame(
@@ -1596,17 +1602,19 @@ class ExternalForcings:
 
     @validate_arguments
     def add_boundary_condition(
-        self, name: str, pt, quantity: str, series, mesh1d=None
+        self, name: str, pt, quantity: str, value, mesh1d=None
     ) -> None:
         """
         Add boundary conditions to model:
-        - The boundary condition can be discharge or waterlevel
+        - The boundary condition can be discharge or waterlevel, or a Q-H relation
         - Is specified by a geographical location (pt) and a branchid
         - If no branchid is given, the nearest is searched
         - The boundary condition is added to the end of the given or nearest branch.
-        - To specify a time dependendend boundary: a timeseries with values should be given
-        - To specify a constant boundary a float should be given
-
+        Value can be one of three options:
+        -  timeseries: a Pandas series with time as index should be given
+        -  constant:  a float should be given
+        -  Q-H boundary: a dictionary with Q-H 
+        
         Parameters
         ----------
         name : str
@@ -1615,17 +1623,35 @@ class ExternalForcings:
             Location of the boundary condition
         bctype : str
             Type of boundary condition. Currently only discharge and waterlevel are supported
-        series : pd.Series or float
+        series : pd.Series dict, or float
             If a float, a constant in time boundary condition is used. If a pandas series,
-            the values per time step are used. Index should be in datetime format
+            the values per time step are used. Index should be in datetime format, if dict a Q-H table is assumed
         branchid : str, optional
             ID of the branch. If None, the branch nearest to the given location (pt) is
             searched, by default None
         """
 
-        assert quantity in ["dischargebnd", "waterlevelbnd"]
+        assert quantity in ["dischargebnd", "waterlevelbnd", 'qhbnd']
 
-        unit = "m3/s" if quantity == "dischargebnd" else "m"
+
+        if isinstance(value, pd.Series):
+            vec1 = ((value.index - value.index[0]).total_seconds() / 60.0).tolist()
+            vec2 = value.to_numpy().tolist()
+            startdate = value.index[0].strftime("%Y-%m-%d %H:%M:%S")
+            unit1 =  f"minutes since {startdate}"
+            unit2 = "m3/s" if quantity == "dischargebnd" else "m"            
+        elif isinstance(value, numbers.Real):
+            vec1 = None
+            vec2 = float(value)
+            startdate = "0000-00-00 00:00:00"
+            unit1 =  f"minutes since {startdate}"
+            unit2 = "m3/s" if quantity == "dischargebnd" else "m"
+        else:
+            vec1 = value['Q']
+            vec2 = value['H']            
+            unit1 = 'm3/s'
+            unit2 = 'm'
+        
         if name in self.boundary_nodes.keys():
             raise KeyError(
                 f'A boundary condition with name "{name}" is already present.'
@@ -1653,30 +1679,18 @@ class ExternalForcings:
         _, idx_nearest = get_nearest.query(pt.coords[:])
         nodeid = f"{float(nodes1d[idx_nearest[0],0]):12.6f}_{float(nodes1d[idx_nearest[0],1]):12.6f}"
 
-        # Convert time to minutes
-        if isinstance(series, pd.Series):
-            times = ((series.index - series.index[0]).total_seconds() / 60.0).tolist()
-            values = series.values.tolist()
-            startdate = series.index[0].strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            times = None
-            values = series
-            startdate = "0000-00-00 00:00:00"
-
         # Add boundary condition
         self.boundary_nodes[name] = {
             "id": name,
             "quantity": quantity,
-            "value": values,
-            "time": times,
-            "time_unit": f"minutes since {startdate}",
-            "value_unit": unit,
+            "vec1": vec1,
+            "vec2": vec2,
+            "unit1": unit1,
+            "unit2": unit2,
             "nodeid": nodeid,
         }
 
-        # Check if a 1d2d link should be removed
-        # self.dflowfmmodel.network.links1d2d.check_boundary_link(self.boundaries[name])
-
+        
     @validate_arguments
     def add_rain_series(self, name: str, values: list, times: list) -> None:
         """
@@ -1705,13 +1719,13 @@ class ExternalForcings:
             "branchid": None,
         }
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def add_lateral(
         self,
         id: str,
         branchid: str,
         chainage: str,
-        discharge: Union[pd.Series, float, str],
+        discharge: pd.Series | float | str,
     ) -> None:
         """Add a lateral to an FM model
 
@@ -1727,7 +1741,7 @@ class ExternalForcings:
             times = (
                 (discharge.index - discharge.index[0]).total_seconds() / 60.0
             ).tolist()
-            values = discharge.values.tolist()
+            values = discharge.to_numpy().tolist()
             startdate = discharge.index[0].strftime("%Y-%m-%d %H:%M:%S")
         else:
             times = None
@@ -1736,7 +1750,6 @@ class ExternalForcings:
 
         self.lateral_nodes[id] = {
             "id": id,
-            "name": id,
             "type": "discharge",
             "locationtype": "1d",
             "branchid": branchid,
@@ -1787,7 +1800,7 @@ class Structures:
     def add_rweir(
         self,
         id: str = None,
-        name: Union[str, float, None] = None,
+        name: str | float | None = None,
         branchid: str = None,
         chainage: float = None,
         crestlevel: float = None,
@@ -1822,7 +1835,7 @@ class Structures:
     def add_orifice(
         self,
         id: str = None,
-        name:  Union[str, float, None] = None,
+        name:  str | float | None = None,
         branchid: str = None,
         chainage: float = None,
         crestlevel: float = None,
@@ -1867,7 +1880,7 @@ class Structures:
     def add_uweir(
         self,
         id: str = None,
-        name:  Union[str, float, None] = None,
+        name:  str | float | None = None,
         branchid: str = None,
         chainage: float = None,
         crestlevel: float = None,
@@ -1908,7 +1921,7 @@ class Structures:
     def add_bridge(
         self,
         id: str = None,
-        name:  Union[str, float, None] = None,
+        name:  str | float | None = None,
         branchid: str = None,
         chainage: float = None,
         length: float = None,
@@ -1949,7 +1962,7 @@ class Structures:
     def add_culvert(
         self,
         id: str = None,
-        name:  Union[str, float, None] = None,
+        name:  str | float | None = None,
         branchid: str = None,
         chainage: float = None,
         leftlevel: float = None,
@@ -2020,7 +2033,7 @@ class Structures:
     def add_pump(
         self,
         id: str = None,
-        name:  Union[str, float, None] = None,
+        name:  str | float | None = None,
         branchid: str = None,
         chainage: float = None,
         orientation: str = "positive",
@@ -2055,7 +2068,7 @@ class Structures:
         self.pumps_df = pd.concat([self.pumps_df, dct], ignore_index=True)
 
     @validate_arguments
-    def add_compound(self, id:  Union[str, float, None] = None, structureids: list = None) -> None:
+    def add_compound(self, id:  str | float | None = None, structureids: list = None) -> None:
         structurestring = ";".join([f"{s}" for s in structureids])
         numstructures = len(structureids)
         dct = pd.DataFrame(
@@ -2069,7 +2082,7 @@ class Structures:
         )
         self.compounds_df = pd.concat([self.compounds_df, dct], ignore_index=True)
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def as_dataframe(
         self,
         generalstructures: bool = False,
@@ -2129,8 +2142,9 @@ class Structures:
 class ObservationPoints:
     def __init__(self, hydamo):
         self.hydamo = hydamo
+        self.observation_points = gpd.GeoDataFrame().set_geometry([])
 
-    @validate_arguments(config=dict(arbitrary_types_allowed=True))
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def add_points(
         self, crds: list, names: list, locationTypes=None, snap_distance: float = 5.0
     ) -> None:
@@ -2148,9 +2162,6 @@ class ObservationPoints:
         snap_distance : float (default is 5 m)
             1d observation poinst within this distance to a branch will be snapped to it. Otherwise they are discarded.
         """
-        if not hasattr(self, "observation_points"):
-            self.observation_points = gpd.GeoDataFrame()
-
         if isinstance(names, str):
             names = [names]
             crds = [crds]

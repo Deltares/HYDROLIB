@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<dimrConfig xmlns="http://schemas.deltares.nl/dimr" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schemas.deltares.nl/dimr http://content.oss.deltares.nl/schemas/dimr-1.2.xsd">
+  <documentation>
+    <fileVersion>1.2</fileVersion>
+    <createdBy>Deltares, Coupling Team</createdBy>
+    <creationDate>2022-10-10T11:11:31.8785Z</creationDate>
+  </documentation>
+  <!--<control>
+          The <control> specifies the workflow of the deltaresHydro executable.
+          It indicates which components are started in which order. If the data
+          transfer is to be arranged by the main program "d_hydro", then a coupler
+          should be included.
+          The main <control> block is a sequential block; this means that each
+          component is initialized, time stepped, and finalized before the next
+          component starts.
+      <parallel>
+          Within a <parallel> tag the components are started
+          concurrently (if the mpi process ids listed per component don't overlap)
+          or executed synchronously in sequence (first all initialize, then time
+          stepping, and to conclude all finalization calls).
+      <start>
+          A <parallel> block contains exactly one <start/> component, defining the
+          start and end time of the simulation. This is the component inside
+          the <parallel> block with the smallest time step. All other
+          components must be defined with a <startGroup>.
+      <startGroup>
+          A <startGroup> should be used if a component (possibly including couplers)
+          should only be executed at a subset of simulation time steps.
+
+      For each component/coupler there will be a corresponding component/coupler
+      specification block defined below.-->
+  <control>
+    <parallel>
+      <startGroup>
+        <time>0 60 172800</time>
+        <coupler name="flow_to_rtc" />
+        <start name="Real_Time_Control" />
+        <coupler name="rtc_to_flow" />
+      </startGroup>
+      <start name="DFM" />
+    </parallel>
+  </control>
+  <component name="Real_Time_Control">
+    <library>FBCTools_BMI</library>
+    <workingDir>rtc</workingDir>
+    <inputFile>.</inputFile>
+  </component>
+  <component name="DFM">
+    <library>dflowfm</library>
+    <workingDir>dflowfm</workingDir>
+    <setting key="threads" value="1" />
+    <inputFile>DFM.mdu</inputFile>
+  </component>
+  <coupler name="rtc_to_flow">
+    <sourceComponent>Real_Time_Control</sourceComponent>
+    <targetComponent>DFM</targetComponent>
+    <item>
+      <sourceName>[Output]S_96684/Crest level (s)</sourceName>
+      <targetName>weirs/S_96684/crestLevel</targetName>
+    </item>
+    <logger>
+      <workingDir>.</workingDir>
+      <outputFile>rtc_to_flow.nc</outputFile>
+    </logger>
+  </coupler>
+  <coupler name="flow_to_rtc">
+    <sourceComponent>DFM</sourceComponent>
+    <targetComponent>Real_Time_Control</targetComponent>
+    <item>
+      <sourceName>observations/ObsS_96684/water_level</sourceName>
+      <targetName>[Input]ObsS_96684/Water level (op)</targetName>
+    </item>
+    <logger>
+      <workingDir>.</workingDir>
+      <outputFile>flow_to_rtc.nc</outputFile>
+    </logger>
+  </coupler>
+</dimrConfig>

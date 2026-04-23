@@ -101,10 +101,18 @@ def read_dimensions(meshgeomdim, readdim, ncfile):
 
         # Check if variable is in nc file
         if ncname not in ncfile.dimensions.keys():
-            logger.error(f'Failed to read dimension "{ncname}" from ncfile for {readdim} mesh.')
+            logger.error(
+                'Failed to read dimension "%s" from ncfile for %s mesh.',
+                ncname,
+                readdim,
+            )
         
         value = ncfile.dimensions[ncname].size
-        logger.info(f'Read dimension "{ncname}" from ncfile for {readdim} mesh.')
+        logger.info(
+            'Read dimension "%s" from ncfile for %s mesh.',
+            ncname,
+            readdim,
+        )
         setattr(meshgeomdim, cname, value)
 
 def read_values(meshgeom, readdim, ncfile):
@@ -121,11 +129,20 @@ def read_values(meshgeom, readdim, ncfile):
 
         # Check if variable is in nc file
         if ncname not in ncfile.variables.keys():
-            logger.error(f'Failed to read variable "{ncname}" from ncfile for {readdim} mesh.')
+            logger.error(
+                'Failed to read variable "%s" from ncfile for %s mesh.',
+                ncname,
+                readdim,
+            )
         
         # Read values
         values = ncfile.variables[ncname][:]
-        logger.info(f'Read variable "{ncname}" with shape {values.shape} from ncfile for {readdim} mesh.')
+        logger.info(
+            'Read variable "%s" with shape %s from ncfile for %s mesh.',
+            ncname,
+            values.shape,
+            readdim,
+        )
         
         # Read description variables (strings)
         if cname in meshgeom.description1d.keys():
