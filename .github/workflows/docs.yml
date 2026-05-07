@@ -6,11 +6,14 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: 3.12
+
       - run: pipx install poetry
       - run: poetry install --only dev --no-root --no-interaction
       - run: poetry run mkdocs gh-deploy --force
