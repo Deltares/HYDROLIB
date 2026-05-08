@@ -5,10 +5,12 @@ You should be able to install HYDROLIB with:
 pip install hydrolib
 ```
 
-or if you prefer (especially on Windows)
+or if you can create a clean conda environment first
 
 ``` bash
-conda install hydrolib -c conda-forge
+conda create --name hydrolib_env python=3.12 -c conda-forge
+conda activate hydrolib_env
+pip install hydrolib
 ```
 
 !!! note
