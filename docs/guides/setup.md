@@ -5,7 +5,7 @@ You should be able to install HYDROLIB with:
 pip install hydrolib
 ```
 
-or if you can create a clean conda environment first
+or you can create a clean conda environment first
 
 ``` bash
 conda create --name hydrolib_env python=3.12 -c conda-forge
