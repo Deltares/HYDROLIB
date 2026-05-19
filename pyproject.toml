@@ -14,9 +14,9 @@ python = "^3.10"
 pandas = ">=1.2, <3.0"
 geopandas = ">=1.0.0, <2.0"
 xarray = ">=2023.1.0"
-#hydrolib-core = ">=1.0.0" #hydrolib-core>=1.0.0 has new Pydantic API, support for pandas 3 and support for Python 3.14
-# TODO: this is just for testing the branch, update to hydrolib-core 1.0.1 once available on PyPI, before merging the PR
-hydrolib-core = { git = "https://github.com/deltares/hydrolib-core.git", rev="main" }
+# hydrolib-core>=1.0.0 has new Pydantic API, support for pandas 3 and support for Python 3.14.
+# hydrolib-core>=1.0.1 reverts some incompatibilties introduced in v1
+hydrolib-core = ">=1.0.1"
 numpy = ">=1.21 <3.0"
 matplotlib = ">=3.5"
 openpyxl = ">=3"
