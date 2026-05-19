@@ -35,7 +35,8 @@ def _add_default_simple_control(data_path, hydamo, drtcmodel):
         }
 
         drtcmodel.from_hydamo(pid_settings=pid_settings, timeseries=timeseries)
-
+    
+    # pid controller to weir
     drtcmodel.add_pid_controller(
         structure_id="S_96544",
         steering_variable="Crest level (s)",
@@ -52,12 +53,14 @@ def _add_default_simple_control(data_path, hydamo, drtcmodel):
         extrapolation_option="BLOCK",
     )
 
+    # time controller to weir
     drtcmodel.add_time_controller(
         structure_id="S_96548",
         steering_variable="Crest level (s)",
         data=timeseries.iloc[:, 1],
     )
 
+    # interval controller to orifice
     drtcmodel.add_interval_controller(
         structure_id="orifice_test",
         observation_location="ObsO_test",
@@ -71,6 +74,8 @@ def _add_default_simple_control(data_path, hydamo, drtcmodel):
         interpolation_option="LINEAR",
         extrapolation_option="BLOCK",
     )
+
+    # pid controller to culvert valve
 
 def _setup_rtc_model(hydamo=None, fm=None, output_path=None):
     data_path = Path("hydrolib/tests/data").resolve()
@@ -98,11 +103,11 @@ def _setup_rtc_model(hydamo=None, fm=None, output_path=None):
 def test_setup_rtc_model(hydamo=None):
     rtcd = _setup_rtc_model(hydamo=hydamo)
     rtcd.write_xml_v1()
-    assert len(rtcd.pid_controllers) == 5
+    assert len(rtcd.pid_controllers) == 6
     assert len(rtcd.time_controllers) == 2
     assert len(rtcd.interval_controllers) == 1
     assert len(rtcd.cc_ids) == 2
-    assert len(rtcd.all_controllers) == 8
+    assert len(rtcd.all_controllers) == 9
 
 def test_complex_controller_already_present(caplog, hydamo=None):
     with caplog.at_level(logging.INFO, logger="hydrolib.dhydamo.core.drtc"):
@@ -117,11 +122,11 @@ def test_complex_controller_already_present(caplog, hydamo=None):
     expected_msg = "RtcToolsConfig.xml: Skipped writing Time control for S_96684, complex controller already present"
     assert expected_msg in caplog.messages
 
-    assert len(rtcd.pid_controllers) == 5
+    assert len(rtcd.pid_controllers) == 6
     assert len(rtcd.time_controllers) == 3
     assert len(rtcd.interval_controllers) == 1
     assert len(rtcd.cc_ids) == 2
-    assert len(rtcd.all_controllers) == 8
+    assert len(rtcd.all_controllers) == 9
 
 def test_complex_controller_multiple_folders(hydamo=None):
     data_path = Path("hydrolib/tests/data").resolve()
@@ -376,11 +381,11 @@ def test_complex_controller_fourtypes(caplog, hydamo=None):
     check_msg = "RtcToolsConfig.xml: Skipped writing Time control for S_96840, complex controller already present"
     assert check_msg in caplog.messages
 
-    assert len(rtcd.pid_controllers) == 5
+    assert len(rtcd.pid_controllers) == 6
     assert len(rtcd.time_controllers) == 2
     assert len(rtcd.interval_controllers) == 1
     assert len(rtcd.cc_ids) == 6
-    assert len(rtcd.all_controllers) == 7
+    assert len(rtcd.all_controllers) == 8
 
 
 def test_complex_controller_fourtypes_limit(caplog, hydamo=None):
@@ -421,11 +426,11 @@ def test_complex_controller_fourtypes_limit(caplog, hydamo=None):
     assert check_msg2 in caplog.messages
     assert check_msg3 in caplog.messages
 
-    assert len(rtcd.pid_controllers) == 5
+    assert len(rtcd.pid_controllers) == 6
     assert len(rtcd.time_controllers) == 2
     assert len(rtcd.interval_controllers) == 1
     assert len(rtcd.cc_ids) == 6
-    assert len(rtcd.all_controllers) == 8
+    assert len(rtcd.all_controllers) == 9
 
 def test_complex_controller_wrong(caplog, hydamo=None):
     data_path = Path("hydrolib/tests/data").resolve()

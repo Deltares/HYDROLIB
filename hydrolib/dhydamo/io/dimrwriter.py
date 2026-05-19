@@ -283,7 +283,8 @@ class DIMRWriter:
             rtcdict = {
                       "Crest level (s)": ["weirs","crestLevel"],
                       "Gate lower edge level (s)": ["orifices","gateLowerEdgeLevel"],
-                      "Capacity (p)": ["pumps","capacity"]
+                      "Capacity (p)": ["pumps","capacity"],
+                      "Valve opening (s)": ["culverts", "valveOpeningHeight"]
                       }
 
             rtc_to_flow_seen_pairs = set()

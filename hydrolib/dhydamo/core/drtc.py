@@ -764,43 +764,55 @@ class DRTCModel:
         """
         for _, management in self.hydamo.management.iterrows():
             # first get the structure ID through the coupled items. It can so far be three different structure types.
-            if not pd.isna(management.regelmiddelid):
-                weir_code = management.stuwid
-
-                if weir_code in list(self.hydamo.structures.rweirs_df.id):
-                    weir = self.hydamo.structures.rweirs_df[
-                        self.hydamo.structures.rweirs_df.id == weir_code
-                    ]
-                elif not self.hydamo.structures.uweirs_df.empty and weir_code in list(self.hydamo.structures.uweirs_df.id):
-                    weir = self.hydamo.structures.uweirs_df[
-                        self.hydamo.structures.uweirs_df.id == weir_code
-                    ]
-                elif not self.hydamo.structures.orifices_df.empty and  weir_code in list(self.hydamo.structures.orifices_df.id):
-                    weir = self.hydamo.structures.orifices_df[
-                        self.hydamo.structures.orifices_df.id == weir_code
-                    ]
-                else:
-                    logger.warning(
-                        f"Management for management_device {management.regelmiddelid} could not be connnected to a structure. Skipping it."
-                    )
-                    continue
-                struc_id = weir.id.to_numpy()[0]
-            elif not pd.isna(management.pompid):
+            if not pd.isna(management.pompid):
+                structype = 'pump'
                 if not self.hydamo.pumps.empty and management.pompid in list(self.hydamo.pumps.globalid):
-                    struc_id = self.hydamo.pumps[self.hydamo.pumps.globalid == management.pompid].code.to_numpy()[0]
+                    struc_id = self.hydamo.pumps[self.hydamo.pumps.globalid == management.pompid].code.to_numpy()[0]                    
+            elif not pd.isna(management.regelmiddelid):
+                structype = 'weir'
+                if "stuwid" in management and pd.notna(management['stuwid']):
+                    weir_code = management.stuwid
+
+                    if weir_code in list(self.hydamo.structures.rweirs_df.id):
+                        struc = self.hydamo.structures.rweirs_df[
+                            self.hydamo.structures.rweirs_df.id == weir_code
+                        ]
+                    elif not self.hydamo.structures.orifices_df.empty and  weir_code in list(self.hydamo.structures.orifices_df.id):
+                        struc = self.hydamo.structures.orifices_df[
+                            self.hydamo.structures.orifices_df.id == weir_code
+                        ]                    
+                    else:
+                        logger.warning(
+                            f"Management for management_device {management.regelmiddelid} could not be connnected to any type of weir."
+                        )
+                    struc_id = struc.id.to_numpy()[0]           
+                else:
+                    structype = 'culvert'
+                    mandev = self.hydamo.management_device[self.hydamo.management_device.globalid ==management.regelmiddelid]
+                    if pd.notna(mandev.duikersifonhevelid).any():
+                        struc = self.hydamo.culverts[self.hydamo.culverts.globalid == mandev['duikersifonhevelid'].values[0]]
+                        struc_id = struc.code.to_numpy()[0]           
+                    else: 
+                        logger.warning(
+                            f"Management for management_device {management.regelmiddelid} could not be connnected to a culvert of a weir."                        
+                            )
+                        continue
+                
             else:
                 raise ValueError(
                     "Only management_devices and pumps can be connected to a management object."
                 )
-            if management.stuurvariabele == "bovenkant afsluitmiddel":
+            if structype == 'weir' and management.stuurvariabele == "bovenkant afsluitmiddel":
                 steering_variable = "Crest level (s)"
-            elif management.stuurvariabele == "hoogte opening":
+            elif structype == 'weir' and management.stuurvariabele == "hoogte opening":
                 steering_variable = "Gate lower edge level (s)"
-            elif management.stuurvariabele == "pompdebiet":
+            elif structype == 'pump' and management.stuurvariabele == "pompdebiet":
                 steering_variable = "Capacity (p)"
+            elif structype == 'culvert' and management.stuurvariabele == "hoogte opening":
+                steering_variable = "Valve opening (s)" 
             else:
                 raise ValueError(
-                    f"Invalid value for steering variable of {struc_id}: {management.stuurvariabele}."
+                    f"Invalid value for steering variable of {struc_id}: {management.stuurvariabele}. Allowed values are 'bovenkant afsluitmiddel' for weirs, 'hoogte opening' for oroficies and culverts, and 'pompdebiet' for pumps."
                 )
 
             if management.doelvariabele == "waterstand":
