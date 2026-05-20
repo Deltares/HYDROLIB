@@ -879,7 +879,7 @@ class DRTCModel:
                         ]                    
                     else:
                         logger.warning(
-                            f"Management for management_device {management.regelmiddelid} could not be connnected to any type of weir."
+                            f"Management for management_device {management.regelmiddelid} could not be connected to any type of weir."
                         )
                     struc_id = struc.id.to_numpy()[0]           
                 else:
@@ -890,7 +890,7 @@ class DRTCModel:
                         struc_id = struc.code.to_numpy()[0]           
                     else: 
                         logger.warning(
-                            f"Management for management_device {management.regelmiddelid} could not be connnected to a culvert of a weir."                        
+                            f"Management for management_device {management.regelmiddelid} could not be connected to a culvert of a weir."                        
                             )
                         continue
                 
