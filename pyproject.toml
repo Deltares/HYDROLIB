@@ -10,7 +10,7 @@ maintainers = [
 license = "LGPL"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.14"
+python = ">=3.10,<4"
 pandas = ">=2.0, <3.0"
 geopandas = ">=1.0.0, <2.0"
 xarray = ">=2024.1.0"

@@ -129,7 +129,10 @@ files = [
 ]
 
 [package.dependencies]
-cffi = {version = ">=1.0.1", markers = "python_version < \"3.14\""}
+cffi = [
+    {version = ">=1.0.1", markers = "python_version < \"3.14\""},
+    {version = ">=2.0.0b1", markers = "python_version >= \"3.14\""},
+]
 
 [[package]]
 name = "arrow"
@@ -3233,7 +3236,10 @@ librt = {version = ">=0.11.0", markers = "platform_python_implementation != \"Py
 mypy_extensions = ">=1.0.0"
 pathspec = ">=1.0.0"
 tomli = {version = ">=1.1.0", markers = "python_version < \"3.11\""}
-typing_extensions = {version = ">=4.6.0", markers = "python_version < \"3.15\""}
+typing_extensions = [
+    {version = ">=4.6.0", markers = "python_version < \"3.15\""},
+    {version = ">=4.14.0", markers = "python_version >= \"3.15\""},
+]
 
 [package.extras]
 dmypy = ["psutil (>=4.0)"]
@@ -6250,5 +6256,5 @@ type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.10,<3.14"
-content-hash = "7afbc94ec2a0ea6537ada6d4660a07d173a36590832b914acaff19e25e05772c"
+python-versions = ">=3.10,<4"
+content-hash = "3f7fac2522d6fd9b39043f794684c7390a70a6592b38d22341efd40d72573939"
