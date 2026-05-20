@@ -419,9 +419,9 @@ def test_complex_controller_fourtypes_limit(caplog, hydamo=None):
         _add_default_simple_control(data_path, hydamo, rtcd)
         rtcd.write_xml_v1()
 
-    check_msg1 = "dimr_config.xml: Skipped rtc_to_flow element with 'targetName' 'weirs/S_96840/crestLevel' (not allowed by complex controller filter)."
-    check_msg2 = "rtcDataConfig.xml: Skipped exportSeries item for elementId 'S_96840' (not allowed by complex controller filter)."
-    check_msg3 = "rtcToolsConfig.xml: Skipped rule element '[TimeRule]reuseObsPoint/Time Rule' (not allowed by complex controller filter)."
+    check_msg1 = "dimr_config.xml: Skipped rtc_to_flow element with 'targetName' 'weirs/S_96840/crestLevel': excluded by id_limit_complex_controllers."
+    check_msg2 = "rtcDataConfig.xml: Skipped exportSeries item for elementId 'S_96840': excluded by id_limit_complex_controllers."
+    check_msg3 = "rtcToolsConfig.xml: Skipped rule element '[TimeRule]reuseObsPoint/Time Rule': excluded by id_limit_complex_controllers."
     assert check_msg1 in caplog.messages
     assert check_msg2 in caplog.messages
     assert check_msg3 in caplog.messages
@@ -433,7 +433,7 @@ def test_complex_controller_fourtypes_limit(caplog, hydamo=None):
     assert len(rtcd.all_controllers) == 9
 
 
-def test_complex_controller_filters_dimr_items_missing_from_hydamo(hydamo=None):
+def test_complex_controller_filters_dimr_items_missing_from_hydamo(caplog, hydamo=None):
     data_path = Path("hydrolib/tests/data").resolve()
     assert data_path.exists()
     output_path = Path("hydrolib/tests/model").resolve()
@@ -462,19 +462,27 @@ def test_complex_controller_filters_dimr_items_missing_from_hydamo(hydamo=None):
     # Keep the missing id in the whitelist deliberately. The bug is not that it
     # is disallowed by configuration; the bug is that it is referenced by complex
     # RTC XML but fails HyDAMO validation and must therefore be removed everywhere.
-    rtcd = DRTCModel(
-        hydamo,
-        fm,
-        output_path=output_path,
-        complex_controllers_folder=data_path / "complex_controllers_4types",
-        id_limit_complex_controllers=[
-            "S_98143",
-            "S_96789",
-            "S_96547",
-            missing_structure_id,
-        ],
-        rtc_timestep=60.0,
+    with caplog.at_level(logging.INFO, logger="hydrolib.dhydamo.core.drtc"):
+        rtcd = DRTCModel(
+            hydamo,
+            fm,
+            output_path=output_path,
+            complex_controllers_folder=data_path / "complex_controllers_4types",
+            id_limit_complex_controllers=[
+                "S_98143",
+                "S_96789",
+                "S_96547",
+                missing_structure_id,
+            ],
+            rtc_timestep=60.0,
+        )
+
+    check_msg = (
+        "dimr_config.xml: Skipped rtc_to_flow element with 'targetName' "
+        "'weirs/S_96840/crestLevel': "
+        "referenced by complex-controller XML but missing from HyDAMO."
     )
+    assert check_msg in caplog.messages
 
     # rtcDataConfig.xml filtering already used validated complex-controller ids,
     # so the invalid structure disappeared there. This assertion documents that
@@ -495,6 +503,62 @@ def test_complex_controller_filters_dimr_items_missing_from_hydamo(hydamo=None):
         )
     }
     assert f"weirs/{missing_structure_id}/crestLevel" not in dimr_targets
+
+
+def test_complex_controller_logs_items_not_referenced_by_dimr(caplog, hydamo=None):
+    data_path = Path("hydrolib/tests/data").resolve()
+    assert data_path.exists()
+    output_path = Path("hydrolib/tests/model").resolve()
+    if hydamo is None:
+        hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
+
+    rtcd = DRTCModel(
+        hydamo,
+        fm,
+        output_path=output_path,
+        complex_controllers_folder=data_path / "complex_controllers_1",
+        id_limit_complex_controllers=["S_96684", "S_96544"],
+        rtc_timestep=60.0,
+    )
+
+    # Reuse the complex_controllers_1 fixture, whose dimr_config.xml references
+    # only S_96684. Inject one extra RTC data fragment for a valid HyDAMO weir
+    # that is not part of those DIMR-discovered complex-controller references.
+    # This exercises the reason before the whitelist decision is reached.
+    root = ET.fromstring(
+        """
+        <rtcDataConfig xmlns="http://www.wldelft.nl/fews">
+          <exportSeries>
+            <timeSeries id="[Output]S_96544/Crest level (s)">
+            <OpenMIExchangeItem>
+                <elementId>S_96544</elementId>
+                <quantityId>Crest level (s)</quantityId>
+                <unit>m</unit>
+            </OpenMIExchangeItem>
+            </timeSeries>
+          </exportSeries>
+        </rtcDataConfig>
+        """
+    )
+
+    with caplog.at_level(logging.INFO, logger="hydrolib.dhydamo.core.drtc"):
+        savedict = {
+            "dataconfig_import": [],
+            "dataconfig_export": [],
+            "toolsconfig_rules": [],
+            "toolsconfig_triggers": [],
+            "timeseries": [],
+            "state": [],
+            "dimr_config": [],
+        }
+        rtcd._parse_cc_rtc_dataconfig(root, savedict)
+
+    check_msg = (
+        "rtcDataConfig.xml: Skipped exportSeries item for elementId 'S_96544': "
+        "not part of complex-controller references in dimr_config.xml."
+    )
+    assert check_msg in caplog.messages
+    assert savedict["dataconfig_export"] == []
 
 
 def test_complex_controller_wrong(caplog, hydamo=None):
@@ -528,9 +592,9 @@ def test_complex_controller_wrong(caplog, hydamo=None):
         _add_default_simple_control(data_path, hydamo, rtcd)
         rtcd.write_xml_v1()
 
-    check_msg1 = "dimr_config.xml: Skipped rtc_to_flow element with 'targetName' 'weirs/S_96548/crestLevel' (not allowed by complex controller filter)."
-    check_msg2 = "rtcDataConfig.xml: Skipped exportSeries item for elementId 'S_96548' (not allowed by complex controller filter)."
-    check_msg3 = "rtcToolsConfig.xml: Skipped rule element '[PID]PIDfout/PID Rule' (not allowed by complex controller filter)."
+    check_msg1 = "dimr_config.xml: Skipped rtc_to_flow element with 'targetName' 'weirs/S_96548/crestLevel': excluded by id_limit_complex_controllers."
+    check_msg2 = "rtcDataConfig.xml: Skipped exportSeries item for elementId 'S_96548': excluded by id_limit_complex_controllers."
+    check_msg3 = "rtcToolsConfig.xml: Skipped rule element '[PID]PIDfout/PID Rule': excluded by id_limit_complex_controllers."
     check_msg4 = "RtcToolsConfig.xml: Skipped writing Time control for S_96840, complex controller already present"
 
     assert check_msg1 in caplog.messages

@@ -140,8 +140,13 @@ class DRTCModel:
                 log_validation=True,
             )
             logger.info(
-                "Found %d complex controller structures referenced in XML: %s",
-                len(self.cc_structs),
+                "Complex controllers: found %d unique structure references in dimr_config.xml: %s",
+                len(self.cc_referenced_ids),
+                self.cc_referenced_ids,
+            )
+            logger.info(
+                "Complex controllers: matched %d references to HyDAMO structures: %s",
+                len(self.cc_ids),
                 self.cc_ids,
             )
 
@@ -154,7 +159,7 @@ class DRTCModel:
                 )
             else:
                 logger.info(
-                    "Applying complex controller ID filter with %d allowed IDs: %s",
+                    "Complex controllers: applying id_limit_complex_controllers with %d allowed IDs: %s",
                     len(self.cc_id_limit),
                     self.cc_id_limit,
                 )
@@ -205,25 +210,61 @@ class DRTCModel:
                 active, but `cc_id` is not part of `cc_referenced_ids`. Defaults
                 to False.
         """
+        allow, _ = self._allow_struct_with_reason(
+            cc_id=cc_id,
+            allow_observations=allow_observations,
+            allow_if_filter_inactive=allow_if_filter_inactive,
+            allow_if_not_referenced=allow_if_not_referenced,
+        )
+        return allow
+
+    @validate_arguments
+    def _allow_struct_with_reason(
+        self,
+        cc_id: str,
+        allow_observations: bool = False,
+        allow_if_filter_inactive: bool = True,
+        allow_if_not_referenced: bool = False,
+    ) -> tuple[bool, str | None]:
+        """Return whether an id is allowed and why it is rejected.
+
+        The reason is only populated for rejected ids, so skip log messages can
+        distinguish "not whitelisted" from "referenced in RTC XML but missing
+        from HyDAMO".
+        """
         if allow_observations and cc_id in self.struct_ids_by_type["observations"]:
-            return True
+            return True, None
 
         if self.cc_referenced_ids is None or self.cc_id_limit is None:
-            return allow_if_filter_inactive
+            return allow_if_filter_inactive, (
+                None
+                if allow_if_filter_inactive
+                else "complex-controller filtering is inactive"
+            )
 
-        # IDs not mentioned by complex-controller XML are outside the complex
-        # controller filter. Some callers, such as DIMR coupler filtering, choose
-        # to keep those unrelated items.
+        # IDs not mentioned in the DIMR couplers are outside the complex-controller
+        # reference set. Some callers, such as DIMR coupler filtering, choose to
+        # keep those unrelated items; callers parsing RTC fragments reject them.
         if cc_id not in self.cc_referenced_ids:
-            return allow_if_not_referenced
+            return allow_if_not_referenced, (
+                None
+                if allow_if_not_referenced
+                else "not part of complex-controller references in dimr_config.xml"
+            )
 
-        # The id is referenced by complex-controller XML but was not validated
+        # The id is referenced by complex-controller DIMR XML but was not validated
         # against HyDAMO. It should never be coupled, even when the caller keeps
         # unrelated/non-referenced DIMR items.
         if cc_id not in self.cc_ids:
-            return False
+            return (
+                False,
+                "referenced by complex-controller XML but missing from HyDAMO",
+            )
 
-        return cc_id in self.cc_id_limit
+        if cc_id not in self.cc_id_limit:
+            return False, "excluded by id_limit_complex_controllers"
+
+        return True, None
 
     @validate_arguments
     def check_timeseries(self, timeseries):
@@ -298,11 +339,12 @@ class DRTCModel:
                 xml_text = ET.tostring(el).decode()
                 if "PITimeSeries" in xml_text and num == 0:
                     continue
-                allow, el_text = self._parse_dataconfig_item(el)
+                allow, el_text, reason = self._parse_dataconfig_item(el)
                 if not allow:
                     logger.info(
-                        f"{RTC_DATA_CONFIG_XML}: Skipped importSeries item for elementId '%s' (not allowed by complex controller filter).",
+                        f"{RTC_DATA_CONFIG_XML}: Skipped importSeries item for elementId '%s': %s.",
                         el_text,
+                        reason,
                     )
                     continue
                 savedict["dataconfig_import"].append(xml_text)
@@ -313,11 +355,12 @@ class DRTCModel:
                 xml_text = ET.tostring(el).decode()
                 if "PITimeSeries" in xml_text or "CSVTimeSeries" in xml_text:
                     continue
-                allow, el_text = self._parse_dataconfig_item(el)
+                allow, el_text, reason = self._parse_dataconfig_item(el)
                 if not allow:
                     logger.info(
-                        f"{RTC_DATA_CONFIG_XML}: Skipped exportSeries item for elementId '%s' (not allowed by complex controller filter).",
+                        f"{RTC_DATA_CONFIG_XML}: Skipped exportSeries item for elementId '%s': %s.",
                         el_text,
+                        reason,
                     )
                     continue
                 savedict["dataconfig_export"].append(xml_text)
@@ -333,11 +376,12 @@ class DRTCModel:
         rules = children.get("rules")
         if rules is not None:
             for el in rules:
-                allow, el_text = self._parse_toolsconfig_item(el)
+                allow, el_text, reason = self._parse_toolsconfig_item(el)
                 if not allow:
                     logger.info(
-                        f"{RTC_TOOLS_CONFIG_XML}: Skipped rule element '%s' (not allowed by complex controller filter).",
+                        f"{RTC_TOOLS_CONFIG_XML}: Skipped rule element '%s': %s.",
                         el_text,
+                        reason,
                     )
                     continue
                 savedict["toolsconfig_rules"].append(ET.tostring(el).decode())
@@ -345,11 +389,12 @@ class DRTCModel:
         triggers = children.get("triggers")
         if triggers is not None:
             for el in triggers:
-                allow, el_text = self._parse_toolsconfig_item(el)
+                allow, el_text, reason = self._parse_toolsconfig_item(el)
                 if not allow:
                     logger.info(
-                        f"{RTC_TOOLS_CONFIG_XML}: Skipped trigger element '%s' (not allowed by complex controller filter).",
+                        f"{RTC_TOOLS_CONFIG_XML}: Skipped trigger element '%s': %s.",
                         el_text,
+                        reason,
                     )
                     continue
                 savedict["toolsconfig_triggers"].append(ET.tostring(el).decode())
@@ -397,14 +442,15 @@ class DRTCModel:
                 continue
             for sub_el in list(coupler):
                 target = sub_el.find(".//{*}" + coupler_target)
-                allow, el_text = self._parse_dimr_item(target)
+                allow, el_text, reason = self._parse_dimr_item(target)
                 if allow:
                     continue
                 logger.info(
-                    "dimr_config.xml: Skipped %s element with '%s' '%s' (not allowed by complex controller filter).",
+                    "dimr_config.xml: Skipped %s element with '%s' '%s': %s.",
                     coupler_name,
                     coupler_target,
                     el_text,
+                    reason,
                 )
                 coupler.remove(sub_el)
 
@@ -508,7 +554,10 @@ class DRTCModel:
         validated_cc_structs = []
         for fs in complex_controller_structs:
             if fs.struct_type not in struct_ids_by_type or fs.struct_name not in struct_ids_by_type[fs.struct_type]:
-                msg = f"Complex controller structure not found in HyDAMO, will not be used: {fs.struct_type}/{fs.struct_name}"
+                msg = (
+                    "Complex controllers: reference missing from HyDAMO; "
+                    f"skipping {fs.struct_type}/{fs.struct_name}"
+                )
                 if log_validation:
                     logger.warning(msg)
             else:
@@ -610,9 +659,12 @@ class DRTCModel:
         return [merged_root]
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
-    def _parse_dataconfig_item(self, el: ET.Element) -> tuple[bool, str | None]:
+    def _parse_dataconfig_item(
+        self, el: ET.Element
+    ) -> tuple[bool, str | None, str | None]:
         allow = True
         el_text = None
+        reason = None
 
         # Check if this is a complex controller but not in the whitelist
         # Always allow observation points
@@ -621,19 +673,22 @@ class DRTCModel:
             el_text = el_id.text
             # In complex-controller fragments: keep observation ids, keep all when no filter is configured,
             # but reject ids that are not part of referenced/validated complex-controller structures.
-            allow = self.allow_struct(
+            allow, reason = self._allow_struct_with_reason(
                 cc_id=el_text,
                 allow_observations=True,
                 allow_if_filter_inactive=True,
                 allow_if_not_referenced=False,
             )
 
-        return allow, el_text
+        return allow, el_text, reason
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
-    def _parse_toolsconfig_item(self, el: ET.Element) -> tuple[bool, str | None]:
+    def _parse_toolsconfig_item(
+        self, el: ET.Element
+    ) -> tuple[bool, str | None, str | None]:
         allow = True
         el_firstchild_text = None
+        reason = None
 
         el_firstchild = next(iter(el), None)
         el_tags = []
@@ -650,7 +705,7 @@ class DRTCModel:
                     if allow:
                         # In tools fragments: keep observation ids, keep all when no filter is configured,
                         # but reject ids that are not referenced by validated complex-controller structures.
-                        allow = self.allow_struct(
+                        allow, reason = self._allow_struct_with_reason(
                             cc_id=child_text,
                             allow_observations=True,
                             allow_if_filter_inactive=True,
@@ -658,35 +713,38 @@ class DRTCModel:
                         )
                         el_firstchild_text = el_firstchild.get("id")
 
-        return allow, el_firstchild_text
+        return allow, el_firstchild_text, reason
 
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
-    def _parse_dimr_item(self, target: ET.Element | None) -> tuple[bool, str | None]:
+    def _parse_dimr_item(
+        self, target: ET.Element | None
+    ) -> tuple[bool, str | None, str | None]:
         allow = True
         el_text = None
+        reason = None
         if target is None or not target.text:
-            return allow, el_text
+            return allow, el_text, reason
 
         parts = target.text.split("/")
         if len(parts) < 3:
-            return allow, target.text
+            return allow, target.text, reason
 
         _, struct_id, _ = parts
 
         # Check if this is a complex controller but not in the whitelist
         # For DIMR coupler items: keep observation ids and keep non-complex/non-referenced ids,
         # and only filter out referenced complex-controller ids that are not in the whitelist.
-        if not self.allow_struct(
+        allow, reason = self._allow_struct_with_reason(
             cc_id=struct_id,
             allow_observations=True,
             allow_if_filter_inactive=True,
             allow_if_not_referenced=True,
-        ):
-            allow = False
+        )
+        if not allow:
             el_text = target.text
 
-        return allow, el_text
+        return allow, el_text, reason
 
 
     @staticmethod

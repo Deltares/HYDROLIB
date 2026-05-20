@@ -1,4 +1,5 @@
 # coding: latin-1
+import logging
 import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -9,6 +10,8 @@ from pydantic.v1 import validate_arguments
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.core.drtc import DRTCModel
+
+logger = logging.getLogger(__name__)
 
 
 class DIMRWriter:
@@ -84,13 +87,13 @@ class DIMRWriter:
         target_name: str,
         seen_pairs: set[tuple[str, str]],
         gn_brackets: str,
-    ) -> None:
+    ) -> bool:
         if source_name is None or target_name is None:
-            return
+            return False
 
         pair = (source_name, target_name)
         if pair in seen_pairs:
-            return
+            return False
         seen_pairs.add(pair)
 
         item = ET.SubElement(coupler, gn_brackets + "item")
@@ -104,6 +107,7 @@ class DIMRWriter:
         target = ET.SubElement(item, gn_brackets + "targetName")
         target.text = target_name
         target.tail = "\n"
+        return True
 
     #@validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def write_dimrconfig(
@@ -288,16 +292,19 @@ class DIMRWriter:
                       }
 
             rtc_to_flow_seen_pairs = set()
+            rtc_to_flow_simple_count = 0
+            rtc_to_flow_complex_count = 0
 
             for i in rtc_model.all_controllers.keys():
                 svar=rtc_model.all_controllers[i]['steering_variable']
-                self._add_unique_coupler_item(
+                if self._add_unique_coupler_item(
                     couplerrtcfm,
                     f"[Output]{i}/{svar}",
                     f"{rtcdict[svar][0]}/{i}/{rtcdict[svar][1]}",
                     rtc_to_flow_seen_pairs,
                     gn_brackets,
-                )
+                ):
+                    rtc_to_flow_simple_count += 1
 
             # check if there are user-specified controller that should be included
             if rtc_model.complex_controllers is not None:
@@ -311,13 +318,22 @@ class DIMRWriter:
                                 if iblock_tag == "item":
                                     source = iblock.find(".//{*}sourceName")
                                     target = iblock.find(".//{*}targetName")
-                                    self._add_unique_coupler_item(
+                                    if self._add_unique_coupler_item(
                                         couplerrtcfm,
                                         source.text if source is not None else None,
                                         target.text if target is not None else None,
                                         rtc_to_flow_seen_pairs,
                                         gn_brackets,
-                                    )
+                                    ):
+                                        rtc_to_flow_complex_count += 1
+
+            logger.info(
+                "dimr_config.xml: Wrote rtc_to_flow coupler with %d items "
+                "(%d simple, %d complex).",
+                len(rtc_to_flow_seen_pairs),
+                rtc_to_flow_simple_count,
+                rtc_to_flow_complex_count,
+            )
 
             logrtcfm = ET.SubElement(couplerrtcfm, gn_brackets + "logger")
             logrtcfm.text = ""
@@ -336,6 +352,8 @@ class DIMRWriter:
             # the Fm to RTC coupler is not always needed. It is for PID controllers.
             coupler_exists = False
             flow_to_rtc_seen_pairs = set()
+            flow_to_rtc_simple_count = 0
+            flow_to_rtc_complex_count = 0
             if bool(rtc_model.pid_controllers) or bool(rtc_model.interval_controllers):
                 couplerfmrtc = ET.Element(gn_brackets + "coupler")
                 couplerfmrtc.attrib = {"name": "flow_to_rtc"}
@@ -361,13 +379,14 @@ class DIMRWriter:
                     else:
                         raise ValueError('Invalid target variable in controller: should bo discharge or water level.')
                     target_name = f"[Input]{rtc_model.pid_controllers[i]['observation_point']}/{rtc_model.pid_controllers[i]['target_variable']}"
-                    self._add_unique_coupler_item(
+                    if self._add_unique_coupler_item(
                         couplerfmrtc,
                         source_name,
                         target_name,
                         flow_to_rtc_seen_pairs,
                         gn_brackets,
-                    )
+                    ):
+                        flow_to_rtc_simple_count += 1
 
                 # Loop through all interval controllers
                 for i in rtc_model.interval_controllers.keys():
@@ -378,13 +397,14 @@ class DIMRWriter:
                     else:
                         raise ValueError("Invalid target variable in controller: should be discharge or water level.")
                     target_name = f"[Input]{rtc_model.interval_controllers[i]['observation_point']}/{rtc_model.interval_controllers[i]['target_variable']}"
-                    self._add_unique_coupler_item(
+                    if self._add_unique_coupler_item(
                         couplerfmrtc,
                         source_name,
                         target_name,
                         flow_to_rtc_seen_pairs,
                         gn_brackets,
-                    )
+                    ):
+                        flow_to_rtc_simple_count += 1
 
                 coupler_exists = True
             # it could be that are no PID controllers, but there are complex controllers
@@ -417,15 +437,24 @@ class DIMRWriter:
                                 if iblock_tag == "item":
                                     source = iblock.find(".//{*}sourceName")
                                     target = iblock.find(".//{*}targetName")
-                                    self._add_unique_coupler_item(
+                                    if self._add_unique_coupler_item(
                                         couplerfmrtc,
                                         source.text if source is not None else None,
                                         target.text if target is not None else None,
                                         flow_to_rtc_seen_pairs,
                                         gn_brackets,
-                                    )
+                                    ):
+                                        flow_to_rtc_complex_count += 1
             # in any of those two cases, add the controllers and the logger
             if coupler_exists:
+                logger.info(
+                    "dimr_config.xml: Wrote flow_to_rtc coupler with %d items "
+                    "(%d simple, %d complex).",
+                    len(flow_to_rtc_seen_pairs),
+                    flow_to_rtc_simple_count,
+                    flow_to_rtc_complex_count,
+                )
+
                 logrtc = ET.SubElement(couplerfmrtc, gn_brackets + "logger")
                 logrtc.text = ""
                 logrtc.tail = "\n"
