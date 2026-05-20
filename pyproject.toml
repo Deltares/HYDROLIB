@@ -10,7 +10,7 @@ maintainers = [
 license = "LGPL"
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.14" # TODO: add support for Python 3.14: https://github.com/Deltares/HYDROLIB/issues/224
+python = ">=3.11,<4" # TODO: add support for Python 3.14: https://github.com/Deltares/HYDROLIB/issues/224
 pandas = ">=3.0"
 geopandas = ">=1.0.0, <2.0"
 xarray = ">=2024.1.0"
