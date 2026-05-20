@@ -101,6 +101,7 @@ class DRTCModel:
         self.complex_controllers = None
         self.cc_structs = None
         self.cc_ids = None
+        self.cc_referenced_ids = None
         self.cc_id_limit = None
         if rtc_onlytimeseries and complex_controllers_folder is not None:
             # User supplied controllers in timeseries_only mode, emit warning
@@ -118,8 +119,22 @@ class DRTCModel:
                     "allowed IDs to couple to complex controller logic."
                 )
 
-            # Discover all complex controller related structures and id's
-            self.cc_structs, self.cc_ids = self._load_complex_controller_structs(
+            # Discover complex-controller references before and after HyDAMO validation.
+            #
+            # These are intentionally two separate concepts:
+            # - cc_referenced_ids: all structure ids mentioned in the user-provided
+            #   complex-controller dimr_config.xml files.
+            # - cc_ids: only the referenced ids that also exist in the HyDAMO model.
+            #
+            # The distinction matters when filtering DIMR couplers. A referenced id
+            # that is missing from HyDAMO must be removed from the complex-controller
+            # XML. If we only kept the validated set, that invalid id would look like
+            # an unrelated/non-complex DIMR item and could accidentally pass through.
+            (
+                self.cc_structs,
+                self.cc_ids,
+                self.cc_referenced_ids,
+            ) = self._load_complex_controller_structs(
                 complex_controllers_folder,
                 self.struct_ids_by_type,
                 log_validation=True,
@@ -183,19 +198,30 @@ class DRTCModel:
             allow_observations (bool, optional): If True, pass through observation
                 ids that exist in the HyDAMO model. Defaults to False.
             allow_if_filter_inactive (bool, optional): Return value when no complex
-                controller filter is active (`cc_ids` or `cc_id_limit` is None).
+                controller filter is active (`cc_referenced_ids` or `cc_id_limit`
+                is None).
                 Defaults to True.
             allow_if_not_referenced (bool, optional): Return value when filtering is
-                active, but `cc_id` is not part of `cc_ids`. Defaults to False.
+                active, but `cc_id` is not part of `cc_referenced_ids`. Defaults
+                to False.
         """
         if allow_observations and cc_id in self.struct_ids_by_type["observations"]:
             return True
 
-        if self.cc_ids is None or self.cc_id_limit is None:
+        if self.cc_referenced_ids is None or self.cc_id_limit is None:
             return allow_if_filter_inactive
 
-        if cc_id not in self.cc_ids:
+        # IDs not mentioned by complex-controller XML are outside the complex
+        # controller filter. Some callers, such as DIMR coupler filtering, choose
+        # to keep those unrelated items.
+        if cc_id not in self.cc_referenced_ids:
             return allow_if_not_referenced
+
+        # The id is referenced by complex-controller XML but was not validated
+        # against HyDAMO. It should never be coupled, even when the caller keeps
+        # unrelated/non-referenced DIMR items.
+        if cc_id not in self.cc_ids:
+            return False
 
         return cc_id in self.cc_id_limit
 
@@ -390,7 +416,11 @@ class DRTCModel:
     ) -> set[str]:
         # Do not log validation warnings in this method
         struct_ids_by_type = DRTCModel._get_struct_ids_by_type(hydamo)
-        cc_structs, _ = DRTCModel._load_complex_controller_structs(complex_controllers_folder, struct_ids_by_type, log_validation=False)
+        cc_structs, _, _ = DRTCModel._load_complex_controller_structs(
+            complex_controllers_folder,
+            struct_ids_by_type,
+            log_validation=False,
+        )
         # Do not return observation point IDs in this method
         cc_ids = set([cc.struct_name for cc in cc_structs if cc.struct_type != "observations"])
 
@@ -403,13 +433,21 @@ class DRTCModel:
         complex_controllers_folder: list[str | Path] | str | Path,
         struct_ids_by_type: dict[str, set[str]],
         log_validation: bool = True,
-    ) -> tuple[list[DRTCStructure], set[str]]:
+    ) -> tuple[list[DRTCStructure], set[str], set[str]]:
         folders = DRTCModel._as_folder_list(complex_controllers_folder)
-        cc_structs = DRTCModel._collect_complex_controller_structs(folders)
-        cc_structs, cc_ids = DRTCModel._deduplicate_complex_controller_structs(cc_structs)
-        cc_structs, cc_ids = DRTCModel._validate_complex_controller_structs(cc_structs, struct_ids_by_type, log_validation)
+        referenced_cc_structs = DRTCModel._collect_complex_controller_structs(folders)
+        referenced_cc_structs, referenced_cc_ids = DRTCModel._deduplicate_complex_controller_structs(
+            referenced_cc_structs
+        )
+        # Keep both the pre-validation references and the validated subset. The
+        # pre-validation ids are needed to recognize XML references that are invalid
+        # because they do not exist in HyDAMO; otherwise they are indistinguishable
+        # from unrelated DIMR coupler items.
+        cc_structs, cc_ids = DRTCModel._validate_complex_controller_structs(
+            referenced_cc_structs, struct_ids_by_type, log_validation
+        )
 
-        return cc_structs, cc_ids
+        return cc_structs, cc_ids, referenced_cc_ids
 
     @staticmethod
     @validate_arguments

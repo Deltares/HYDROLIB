@@ -432,6 +432,71 @@ def test_complex_controller_fourtypes_limit(caplog, hydamo=None):
     assert len(rtcd.cc_ids) == 6
     assert len(rtcd.all_controllers) == 9
 
+
+def test_complex_controller_filters_dimr_items_missing_from_hydamo(hydamo=None):
+    data_path = Path("hydrolib/tests/data").resolve()
+    assert data_path.exists()
+    output_path = Path("hydrolib/tests/model").resolve()
+    if hydamo is None:
+        hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
+
+    # Reuse an existing complex-controller fixture, but make one referenced
+    # structure invalid by removing it from the in-memory HyDAMO model. This
+    # reproduces cases where user-supplied RTC XML still contains an old/foreign
+    # structure id, such as a DIMR target that is no longer present in HyDAMO.
+    missing_structure_id = "S_96840"
+    hydamo.structures.rweirs_df = hydamo.structures.rweirs_df[
+        hydamo.structures.rweirs_df.id != missing_structure_id
+    ]
+    hydamo.structures.uweirs_df = hydamo.structures.uweirs_df[
+        hydamo.structures.uweirs_df.id != missing_structure_id
+    ]
+
+    hydamo.observationpoints.add_points(
+        [Point(200064, 395087), Point(199996, 393899), Point(199877, 393954)],
+        ["ObsS_98143", "ObsS_96789", "ObsS_96547"],
+        locationTypes=["1d", "1d", "1d"],
+        snap_distance=10.0,
+    )
+
+    # Keep the missing id in the whitelist deliberately. The bug is not that it
+    # is disallowed by configuration; the bug is that it is referenced by complex
+    # RTC XML but fails HyDAMO validation and must therefore be removed everywhere.
+    rtcd = DRTCModel(
+        hydamo,
+        fm,
+        output_path=output_path,
+        complex_controllers_folder=data_path / "complex_controllers_4types",
+        id_limit_complex_controllers=[
+            "S_98143",
+            "S_96789",
+            "S_96547",
+            missing_structure_id,
+        ],
+        rtc_timestep=60.0,
+    )
+
+    # rtcDataConfig.xml filtering already used validated complex-controller ids,
+    # so the invalid structure disappeared there. This assertion documents that
+    # baseline and makes the DIMR assertion below compare like with like.
+    assert all(
+        f"<elementId>{missing_structure_id}</elementId>" not in xml_text
+        for xml_text in rtcd.complex_controllers["dataconfig_export"]
+    )
+
+    # DIMR filtering must make the same decision. A referenced-but-invalid
+    # complex-controller id must not survive as an rtc_to_flow coupling target,
+    # otherwise DIMR can reference an RTC output that no RTC XML defines.
+    dimr_root = rtcd.complex_controllers["dimr_config"][0]
+    dimr_targets = {
+        el.text
+        for el in dimr_root.findall(
+            ".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName"
+        )
+    }
+    assert f"weirs/{missing_structure_id}/crestLevel" not in dimr_targets
+
+
 def test_complex_controller_wrong(caplog, hydamo=None):
     data_path = Path("hydrolib/tests/data").resolve()
     assert data_path.exists()
