@@ -152,22 +152,30 @@ def find_nearest_branch(branches, geometries, method='overal', maxdist=5):
                 crds = geometry.geometry.coords[:]
                 dist = (selectie.distance(Point(*crds[0])) + selectie.distance(Point(*crds[-1]))) * 0.5
 
+            # Enforce a point
+            geo = geometry.geometry
+            if not isinstance(geo, Point):
+                geo = geo.centroid
+
+            # Log-friendly name with coordinates
+            geom_name = f"at x={geo.x:.4f} and y={geo.y:.4f}"
+            if hasattr(geometry, "code"):
+                geom_name = f"for {geometry.code} {geom_name}"
+
             # Determine nearest
             if dist.min() < maxdist:
                 branchidxmin = dist.idxmin()
                 geometries.at[geometry.Index, 'branch_id'] = branchidxmin
-                if isinstance(geometry.geometry, Point):
-                    geo = geometry.geometry
-                else:
-                    geo = geometry.geometry.centroid
 
-                if (dist < maxdist).sum() > 1:
+                nbranches = (dist < maxdist).sum()
+                if nbranches > 1:
                     logger.info(
-                        "Geometry centroid %s has multiple branches with maxdist=%s and method=%s: %s",
-                        geo,
+                        "Centroid %s has %d branches with maxdist=%s and method=%s, chosing closest branch %s",
+                        geom_name,
+                        nbranches,
                         maxdist,
                         method,
-                        dist.index[dist < maxdist].to_list(),
+                        branchidxmin,
                     )
 
                 # Calculate offset
@@ -175,6 +183,13 @@ def find_nearest_branch(branches, geometries, method='overal', maxdist=5):
                 mindist = min(0.1, branchgeo.length / 2.)
                 offset = max(mindist, min(branchgeo.length - mindist, round(branchgeo.project(geo), 3)))
                 geometries.at[geometry.Index, 'branch_offset'] = offset
+            else:
+                logger.info(
+                    "Centroid %s has 0 branches with maxdist=%s and method=%s",
+                    geom_name,
+                    maxdist,
+                    method,
+                )
 
 def orthogonal_line(line: LineString, offset: float, width: float=1.0) -> list[tuple[float]]:
     """
