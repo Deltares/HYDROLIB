@@ -278,7 +278,7 @@ class Df2HydrolibModel:
                 quantity=bound["quantity"],
                 forcingfile=self.forcingmodel,
             )
-            bnd_ext.forcingfile.filepath = Path("boundaryconditions.bc")
+            self.forcingmodel.filepath = Path("boundaryconditions.bc")
             self.boundaries_ext.append(bnd_ext)
 
     def laterals_to_dhydro(self) -> None:
