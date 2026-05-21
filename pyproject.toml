@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hydrolib"
-version = "0.5.1"
+version = "0.5.0" # Auto-updated by Commitizen during releases.
 description = "HYDROLIB tools for hydrodynamic and hydrological modelling workflows"
 authors = ["Deltares"]
 maintainers = [
@@ -56,10 +56,11 @@ poetry2conda = ">=0.3.0"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.5.0"
+version = "0.5.0" # Current version used and updated by Commitizen during releases.
 tag_format = "$version"
 version_files = [
     "hydrolib/post/__init__.py",
+    "hydrolib/dhydamo/__init__.py",
     "pyproject.toml:version"
 ]
 changelog_file = "docs/changelog.md"
