@@ -357,6 +357,12 @@ def test_convert_structures(hydamo_obj=None):
     assert len(hydamo.structures.compounds_df)==2
     assert hydamo.structures.compounds_df[hydamo.structures.compounds_df.id=='cmp_S_98740'].structureids.squeeze() == 'S_98740_1;S_98740_2;S_98740_3;S_98740_4'
     assert hydamo.structures.culverts_df.shape[0] == hydamo.culverts.shape[0]
+    
+    # number culverts with flowdirection positive should be 1
+    assert hydamo.structures.culverts_df[hydamo.structures.culverts_df.allowedflowdir=='positive'].shape[0] == 1
+    # number of culverts with a gate shouuld be 1
+    assert hydamo.structures.culverts_df[hydamo.structures.culverts_df.valveonoff==1].shape[0] == 1
+    
     assert hydamo.structures.bridges_df.shape[0] == hydamo.bridges.shape[0]
     assert hydamo.structures.pumps_df.shape[0] == hydamo.pumps.shape[0]
 
@@ -468,6 +474,11 @@ def _add_structures_manually():
         crosssection={"shape": "circle", "diameter": 0.40},
         inletlosscoeff=0.9,
         outletlosscoeff=0.9,
+        valveonoff = 1,
+        valveopeningheight=0.5,    
+        numlosscoeff=2,
+        relopening=[0.,1.],
+        losscoeff=[0.7, 0.3],
         bedfrictiontype="Manning",
         bedfriction=0.06,
     )
