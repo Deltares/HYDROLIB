@@ -1,3 +1,9 @@
+## 0.5.1 (2026-05-22)
+
+### Fix
+
+- update permissions for deployment job in docs.yml (#219)
+
 ## 0.5.0 (2026-04-17)
 This release contains bugfixes, improvements and new features for D-HyDAMO. See table below. 
 
