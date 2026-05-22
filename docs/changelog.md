@@ -1,7 +1,18 @@
 ## 0.5.1 (2026-05-22)
+This release contains maintenance updates and bugfixes for D-HyDAMO. See table below.
+
+| Updates en bugfixes | Description | Adjustments to workflow? | Link to D-HyDAMO Wiki |
+| --- | --- | --- | --- |
+| Implement Python 3.13 and HYDROLIB-core 1.0.1 | n/a | n/a | n/a |
+| Remove outdated packages | Removed xlrd, mplleaflet and contextily | n/a | n/a |
+| Update visualisations in Jupyter notebook | Changed from contextily to folium | n/a | n/a |
+| Improve RTC complex controller logging | Clearer skip logging for “missing from HyDAMO”, “excluded by whitelist”, and “not part of DIMR-discovered complex-controller references.”  | n/a | n/a |
+| Improve find_nearest_branch logging | If multiple or no branches match, log the number of matching branches and, if multiple branches match, log the actual closest branch used | n/a | n/a |
+| RR-file names Linux-proof | Changed RR-file names so models can run on Linux systems | n/a | n/a |
+| Implement PID controller for culverts | PID controller was missing for culverts | n/a | n/a |
+| Fix complex RTC filtering for HyDAMO-missing structures | Complex RTC filtering only tracked IDs after HyDAMO validation. If a structure was referenced in complex-controller XML but missing from HyDAMO, it disappeared from the validated ID set and DIMR filtering treated it as unrelated, so invalid coupler items could remain in dimr_config.xml. This was fixed by keeping two ID sets: all IDs referenced by complex-controller dimr_config.xml, and the subset validated against HyDAMO. Filtering now rejects referenced-but-missing IDs consistently across RTC XML and DIMR couplers. | n/a | n/a |
 
 ### Fix
-
 - update permissions for deployment job in docs.yml (#219)
 
 ## 0.5.0 (2026-04-17)
