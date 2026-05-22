@@ -1,4 +1,4 @@
-## 0.5.1 (2026-05-21)
+## 0.5.1 (2026-05-28)
 This release contains maintenance updates and bugfixes for D-HyDAMO. See table below.
 
 | New functionality | Description | Adjustments to workflow? | Link to D-HyDAMO Wiki |
