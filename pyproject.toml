@@ -10,7 +10,7 @@ maintainers = [
 license = "LGPL"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.14" # TODO: add support for Python 3.14: https://github.com/Deltares/HYDROLIB/issues/224
+python = ">=3.10, <4"
 pandas = ">=2.0, <3.0" # TODO add support for pandas 3: https://github.com/Deltares/HYDROLIB/issues/225
 geopandas = ">=1.0.0, <2.0"
 xarray = ">=2024.1.0"
@@ -22,7 +22,7 @@ scipy = ">=1.13"
 tqdm = ">=4.66.1"
 rasterio = ">=1.4.0"
 netcdf4 = ">=1.7.2"
-rasterstats = ">=0.19"
+rasterstats = ">=0.21" # uses pyogrio instead of fiona as default engine and supports python 3.14
 jupyterlab = ">=4.0"
 contextily = ">=1.4"
 dask = ">=2024.1.0"
@@ -110,7 +110,7 @@ numpy = { channel = "conda-forge" }
 openpyxl = { channel = "conda-forge" }
 scipy = { channel = "conda-forge" }
 jupyter = { channel = "conda-forge" }
-fiona = { channel = "conda-forge" }
+#fiona = { channel = "conda-forge" }
 contextily = { channel = "conda-forge" }
 
 [tool.pytest.ini_options]
