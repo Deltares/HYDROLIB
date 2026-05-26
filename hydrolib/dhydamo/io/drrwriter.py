@@ -686,7 +686,7 @@ class DRRWriter:
         """
         Change parameter value in delft3b.ini file
         """
-        with open(os.path.join(self.output_dir, "DELFT_3B.INI")) as f:
+        with open(os.path.join(self.output_dir, "delft_3b.ini")) as f:
             lines = f.readlines()
 
         for i, line in enumerate(lines):
@@ -700,5 +700,5 @@ class DRRWriter:
                 )
                 break
 
-        with open(os.path.join(self.output_dir, "DELFT_3B.INI"), "w") as f:
+        with open(os.path.join(self.output_dir, "delft_3b.ini"), "w") as f:
             f.write("".join(lines))
