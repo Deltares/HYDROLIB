@@ -1044,24 +1044,18 @@ class StructuresIO:
             else:
                 mandev = pd.DataFrame()
 
-            if mandev.empty:
-                allowedflowdir = "both"
-                valveonoff = 0
-                numlosscoeff = None
-                valveopeningheight = 0
-                relopening = None
-                losscoeff = None
-            else:
+            # default settings
+            allowedflowdir = "both"
+            valveonoff = 0
+            numlosscoeff = None
+            valveopeningheight = 0
+            relopening = None
+            losscoeff = None
+            if not mandev.empty:
                 for _, i in mandev.iterrows():
                     if i["soortafsluitmiddel"] == "terugslagklep":
-                        allowedflowdir = "positive"
-                        valveonoff = 0
-                        numlosscoeff = None
-                        valveopeningheight = 0
-                        relopening = None
-                        losscoeff = None
-                    elif i["soortafsluitmiddel"] == "schuif":
-                        allowedflowdir = "positive"
+                        allowedflowdir = "positive"                        
+                    elif i["soortafsluitmiddel"] == "schuif":                        
                         valveonoff = 1
                         valveopeningheight = float(i["hoogteopening"])
                         numlosscoeff = 1

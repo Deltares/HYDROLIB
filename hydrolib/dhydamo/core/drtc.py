@@ -101,6 +101,7 @@ class DRTCModel:
         self.complex_controllers = None
         self.cc_structs = None
         self.cc_ids = None
+        self.cc_referenced_ids = None
         self.cc_id_limit = None
         if rtc_onlytimeseries and complex_controllers_folder is not None:
             # User supplied controllers in timeseries_only mode, emit warning
@@ -118,15 +119,34 @@ class DRTCModel:
                     "allowed IDs to couple to complex controller logic."
                 )
 
-            # Discover all complex controller related structures and id's
-            self.cc_structs, self.cc_ids = self._load_complex_controller_structs(
+            # Discover complex-controller references before and after HyDAMO validation.
+            #
+            # These are intentionally two separate concepts:
+            # - cc_referenced_ids: all structure ids mentioned in the user-provided
+            #   complex-controller dimr_config.xml files.
+            # - cc_ids: only the referenced ids that also exist in the HyDAMO model.
+            #
+            # The distinction matters when filtering DIMR couplers. A referenced id
+            # that is missing from HyDAMO must be removed from the complex-controller
+            # XML. If we only kept the validated set, that invalid id would look like
+            # an unrelated/non-complex DIMR item and could accidentally pass through.
+            (
+                self.cc_structs,
+                self.cc_ids,
+                self.cc_referenced_ids,
+            ) = self._load_complex_controller_structs(
                 complex_controllers_folder,
                 self.struct_ids_by_type,
                 log_validation=True,
             )
             logger.info(
-                "Found %d complex controller structures referenced in XML: %s",
-                len(self.cc_structs),
+                "Complex controllers: found %d unique structure references in dimr_config.xml: %s",
+                len(self.cc_referenced_ids),
+                self.cc_referenced_ids,
+            )
+            logger.info(
+                "Complex controllers: matched %d references to HyDAMO structures: %s",
+                len(self.cc_ids),
                 self.cc_ids,
             )
 
@@ -139,7 +159,7 @@ class DRTCModel:
                 )
             else:
                 logger.info(
-                    "Applying complex controller ID filter with %d allowed IDs: %s",
+                    "Complex controllers: applying id_limit_complex_controllers with %d allowed IDs: %s",
                     len(self.cc_id_limit),
                     self.cc_id_limit,
                 )
@@ -183,21 +203,68 @@ class DRTCModel:
             allow_observations (bool, optional): If True, pass through observation
                 ids that exist in the HyDAMO model. Defaults to False.
             allow_if_filter_inactive (bool, optional): Return value when no complex
-                controller filter is active (`cc_ids` or `cc_id_limit` is None).
+                controller filter is active (`cc_referenced_ids` or `cc_id_limit`
+                is None).
                 Defaults to True.
             allow_if_not_referenced (bool, optional): Return value when filtering is
-                active, but `cc_id` is not part of `cc_ids`. Defaults to False.
+                active, but `cc_id` is not part of `cc_referenced_ids`. Defaults
+                to False.
+        """
+        allow, _ = self._allow_struct_with_reason(
+            cc_id=cc_id,
+            allow_observations=allow_observations,
+            allow_if_filter_inactive=allow_if_filter_inactive,
+            allow_if_not_referenced=allow_if_not_referenced,
+        )
+        return allow
+
+    @validate_arguments
+    def _allow_struct_with_reason(
+        self,
+        cc_id: str,
+        allow_observations: bool = False,
+        allow_if_filter_inactive: bool = True,
+        allow_if_not_referenced: bool = False,
+    ) -> tuple[bool, str | None]:
+        """Return whether an id is allowed and why it is rejected.
+
+        The reason is only populated for rejected ids, so skip log messages can
+        distinguish "not whitelisted" from "referenced in RTC XML but missing
+        from HyDAMO".
         """
         if allow_observations and cc_id in self.struct_ids_by_type["observations"]:
-            return True
+            return True, None
 
-        if self.cc_ids is None or self.cc_id_limit is None:
-            return allow_if_filter_inactive
+        if self.cc_referenced_ids is None or self.cc_id_limit is None:
+            return allow_if_filter_inactive, (
+                None
+                if allow_if_filter_inactive
+                else "complex-controller filtering is inactive"
+            )
 
+        # IDs not mentioned in the DIMR couplers are outside the complex-controller
+        # reference set. Some callers, such as DIMR coupler filtering, choose to
+        # keep those unrelated items; callers parsing RTC fragments reject them.
+        if cc_id not in self.cc_referenced_ids:
+            return allow_if_not_referenced, (
+                None
+                if allow_if_not_referenced
+                else "not part of complex-controller references in dimr_config.xml"
+            )
+
+        # The id is referenced by complex-controller DIMR XML but was not validated
+        # against HyDAMO. It should never be coupled, even when the caller keeps
+        # unrelated/non-referenced DIMR items.
         if cc_id not in self.cc_ids:
-            return allow_if_not_referenced
+            return (
+                False,
+                "referenced by complex-controller XML but missing from HyDAMO",
+            )
 
-        return cc_id in self.cc_id_limit
+        if cc_id not in self.cc_id_limit:
+            return False, "excluded by id_limit_complex_controllers"
+
+        return True, None
 
     @validate_arguments
     def check_timeseries(self, timeseries):
@@ -272,11 +339,12 @@ class DRTCModel:
                 xml_text = ET.tostring(el).decode()
                 if "PITimeSeries" in xml_text and num == 0:
                     continue
-                allow, el_text = self._parse_dataconfig_item(el)
+                allow, el_text, reason = self._parse_dataconfig_item(el)
                 if not allow:
                     logger.info(
-                        f"{RTC_DATA_CONFIG_XML}: Skipped importSeries item for elementId '%s' (not allowed by complex controller filter).",
+                        f"{RTC_DATA_CONFIG_XML}: Skipped importSeries item for elementId '%s': %s.",
                         el_text,
+                        reason,
                     )
                     continue
                 savedict["dataconfig_import"].append(xml_text)
@@ -287,11 +355,12 @@ class DRTCModel:
                 xml_text = ET.tostring(el).decode()
                 if "PITimeSeries" in xml_text or "CSVTimeSeries" in xml_text:
                     continue
-                allow, el_text = self._parse_dataconfig_item(el)
+                allow, el_text, reason = self._parse_dataconfig_item(el)
                 if not allow:
                     logger.info(
-                        f"{RTC_DATA_CONFIG_XML}: Skipped exportSeries item for elementId '%s' (not allowed by complex controller filter).",
+                        f"{RTC_DATA_CONFIG_XML}: Skipped exportSeries item for elementId '%s': %s.",
                         el_text,
+                        reason,
                     )
                     continue
                 savedict["dataconfig_export"].append(xml_text)
@@ -307,11 +376,12 @@ class DRTCModel:
         rules = children.get("rules")
         if rules is not None:
             for el in rules:
-                allow, el_text = self._parse_toolsconfig_item(el)
+                allow, el_text, reason = self._parse_toolsconfig_item(el)
                 if not allow:
                     logger.info(
-                        f"{RTC_TOOLS_CONFIG_XML}: Skipped rule element '%s' (not allowed by complex controller filter).",
+                        f"{RTC_TOOLS_CONFIG_XML}: Skipped rule element '%s': %s.",
                         el_text,
+                        reason,
                     )
                     continue
                 savedict["toolsconfig_rules"].append(ET.tostring(el).decode())
@@ -319,11 +389,12 @@ class DRTCModel:
         triggers = children.get("triggers")
         if triggers is not None:
             for el in triggers:
-                allow, el_text = self._parse_toolsconfig_item(el)
+                allow, el_text, reason = self._parse_toolsconfig_item(el)
                 if not allow:
                     logger.info(
-                        f"{RTC_TOOLS_CONFIG_XML}: Skipped trigger element '%s' (not allowed by complex controller filter).",
+                        f"{RTC_TOOLS_CONFIG_XML}: Skipped trigger element '%s': %s.",
                         el_text,
+                        reason,
                     )
                     continue
                 savedict["toolsconfig_triggers"].append(ET.tostring(el).decode())
@@ -371,14 +442,15 @@ class DRTCModel:
                 continue
             for sub_el in list(coupler):
                 target = sub_el.find(".//{*}" + coupler_target)
-                allow, el_text = self._parse_dimr_item(target)
+                allow, el_text, reason = self._parse_dimr_item(target)
                 if allow:
                     continue
                 logger.info(
-                    "dimr_config.xml: Skipped %s element with '%s' '%s' (not allowed by complex controller filter).",
+                    "dimr_config.xml: Skipped %s element with '%s' '%s': %s.",
                     coupler_name,
                     coupler_target,
                     el_text,
+                    reason,
                 )
                 coupler.remove(sub_el)
 
@@ -390,7 +462,11 @@ class DRTCModel:
     ) -> set[str]:
         # Do not log validation warnings in this method
         struct_ids_by_type = DRTCModel._get_struct_ids_by_type(hydamo)
-        cc_structs, _ = DRTCModel._load_complex_controller_structs(complex_controllers_folder, struct_ids_by_type, log_validation=False)
+        cc_structs, _, _ = DRTCModel._load_complex_controller_structs(
+            complex_controllers_folder,
+            struct_ids_by_type,
+            log_validation=False,
+        )
         # Do not return observation point IDs in this method
         cc_ids = set([cc.struct_name for cc in cc_structs if cc.struct_type != "observations"])
 
@@ -403,13 +479,21 @@ class DRTCModel:
         complex_controllers_folder: list[str | Path] | str | Path,
         struct_ids_by_type: dict[str, set[str]],
         log_validation: bool = True,
-    ) -> tuple[list[DRTCStructure], set[str]]:
+    ) -> tuple[list[DRTCStructure], set[str], set[str]]:
         folders = DRTCModel._as_folder_list(complex_controllers_folder)
-        cc_structs = DRTCModel._collect_complex_controller_structs(folders)
-        cc_structs, cc_ids = DRTCModel._deduplicate_complex_controller_structs(cc_structs)
-        cc_structs, cc_ids = DRTCModel._validate_complex_controller_structs(cc_structs, struct_ids_by_type, log_validation)
+        referenced_cc_structs = DRTCModel._collect_complex_controller_structs(folders)
+        referenced_cc_structs, referenced_cc_ids = DRTCModel._deduplicate_complex_controller_structs(
+            referenced_cc_structs
+        )
+        # Keep both the pre-validation references and the validated subset. The
+        # pre-validation ids are needed to recognize XML references that are invalid
+        # because they do not exist in HyDAMO; otherwise they are indistinguishable
+        # from unrelated DIMR coupler items.
+        cc_structs, cc_ids = DRTCModel._validate_complex_controller_structs(
+            referenced_cc_structs, struct_ids_by_type, log_validation
+        )
 
-        return cc_structs, cc_ids
+        return cc_structs, cc_ids, referenced_cc_ids
 
     @staticmethod
     @validate_arguments
@@ -470,7 +554,10 @@ class DRTCModel:
         validated_cc_structs = []
         for fs in complex_controller_structs:
             if fs.struct_type not in struct_ids_by_type or fs.struct_name not in struct_ids_by_type[fs.struct_type]:
-                msg = f"Complex controller structure not found in HyDAMO, will not be used: {fs.struct_type}/{fs.struct_name}"
+                msg = (
+                    "Complex controllers: reference missing from HyDAMO; "
+                    f"skipping {fs.struct_type}/{fs.struct_name}"
+                )
                 if log_validation:
                     logger.warning(msg)
             else:
@@ -572,9 +659,12 @@ class DRTCModel:
         return [merged_root]
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
-    def _parse_dataconfig_item(self, el: ET.Element) -> tuple[bool, str | None]:
+    def _parse_dataconfig_item(
+        self, el: ET.Element
+    ) -> tuple[bool, str | None, str | None]:
         allow = True
         el_text = None
+        reason = None
 
         # Check if this is a complex controller but not in the whitelist
         # Always allow observation points
@@ -583,19 +673,22 @@ class DRTCModel:
             el_text = el_id.text
             # In complex-controller fragments: keep observation ids, keep all when no filter is configured,
             # but reject ids that are not part of referenced/validated complex-controller structures.
-            allow = self.allow_struct(
+            allow, reason = self._allow_struct_with_reason(
                 cc_id=el_text,
                 allow_observations=True,
                 allow_if_filter_inactive=True,
                 allow_if_not_referenced=False,
             )
 
-        return allow, el_text
+        return allow, el_text, reason
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
-    def _parse_toolsconfig_item(self, el: ET.Element) -> tuple[bool, str | None]:
+    def _parse_toolsconfig_item(
+        self, el: ET.Element
+    ) -> tuple[bool, str | None, str | None]:
         allow = True
         el_firstchild_text = None
+        reason = None
 
         el_firstchild = next(iter(el), None)
         el_tags = []
@@ -612,7 +705,7 @@ class DRTCModel:
                     if allow:
                         # In tools fragments: keep observation ids, keep all when no filter is configured,
                         # but reject ids that are not referenced by validated complex-controller structures.
-                        allow = self.allow_struct(
+                        allow, reason = self._allow_struct_with_reason(
                             cc_id=child_text,
                             allow_observations=True,
                             allow_if_filter_inactive=True,
@@ -620,35 +713,38 @@ class DRTCModel:
                         )
                         el_firstchild_text = el_firstchild.get("id")
 
-        return allow, el_firstchild_text
+        return allow, el_firstchild_text, reason
 
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
-    def _parse_dimr_item(self, target: ET.Element | None) -> tuple[bool, str | None]:
+    def _parse_dimr_item(
+        self, target: ET.Element | None
+    ) -> tuple[bool, str | None, str | None]:
         allow = True
         el_text = None
+        reason = None
         if target is None or not target.text:
-            return allow, el_text
+            return allow, el_text, reason
 
         parts = target.text.split("/")
         if len(parts) < 3:
-            return allow, target.text
+            return allow, target.text, reason
 
         _, struct_id, _ = parts
 
         # Check if this is a complex controller but not in the whitelist
         # For DIMR coupler items: keep observation ids and keep non-complex/non-referenced ids,
         # and only filter out referenced complex-controller ids that are not in the whitelist.
-        if not self.allow_struct(
+        allow, reason = self._allow_struct_with_reason(
             cc_id=struct_id,
             allow_observations=True,
             allow_if_filter_inactive=True,
             allow_if_not_referenced=True,
-        ):
-            allow = False
+        )
+        if not allow:
             el_text = target.text
 
-        return allow, el_text
+        return allow, el_text, reason
 
 
     @staticmethod
@@ -764,43 +860,55 @@ class DRTCModel:
         """
         for _, management in self.hydamo.management.iterrows():
             # first get the structure ID through the coupled items. It can so far be three different structure types.
-            if not pd.isna(management.regelmiddelid):
-                weir_code = management.stuwid
-
-                if weir_code in list(self.hydamo.structures.rweirs_df.id):
-                    weir = self.hydamo.structures.rweirs_df[
-                        self.hydamo.structures.rweirs_df.id == weir_code
-                    ]
-                elif not self.hydamo.structures.uweirs_df.empty and weir_code in list(self.hydamo.structures.uweirs_df.id):
-                    weir = self.hydamo.structures.uweirs_df[
-                        self.hydamo.structures.uweirs_df.id == weir_code
-                    ]
-                elif not self.hydamo.structures.orifices_df.empty and  weir_code in list(self.hydamo.structures.orifices_df.id):
-                    weir = self.hydamo.structures.orifices_df[
-                        self.hydamo.structures.orifices_df.id == weir_code
-                    ]
-                else:
-                    logger.warning(
-                        f"Management for management_device {management.regelmiddelid} could not be connnected to a structure. Skipping it."
-                    )
-                    continue
-                struc_id = weir.id.to_numpy()[0]
-            elif not pd.isna(management.pompid):
+            if not pd.isna(management.pompid):
+                structype = 'pump'
                 if not self.hydamo.pumps.empty and management.pompid in list(self.hydamo.pumps.globalid):
-                    struc_id = self.hydamo.pumps[self.hydamo.pumps.globalid == management.pompid].code.to_numpy()[0]
+                    struc_id = self.hydamo.pumps[self.hydamo.pumps.globalid == management.pompid].code.to_numpy()[0]                    
+            elif not pd.isna(management.regelmiddelid):
+                structype = 'weir'
+                if "stuwid" in management and pd.notna(management['stuwid']):
+                    weir_code = management.stuwid
+
+                    if weir_code in list(self.hydamo.structures.rweirs_df.id):
+                        struc = self.hydamo.structures.rweirs_df[
+                            self.hydamo.structures.rweirs_df.id == weir_code
+                        ]
+                    elif not self.hydamo.structures.orifices_df.empty and  weir_code in list(self.hydamo.structures.orifices_df.id):
+                        struc = self.hydamo.structures.orifices_df[
+                            self.hydamo.structures.orifices_df.id == weir_code
+                        ]                    
+                    else:
+                        logger.warning(
+                            f"Management for management_device {management.regelmiddelid} could not be connected to any type of weir."
+                        )
+                    struc_id = struc.id.to_numpy()[0]           
+                else:
+                    structype = 'culvert'
+                    mandev = self.hydamo.management_device[self.hydamo.management_device.globalid ==management.regelmiddelid]
+                    if pd.notna(mandev.duikersifonhevelid).any():
+                        struc = self.hydamo.culverts[self.hydamo.culverts.globalid == mandev['duikersifonhevelid'].values[0]]
+                        struc_id = struc.code.to_numpy()[0]           
+                    else: 
+                        logger.warning(
+                            f"Management for management_device {management.regelmiddelid} could not be connected to a culvert of a weir."                        
+                            )
+                        continue
+                
             else:
                 raise ValueError(
                     "Only management_devices and pumps can be connected to a management object."
                 )
-            if management.stuurvariabele == "bovenkant afsluitmiddel":
+            if structype == 'weir' and management.stuurvariabele == "bovenkant afsluitmiddel":
                 steering_variable = "Crest level (s)"
-            elif management.stuurvariabele == "hoogte opening":
+            elif structype == 'weir' and management.stuurvariabele == "hoogte opening":
                 steering_variable = "Gate lower edge level (s)"
-            elif management.stuurvariabele == "pompdebiet":
+            elif structype == 'pump' and management.stuurvariabele == "pompdebiet":
                 steering_variable = "Capacity (p)"
+            elif structype == 'culvert' and management.stuurvariabele == "hoogte opening":
+                steering_variable = "Valve opening (s)" 
             else:
                 raise ValueError(
-                    f"Invalid value for steering variable of {struc_id}: {management.stuurvariabele}."
+                    f"Invalid value for steering variable of {struc_id}: {management.stuurvariabele}. Allowed values are 'bovenkant afsluitmiddel' for weirs, 'hoogte opening' for oroficies and culverts, and 'pompdebiet' for pumps."
                 )
 
             if management.doelvariabele == "waterstand":

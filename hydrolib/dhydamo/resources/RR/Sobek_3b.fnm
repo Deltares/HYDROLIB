@@ -11,26 +11,26 @@
 *
 *
 'delft_3b.ini'                            * 1. Control file                                             I
-'3b_nod.tp'                                      * 2. Knoop data                                               I
-'3b_link.tp'                                     * 3. Tak data                                                      I
+'3B_NOD.TP'                                      * 2. Knoop data                                               I
+'3B_LINK.TP'                                     * 3. Tak data                                                      I
 '3brunoff.tp'                                    * 4. Open water data                                               I
-'paved.3b'                                       * 5. Verhard gebied algemeen                                       I
-'paved.sto'                                      * 6. Verhard gebied storage                                        I
-'paved.dwa'                                      * 7. Verhard gebied DWA                                            I
+'PAVED.3B'                                       * 5. Verhard gebied algemeen                                       I
+'PAVED.STO'                                      * 6. Verhard gebied storage                                        I
+'PAVED.DWA'                                      * 7. Verhard gebied DWA                                            I
 'paved.tbl'                                      * 8. Verhard gebied sewer pump capacity                            I
 'pluvius.dwa'                                    * 9. Boundaries                                                    I
 'pluvius.3b'                                     *10. Pluvius                                                       I
 'pluvius.alg'                                    *11. Pluvius algemeen                                              I
 'kasklass'                    *12. Kasklasse                                                     I
-'default.bui'                                        *13. buifile                                                  I
-'default.evp'                                       *14. verdampingsfile                                          I
-'unpaved.3b'                                     *15. unpaved algemeen                                              I
-'unpaved.sto'                                    *16. unpaved storage                                               I
+'DEFAULT.BUI'                                        *13. buifile                                                  I
+'DEFAULT.EVP'                                       *14. verdampingsfile                                          I
+'UNPAVED.3B'                                     *15. unpaved algemeen                                              I
+'UNPAVED.STO'                                    *16. unpaved storage                                               I
 'kasinit'                     *17. kasgebied initialisatie (SC)                                  I
 'kasgebr'                     *18. kasgebied verbruiksdata (SC)                                  I
 'cropfact'                    *19. crop factors gewassen                                         I
 'bergcoef'                    *20. tabel bergingscoef=f(ontw.diepte,grondsoort)                  I
-'unpaved.alf'                                    *21. Unpaved - alfa factor definities                                I
+'UNPAVED.ALF'                                    *21. Unpaved - alfa factor definities                                I
 'sobek_3b.log'                            *22. Run messages                                                  O
 '3b_gener.out'                            *23. Overzicht van schematisatie, algemene gegevens                O
 'paved.out'                               *24. Output results verhard                                        O
@@ -40,12 +40,12 @@
 'struct3b.out'                            *28. Output results kunstwerk                                      O
 'bound3b.out'                             *29. Output results boundaries                                     O
 'pluvius.out'                             *30. Output results Pluvius                                        O
-'unpaved.inf'                                    *31. Unpaved infiltratie definities                                  I
+'UNPAVED.INF'                                    *31. Unpaved infiltratie definities                                  I
 'sobek_3b.dbg'                                    *32. Debugfile                                                     O
-'unpaved.sep'                                    *33. Unpaved seepage                                                 I
+'UNPAVED.SEP'                                    *33. Unpaved seepage                                                 I
 'unpaved.tbl'                                    *34. Unpaved tabels initial gwl and Scurve                           I
-'greenhse.3b'                                    *35. Kassen general data                                             I
-'greenhse.rf'                                    *36. Kassen roof storage                                             I
+'GREENHSE.3B'                                    *35. Kassen general data                                             I
+'GREENHSE.RF'                                    *36. Kassen roof storage                                             I
 'runoff.out'                                      *37. Pluvius rioolinloop ASCII file                                O
 'sbk_rtc.his'                             *38. Invoerfile met variabele peilen op randknopen                 I
 'salt.3b'                                 *39. Invoerfile met zoutgegevens                                   I
@@ -57,19 +57,19 @@
 'aanvoer.abr'                             *45. Uitvoer ASCII file met debieten van/naar randknopen           O
 'saltbnd.out'                             *46. Uitvoer ASCII file met zoutconcentratie op rand               O
 'salt.out'                                *47. Zout uitvoer in ASCII file                                    O
-'greenhse.sil'                                   *48. Greenhouse silo definitions                                     I
-'openwate.3b'                                    *49. Open water general data                                         I
-'openwate.sep'                                   *50. Open water seepage definitions                                  I
+'GREENHSE.SIL'                                   *48. Greenhouse silo definitions                                     I
+'OPENWATE.3B'                                    *49. Open water general data                                         I
+'OPENWATE.SEP'                                   *50. Open water seepage definitions                                  I
 'openwate.tbl'                                   *51. Open water tables target levels                                 I
 'struct3b.dat'                                   *52. General structure data                                          I
 'struct3b.def'                                   *53. Structure definitions                                           I
 'contr3b.def'                                    *54. Controller definitions                                          I
 'struct3b.tbl'                                   *55. Tabellen structures                                             I
-'bound3b.3b'                                     *56. Boundary data                                                   I
+'Bound3B.3B'                                     *56. Boundary data                                                   I
 'bound3b.tbl'                                    *57. Boundary tables                                                 I
 'sbk_loc.rtc'                                    *58.                                                                 I
-'wwtp.3b'                                        *59. Wwtp data                                                       I
-'wwtp.tbl'                                       *60. Wwtp tabellen                                                   I
+'WWTP.3B'                                        *59. Wwtp data                                                       I
+'WWTP.tbl'                                       *60. Wwtp tabellen                                                   I
 'industry.3b'                                    *61. Industry general data                                           I
 'pvstordt.his'                            *62. Mappix output file detail berging riool verhard gebied per tijdstap  O
 'pvflowdt.his'                            *63. Mappix output file detail debiet verhard gebied        per tijdstap  O

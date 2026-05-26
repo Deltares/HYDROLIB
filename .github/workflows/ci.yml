@@ -28,7 +28,7 @@ jobs:
         run: poetry install
 
       - name: Test with pytest
-        run: poetry run pytest -v --cov=hydrolib --cov-report=xml --cov-report=term
+        run: poetry run pytest -v -m "not slow and not plot and not dll" --cov=hydrolib --cov-report=xml --cov-report=term
 
       - uses: codecov/codecov-action@v4
         env:
