@@ -25,13 +25,7 @@ jobs:
           cache: 'poetry'
 
       - name: Install Dependencies
-        run: |
-          if [ "${{ matrix.python-version }}" == "3.12" ]; then
-            poetry install --extras validation
-          else
-            poetry install
-          fi
-        shell: bash
+        run: poetry install --extras validation
 
       - name: Test with pytest
         run: poetry run pytest -v -m "not slow and not plot and not dll" --cov=hydrolib --cov-report=xml --cov-report=term
