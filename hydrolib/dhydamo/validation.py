@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 import json
 import shutil
 import tempfile
@@ -9,6 +8,11 @@ from pathlib import Path
 from typing import Any, Literal
 
 import geopandas as gpd
+
+try:
+    import hydamo_validation as _hydamo_validation
+except ImportError:
+    _hydamo_validation = None
 
 ValidationMode = Literal["off", "warn", "strict"]
 
@@ -38,8 +42,12 @@ def validate_hydamo_package(
     is non-null. Full schema, type, and referential-integrity checks require an
     explicit rules file.
     """
-    hydamo_validation = importlib.import_module("hydamo_validation")
-    validator_factory = getattr(hydamo_validation, "validator")
+    if _hydamo_validation is None:
+        raise ImportError(
+            "HyDAMO validation requires the 'hydamo-validation' package. "
+            "Install it with: pip install hydamo-validation"
+        )
+    validator_factory = _hydamo_validation.validator
 
     gpkg_path = Path(gpkg_path)
     with tempfile.TemporaryDirectory(prefix="hydrolib-hydamo-validation-") as tmpdir:
