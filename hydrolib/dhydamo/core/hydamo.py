@@ -23,7 +23,16 @@ from hydrolib.dhydamo.converters.hydamo2df import (
 )
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
+from hydrolib.dhydamo.io.damo_converters import (
+    SUPPORTED_HYDAMO_VERSIONS,
+    get_damo_converter,
+)
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
+from hydrolib.dhydamo.validation import (
+    HydamoValidationResult,
+    ValidationMode,
+    validate_or_raise,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +88,8 @@ class HyDAMO:
             "dimr_version": "Deltares, DIMR_EXE Version 2.00.00.140737 (Win64) (Win64)",
             "suite_version": "D-HYDRO Suite 2024.03 1D2D,",
         }
+        self.source_damo_version = "2.2"
+        self.validation_result: HydamoValidationResult | None = None
 
         # Create standard dataframe for network, crosssections, orifices, weirs
         self.branches = ExtendedGeoDataFrame(
@@ -376,6 +387,59 @@ class HyDAMO:
             geotype=Polygon,
             required_columns=["code", "geometry"],            
         )
+
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def validate_gpkg(
+        self,
+        gpkg_path: Path | str,
+        hydamo_version: str = "2.2",
+        validation_coverages: dict | None = None,
+        validation_rules_path: Path | str | None = None,
+    ) -> HydamoValidationResult:
+        """Validate a HyDAMO package using hydamo_validation."""
+        result = validate_or_raise(
+            gpkg_path=gpkg_path,
+            hydamo_version=hydamo_version,
+            validation_mode="warn",
+            coverages=validation_coverages,
+            validation_rules_path=validation_rules_path,
+        )
+        assert result is not None
+        self.validation_result = result
+        return result
+
+    def load_from_gpkg(
+        self,
+        gpkg_path: Path | str,
+        hydamo_version: str = "2.2",
+        validate: bool = False,
+        validation_mode: ValidationMode = "off",
+        validation_coverages: dict | None = None,
+        validation_rules_path: Path | str | None = None,
+    ) -> "HyDAMO":
+        """Load HyDAMO data from a GeoPackage via a versioned DAMO converter."""
+        if hydamo_version not in SUPPORTED_HYDAMO_VERSIONS:
+            supported = ", ".join(SUPPORTED_HYDAMO_VERSIONS)
+            raise ValueError(
+                f'Unsupported HyDAMO DAMO version "{hydamo_version}". Supported versions: {supported}.'
+            )
+
+        effective_validation_mode: ValidationMode = validation_mode
+        if validate and validation_mode == "off":
+            effective_validation_mode = "warn"
+
+        self.source_damo_version = hydamo_version
+        self.validation_result = validate_or_raise(
+            gpkg_path=gpkg_path,
+            hydamo_version=hydamo_version,
+            validation_mode=effective_validation_mode,
+            coverages=validation_coverages,
+            validation_rules_path=validation_rules_path,
+        )
+
+        converter = get_damo_converter(hydamo_version)
+        converter.load_into(self, gpkg_path)
+        return self
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def list_to_str(self, lst: list | np.ndarray) -> str:

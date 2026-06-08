@@ -7,9 +7,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 from shapely.geometry import Point
 
+from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.drtc import DRTCModel
+from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
 
@@ -601,3 +604,58 @@ def test_complex_controller_wrong(caplog, hydamo=None):
     assert check_msg2 in caplog.messages
     assert check_msg3 in caplog.messages
     assert check_msg4 in caplog.messages
+
+
+@pytest.fixture
+def minimal_drtc(tmp_path):
+    """Minimal DRTCModel built from a bare HyDAMO instance — no GeoPackage load."""
+    hydamo = HyDAMO()
+    fm = FMModel()
+    fm.time.refdate = 20160601
+    fm.time.tstop = 3600
+    drtc = DRTCModel(hydamo, fm, output_path=tmp_path)
+    return drtc, hydamo
+
+
+def test_resolve_management_structure_pump(minimal_drtc):
+    drtc, hydamo = minimal_drtc
+    hydamo.pumps = pd.DataFrame({"globalid": ["test-pump-guid"], "code": ["P_TEST"]})
+
+    row = pd.Series({"pompid": "test-pump-guid", "regelmiddelid": "some-id"})
+    assert drtc._resolve_management_structure(row) == ("pump", "P_TEST")
+
+
+def test_resolve_management_structure_pump_not_in_hydamo_returns_none(minimal_drtc):
+    drtc, hydamo = minimal_drtc
+    hydamo.pumps = pd.DataFrame({"globalid": [], "code": []})
+
+    row = pd.Series({"pompid": "missing-pump", "regelmiddelid": "some-id"})
+    assert drtc._resolve_management_structure(row) is None
+
+
+def test_resolve_management_structure_null_regelmiddelid_raises(minimal_drtc):
+    drtc, _ = minimal_drtc
+
+    row = pd.Series({"pompid": pd.NA, "regelmiddelid": pd.NA})
+    with pytest.raises(ValueError, match="Only management_devices"):
+        drtc._resolve_management_structure(row)
+
+
+def test_resolve_management_structure_device_not_found_returns_none(minimal_drtc):
+    drtc, hydamo = minimal_drtc
+    hydamo.management_device = pd.DataFrame({"globalid": ["other-guid"], "duikersifonhevelid": [None]})
+
+    row = pd.Series({"pompid": pd.NA, "regelmiddelid": "does-not-exist-guid"})
+    assert drtc._resolve_management_structure(row) is None
+
+
+def test_resolve_management_structure_culvert(minimal_drtc):
+    drtc, hydamo = minimal_drtc
+    hydamo.management_device = pd.DataFrame({
+        "globalid": ["dev-guid"],
+        "duikersifonhevelid": ["culv-guid"],
+    })
+    hydamo.culverts = pd.DataFrame({"globalid": ["culv-guid"], "code": ["C_TEST"]})
+
+    row = pd.Series({"pompid": pd.NA, "regelmiddelid": "dev-guid"})
+    assert drtc._resolve_management_structure(row) == ("culvert", "C_TEST")

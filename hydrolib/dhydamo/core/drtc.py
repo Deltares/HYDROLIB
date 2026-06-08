@@ -268,25 +268,84 @@ class DRTCModel:
 
     @validate_arguments
     def check_timeseries(self, timeseries):
-        hydamo_controllers = self.hydamo.management[~self.hydamo.management.regelmiddelid.isna()].regelmiddelid
-        for controller in hydamo_controllers:
-            mandev = self.hydamo.management_device[self.hydamo.management_device.globalid ==controller]
-            if ~mandev.kunstwerkopeningid.isna().to_numpy()[0]:
-                ko = self.hydamo.opening[self.hydamo.opening.globalid ==mandev.kunstwerkopeningid.to_numpy()[0]]
-                weir = self.hydamo.weirs[self.hydamo.weirs.globalid ==ko.stuwid.to_numpy()[0]].code.to_numpy()[0]
-                if weir not in timeseries.columns:
-                    logger.warning(f'For {weir} a controller is defined in hydamo.management, but no timeseries is provided for it.')
-            elif ~mandev.duikersifonhevelid.isna().to_numpy()[0]:
-                dsh = self.hydamo.culvert[self.hydamo.culvert.globalid ==mandev.duikersifonhevelid.to_numpy()[0]].code
-                if dsh not in timeseries.columns:
-                    logger.warning(f'For {dsh} a controller is defined in hydamo.management, but no timeseries is provided for it.')
-            else:
-                logger.warning(f'{mandev.code} is not associated with a management_device or culvert.')
+        hydamo_controllers = self.hydamo.management[
+            ~self.hydamo.management.regelmiddelid.isna()
+        ]
+        for _, management in hydamo_controllers.iterrows():
+            resolved = self._resolve_management_structure(management)
+            if resolved is None:
+                continue
+            _, structure_id = resolved
+            if structure_id not in timeseries.columns:
+                logger.warning(
+                    "For %s a controller is defined in hydamo.management, but no timeseries is provided for it.",
+                    structure_id,
+                )
         hydamo_pumps = self.hydamo.management[~self.hydamo.management.pompid.isna()].pompid
         for pump in hydamo_pumps:
             pmp = self.hydamo.pumps[self.hydamo.pumps.globalid ==pump].code.to_numpy()[0]
             if pmp not in timeseries.columns:
                 logger.warning(f'For {pmp} a controller is defined in hydamo.management, but no timeseries is provided for it.')
+
+    def _resolve_management_structure(
+        self, management: pd.Series
+    ) -> tuple[str, str] | None:
+        if not pd.isna(management.pompid):
+            if not self.hydamo.pumps.empty and management.pompid in list(
+                self.hydamo.pumps.globalid
+            ):
+                struc_id = self.hydamo.pumps[
+                    self.hydamo.pumps.globalid == management.pompid
+                ].code.to_numpy()[0]
+                return "pump", struc_id
+            return None
+
+        if pd.isna(management.regelmiddelid):
+            raise ValueError(
+                "Only management_devices and pumps can be connected to a management object."
+            )
+
+        if "stuwid" in management and pd.notna(management["stuwid"]):
+            weir_code = management.stuwid
+            if weir_code in list(self.hydamo.structures.rweirs_df.id):
+                return "weir", weir_code
+            if not self.hydamo.structures.orifices_df.empty and weir_code in list(
+                self.hydamo.structures.orifices_df.id
+            ):
+                return "weir", weir_code
+            logger.warning(
+                "Management for management_device %s could not be connected to any type of weir.",
+                management.regelmiddelid,
+            )
+            return None
+
+        mandev = self.hydamo.management_device[
+            self.hydamo.management_device.globalid == management.regelmiddelid
+        ]
+        if mandev.empty:
+            logger.warning(
+                "Management for management_device %s could not be found.",
+                management.regelmiddelid,
+            )
+            return None
+
+        if pd.notna(mandev.duikersifonhevelid).any():
+            struc = self.hydamo.culverts[
+                self.hydamo.culverts.globalid == mandev["duikersifonhevelid"].values[0]
+            ]
+            if struc.empty:
+                logger.warning(
+                    "Management for management_device %s could not be connected to a culvert.",
+                    management.regelmiddelid,
+                )
+                return None
+            return "culvert", struc.code.to_numpy()[0]
+
+        logger.warning(
+            "Management for management_device %s could not be connected to a culvert or weir.",
+            management.regelmiddelid,
+        )
+        return None
 
     @validate_arguments
     def parse_complex_controller(
@@ -859,45 +918,10 @@ class DRTCModel:
 
         """
         for _, management in self.hydamo.management.iterrows():
-            # first get the structure ID through the coupled items. It can so far be three different structure types.
-            if not pd.isna(management.pompid):
-                structype = 'pump'
-                if not self.hydamo.pumps.empty and management.pompid in list(self.hydamo.pumps.globalid):
-                    struc_id = self.hydamo.pumps[self.hydamo.pumps.globalid == management.pompid].code.to_numpy()[0]                    
-            elif not pd.isna(management.regelmiddelid):
-                structype = 'weir'
-                if "stuwid" in management and pd.notna(management['stuwid']):
-                    weir_code = management.stuwid
-
-                    if weir_code in list(self.hydamo.structures.rweirs_df.id):
-                        struc = self.hydamo.structures.rweirs_df[
-                            self.hydamo.structures.rweirs_df.id == weir_code
-                        ]
-                    elif not self.hydamo.structures.orifices_df.empty and  weir_code in list(self.hydamo.structures.orifices_df.id):
-                        struc = self.hydamo.structures.orifices_df[
-                            self.hydamo.structures.orifices_df.id == weir_code
-                        ]                    
-                    else:
-                        logger.warning(
-                            f"Management for management_device {management.regelmiddelid} could not be connected to any type of weir."
-                        )
-                    struc_id = struc.id.to_numpy()[0]           
-                else:
-                    structype = 'culvert'
-                    mandev = self.hydamo.management_device[self.hydamo.management_device.globalid ==management.regelmiddelid]
-                    if pd.notna(mandev.duikersifonhevelid).any():
-                        struc = self.hydamo.culverts[self.hydamo.culverts.globalid == mandev['duikersifonhevelid'].values[0]]
-                        struc_id = struc.code.to_numpy()[0]           
-                    else: 
-                        logger.warning(
-                            f"Management for management_device {management.regelmiddelid} could not be connected to a culvert of a weir."                        
-                            )
-                        continue
-                
-            else:
-                raise ValueError(
-                    "Only management_devices and pumps can be connected to a management object."
-                )
+            resolved = self._resolve_management_structure(management)
+            if resolved is None:
+                continue
+            structype, struc_id = resolved
             if structype == 'weir' and management.stuurvariabele == "bovenkant afsluitmiddel":
                 steering_variable = "Crest level (s)"
             elif structype == 'weir' and management.stuurvariabele == "hoogte opening":
