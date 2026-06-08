@@ -379,15 +379,17 @@ def test_validate_gpkg_returns_result_and_stores_on_instance(
 
 
 @pytest.mark.requires_hydamo_validation
+@pytest.mark.skipif(
+    sys.version_info[:2] != (3, 12),
+    reason="hydamo-validation is only available for Python 3.12",
+)
 def test_load_from_gpkg_real_validation_succeeds():
     """Integration test: runs the real hydamo_validation library against Example_model.gpkg.
 
-    Skipped unless hydamo-validation is installed (Python 3.12, pip install hydrolib[validation]).
+    Only runs on Python 3.12 where hydamo-validation is installed via pip install hydrolib[validation].
     Verifies that our wrapper correctly calls the library and that the minimal auto-generated
     rules pass for the bundled example model.
     """
-    pytest.importorskip("hydamo_validation")
-
     hydamo = HyDAMO().load_from_gpkg(
         DATA_PATH / "Example_model.gpkg",
         hydamo_version="2.2",

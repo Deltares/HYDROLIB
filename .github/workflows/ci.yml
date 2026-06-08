@@ -25,6 +25,10 @@ jobs:
           cache: 'poetry'
 
       - name: Install Dependencies
+        run: poetry install
+
+      - name: Install validation extra
+        if: matrix.python-version == '3.12'
         run: poetry install --extras validation
 
       - name: Test with pytest
