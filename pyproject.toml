@@ -10,7 +10,7 @@ maintainers = [
 license = "LGPL"
 
 [tool.poetry.dependencies]
-python = "<3.13,>=3.12"
+python = ">=3.10, <4"
 pandas = ">=2.0, <3.0" # TODO add support for pandas 3: https://github.com/Deltares/HYDROLIB/issues/225
 geopandas = ">=1.0.0, <2.0"
 xarray = ">=2024.1.0"
@@ -32,7 +32,7 @@ pillow = ">=11.0.0"
 ipython = ">=8.29.0"
 shapely = ">=2.0.2"
 ipywidgets = ">=8.0"
-hydamo-validation = ">=1.5.0"
+hydamo-validation = ">=1.6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=6.2"
@@ -72,7 +72,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 88
-target-version = ['py312']
+target-version = ['py310', 'py311', 'py312']
 exclude = '''
 (
   /(
