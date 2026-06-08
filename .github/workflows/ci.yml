@@ -19,7 +19,6 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'poetry'
 
       - name: Install Poetry
         run: pipx install poetry
