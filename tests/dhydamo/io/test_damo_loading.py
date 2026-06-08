@@ -376,3 +376,24 @@ def test_validate_gpkg_returns_result_and_stores_on_instance(
     assert result is not None
     assert result.success is True
     assert hydamo.validation_result is result
+
+
+@pytest.mark.requires_hydamo_validation
+def test_load_from_gpkg_real_validation_succeeds():
+    """Integration test: runs the real hydamo_validation library against Example_model.gpkg.
+
+    Skipped unless hydamo-validation is installed (Python 3.12, pip install hydrolib[validation]).
+    Verifies that our wrapper correctly calls the library and that the minimal auto-generated
+    rules pass for the bundled example model.
+    """
+    pytest.importorskip("hydamo_validation")
+
+    hydamo = HyDAMO().load_from_gpkg(
+        DATA_PATH / "Example_model.gpkg",
+        hydamo_version="2.2",
+        validation_mode="warn",
+    )
+
+    assert hydamo.validation_result is not None
+    assert hydamo.validation_result.success is True
+    assert hydamo.validation_result.status is not None
