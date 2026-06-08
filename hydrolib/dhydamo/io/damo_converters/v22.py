@@ -53,3 +53,14 @@ class Damo22Converter(BaseDamoConverter):
             hydamo.management_device = self._copy_column(
                 hydamo.management_device, "soortregelmiddel", "soortafsluitmiddel"
             )
+        if not hydamo.profile.empty and "profiellijnid" in hydamo.profile.columns:
+            # After groupby, each row represents a profile line. Replace the
+            # per-point code with the profile line's own ID.
+            hydamo.profile["code"] = hydamo.profile["profiellijnid"]
+        if not hydamo.catchments.empty and not hydamo.laterals.empty:
+            # boundary_node is not a DAMO schema column, but it is required by
+            # drrreader.py and drrwriter.py for every RR workflow. It resolves
+            # the catchment→lateral FK (lateraleknoopid → laterals.globalid)
+            # to the lateral's code, which is used as the RR boundary node ID.
+            mapping = hydamo.laterals.set_index("globalid")["code"]
+            hydamo.catchments["boundary_node"] = hydamo.catchments["lateraleknoopid"].map(mapping)
