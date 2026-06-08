@@ -32,6 +32,11 @@ pillow = ">=11.0.0"
 ipython = ">=8.29.0"
 shapely = ">=2.0.2"
 ipywidgets = ">=8.0"
+hydamo-validation = { version = ">=1.5", python = ">=3.12,<3.13", optional = true }
+
+[tool.poetry.extras]
+validation = ["hydamo-validation"]
+
 [tool.poetry.group.dev.dependencies]
 pytest = ">=6.2"
 black = { version = "*", allow-prereleases = true }
@@ -117,5 +122,6 @@ addopts = "-v --tb=short --durations=0"
 markers = [
   "plot: tests that open plot windows",
   "slow: tests that are known to run slowly",
-  "dll: tests that are dependent on Windows DLL's"
+  "dll: tests that are dependent on Windows DLL's",
+  "requires_hydamo_validation: requires the hydamo-validation package (Python 3.12 only)"
 ]

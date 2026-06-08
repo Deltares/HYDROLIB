@@ -97,23 +97,7 @@ def test_hydamo_related():
     assert gpkg_file.exists()
 
     hydamo = HyDAMO()
-    hydamo.branches.read_gpkg_layer(gpkg_file, layer_name="HydroObject", index_col="code")
-    hydamo.profile.read_gpkg_layer(gpkg_file, layer_name="ProfielPunt", groupby_column="profiellijnid", order_column="codevolgnummer", id_col="code")
-    hydamo.profile_roughness.read_gpkg_layer(gpkg_file, layer_name="RuwheidProfiel")
-    hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name="profiellijn")
-    hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name="profielgroep")
-    hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name="Stuw")
-    hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
-    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-    hydamo.culverts.read_gpkg_layer(gpkg_file, layer_name="DuikerSifonHevel", index_col="code")
-    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-    hydamo.pumpstations.read_gpkg_layer(gpkg_file, layer_name="Gemaal", index_col="code")
-    hydamo.pumps.read_gpkg_layer(gpkg_file, layer_name="Pomp", index_col="code")
-    hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
-    hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
-    hydamo.boundary_conditions.read_gpkg_layer(gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code")
-    hydamo.catchments.read_gpkg_layer(gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code", check_geotype=False)
-    hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
+    hydamo.load_from_gpkg(gpkg_file, hydamo_version="2.2")
     hydamo.sewer_areas.read_shp(hydamo_data_path / 'rioleringsgebieden.shp', index_col='code', column_mapping={'Code':'code', 'Berging_mm':'riool_berging_mm', 'POC_m3s':'riool_poc_m3s' })
     hydamo.overflows.read_shp(hydamo_data_path / 'overstorten.shp', column_mapping={'codegerela': 'codegerelateerdobject'})
 
@@ -135,16 +119,17 @@ def test_clip_hydamo_object():
     assert extent_file.exists()
     extent = gpd.read_file(extent_file).union_all()
 
-    hydamo = HyDAMO(extent_file=extent_file)
-
     gpkg_file = hydamo_data_path / "Example_model.gpkg"
     assert gpkg_file.exists()
 
-    # Read branches
-    hydamo.branches.read_gpkg_layer(str(gpkg_file), layer_name="HydroObject", index_col="code", clip=extent, cliptype="clip")    
+    hydamo = HyDAMO()
+    hydamo.load_from_gpkg(
+        gpkg_file,
+        hydamo_version="2.2",
+        clip_layers={"branches": (extent, "clip")},
+    )
 
-    assert hydamo.branches.shape[0] ==  18
-
+    assert hydamo.branches.shape[0] == 18
     assert np.isclose(np.round(hydamo.branches.loc['W_242208_0'].geometry.length, 2), 426.4)
 
 
@@ -212,78 +197,17 @@ def _hydamo_object_from_gpkg():
     gpkg_file = hydamo_data_path / "Example_model.gpkg"
     assert gpkg_file.exists()
 
-    # Read branches
-    hydamo.branches.read_gpkg_layer(
-        str(gpkg_file), layer_name="HydroObject", index_col="code"
-    )
+    hydamo.load_from_gpkg(gpkg_file, hydamo_version="2.2")
 
-    hydamo.profile.read_gpkg_layer(
-        gpkg_file,
-        layer_name="ProfielPunt",
-        groupby_column="profiellijnid",
-        order_column="codevolgnummer",
-        id_col="code",
-    )
-
-    # read roughness
-    hydamo.profile_roughness.read_gpkg_layer(gpkg_file, layer_name="RuwheidProfiel")
-
-    hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name="profiellijn")
-    hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name="profielgroep")
-    hydamo.profile.drop("code", axis=1, inplace=True)
-    hydamo.profile["code"] = hydamo.profile["profiellijnid"]
     len_profile_before = len(hydamo.profile)
     hydamo.snap_to_branch_and_drop(hydamo.profile, hydamo.branches, snap_method="intersecting", drop_related=True)
-
-    # Read Weirs
-    hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name="Stuw")
-    hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
-    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-
-    # Read culverts
-    hydamo.culverts.read_gpkg_layer(
-        gpkg_file, layer_name="DuikerSifonHevel", index_col="code"
-    )
-
-    # Read management device
-    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-
     hydamo.snap_to_branch_and_drop(hydamo.weirs, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
-
     hydamo.snap_to_branch_and_drop(hydamo.culverts, hydamo.branches, snap_method="ends", maxdist=5, drop_related=True)
-
-    # Read pumpstations
-    hydamo.pumpstations.read_gpkg_layer(
-        gpkg_file, layer_name="Gemaal", index_col="code"
-    )
-    hydamo.pumps.read_gpkg_layer(gpkg_file, layer_name="Pomp", index_col="code")
-    hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
-
     hydamo.snap_to_branch_and_drop(hydamo.pumpstations, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
-
-    # Read bridges
-    hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
     hydamo.snap_to_branch_and_drop(hydamo.bridges, hydamo.branches, snap_method="overal", maxdist=1100, drop_related=True)
-
-    # Read boundary conditions
-    hydamo.boundary_conditions.read_gpkg_layer(
-        gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code"
-    )
-    hydamo.boundary_conditions.snap_to_branch(
-        hydamo.branches, snap_method="overal", maxdist=10
-    )
-
-    # Read catchments
-    hydamo.catchments.read_gpkg_layer(
-        gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code", check_geotype=False,
-    )
-
-    # Read laterals
-    # read laterals
-    hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
+    hydamo.boundary_conditions.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
     hydamo.laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=5000)
-    hydamo.catchments['boundary_node'] = [hydamo.laterals[hydamo.laterals.globalid==c['lateraleknoopid']].code.to_numpy()[0] for _,c in hydamo.catchments.iterrows()]
-        
+
     return hydamo, len_profile_before
 
 

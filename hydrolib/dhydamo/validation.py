@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 import shutil
 import tempfile
@@ -8,11 +9,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 import geopandas as gpd
-
-try:
-    import hydamo_validation as _hydamo_validation
-except ImportError:
-    _hydamo_validation = None
 
 ValidationMode = Literal["off", "warn", "strict"]
 
@@ -42,10 +38,12 @@ def validate_hydamo_package(
     is non-null. Full schema, type, and referential-integrity checks require an
     explicit rules file.
     """
-    if _hydamo_validation is None:
+    try:
+        _hydamo_validation = importlib.import_module("hydamo_validation")
+    except ImportError:
         raise ImportError(
-            "HyDAMO validation requires the 'hydamo-validation' package. "
-            "Install it with: pip install hydamo-validation"
+            "HyDAMO validation requires the 'hydamo-validation' package (Python 3.12 only). "
+            "Install it with: pip install hydrolib[validation]"
         )
     validator_factory = _hydamo_validation.validator
 
@@ -71,6 +69,9 @@ def validate_hydamo_package(
                 encoding="utf-8",
             )
 
+        # output_types=[] — no artefacts written to disk; results are read from
+        # result_summary in memory. Callers that want CSV/GeoJSON outputs must
+        # call hydamo_validation.validator directly.
         hydamo_validator = validator_factory(
             output_types=[],
             coverages=coverages or {},
@@ -86,12 +87,29 @@ def validate_hydamo_package(
             )
 
         _, _, result_summary = result
+
+        # hydamo_validation uses .error for unhandled exceptions and .errors for
+        # errors appended during rule processing — read both to capture all messages.
         errors = []
-        if getattr(result_summary, "error", None):
-            errors.extend([str(err) for err in result_summary.error if err])
+        for attr in ("error", "errors"):
+            val = getattr(result_summary, attr, None)
+            if val:
+                errors.extend([str(e) for e in val if e])
+
+        # When validation rules fail (success=False) but no exception-level error
+        # messages were raised, surface which layers failed so that validate_or_raise
+        # produces a useful message instead of "unknown error".
+        success = bool(getattr(result_summary, "success", False))
+        if not success and not errors:
+            error_layers = getattr(result_summary, "error_layers", None) or []
+            missing_layers = getattr(result_summary, "missing_layers", None) or []
+            if error_layers:
+                errors.append(f"Layers with errors: {', '.join(error_layers)}")
+            if missing_layers:
+                errors.append(f"Missing layers: {', '.join(missing_layers)}")
 
         return HydamoValidationResult(
-            success=bool(getattr(result_summary, "success", False)),
+            success=success,
             status=getattr(result_summary, "status", None),
             errors=errors,
             raw_result=result_summary,

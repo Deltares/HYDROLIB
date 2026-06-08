@@ -641,12 +641,16 @@ def test_resolve_management_structure_null_regelmiddelid_raises(minimal_drtc):
         drtc._resolve_management_structure(row)
 
 
-def test_resolve_management_structure_device_not_found_returns_none(minimal_drtc):
+def test_resolve_management_structure_device_not_found_returns_none(minimal_drtc, caplog):
     drtc, hydamo = minimal_drtc
     hydamo.management_device = pd.DataFrame({"globalid": ["other-guid"], "duikersifonhevelid": [None]})
 
     row = pd.Series({"pompid": pd.NA, "regelmiddelid": "does-not-exist-guid"})
-    assert drtc._resolve_management_structure(row) is None
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
+        result = drtc._resolve_management_structure(row)
+
+    assert result is None
+    assert "does-not-exist-guid" in caplog.text
 
 
 def test_resolve_management_structure_culvert(minimal_drtc):
