@@ -2,9 +2,9 @@
 **DHyDAMO is still under development!**
 
 ## What is DHyDAMO?
-DHyDAMO provides tools for automatic generation of  [Delft3D FM Suite 1D2D](https://www.deltares.nl/nl/software/d-hydro-suite-1d2d/) models based on [HyDAMO DAMO2.2](https://hkvconfluence.atlassian.net/wiki/spaces/DHYD/pages/222396421/Achtergrond) data.
+DHyDAMO provides tools for automatic generation of [Delft3D FM Suite 1D2D](https://www.deltares.nl/nl/software/d-hydro-suite-1d2d/) models based on HyDAMO DAMO 2.2-2.5 data.
 
-[DHyDAMO](https://github.com/Deltares/HYDROLIB/tree/main/hydrolib/dhydamo) is an open-source Python package within the Hydrolib environment that enables automatic generation of [D-Hydro](https://www.deltares.nl/nl/software/d-hydro-suite-1d2d/) models  based on a [HyDAMO DAMO2.2](https://hkvconfluence.atlassian.net/wiki/spaces/DHYD/pages/222396421/Achtergrond) dataset.
+[DHyDAMO](https://github.com/Deltares/HYDROLIB/tree/main/hydrolib/dhydamo) is an open-source Python package within the Hydrolib environment that enables automatic generation of [D-Hydro](https://www.deltares.nl/nl/software/d-hydro-suite-1d2d/) models based on HyDAMO DAMO 2.2-2.5 datasets.
 
 ## Why DHyDAMO?
 DHyDAMO offers more functionality and flexibility than its predecessor [delft3dfmpy](https://github.com/openearth/delft3dfmpy). Moreover, coupling to the Hydrolib-core functionality ensures that the interface to D-Hydro remains up to date.

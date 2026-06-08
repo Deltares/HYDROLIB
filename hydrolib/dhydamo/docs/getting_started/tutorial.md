@@ -2,7 +2,7 @@
 
 This notebook gives an overview of the functionalities of the D-HyDAMO module, part of the Hydrolib environment.
 
-This notebook is based on previous examples of the python package delft3dfmpy, but now connnected to the Hydrolib-core package, which is used for writing a D-Hydro model. It contains similar functinality as delft3dfmpy v2.0.1; input data is expected to be according to HyDAMO DAMO2.2 gpkg-format. The example model used here is based on a part of the Oostrumsche beek in Limburg, ameded with some fictional dummy data to better illustrate functionalities.
+This notebook is based on previous examples of the python package delft3dfmpy, but now connnected to the Hydrolib-core package, which is used for writing a D-Hydro model. It contains similar functinality as delft3dfmpy v2.0.1; input data can be loaded from HyDAMO DAMO 2.2-2.5 GeoPackages through the versioned `HyDAMO.load_from_gpkg(...)` workflow. The example model used here is based on a part of the Oostrumsche beek in Limburg, ameded with some fictional dummy data to better illustrate functionalities.
 
 ## Load Python libraries and Hydrolib-core functionality
 
