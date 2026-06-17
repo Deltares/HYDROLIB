@@ -15,17 +15,37 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install poetry
-        run: pipx install poetry
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'poetry'
 
-      - name: Install Dependencies
-        run: poetry install
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Select Poetry Python
+        run: poetry env use python
+
+      - name: Show Python and Poetry environment
+        run: |
+          python --version
+          poetry --version
+          poetry env info
+          poetry run python --version
+
+      - name: Install dependencies
+        if: matrix.python-version != '3.12'
+        run: poetry install -vvv
+
+      - name: Install dependencies with validation extra
+        if: matrix.python-version == '3.12'
+        run: poetry install --extras validation -vvv
+
+      - name: Verify validation extra
+        if: matrix.python-version == '3.12'
+        run: |
+          poetry show hydamo-validation
+          poetry run python -c "import hydamo_validation; print('hydamo_validation OK')"
 
       - name: Test with pytest
         run: poetry run pytest -v -m "not slow and not plot and not dll" --cov=hydrolib --cov-report=xml --cov-report=term

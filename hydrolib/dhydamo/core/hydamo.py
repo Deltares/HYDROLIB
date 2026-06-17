@@ -23,7 +23,16 @@ from hydrolib.dhydamo.converters.hydamo2df import (
 )
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
+from hydrolib.dhydamo.io.damo_converters import (
+    SUPPORTED_HYDAMO_VERSIONS,
+    get_damo_converter,
+)
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
+from hydrolib.dhydamo.validation import (
+    HydamoValidationResult,
+    ValidationMode,
+    validate_or_raise,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +88,8 @@ class HyDAMO:
             "dimr_version": "Deltares, DIMR_EXE Version 2.00.00.140737 (Win64) (Win64)",
             "suite_version": "D-HYDRO Suite 2024.03 1D2D,",
         }
+        self.source_damo_version = "2.2"
+        self.validation_result: HydamoValidationResult | None = None
 
         # Create standard dataframe for network, crosssections, orifices, weirs
         self.branches = ExtendedGeoDataFrame(
@@ -376,6 +387,92 @@ class HyDAMO:
             geotype=Polygon,
             required_columns=["code", "geometry"],            
         )
+
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def validate_gpkg(
+        self,
+        gpkg_path: Path | str,
+        hydamo_version: str = "2.2",
+        validation_coverages: dict | None = None,
+        validation_rules_path: Path | str | None = None,
+    ) -> HydamoValidationResult:
+        """Validate a HyDAMO package using hydamo_validation."""
+        result = validate_or_raise(
+            gpkg_path=gpkg_path,
+            hydamo_version=hydamo_version,
+            validation_mode="warn",
+            coverages=validation_coverages,
+            validation_rules_path=validation_rules_path,
+        )
+        assert result is not None
+        self.validation_result = result
+        return result
+
+    def load_from_gpkg(
+        self,
+        gpkg_path: Path | str,
+        hydamo_version: str = "2.2",
+        clip_layers: dict | None = None,
+        check_3d: bool = True,
+        validate: bool = False,
+        validation_mode: ValidationMode = "off",
+        validation_coverages: dict | None = None,
+        validation_rules_path: Path | str | None = None,
+    ) -> "HyDAMO":
+        """Load HyDAMO data from a GeoPackage via a versioned DAMO converter.
+
+        Parameters
+        ----------
+        gpkg_path : str or Path
+            Path to the GeoPackage file.
+        hydamo_version : str
+            DAMO schema version string, e.g. ``"2.2"`` or ``"2.5"``.
+        clip_layers : dict, optional
+            Per-layer spatial clip. Maps ``target_attr`` name to a
+            ``(geometry, cliptype)`` tuple, e.g.
+            ``{"branches": (gpd.read_file(extent).union_all(), "clip")}``.
+            Layers absent from the dict are loaded without clipping.
+        check_3d : bool
+            Whether to require Z coordinates on all geometries. Pass
+            ``False`` when loading a flat (2D-only) GeoPackage. Default is
+            ``True``.
+        validate : bool
+            Shorthand for ``validation_mode="warn"`` when ``True``.
+        validation_mode : str
+            ``"off"``, ``"warn"``, or ``"strict"``.
+        validation_coverages : dict, optional
+            Coverage dict forwarded to the validator.
+        validation_rules_path : str or Path, optional
+            Path to a custom validation-rules JSON file.
+
+        Returns
+        -------
+        HyDAMO
+            This instance, to allow method chaining.
+        """
+        if hydamo_version not in SUPPORTED_HYDAMO_VERSIONS:
+            supported = ", ".join(SUPPORTED_HYDAMO_VERSIONS)
+            raise ValueError(
+                f'Unsupported HyDAMO DAMO version "{hydamo_version}". Supported versions: {supported}.'
+            )
+
+        effective_validation_mode: ValidationMode = validation_mode
+        if validate and validation_mode == "off":
+            effective_validation_mode = "warn"
+
+        self.validation_result = None
+        self.source_damo_version = hydamo_version
+        self.validation_result = validate_or_raise(
+            gpkg_path=gpkg_path,
+            hydamo_version=hydamo_version,
+            validation_mode=effective_validation_mode,
+            coverages=validation_coverages,
+            validation_rules_path=validation_rules_path,
+        )
+
+        converter = get_damo_converter(hydamo_version)
+        converter.load_into(self, gpkg_path, clip_layers=clip_layers, check_3d=check_3d)
+        return self
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def list_to_str(self, lst: list | np.ndarray) -> str:
@@ -1773,6 +1870,24 @@ class Structures:
         self.bridges_df = pd.DataFrame()
         self.pumps_df = pd.DataFrame()
         self.compounds_df = pd.DataFrame()
+
+        # Maps management_device.globalid -> generated D-FlowFM structure id,
+        # for weirs/orifices that have more than one Kunstwerkopening.
+        #
+        # Background: a weir's structure id is normally just its HyDAMO code,
+        # and is therefore derivable from the static FK chain
+        # management_device.kunstwerkopeningid -> opening.globalid ->
+        # opening.stuwid -> weirs.globalid (see DRTCModel._resolve_weir_via_opening
+        # in core/drtc.py). But when a weir has multiple openings, StructuresIO
+        # builds one compound structure per opening and invents the id as
+        # f"{weir.code}_{opening_index+1}" - that id only exists once this
+        # enumeration has run, so it cannot be derived from HyDAMO data alone.
+        # StructuresIO.weirs() populates this dict as it assigns those ids, and
+        # DRTCModel falls back to it when the static chain finds no match.
+        # Consequently, DRTCModel.from_hydamo()/check_timeseries() only resolve
+        # multi-opening weirs correctly if structure conversion (StructuresIO)
+        # has already run on this `hydamo` instance.
+        self.compound_weir_structure_ids: dict[str, str] = {}
 
         self.convert = StructuresIO(self)
 
