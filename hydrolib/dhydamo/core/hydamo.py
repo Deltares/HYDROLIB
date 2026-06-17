@@ -1871,6 +1871,24 @@ class Structures:
         self.pumps_df = pd.DataFrame()
         self.compounds_df = pd.DataFrame()
 
+        # Maps management_device.globalid -> generated D-FlowFM structure id,
+        # for weirs/orifices that have more than one Kunstwerkopening.
+        #
+        # Background: a weir's structure id is normally just its HyDAMO code,
+        # and is therefore derivable from the static FK chain
+        # management_device.kunstwerkopeningid -> opening.globalid ->
+        # opening.stuwid -> weirs.globalid (see DRTCModel._resolve_weir_via_opening
+        # in core/drtc.py). But when a weir has multiple openings, StructuresIO
+        # builds one compound structure per opening and invents the id as
+        # f"{weir.code}_{opening_index+1}" - that id only exists once this
+        # enumeration has run, so it cannot be derived from HyDAMO data alone.
+        # StructuresIO.weirs() populates this dict as it assigns those ids, and
+        # DRTCModel falls back to it when the static chain finds no match.
+        # Consequently, DRTCModel.from_hydamo()/check_timeseries() only resolve
+        # multi-opening weirs correctly if structure conversion (StructuresIO)
+        # has already run on this `hydamo` instance.
+        self.compound_weir_structure_ids: dict[str, str] = {}
+
         self.convert = StructuresIO(self)
 
     def check_branchid_chainage(self, branchid, chainage):

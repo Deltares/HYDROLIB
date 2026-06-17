@@ -169,7 +169,11 @@ def test_load_from_gpkg_maps_damo_25_to_canonical_internal_structure(tmp_path: P
 def test_drtc_resolves_canonical_damo_25_management_links(tmp_path: Path):
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
-    hydamo.management["stuwid"] = "ST1"
+    # No manual stuwid injection: the weir link is resolved from the static
+    # management_device.kunstwerkopeningid -> opening.globalid -> opening.stuwid
+    # -> weirs.globalid chain already present in the gpkg fixture (see
+    # DRTCModel._resolve_weir_via_opening). Only the built D-FlowFM structure
+    # needs to be faked here, since structure conversion isn't run in this test.
     hydamo.structures.rweirs_df = pd.DataFrame({"id": ["ST1"]})
 
     fm = FMModel()
