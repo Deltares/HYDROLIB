@@ -657,10 +657,6 @@ class StructuresIO:
 
         Parameters corrspond to the HyDAMO DAMO2.2 objects. DFlowFM keyword 'usevelocityheight' can be specificied as a string, default is 'true'.
         """
-        # bypass HyDAMO and add stuwid directly to managment for use in RTC
-        if not self.structures.hydamo.management.empty:
-            self.structures.hydamo.management['stuwid'] = None
-
         index = np.zeros(len(weirs.code))
         if profile_groups is not None and hasattr(profile_groups, "stuwid"):
             index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
@@ -705,11 +701,14 @@ class StructuresIO:
                         )
                         weir_mandev = weir_mandev.iloc[[0]]                    
 
-
+                    # This weir has multiple openings, so its structure id gets an
+                    # enumeration suffix that is invented right here and is not
+                    # present anywhere in the HyDAMO data. Record it so DRTCModel
+                    # can later resolve a management record's regelmiddelid to
+                    # this structure id; see Structures.compound_weir_structure_ids
+                    # in core/hydamo.py.
                     weir_id = f'{weir.code}_{num_op+1}'
-                    if (not self.structures.hydamo.management.empty) & (hasattr(self.structures.hydamo.management, 'regelmiddelid')):
-                        if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).item():
-                            self.structures.hydamo.management.loc[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze(), 'stuwid'] = weir_id
+                    self.structures.compound_weir_structure_ids[weir_mandev.globalid.squeeze()] = weir_id
                     if weir_mandev.overlaatonderlaat.squeeze().lower() == 'overlaat':
                         cmp_list.append(weir_id)
                         self.structures.add_rweir(id=weir_id,
@@ -764,6 +763,11 @@ class StructuresIO:
                     continue
 
                 weir_id = weir.code
+                # Unlike the compound case above, no need to record this id in
+                # compound_weir_structure_ids: this weir has a single opening, so
+                # its structure id is just weir.code, which
+                # DRTCModel._resolve_weir_via_opening derives directly from
+                # HyDAMO's static relations.
                 weir_mandev = management_device[
                         management_device.kunstwerkopeningid
                         == weir_opening.globalid.to_numpy()[0]
@@ -782,12 +786,7 @@ class StructuresIO:
                         weir_opening.code.squeeze(),
                         weir_id
                     )
-                    weir_mandev = weir_mandev.iloc[[0]]                    
-
-
-                if (not self.structures.hydamo.management.empty) & hasattr(self.structures.hydamo.management, 'regelmiddelid'):
-                    if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).item():
-                        self.structures.hydamo.management.loc[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze(), 'stuwid'] = weir_id
+                    weir_mandev = weir_mandev.iloc[[0]]
 
                 if isinstance(weir_mandev.overlaatonderlaat, pd.Series):
                     overlaatonderlaat = weir_mandev.overlaatonderlaat.squeeze()
