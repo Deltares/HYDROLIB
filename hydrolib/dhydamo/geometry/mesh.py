@@ -5,6 +5,7 @@ from pathlib import Path
 import geopandas as gpd
 import meshkernel as mk
 import numpy as np
+import shapely
 from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import KDTree
 from shapely.geometry import (
@@ -16,7 +17,6 @@ from shapely.geometry import (
     Polygon,
     box,
 )
-from shapely.prepared import prep
 
 from hydrolib.core.dflowfm.net.models import Branch, Mesh2d, Network
 from hydrolib.core.dflowfm.net.reader import UgridReader
@@ -549,11 +549,8 @@ def links1d2d_add_links_2d_to_1d_embedded(
         [network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1
     )
 
-    # Create a prepared multilinestring of the 1d network, to check for intersections
-    mls = MultiLineString(nodes1d[network._mesh1d.mesh1d_edge_nodes].tolist())
-    mls_prep = prep(mls)
-
     # Buffer the branches with the max cell distances
+    mls = MultiLineString(nodes1d[network._mesh1d.mesh1d_edge_nodes].tolist())
     area = mls.buffer(maxdiff)
 
     # If a within polygon is provided, clip the buffered area with this polygon.
@@ -577,14 +574,24 @@ def links1d2d_add_links_2d_to_1d_embedded(
         [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
     )
     where = np.nonzero(idx)[0]
-    for i, face_idxs in enumerate(network._mesh2d.mesh2d_face_nodes[idx]):
-        # nodes2d always has 4 columns, but a triangular cell only has 3 nodes.
-        # In that case, one of the indices will be invalid.
-        face_crds = nodes2d[face_idxs[face_idxs >= 0]]
 
-        # Check if the face crosses a branch
-        if not mls_prep.intersects(LineString(face_crds)):
-            idx[where[i]] = False
+    # Return early if there are no candidates
+    if not where.size:
+        return
+
+    # Check which face crosses a branch
+    candidate_face_nodes = network._mesh2d.mesh2d_face_nodes[idx]
+    face_polygons = []
+    for face_idxs in candidate_face_nodes:
+        # nodes2d always has 4 columns if the grid is a mix of triangular and 
+        # rectangular, but a triangular cell only has 3 nodes. A triangular 
+        # cell will then have a column of invalid indices. This needs to be
+        # checked per cell.
+        # Use a polygon instead of linestring to enforce a closed ring and to
+        # test both boundary and/or face intersection.
+        valid_face_idxs = face_idxs[face_idxs >= 0]
+        face_polygons.append(Polygon(nodes2d[valid_face_idxs]))
+    idx[where] = shapely.intersects(face_polygons, mls)
 
     # Use the remaining points to create the links
     multipoint = mk.GeometryList(
@@ -683,8 +690,11 @@ def links1d2d_add_links_2d_to_1d_lateral(
     for i, (node1d, face2d, node2d) in enumerate(
         zip(nodes1d, faces2d, nodes2d_idx)
     ):
-        # Triangular grids
-        face_node_crds = nodes2d[node2d[node2d > 0.]]                
+        # nodes2d always has 4 columns if the grid is a mix of triangular and 
+        # rectangular, but a triangular cell only has 3 nodes. A triangular 
+        # cell will then have a column of invalid indices. This needs to be
+        # checked per cell.
+        face_node_crds = nodes2d[node2d[node2d >= 0]]                
 
         # Calculate distance between face edge and face center
         x1 = face_node_crds[:,0]
