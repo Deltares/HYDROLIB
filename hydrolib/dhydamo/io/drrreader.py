@@ -949,19 +949,12 @@ class ExternalForcingsIO:
 
      
         drop_idx = catchments[catchments.boundary_node.isin(not_occurring)].index.to_list()
-        if any(drop_idx):
+        if drop_idx:
             logger.warning(
                 "%d catchments removed because of an area of 0 m2.",
                 len(drop_idx),
             )
             catchments.drop(drop_idx, inplace=True)
-
-        for i in not_occurring:
-            catchments.drop(
-                catchments[catchments.boundary_node == i].code.iloc[0],
-                axis=0,
-                inplace=True,
-            )
 
         for cat in catchments.itertuples():
             if boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid].empty:
