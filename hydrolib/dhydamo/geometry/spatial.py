@@ -2,6 +2,7 @@ import logging
 
 import geopandas as gpd
 import numpy as np
+import shapely
 from scipy.spatial import Voronoi
 from shapely import affinity
 from shapely.geometry import (
@@ -226,7 +227,7 @@ def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> g
     # Add border to limit polygons
     border = box(nodes[:, 0].min(), nodes[:, 1].min(), nodes[:, 0].max(), nodes[:, 1].max()).buffer(1000).exterior
     borderpts = [border.interpolate(dist).coords[0] for dist in np.linspace(0, border.length, max(20, int(border.length / 100)))]
-    vor = Voronoi(points=nodes.tolist()+borderpts)
+    vor = Voronoi(points=np.vstack([nodes, borderpts]))
     clippoly = facedata.union_all()
     # Get lines
     lines = []
@@ -234,20 +235,21 @@ def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> g
         lines.append(poly.exterior)
         lines.extend([line for line in poly.interiors])
     linesprep = prep(MultiLineString(lines))
-    clipprep = prep(clippoly)
+
+    # Determine for all nodes at once whether they lie within the clip polygon
+    inside = shapely.intersects(clippoly, shapely.points(nodes))
 
     # Collect polygons
     data = []
-    for (pr, pt) in zip(vor.point_region, nodes):
+    for (pr, pt_inside) in zip(vor.point_region, inside):
         region = vor.regions[pr]
         if pr == -1:
             break
-        while -1 in region:
-            region.remove(-1)
+        region = [v for v in region if v != -1]
         if len(region) < 3:
             continue
-        crds = vor.vertices[region]
-        if clipprep.intersects(Point(pt)):
+        if pt_inside:
+            crds = vor.vertices[region]
             poly = Polygon(crds)
             if linesprep.intersects(poly):
                 poly = poly.intersection(clippoly)
