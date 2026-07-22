@@ -343,7 +343,7 @@ def mesh1d_add_branches_from_gdf(
             if any(c > 1):
                 logger.warning(
                     "Structures %s have the same location.",
-                    ", ".join(group.loc[np.isin(group, u[c > 1]), "id"].tolist()),
+                    ", ".join(str(v) for v in group.loc[group.chainage.isin(u[c > 1]), "id"].tolist()),
                 )
             # Add to dictionary
             structure_chainage[branchid] = u
