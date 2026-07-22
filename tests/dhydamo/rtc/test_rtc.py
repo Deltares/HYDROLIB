@@ -274,7 +274,8 @@ def test_dimrwriter_flow_to_rtc_components_for_complex_only(hydamo=None):
     dimrwriter.write_dimrconfig(fm, rtc_model=rtcd)
 
     root = ET.parse(output_path / "dimr_config.xml").getroot()
-    coupler = root.find(".//{*}coupler[@name='flow_to_rtc']")
+    # the full coupler block (with source/targetComponent) is a direct child of root
+    coupler = root.find("./{*}coupler[@name='flow_to_rtc']")
     assert coupler is not None
 
     source_component = coupler.find("./{*}sourceComponent")
@@ -283,6 +284,13 @@ def test_dimrwriter_flow_to_rtc_components_for_complex_only(hydamo=None):
     assert target_component is not None
     assert source_component.text == "DFM"
     assert target_component.text == "Real_Time_Control"
+
+    # the control block must reference flow_to_rtc too, otherwise DIMR never
+    # invokes the coupler even though it's defined below
+    control_coupler = root.find(
+        "./{*}control/{*}parallel/{*}startGroup/{*}coupler[@name='flow_to_rtc']"
+    )
+    assert control_coupler is not None
 
 
 def test_drtc_deduplicates_complex_fragments(hydamo=None):
