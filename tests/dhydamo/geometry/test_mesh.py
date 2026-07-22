@@ -876,3 +876,36 @@ def test_mesh1d_add_branches_from_gdf_logs_missing_branchid(caplog):
 
     assert "1 structures (['s_missing']) are not linked to a branch." in caplog.text
     assert len(network._mesh1d.network1d_node_x) > 0
+
+
+def test_mesh1d_add_branches_from_gdf_logs_duplicate_structure_location(caplog):
+    # Two structures on the same branch at the same chainage, with non-string
+    # (float) ids: this used to crash with
+    # "TypeError: sequence item 0: expected str instance, float found" in the
+    # ", ".join(...)" used to build the warning message.
+    fmmodel = FMModel()
+    network = fmmodel.geometry.netfile.network
+
+    branches = gpd.GeoDataFrame(
+        {"code": ["branch_1"], "geometry": [LineString([(0.0, 0.0), (10.0, 0.0)])]}
+    )
+    structures = pd.DataFrame(
+        {
+            "branchid": ["branch_1", "branch_1", "branch_1"],
+            "chainage": [3.0, 3.0, 7.0],
+            "id": [1.0, 2.0, 3.0],
+        }
+    )
+
+    with caplog.at_level("WARNING", logger="hydrolib.dhydamo.geometry.mesh"):
+        mesh.mesh1d_add_branches_from_gdf(
+            network,
+            branches=branches,
+            branch_name_col="code",
+            node_distance=2,
+            max_dist_to_struc=None,
+            structures=structures,
+        )
+
+    assert "Structures 1.0, 2.0 have the same location." in caplog.text
+    assert len(network._mesh1d.network1d_node_x) > 0
