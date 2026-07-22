@@ -409,7 +409,8 @@ class PavedIO:
                         raise ValueError('Street_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int).')
 
                     # three options: it can be an attribute of a sewer area, a uniform value or a raster
-                    if sew.riool_berging_mm is None or np.isnan(sew.riool_berging_mm) or not isinstance(sew.riool_berging_mm, float):
+                    riool_berging_mm = getattr(sew, "riool_berging_mm", None)
+                    if riool_berging_mm is None or np.isnan(riool_berging_mm) or not isinstance(riool_berging_mm, float):
                         if isinstance(sewer_storage, float):
                             sewer_storage_val = f"{sewer_storage:.2f}"
                         elif isinstance(sewer_storage, (Path, str)):
@@ -417,10 +418,11 @@ class PavedIO:
                         else:
                             raise ValueError('Sewer_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int).')
                     else:
-                        sewer_storage_val = f'{sew.riool_berging_mm:.2f}'
+                        sewer_storage_val = f'{riool_berging_mm:.2f}'
 
                     # three options: it can be an attribute of a sewer area, a uniform value or a raster
-                    if sew.riool_poc_m3s is None or np.isnan(sew.riool_poc_m3s) or not isinstance(sew.riool_poc_m3s, float):
+                    riool_poc_m3s = getattr(sew, "riool_poc_m3s", None)
+                    if riool_poc_m3s is None or np.isnan(riool_poc_m3s) or not isinstance(riool_poc_m3s, float):
                         if isinstance(pump_capacity, float):
                             # convert the value from mm/h to m3/s
                             pump_capacity_val = f"{pump_capacity * (float(pav_area) * ov.fractie) / (1000. * 3600.):.8f}"
@@ -431,7 +433,7 @@ class PavedIO:
                             raise ValueError('Pump_capacity has the wrong datatype. It should be a filename (Path or string) or number (float or int).')
                     else:
                         # use the attribute value
-                        pump_capacity_val = f'{sew.riool_poc_m3s * ov.fractie:.8f}'
+                        pump_capacity_val = f'{riool_poc_m3s * ov.fractie:.8f}'
 
                     # add prefix to the overflow id to create the paved-node id
                     self.paved.add_paved(
