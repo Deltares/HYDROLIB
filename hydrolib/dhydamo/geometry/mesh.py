@@ -472,20 +472,16 @@ def links1d2d_add_links_1d_to_2d(
         within (Polygon | MultiPolygon | None, optional): Area within which connections are made. Defaults to None.
         max_length (float, optional): Max edge length. Defaults to np.inf.
     """
+    # Fetch the 2d mesh once and reuse it below - each network._mesh2d.mesh2d_*
+    # property otherwise re-fetches and re-validates the whole mesh from meshkernel.
+    mesh2d_output = network._mesh2d.get_mesh2d()
+
     if within is None:
         # If not provided, create a box from the maximum bounds
-        xmin = min(
-            network._mesh1d.mesh1d_node_x.min(), network._mesh2d.mesh2d_node_x.min()
-        )
-        xmax = max(
-            network._mesh1d.mesh1d_node_x.max(), network._mesh2d.mesh2d_node_x.max()
-        )
-        ymin = min(
-            network._mesh1d.mesh1d_node_y.min(), network._mesh2d.mesh2d_node_y.min()
-        )
-        ymax = max(
-            network._mesh1d.mesh1d_node_y.max(), network._mesh2d.mesh2d_node_y.max()
-        )
+        xmin = min(network._mesh1d.mesh1d_node_x.min(), mesh2d_output.node_x.min())
+        xmax = max(network._mesh1d.mesh1d_node_x.max(), mesh2d_output.node_x.max())
+        ymin = min(network._mesh1d.mesh1d_node_y.min(), mesh2d_output.node_y.min())
+        ymax = max(network._mesh1d.mesh1d_node_y.max(), mesh2d_output.node_y.max())
 
         within = box(xmin, ymin, xmax, ymax)
 
@@ -513,7 +509,7 @@ def links1d2d_add_links_1d_to_2d(
         axis=1,
     )
     faces2d = np.stack(
-        [network._mesh2d.mesh2d_face_x[id2d], network._mesh2d.mesh2d_face_y[id2d]],
+        [mesh2d_output.face_x[id2d], mesh2d_output.face_y[id2d]],
         axis=1,
     )
     lengths = np.hypot(nodes1d[:, 0] - faces2d[:, 0], nodes1d[:, 1] - faces2d[:, 1])
@@ -616,10 +612,12 @@ def links1d2d_add_links_2d_to_1d_embedded(
         branchids (list[str] | None, optional): List is branch id's for which the connections are made. Defaults to None.
         within (Polygon | MultiPolygon | None, optional): Clipping polygon for 2d mesh that is. Defaults to None.
     """
+    # Fetch the 2d mesh once and reuse it below - each network._mesh2d.mesh2d_*
+    # property otherwise re-fetches and re-validates the whole mesh from meshkernel.
+    mesh2d_output = network._mesh2d.get_mesh2d()
+
     # Get the max edge distance
-    nodes2d = np.stack(
-        [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
-    )
+    nodes2d = np.stack([mesh2d_output.node_x, mesh2d_output.node_y], axis=1)
     edge_node_crds = nodes2d[network._mesh2d.mesh2d_edge_nodes]
 
     diff = edge_node_crds[:, 0, :] - edge_node_crds[:, 1, :]
@@ -639,9 +637,7 @@ def links1d2d_add_links_2d_to_1d_embedded(
         area = area.intersection(within)
 
     # Create an array with 2d facecenters and check which intersect the (clipped) area
-    faces2d = np.stack(
-        [network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1
-    )    
+    faces2d = np.stack([mesh2d_output.face_x, mesh2d_output.face_y], axis=1)
     mpgl = mk.GeometryList(*faces2d.T.copy())
     idx = np.zeros(len(faces2d), dtype=bool)
 
@@ -651,9 +647,6 @@ def links1d2d_add_links_2d_to_1d_embedded(
         idx |= sub_idx.values == 1
 
     # Check for each of the remaining faces, if it actually crosses the branches
-    nodes2d = np.stack(
-        [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
-    )
     where = np.nonzero(idx)[0]
 
     # Return early if there are no candidates
@@ -768,13 +761,14 @@ def links1d2d_add_links_2d_to_1d_lateral(
         [network._mesh1d.mesh1d_node_x[id1d], network._mesh1d.mesh1d_node_y[id1d]],
         axis=1,
     )
+    # Fetch the 2d mesh once and reuse it below - each network._mesh2d.mesh2d_*
+    # property otherwise re-fetches and re-validates the whole mesh from meshkernel.
+    mesh2d_output = network._mesh2d.get_mesh2d()
     faces2d = np.stack(
-        [network._mesh2d.mesh2d_face_x[id2d], network._mesh2d.mesh2d_face_y[id2d]],
+        [mesh2d_output.face_x[id2d], mesh2d_output.face_y[id2d]],
         axis=1,
     )
-    nodes2d = np.stack(
-        [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
-    )
+    nodes2d = np.stack([mesh2d_output.node_x, mesh2d_output.node_y], axis=1)
     nodes2d_idx = network._mesh2d.mesh2d_face_nodes[id2d]
     keep = []
     for i, (node1d, face2d, node2d) in enumerate(
@@ -831,10 +825,13 @@ def links1d2d_remove_within(
             network._mesh1d.mesh1d_node_y[links[:, 0]],
         ], axis=1
     )
+    # Fetch the 2d mesh once and reuse it below - each network._mesh2d.mesh2d_*
+    # property otherwise re-fetches and re-validates the whole mesh from meshkernel.
+    mesh2d_output = network._mesh2d.get_mesh2d()
     faces2d = np.stack(
         [
-            network._mesh2d.mesh2d_face_x[links[:, 1]],
-            network._mesh2d.mesh2d_face_y[links[:, 1]],
+            mesh2d_output.face_x[links[:, 1]],
+            mesh2d_output.face_y[links[:, 1]],
         ], axis=1
     )
 
@@ -877,10 +874,13 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
         logger.warning("1d nodes or 2d faces are not present.")
         return None
 
-    if network._link1d2d.link1d2d.shape[0] == 0:
-        logger.warning("No 1d2d-links present.")        
+    # Fetch the current 1d2d links once - like network._mesh2d.mesh2d_*, this
+    # property re-fetches and re-validates the contacts from meshkernel on every access.
+    link1d2d = network._link1d2d.link1d2d
+    if link1d2d.shape[0] == 0:
+        logger.warning("No 1d2d-links present.")
         return None
- 
+
     # Select mesh1d nodes that are only present in a single edge.
     # link1d2d[:, 0] stores mesh1d node indices, so endpoint detection must
     # use the same mesh1d index space.
@@ -889,7 +889,7 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
     to_remove = edgeid[counts == 1]
 
     # Remove links connected to 1d endpoint nodes.
-    link_nodes = network._link1d2d.link1d2d[:, 0]
+    link_nodes = link1d2d[:, 0]
     keep = ~np.isin(link_nodes, to_remove)
 
     _filter_links_on_idx(network, keep)
@@ -933,19 +933,21 @@ def mesh2d_altitude_from_raster(
     # Select points on faces or nodes
     logger.info("Creating GeoDataFrame of cell faces.")
 
+    # Fetch the 2d mesh once and reuse it below - each network._mesh2d.mesh2d_*
+    # property otherwise re-fetches and re-validates the whole mesh from meshkernel.
+    mesh2d_output = network._mesh2d.get_mesh2d()
+
     # Get coordinates where z-values are derived or centered
     xy = np.stack(
         [
-            getattr(network._mesh2d, f"mesh2d_{where.value}_x"),
-            getattr(network._mesh2d, f"mesh2d_{where.value}_y"),
+            getattr(mesh2d_output, f"{where.value}_x"),
+            getattr(mesh2d_output, f"{where.value}_y"),
         ],
         axis=1,
     )
 
     # Create cells as polygons
-    xy_facenodes = np.stack(
-        [network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1
-    )
+    xy_facenodes = np.stack([mesh2d_output.node_x, mesh2d_output.node_y], axis=1)
     cells = network._mesh2d.mesh2d_face_nodes
     nodatavalue = np.iinfo(cells.dtype).min
     indices = cells != nodatavalue
