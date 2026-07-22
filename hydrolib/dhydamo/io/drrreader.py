@@ -341,7 +341,7 @@ class PavedIO:
             # if the parameters ara rasters, do the zonal statistics per sewage area as well.
             if isinstance(street_storage,(Path, str)):
                 str_stors_sa = zonal_stats(
-                    sewer_areas,
+                    gpd.GeoDataFrame(sewer_areas),
                     strs_rast.astype(float),
                     affine=strs_affine,
                     stats="mean",
@@ -349,7 +349,7 @@ class PavedIO:
                 )
             if isinstance(sewer_storage, (Path, str)):
                 sew_stors_sa = zonal_stats(
-                    sewer_areas,
+                    gpd.GeoDataFrame(sewer_areas),
                     sews_rast.astype(float),
                     affine=sews_affine,
                     stats="mean",
