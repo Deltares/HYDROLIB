@@ -568,6 +568,39 @@ def test_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, 
     assert len(network._link1d2d.link1d2d_id) == outcome
 
 
+def test_links1d2d_lateral_then_embedded_preserves_existing_links():
+    # Regression test: calling the embedded link generator after the lateral
+    # one used to discard the previously created lateral links.
+    network, _, _, _ = _prepare_1d2d_mesh(second_branch=True)
+
+    mesh.links1d2d_add_links_2d_to_1d_lateral(network)
+    n_lateral = len(network._link1d2d.link1d2d_id)
+    assert n_lateral > 0
+
+    mesh.links1d2d_add_links_2d_to_1d_embedded(network)
+    n_total = len(network._link1d2d.link1d2d_id)
+
+    # All lateral links must still be present after adding the embedded links
+    assert n_total >= n_lateral
+
+
+def test_links1d2d_embedded_then_1d_to_2d_preserves_existing_links():
+    # Regression test for the general safety net in _filter_links_on_idx: any
+    # link-adding function must preserve links created by an earlier one,
+    # regardless of call order.
+    network, _, _, _ = _prepare_1d2d_mesh(second_branch=True)
+
+    mesh.links1d2d_add_links_2d_to_1d_embedded(network)
+    n_embedded = len(network._link1d2d.link1d2d_id)
+    assert n_embedded > 0
+
+    mesh.links1d2d_add_links_1d_to_2d(network)
+    n_total = len(network._link1d2d.link1d2d_id)
+
+    # All embedded links must still be present after adding the 1d_to_2d links
+    assert n_total >= n_embedded
+
+
 def test_linkd1d2d_remove_links_within_polygon(do_plot=False):
     network, within, _, _ = _prepare_1d2d_mesh()
     within = within.buffer(-2)
