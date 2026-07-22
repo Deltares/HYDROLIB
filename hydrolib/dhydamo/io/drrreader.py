@@ -155,7 +155,7 @@ class UnpavedIO:
                 for m in meteo_areas.itertuples()
                 if m.geometry.contains(cat.geometry.centroid)
             ]
-            ms = meteo_areas.iloc[0, :][0] if tm == [] else tm[0].code
+            ms = meteo_areas.iloc[0, 0] if not tm else tm[0].code
             mapping = np.zeros(16, dtype=int)
             
             # subtract greenhouse area from most occurring land use if no greenhouse area is in the landuse map
@@ -448,7 +448,7 @@ class PavedIO:
                         for m in meteo_areas.itertuples()
                         if m.geometry.contains(sew.geometry.centroid)
                     ]
-                    ms = meteo_areas.iloc[0, :][0] if tm == [] else tm[0].code
+                    ms = meteo_areas.iloc[0, 0] if not tm else tm[0].code
 
                     # add prefix to the overflow id to create the paved-node id
                     paved_drr.at[ov.code, "id"] = str(ov.code)
@@ -580,7 +580,7 @@ class PavedIO:
                 for m in meteo_areas.itertuples()
                 if m.geometry.contains(cat.geometry.centroid)
             ]
-            ms = meteo_areas.iloc[0, :][0] if tm == [] else tm[0].code
+            ms = meteo_areas.iloc[0, 0] if not tm else tm[0].code
 
             elev = mean_elev[num]["median"]
             paved_drr.at[cat.code, "id"] = str(cat.code)
@@ -716,7 +716,7 @@ class GreenhouseIO:
                     for m in meteo_areas.itertuples()
                     if m.geometry.contains(gh.geometry.centroid)
                 ]
-                ms = meteo_areas.iloc[0, :][0] if tm == [] else tm[0].code
+                ms = meteo_areas.iloc[0, 0] if not tm else tm[0].code
 
                 elev = mean_elev_gh[num]["median"]
                 gh_drr.at[gh.code, "id"] = str(gh.code)
@@ -751,7 +751,7 @@ class GreenhouseIO:
                 for m in meteo_areas.itertuples()
                 if m.geometry.contains(cat.geometry.centroid)
             ]
-            ms = meteo_areas.iloc[0, :][0] if tm == [] else tm[0].code
+            ms = meteo_areas.iloc[0, 0] if not tm else tm[0].code
 
             if greenhouse_areas is not None:
                 if cat.geometry.intersects(greenhouse_areas.geometry).any():
@@ -837,7 +837,7 @@ class OpenwaterIO:
                 for m in meteo_areas.itertuples()
                 if m.geometry.contains(cat.geometry.centroid)
             ]
-            ms = meteo_areas.iloc[0, :][0] if tm == [] else tm[0].code
+            ms = meteo_areas.iloc[0, 0] if not tm else tm[0].code
 
             ow_drr.at[cat.code, "id"] = str(cat.code)
             ow_drr.at[cat.code, "area"] = (
