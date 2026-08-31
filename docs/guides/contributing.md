@@ -15,11 +15,13 @@ pixi run --environment docs docs-build
 ```
 
 ## Tooling
-### Black
-We use `black` as an autoformatter. It is also run during CI and will fail if it's not formatted beforehand.
 
-### Isort
-We use `isort` as an autoformatter.
+### Ruff
+
+We use [Ruff](https://docs.astral.sh/ruff/) for formatting and import sorting,
+replacing Black and isort. Run `pixi run lint` locally to check formatting,
+imports, and lint rules. Run `pixi run fix` to apply formatting and Ruff's
+safe fixes. Linting is not enforced in CI yet.
 
 ### Commitizen
 We use `commitizen` to automatically bump the version number.
@@ -41,7 +43,7 @@ When starting development on a branch, a pull request should be created for revi
 In the description text area on GitHub, use a [closing keyword](https://docs.github.com/articles/closing-issues-using-keywords) such that this PR will be automatically linked to the issue.
 For example: `Fixes #160`.
 
-During continuous integration, the checks will be run with several Python versions on Windows, Ubuntu and MacOS. The checks consist of running the tests, checking the code formatting and running SonarCloud.
+During continuous integration, the test suite runs with several Python versions on Windows and Ubuntu. Formatting and lint checks remain local developer tasks for now.
 We advise to use a draft pull request, to prevent the branch to be merged back before developement is finished. When the branch is ready for review, you can update the status of the pull request to "ready for review".
 
 ### Reviews

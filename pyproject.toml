@@ -55,31 +55,13 @@ version_files = [
 ]
 changelog_file = "docs/changelog.md"
 
-[tool.black]
+[tool.ruff]
 line-length = 88
-target-version = ['py310', 'py311', 'py312']
-exclude = '''
-(
-  /(
-      \.eggs         # exclude a few common directories in the
-    | \.git          # root of the project
-    | \.hg
-    | \.mypy_cache
-    | \.tox
-    | \.venv
-    | _build
-    | buck-out
-    | build
-    | dist
-    | \.virtualenvs
-  )/
-)
-'''
+target-version = "py310"
+src = ["hydrolib", "tests"]
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
-line_length = 88
+[tool.ruff.lint]
+extend-select = ["I"]
 
 [tool.pytest.ini_options]
 addopts = "-v --tb=short --durations=0"
@@ -114,9 +96,7 @@ hydrolib = { path = ".", editable = true }
 [tool.pixi.feature.test.dependencies]
 pytest = ">=6.2"
 pytest-cov = ">=2.11"
-black = "*"
-isort = ">=5.8"
-flake8 = ">=3.9"
+ruff = ">=0.12"
 mypy = ">=0.910"
 
 [tool.pixi.feature.docs.dependencies]
@@ -164,7 +144,8 @@ release = ["release", "py312"]
 
 [tool.pixi.tasks]
 test = "pytest -v -m 'not slow and not plot and not dll' --cov=hydrolib --cov-report=xml --cov-report=term"
-lint = "black --check . && isort --check-only . && flake8 hydrolib tests"
+lint = "ruff format --check . && ruff check hydrolib tests"
+fix = "ruff format . && ruff check --fix hydrolib tests"
 typecheck = "mypy hydrolib"
 docs-build = "mkdocs build"
 build = "python -m build"
