@@ -99,6 +99,7 @@ pytest = ">=6.2"
 pytest-cov = ">=2.11"
 ruff = ">=0.12"
 mypy = ">=0.910"
+pre-commit = ">=3.7"
 
 [tool.pixi.feature.docs.dependencies]
 mkdocs = ">=1.6,<2.0"
@@ -151,3 +152,4 @@ typecheck = "mypy hydrolib"
 docs-build = "mkdocs build"
 build = "python -m build"
 lock-check = "pixi lock --check"
+export-conda-environments = "pixi workspace export conda-environment environment-win-64.yml --environment test-py312 --platform win-64 --name hydrolib --from-lock-file && pixi workspace export conda-environment environment-linux-64.yml --environment test-py312 --platform linux-64 --name hydrolib --from-lock-file"

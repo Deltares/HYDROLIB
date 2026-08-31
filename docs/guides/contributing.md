@@ -27,6 +27,36 @@ safe fixes. Linting is not enforced in CI yet.
 We use `commitizen` to automatically bump the version number.
 If you use [conventional commit messages](https://www.conventionalcommits.org/en/v1.0.0/#summary), the [`changelog.md`](../changelog.md) is generated automatically. More details below under ["Merging"](#merging).
 
+### Conda environment exports
+
+`environment-win-64.yml` and `environment-linux-64.yml` at the repository root
+are frozen Conda environment files, generated from `pixi.lock`, for
+Miniforge/Conda users who don't want to install Pixi. They let a user recreate
+the exact `test-py312` environment with:
+
+``` bash
+conda env create -f environment-win-64.yml
+conda activate hydrolib
+```
+
+Pixi remains the source of truth; these files are a generated export, not a
+second dependency set to maintain by hand. Whenever `pixi.lock` changes, run
+
+``` bash
+pixi run --environment test-py312 export-conda-environments
+```
+
+and commit the regenerated files alongside `pixi.lock`.
+
+Install the [pre-commit](https://pre-commit.com) hook once with
+`pixi run --environment test-py312 pre-commit install` and it will regenerate
+both files automatically whenever `pixi.lock` is staged; because the hook
+modifies files, the first `git commit` attempt after a lockfile change stops
+so you can `git add` the regenerated files and commit again. CI also
+regenerates both files in a clean checkout and fails the `check-conda-exports`
+job if they differ from what's committed, so a PR can't merge with stale
+exports even if the hook was skipped or never installed.
+
 ## Development
 
 ### Branches

@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: export-conda-environments
+        name: Export Conda environments
+        entry: pixi run --environment test-py312 export-conda-environments
+        language: system
+        pass_filenames: false
+        files: ^pixi\.lock$

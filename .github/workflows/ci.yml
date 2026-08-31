@@ -44,3 +44,23 @@ jobs:
 
       # - name: Lint
       #   run: pixi run --environment ${{ matrix.environment }} --locked lint
+
+  check-conda-exports:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Pixi
+        uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.78.0
+          cache: true
+          environments: test-py312
+
+      - name: Regenerate Conda environment exports
+        run: pixi run --environment test-py312 --locked export-conda-environments
+
+      - name: Fail if exported environments are stale
+        run: git diff --exit-code -- environment-win-64.yml environment-linux-64.yml
