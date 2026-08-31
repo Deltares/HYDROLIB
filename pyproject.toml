@@ -64,6 +64,7 @@ src = ["hydrolib", "tests"]
 extend-select = ["I"]
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 addopts = "-v --tb=short --durations=0"
 markers = [
   "plot: tests that open plot windows",
