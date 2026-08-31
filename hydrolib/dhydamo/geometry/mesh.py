@@ -125,14 +125,14 @@ def mesh2d_add_triangular(
     """
 
     meshkernel = network._mesh2d.meshkernel
-    for polygon in common.as_polygon_list(polygon):
+    for poly in common.as_polygon_list(polygon):
         # Interpolate coordinates on polygon with edge_length distance
         if edge_length is not None:
-            polygon = common.interp_polygon(polygon, dist=edge_length)
+            poly = common.interp_polygon(poly, dist=edge_length)
 
         # Add triangular mesh within polygon
         meshkernel.mesh2d_make_triangular_mesh_from_polygon(
-            _geomlist_from_polygon(polygon),
+            _geomlist_from_polygon(poly),
             scale_factor=1,
             )
         #meshkernel.mesh2d_make_mesh_from_polygon(GeometryList.from_geometry(polygon))
@@ -265,12 +265,12 @@ def mesh2d_refine(
                 directional_refinement=False
     )
     if refine_parameters is not None:
-        for key in refine_parameters.keys():
+        for key in refine_parameters:
             setattr(parameters, key, refine_parameters[key])
 
-    for polygon in common.as_polygon_list(polygon):
+    for poly in common.as_polygon_list(polygon):
         network.mesh2d_refine_mesh(
-            _geomlist_from_polygon(polygon),
+            _geomlist_from_polygon(poly),
             level=steps,            
             parameters=parameters)                      
 
@@ -278,7 +278,7 @@ def mesh2d_refine(
 def mesh1d_add_branch_from_linestring(
     network: Network,
     linestring: LineString,
-    node_distance: float | int,
+    node_distance: float,
     name: str | None = None,
     structure_chainage: list[float] | None = None,
     max_dist_to_struc: float | None = None,
@@ -375,9 +375,7 @@ def mesh1d_add_branches_from_gdf(
         # Generate nodes on branch
         branch.generate_nodes(
             mesh1d_edge_length=node_distance,
-            structure_chainage=structure_chainage[branchname]
-            if branchname in structure_chainage
-            else None,
+            structure_chainage=structure_chainage.get(branchname, None),
             max_dist_to_struc=max_dist_to_struc,
         )
         network.mesh1d_add_branch(branch, name=branchname)
@@ -872,14 +870,14 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
         network._mesh2d.mesh2d_face_nodes
     ):
         logger.warning("1d nodes or 2d faces are not present.")
-        return None
+        return
 
     # Fetch the current 1d2d links once - like network._mesh2d.mesh2d_*, this
     # property re-fetches and re-validates the contacts from meshkernel on every access.
     link1d2d = network._link1d2d.link1d2d
     if link1d2d.shape[0] == 0:
         logger.warning("No 1d2d-links present.")
-        return None
+        return
 
     # Select mesh1d nodes that are only present in a single edge.
     # link1d2d[:, 0] stores mesh1d node indices, so endpoint detection must
