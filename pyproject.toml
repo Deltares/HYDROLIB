@@ -1,58 +1,48 @@
-[tool.poetry]
+[project]
 name = "hydrolib"
 version = "0.5.1" # Auto-updated by Commitizen during releases.
 description = "HYDROLIB tools for hydrodynamic and hydrological modelling workflows"
-authors = ["Deltares"]
+readme = "README.md"
+requires-python = ">=3.10,<4"
+license = { text = "LGPL" }
+authors = [{ name = "Deltares" }]
 maintainers = [
-    "Arthur van Dam <arthur.vandam@deltares.nl>",
-    "Ruud Hurkmans <r.hurkmans@hkv.nl>",
-    ]
-license = "LGPL"
+  { name = "Arthur van Dam", email = "arthur.vandam@deltares.nl" },
+  { name = "Ruud Hurkmans", email = "r.hurkmans@hkv.nl" },
+]
+dependencies = [
+  "pandas>=2,<3", # TODO add support for pandas 3: https://github.com/Deltares/HYDROLIB/issues/225
+  "geopandas>=1,<2",
+  "xarray>=2024.1.0",
+  "hydrolib-core>=1.0.1,<2",
+  "numpy>=2,<3",
+  "matplotlib>=3.9",
+  "openpyxl>=3",
+  "scipy>=1.13",
+  "tqdm>=4.66.1",
+  "rasterio>=1.4",
+  "netcdf4>=1.7.2",
+  "rasterstats>=0.21", # uses pyogrio instead of fiona as default engine and supports python 3.14
+  "jupyterlab>=4",
+  "contextily>=1.4",
+  "dask>=2024.1.0",
+  "pyogrio>=0.9",
+  "folium>=0.18",
+  "pillow>=11",
+  "ipython>=8.29",
+  "shapely>=2.0.2",
+  "ipywidgets>=8",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.10, <4"
-pandas = ">=2.0, <3.0" # TODO add support for pandas 3: https://github.com/Deltares/HYDROLIB/issues/225
-geopandas = ">=1.0.0, <2.0"
-xarray = ">=2024.1.0"
-hydrolib-core = "^1.0.1"
-numpy = ">=2.0, <3.0"
-matplotlib = ">=3.9"
-openpyxl = ">=3"
-scipy = ">=1.13"
-tqdm = ">=4.66.1"
-rasterio = ">=1.4.0"
-netcdf4 = ">=1.7.2"
-rasterstats = ">=0.21" # uses pyogrio instead of fiona as default engine and supports python 3.14
-jupyterlab = ">=4.0"
-contextily = ">=1.4"
-dask = ">=2024.1.0"
-pyogrio = ">=0.9"
-folium = ">=0.18.0"
-pillow = ">=11.0.0"
-ipython = ">=8.29.0"
-shapely = ">=2.0.2"
-ipywidgets = ">=8.0"
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
 
-[tool.poetry.group.dev.dependencies]
-pytest = ">=6.2"
-black = { version = "*", allow-prereleases = true }
-isort = ">=5.8"
-mkdocs = ">=1.6,<2.0"
-mkdocs-material = ">=9.7,<10.0"
-mkdocstrings = ">=1.0,<2.0"
-mkdocstrings-python = ">=2.0,<3.0"
-mkdocs-autorefs = ">=1.4,<2.0"
-pytest-cov = ">=2.11"
-pymdown-extensions = ">=10.0,<11.0"
-mkdocs-jupyter = ">=0.26,<1.0"
-mkdocs-macros-plugin = ">=1.5,<2.0"
-mkdocs-material-extensions = ">=1.3,<2.0"
-mkdocs-monorepo-plugin = ">=1.1,<2.0"
-commitizen = "^2.17"
-flake8 = ">=3.9"
-mypy = ">=0.910"
-devtools = ">=0.6"
-poetry2conda = ">=0.3.0"
+[tool.hatch.build.targets.wheel]
+packages = ["hydrolib"]
+
+[tool.hatch.build.targets.sdist]
+include = ["hydrolib"]
 
 [tool.commitizen]
 name = "cz_conventional_commits"
@@ -61,13 +51,9 @@ tag_format = "$version"
 version_files = [
     "hydrolib/post/__init__.py",
     "hydrolib/dhydamo/__init__.py",
-    "pyproject.toml:version"
+    "pyproject.toml:project.version"
 ]
 changelog_file = "docs/changelog.md"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 88
@@ -95,24 +81,6 @@ profile = "black"
 multi_line_output = 3
 line_length = 88
 
-[tool.poetry2conda]
-name = "hydrolib"
-
-[tool.poetry2conda.dependencies]
-python = { channel = "conda-forge" }
-pandas = { channel = "conda-forge" }
-geopandas = { channel = "conda-forge" }
-xarray = { channel = "conda-forge" }
-hydrolib-core = { channel = "pip" }
-shapely = { channel = "conda-forge" }
-matplotlib = { channel = "conda-forge" }
-numpy = { channel = "conda-forge" }
-openpyxl = { channel = "conda-forge" }
-scipy = { channel = "conda-forge" }
-jupyter = { channel = "conda-forge" }
-#fiona = { channel = "conda-forge" }
-contextily = { channel = "conda-forge" }
-
 [tool.pytest.ini_options]
 addopts = "-v --tb=short --durations=0"
 markers = [
@@ -120,3 +88,84 @@ markers = [
   "slow: tests that are known to run slowly",
   "dll: tests that are dependent on Windows DLL's"
 ]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64"]
+
+[tool.pixi.dependencies]
+# Only the native/compiled geospatial stack is pinned here, to source it from
+# conda-forge and keep one shared libgdal. Everything else in
+# [project.dependencies] is picked up from PyPI automatically.
+python = ">=3.10,<4"
+gdal = ">=3,<4"
+rasterio = ">=1.4"
+geopandas = ">=1,<2"
+pyogrio = ">=0.9"
+shapely = ">=2.0.2"
+numpy = ">=2,<3"
+pandas = ">=2,<3"
+scipy = ">=1.13"
+netcdf4 = ">=1.7.2"
+
+[tool.pixi.pypi-dependencies]
+hydrolib = { path = ".", editable = true }
+
+[tool.pixi.feature.test.dependencies]
+pytest = ">=6.2"
+pytest-cov = ">=2.11"
+black = "*"
+isort = ">=5.8"
+flake8 = ">=3.9"
+mypy = ">=0.910"
+
+[tool.pixi.feature.docs.dependencies]
+mkdocs = ">=1.6,<2.0"
+mkdocs-material = ">=9.7,<10.0"
+mkdocstrings = ">=1.0,<2.0"
+mkdocstrings-python = ">=2.0,<3.0"
+mkdocs-autorefs = ">=1.4,<2.0"
+pymdown-extensions = ">=10.0,<11.0"
+mkdocs-macros-plugin = ">=1.5,<2.0"
+mkdocs-material-extensions = ">=1.3,<2.0"
+mkdocs-monorepo-plugin = ">=1.1,<2.0"
+
+[tool.pixi.feature.docs.pypi-dependencies]
+# conda-forge tops out at 0.25.1; PyPI has the >=0.26 range the project pins.
+mkdocs-jupyter = ">=0.26,<1.0"
+
+[tool.pixi.feature.release.dependencies]
+commitizen = ">=2.17,<3"
+python-build = "*"
+
+[tool.pixi.feature.py310.dependencies]
+python = "3.10.*"
+
+[tool.pixi.feature.py311.dependencies]
+python = "3.11.*"
+
+[tool.pixi.feature.py312.dependencies]
+python = "3.12.*"
+
+[tool.pixi.feature.py313.dependencies]
+python = "3.13.*"
+
+[tool.pixi.feature.py314.dependencies]
+python = "3.14.*"
+
+[tool.pixi.environments]
+test-py310 = ["test", "py310"]
+test-py311 = ["test", "py311"]
+test-py312 = ["test", "py312"]
+test-py313 = ["test", "py313"]
+test-py314 = ["test", "py314"]
+docs = ["docs", "py312"]
+release = ["release", "py312"]
+
+[tool.pixi.tasks]
+test = "pytest -v -m 'not slow and not plot and not dll' --cov=hydrolib --cov-report=xml --cov-report=term"
+lint = "black --check . && isort --check-only . && flake8 hydrolib tests"
+typecheck = "mypy hydrolib"
+docs-build = "mkdocs build"
+build = "python -m build"
+lock-check = "pixi lock --check"

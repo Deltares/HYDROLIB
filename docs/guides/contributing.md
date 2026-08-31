@@ -1,5 +1,18 @@
 # Contributing
 
+## Development setup
+
+HYDROLIB uses [Pixi](https://pixi.sh) to manage development environments, tasks, and
+the conda-forge-based GDAL/geospatial stack. After installing Pixi, set up a
+working copy with:
+
+``` bash
+pixi install
+pixi run test
+pixi run lint
+pixi run typecheck
+pixi run --environment docs docs-build
+```
 
 ## Tooling
 ### Black

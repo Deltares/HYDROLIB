@@ -9,11 +9,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: 3.12
+      - uses: actions/checkout@v7
 
-      - run: pipx install poetry
-      - run: poetry install --only dev --no-root --no-interaction
-      - run: poetry run mkdocs gh-deploy --force
+      - name: Set up Pixi
+        uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.78.0
+          cache: true
+          environments: docs
+
+      - run: pixi run --environment docs --locked mkdocs gh-deploy --force

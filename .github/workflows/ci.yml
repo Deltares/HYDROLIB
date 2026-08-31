@@ -7,38 +7,45 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        include:
+          - python-version: '3.10'
+            environment: test-py310
+          - python-version: '3.11'
+            environment: test-py311
+          - python-version: '3.12'
+            environment: test-py312
+          - python-version: '3.13'
+            environment: test-py313
+          - python-version: '3.14'
+            environment: test-py314
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Install poetry
-        run: pipx install poetry
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Set up Pixi
+        uses: prefix-dev/setup-pixi@v0.10.2
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'poetry'
+          pixi-version: v0.78.0
+          cache: true
+          environments: ${{ matrix.environment }}
 
-      - name: Install Dependencies
-        run: poetry install
+      - name: Check lock file is up to date
+        run: pixi lock --check
 
       - name: Test with pytest
-        run: poetry run pytest -v -m "not slow and not plot and not dll" --cov=hydrolib --cov-report=xml --cov-report=term
+        run: pixi run --environment ${{ matrix.environment }} --locked test
 
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v7
         env:
           CODECOV_TOKEN: ${{secrets.CODECOV_TOKEN}}
 
       #- name: Autoformat code if the check fails
       #  if: ${{ (matrix.os == 'ubuntu-latest') && (matrix.python-version == 3.8) }}
       #  run: |
-      #    poetry run isort .
-      #    poetry run black .
+      #    pixi run lint
       #    git config --global user.name '${{ github.actor }}'
       #    git config --global user.email '${{ github.actor }}@users.noreply.github.com'
       #    git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
