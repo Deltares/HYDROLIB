@@ -1,42 +1,44 @@
 name: ci
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+on: [push]
+
 jobs:
   CI:
     strategy:
       fail-fast: false
       matrix:
-        environment: ['py311', 'py312', 'py313', 'py314']
+        include:
+          - python-version: '3.10'
+            environment: test-py310
+          - python-version: '3.11'
+            environment: test-py311
+          - python-version: '3.12'
+            environment: test-py312
+          - python-version: '3.13'
+            environment: test-py313
+          - python-version: '3.14'
+            environment: test-py314
         os: [ubuntu-latest, windows-latest]
-
     runs-on: ${{ matrix.os }}
-
-    concurrency:
-      group: ${{ github.workflow }}-${{ matrix.os }}-${{ matrix.environment }}-${{ github.ref }}
-      cancel-in-progress: true
-
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up Pixi
-        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        uses: prefix-dev/setup-pixi@v0.10.2
         with:
-          pixi-version: v0.83.0
+          pixi-version: v0.78.0
           cache: true
           environments: ${{ matrix.environment }}
+
+      - name: Check lock file is up to date
+        run: pixi lock --check
 
       - name: Test with pytest
         run: pixi run --environment ${{ matrix.environment }} --locked test
 
-      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
+      - uses: codecov/codecov-action@v7
         env:
           CODECOV_TOKEN: ${{secrets.CODECOV_TOKEN}}
 
@@ -46,19 +48,19 @@ jobs:
   check-conda-exports:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up Pixi
-        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        uses: prefix-dev/setup-pixi@v0.10.2
         with:
-          pixi-version: v0.83.0
+          pixi-version: v0.78.0
           cache: true
-          environments: py312
+          environments: test-py312
 
       - name: Regenerate Conda environment exports
-        run: pixi run --environment py312 --locked export-conda-environments
+        run: pixi run --environment test-py312 --locked export-conda-environments
 
       - name: Fail if exported environments are stale
         run: git diff --exit-code -- environment-win-64.yml environment-linux-64.yml
