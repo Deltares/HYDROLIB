@@ -114,6 +114,7 @@ jupyter = { channel = "conda-forge" }
 contextily = { channel = "conda-forge" }
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 addopts = "-v --tb=short --durations=0"
 markers = [
   "plot: tests that open plot windows",
