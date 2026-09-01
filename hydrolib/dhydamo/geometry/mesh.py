@@ -20,7 +20,7 @@ from shapely.geometry import (
 
 from hydrolib.core.dflowfm.net.models import Branch, Mesh2d, Network
 from hydrolib.core.dflowfm.net.reader import UgridReader
-from hydrolib.dhydamo.geometry import common, rasterstats, spatial
+from hydrolib.dhydamo.geometry import common, spatial, zonal
 from hydrolib.dhydamo.geometry.models import GeometryList
 
 logger = logging.getLogger(__name__)
@@ -953,25 +953,15 @@ def mesh2d_altitude_from_raster(
     cells = [xy_facenodes[cell[index]] for cell, index in zip(cells, indices)]
     facedata = gpd.GeoDataFrame(geometry=[Polygon(cell) for cell in cells])
 
-    if where == RasterStatPosition.FACE:
-        # Get raster statistics
-        facedata.index = np.arange(len(xy), dtype=np.uint32) + 1
-        facedata["crds"] = [cell for cell in cells]
-
-        df = rasterstats.raster_stats_fine_cells(rasterpath, facedata, stats=[stat])
-        # Get z values
-        zvalues = df[stat].values
-
-    elif where == RasterStatPosition.NODE:
+    if where == RasterStatPosition.NODE:
         logger.info(
             "Generating voronoi polygons around cell centers for determining raster statistics."
         )
 
         facedata = spatial.get_voronoi_around_nodes(xy, facedata)
-        # Get raster statistics
-        df = rasterstats.raster_stats_fine_cells(rasterpath, facedata, stats=[stat])
-        # Get z values
-        zvalues = df[stat].values
+
+    df = zonal.zonal_stats(facedata, rasterpath, statistics=(stat,), strategy="raster")
+    zvalues = df[stat].values
 
     isnan = np.isnan(zvalues)
     if isnan.any():

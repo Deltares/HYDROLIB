@@ -789,12 +789,12 @@ def _prepare_hydamo(culverts: bool = False):
 @pytest.mark.parametrize(
     ("where", "fill_option", "fill_value", "outcome"),
     [
-        ("face", "interpolate", 10.0, 8716.507),
-        ("face", "fill_value", 10.0, 8716.507),
-        ("face", "nearest", None, 9138.830),
-        ("node", "interpolate", 10.0, 6355.084),
-        ("node", "fill_value", 10.0, 6340.100),
-        ("node", "nearest", None, 6782.621),
+        ("face", "interpolate", 10.0, 8737.658),
+        ("face", "fill_value", 10.0, 8737.658),
+        ("face", "nearest", None, 9125.056),
+        ("node", "interpolate", 10.0, 6360.791),
+        ("node", "fill_value", 10.0, 6349.224),
+        ("node", "nearest", None, 6779.017),
     ],
 )
 def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
