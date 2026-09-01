@@ -34,7 +34,6 @@ dependencies = [
   "branca>=0.6",
   "jinja2>=3",
   "shapely>=2.0.2",
-  "ipykernel>=7",
   "ipywidgets>=8",
   # specific gridgeom imports
   "pillow>=11",
@@ -148,13 +147,8 @@ py312 = ["py312", "dev"]
 py313 = ["py313", "dev"]
 # py314 = ["py314"]
 docs = ["docs", "py312"]
-
-[tool.pixi.environments.release]
-#The release environment only bumps the version and builds the package, so it
-# doesn't need the runtime stack from [project.dependencies].
-features = ["release", "py312"]
-no-default-feature = true
+release = ["release", "py312"]
 
 [tool.pixi.tasks]
 lock-check = "pixi lock --check"
-export-conda-environments = "pixi workspace export conda-environment environment-win-64.yml --environment py312 --platform win-64 --name hydrolib --from-lock-file && pixi workspace export conda-environment environment-linux-64.yml --environment py312 --platform linux-64 --name hydrolib --from-lock-file"
+export-conda-environments = "pixi workspace export conda-environment environment-win-64.yml --environment test-py312 --platform win-64 --name hydrolib --from-lock-file && pixi workspace export conda-environment environment-linux-64.yml --environment test-py312 --platform linux-64 --name hydrolib --from-lock-file"
