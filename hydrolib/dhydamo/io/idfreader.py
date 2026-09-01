@@ -22,6 +22,7 @@ import dask.array
 import numpy as np
 import dateutil.parser
 import xarray as xr
+from rasterio.transform import from_origin
 
 f_open = open
 
@@ -804,4 +805,27 @@ def open(path, use_cftime=False, pattern=None):
     if n == 0:
         raise FileNotFoundError(f"Could not find any files matching {path}")
     return _load(paths, use_cftime, pattern, _read, header)
+
+
+def affine_from_idf(dataset):
+    """Build a rasterio affine transform from an opened IDF dataset.
+
+    Parameters
+    ----------
+    dataset : xarray.DataArray
+        Single-time, single-layer array as returned by
+        ``idfreader.open(...).squeeze()``, with scalar ``dx``/``dy``
+        coordinates and pixel-centre ``x``/``y`` coordinates.
+
+    Returns
+    -------
+    affine.Affine
+        Geotransform for the raster, derived from its pixel-centre
+        coordinates and cell size.
+    """
+    dx = float(dataset["dx"])
+    dy = float(dataset["dy"])
+    west = float(dataset["x"].min()) - dx / 2.0
+    north = float(dataset["y"].max()) - dy / 2.0
+    return from_origin(west, north, dx, -dy)
 

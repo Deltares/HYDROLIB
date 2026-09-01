@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from shapely.geometry import Point, Polygon, box
-
+import pytest
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
+from shapely.geometry import Point, Polygon, box
 from tests.dhydamo.io import test_from_hydamo
 
 
@@ -104,6 +104,25 @@ def test_setup_rr_model(hydamo=None):
     assert len(drrmodel.external_forcings.precip) == 121
     assert len(drrmodel.external_forcings.evap) == 121
     assert len(drrmodel.external_forcings.seepage) == 121
+
+    assert drrmodel.unpaved.unp_nodes["15.0"]["ga"] == "1375"
+    assert drrmodel.unpaved.unp_nodes["15.0"]["lv"] == "16.93"
+    assert drrmodel.paved.pav_nodes["15.0"]["lv"] == "16.93"
+    assert drrmodel.greenhouse.gh_nodes["15.0"]["sl"] == "16.93"
+    assert drrmodel.openwater.ow_nodes["15.0"]["ar"] == "900.0"
+
+    assert drrmodel.external_forcings.precip["ms_15.0"]["precip"].iloc[2] == pytest.approx(
+        0.08, abs=1e-7
+    )
+    assert drrmodel.external_forcings.evap["ms_15.0"]["evap"].iloc[1] == pytest.approx(
+        2.9, abs=1e-7
+    )
+    # IDF seepage is float32-sourced; GDAL's zonal-stats mean and rasterstats'
+    # legacy mean disagree at float32 noise level (~3.6e-7 here), so this one
+    # uses a looser tolerance than the other, non-IDF, float64 fixtures above.
+    assert drrmodel.external_forcings.seepage["sep_15.0"]["seepage"].iloc[1] == pytest.approx(
+        -0.079156, abs=1e-6
+    )
 
 
 def test_boundary_from_input_drops_zero_area_catchments_without_crash():
