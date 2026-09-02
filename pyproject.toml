@@ -79,7 +79,6 @@ platforms = ["win-64", "linux-64"]
 # Only the native/compiled geospatial stack is pinned here, to source it from
 # conda-forge and keep one shared libgdal. Everything else in
 # [project.dependencies] is picked up from PyPI automatically.
-python = ">=3.10,<4"
 gdal = ">=3,<4"
 rasterio = ">=1.4"
 geopandas = ">=1,<2"
