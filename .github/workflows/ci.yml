@@ -14,8 +14,8 @@ jobs:
             environment: py312
           - python-version: '3.13'
             environment: py313
-          - python-version: '3.14'
-            environment: py314
+          # - python-version: '3.14'
+          #   environment: py314
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
