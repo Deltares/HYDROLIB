@@ -86,7 +86,7 @@ dependencies:
 - libstdcxx ==16.2.0 h934c35e_4
 - libstdcxx-ng ==16.2.0 hdf11a46_4
 - libtiff ==4.7.2 hcc2c06a_1
-- libuuid ==2.42.2 h5347b49_0
+- libuuid ==2.42.3 hcfc3c73_0
 - libwebp-base ==1.6.0 hd42ef1d_1
 - libxcb ==1.17.0 hb83e432_2
 - libxcrypt ==4.4.38 h280c20c_0
