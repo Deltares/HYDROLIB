@@ -94,7 +94,7 @@ dependencies:
 - libbrotlidec ==1.2.0 h84f9c24_3
 - libbrotlienc ==1.2.0 he2a975b_3
 - libcblas ==3.11.0 10_h2a3cdd5_mkl
-- libcurl ==8.21.0 hdb0ef4a_5
+- libcurl ==8.22.0 hdb0ef4a_0
 - libdeflate ==1.25 h1a1d4e4_1
 - libexpat ==2.8.1 hac47afa_1
 - libffi ==3.7.0 h3d046cb_1
