@@ -2,7 +2,7 @@ import logging
 
 import geopandas as gpd
 import numpy as np
-from matplotlib import path
+import shapely
 from scipy.spatial import Voronoi
 from shapely import affinity
 from shapely.geometry import (
@@ -61,29 +61,6 @@ def minimum_bounds_fixed_rotation(polygon, angle):
 
     return origin, xsize, ysize
 
-def possibly_intersecting(dataframebounds, geometry, buffer=0):
-    """
-    Finding intersecting profiles for each branch is a slow process in case of large datasets
-    To speed this up, we first determine which profile intersect a square box around the branch
-    With the selection, the interseting profiles can be determines much faster.
-
-    Parameters
-    ----------
-    dataframebounds : numpy.array
-    geometry : shapely.geometry.Polygon
-    """
-
-    geobounds = geometry.bounds
-    idx = (
-        (dataframebounds[0] - buffer < geobounds[2]) &
-        (dataframebounds[2] + buffer > geobounds[0]) &
-        (dataframebounds[1] - buffer < geobounds[3]) &
-        (dataframebounds[3] + buffer > geobounds[1])
-    )
-    # Get intersecting profiles
-    return idx
-
-
 def find_nearest_branch(branches, geometries, method='overal', maxdist=5):
     """
     Method to determine nearest branch for each geometry.
@@ -116,10 +93,9 @@ def find_nearest_branch(branches, geometries, method='overal', maxdist=5):
 
     if method == 'intersecting':
         # Determine intersection geometries per branch
-        geobounds = geometries.bounds.values.T
+        sindex = geometries.sindex
         for branch in branches.itertuples():
-            selectie = geometries.loc[possibly_intersecting(geobounds, branch.geometry)].copy()
-            intersecting = selectie.loc[selectie.intersects(branch.geometry).values]
+            intersecting = geometries.iloc[sindex.query(branch.geometry, predicate="intersects")]
 
             # For each geometrie, determine offset along branch
             for geometry in intersecting.itertuples():
@@ -134,12 +110,12 @@ def find_nearest_branch(branches, geometries, method='overal', maxdist=5):
                 geometries.at[geometry.Index, 'branch_offset'] = offset
 
     else:
-        branch_bounds = branches.bounds.values.T
+        sindex = branches.sindex
         # In case of looking for the nearest, it is easier to iteratie over the geometries instead of the branches
         for geometry in geometries.itertuples():
             # Find near branches
-            nearidx = possibly_intersecting(branch_bounds, geometry.geometry, buffer=maxdist)
-            selectie = branches.loc[nearidx]
+            nearidx = sindex.query(geometry.geometry, predicate="dwithin", distance=maxdist)
+            selectie = branches.iloc[nearidx]
 
             if method == 'overal':
                 # Determine distances to branches
@@ -237,49 +213,6 @@ def extend_linestring(line: LineString, near_pt: Point, length: float) -> LineSt
 
     return LineString([(x0, y0), (x0 - dx, y0 - dy)])
 
-def points_in_polygon(points: np.ndarray, polygon: Polygon) -> np.ndarray:
-    """
-    Determine points that are inside a polygon, taking
-    holes into account.
-
-    Parameters
-    ----------
-    points : numpy.array
-        Nx2 - array
-    polygon : shapely.geometry.Polygon
-        Polygon (can have holes)
-    """
-    # First select points in square box around polygon
-    ptx, pty = points.T
-    mainindex = possibly_intersecting(
-        dataframebounds=np.c_[[ptx, pty, ptx, pty]], geometry=polygon)
-    boxpoints = points[mainindex]
-
-    extp = path.Path(polygon.exterior)
-    intps = [path.Path(interior) for interior in polygon.interiors]
-
-    # create first index. Everything within exterior is True
-    index = extp.contains_points(boxpoints)
-
-    # set points in holes also to nan
-    if intps:
-        subset = boxpoints[index]
-        # Start with all False
-        subindex = np.zeros(len(subset), dtype=bool)
-
-        for intp in intps:
-            # update mask, set to True where point in interior
-            subindex = subindex | intp.contains_points(subset)
-
-        # Everything within interiors should be True
-        # So, set everything within interiors (subindex == True), to True
-        index[np.where(index)[0][subindex]] = False
-
-    # Set index in main index to False
-    mainindex[np.where(mainindex)[0][~index]] = False
-
-    return mainindex
-
 def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """Creates voronoi polygons around face nodes.
 
@@ -294,7 +227,7 @@ def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> g
     # Add border to limit polygons
     border = box(nodes[:, 0].min(), nodes[:, 1].min(), nodes[:, 0].max(), nodes[:, 1].max()).buffer(1000).exterior
     borderpts = [border.interpolate(dist).coords[0] for dist in np.linspace(0, border.length, max(20, int(border.length / 100)))]
-    vor = Voronoi(points=nodes.tolist()+borderpts)
+    vor = Voronoi(points=np.vstack([nodes, borderpts]))
     clippoly = facedata.union_all()
     # Get lines
     lines = []
@@ -302,20 +235,21 @@ def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> g
         lines.append(poly.exterior)
         lines.extend([line for line in poly.interiors])
     linesprep = prep(MultiLineString(lines))
-    clipprep = prep(clippoly)
+
+    # Determine for all nodes at once whether they lie within the clip polygon
+    inside = shapely.intersects(clippoly, shapely.points(nodes))
 
     # Collect polygons
     data = []
-    for (pr, pt) in zip(vor.point_region, nodes):
+    for (pr, pt_inside) in zip(vor.point_region, inside):
         region = vor.regions[pr]
         if pr == -1:
             break
-        while -1 in region:
-            region.remove(-1)
+        region = [v for v in region if v != -1]
         if len(region) < 3:
             continue
-        crds = vor.vertices[region]
-        if clipprep.intersects(Point(pt)):
+        if pt_inside:
+            crds = vor.vertices[region]
             poly = Polygon(crds)
             if linesprep.intersects(poly):
                 poly = poly.intersection(clippoly)
