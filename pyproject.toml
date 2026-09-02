@@ -89,7 +89,6 @@ numpy = ">=2,<3"
 pandas = ">=2,<3"
 scipy = ">=1.13"
 netcdf4 = ">=1.7.2"
-ipykernel = "*"
 
 [tool.pixi.pypi-dependencies]
 hydrolib = { path = ".", editable = true }
