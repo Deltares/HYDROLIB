@@ -5,7 +5,7 @@ from pathlib import Path
 def _pyproject_version():
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
     match = re.search(
-        r'^\[tool\.poetry\][\s\S]*?^version = "([^"]+)"',
+        r'^\[project\][\s\S]*?^version = "([^"]+)"',
         pyproject.read_text(encoding="utf-8"),
         re.MULTILINE,
     )
