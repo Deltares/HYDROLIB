@@ -1,16 +1,17 @@
-import json
 from pathlib import Path
 from typing import Literal
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 from osgeo import gdal, gdal_array, ogr, osr
 
 gdal.UseExceptions()
 
 _ZONE_ID_FIELD = "_zonal_id"
 _ZONE_LAYER = "zones"
+_ZONE_GEOMETRY_FIELD = "geometry"
 
 
 def zonal_stats(
@@ -48,7 +49,10 @@ def zonal_stats(
     nodata : float, optional
         Array value to exclude from the calculation.
     strategy : {'feature', 'raster'}, default 'feature'
-        GDAL processing strategy.
+        GDAL processing strategy for ``mean``/``mode``, run as a single
+        ``gdal.Run`` call across every zone regardless of this value. The
+        ``median`` reconstruction always uses ``strategy="feature"``
+        internally, independent of this argument.
 
     Returns
     -------
@@ -87,7 +91,13 @@ def zonal_stats(
 
         if "median" in statistics:
             # GDAL does not implement median. Reconstruct it from the exact
-            # value frequencies reported by count, unique, and frac.
+            # value frequencies reported by count, unique, and frac. This
+            # runs one zone at a time, so it can never benefit from
+            # strategy="raster" (whose entire benefit is sharing a single
+            # raster scan across many zones in one call); forcing
+            # strategy="feature" here avoids paying a full-raster-scan cost
+            # per zone, regardless of what strategy the caller requested for
+            # the batched statistics above.
             for position, record in enumerate(records):
                 record["median"] = _median_from_unique_frac(
                     _run_gdal_zonal_stats(
@@ -95,7 +105,7 @@ def zonal_stats(
                         raster_dataset=raster_dataset,
                         statistics=("count", "unique", "frac"),
                         pixel_mode=_pixel_mode(all_touched),
-                        strategy=strategy,
+                        strategy="feature",
                     )[0]
                 )
 
@@ -468,16 +478,23 @@ def _zones_to_mem_datasource(zones: gpd.GeoDataFrame, spatial_ref):
         raise RuntimeError("Could not create an in-memory GDAL zones datasource.")
 
     layer = dataset.CreateLayer(_ZONE_LAYER, spatial_ref, ogr.wkbUnknown)
+    # WritePyArrow matches the geometry column by the geometry field's name;
+    # a freshly created layer's default geometry field has no name.
+    layer.AlterGeomFieldDefn(
+        0,
+        ogr.GeomFieldDefn(_ZONE_GEOMETRY_FIELD, ogr.wkbUnknown),
+        ogr.ALTER_GEOM_FIELD_DEFN_NAME_FLAG,
+    )
     layer.CreateField(ogr.FieldDefn(_ZONE_ID_FIELD, ogr.OFTInteger64))
 
-    definition = layer.GetLayerDefn()
-    for position, geometry in enumerate(zones.geometry):
-        feature = ogr.Feature(definition)
-        feature.SetField(_ZONE_ID_FIELD, position)
-        ogr_geometry = ogr.CreateGeometryFromWkb(geometry.wkb)
-        feature.SetGeometry(ogr_geometry)
-        if layer.CreateFeature(feature) != ogr.OGRERR_NONE:
-            raise RuntimeError(f"Could not write zone {position} to GDAL.")
+    minimal_zones = gpd.GeoDataFrame(
+        {_ZONE_ID_FIELD: np.arange(len(zones), dtype=np.int64)},
+        geometry=zones.geometry.to_numpy(),
+        crs=zones.crs,
+    )
+    table = pa.table(minimal_zones.to_arrow(geometry_encoding="WKB"))
+    if layer.WritePyArrow(table) != ogr.OGRERR_NONE:
+        raise RuntimeError("Could not write zones to GDAL.")
     return dataset
 
 
@@ -500,49 +517,28 @@ def _read_output_records(
     list of dict
         One decoded statistics mapping per input zone.
     """
+    stream = layer.GetArrowStreamAsPyArrow()
+    batches = [pa.RecordBatch.from_struct_array(array) for array in stream]
+    table = pa.Table.from_batches(batches) if batches else None
+
     records: dict[int, dict] = {}
-    for feature in layer:
-        zone_id = feature.GetField(_ZONE_ID_FIELD)
-        if zone_id is None:
-            raise RuntimeError("GDAL zonal-statistics output lacks '_zonal_id'.")
-        zone_id = int(zone_id)
-        if zone_id in records:
-            raise RuntimeError(f"GDAL returned duplicate zone ID {zone_id}.")
-        if not 0 <= zone_id < zone_count:
-            raise RuntimeError(f"GDAL returned invalid zone ID {zone_id}.")
-        records[zone_id] = {
-            statistic: _output_value(feature, statistic) for statistic in statistics
-        }
+    if table is not None and table.num_rows:
+        zone_ids = table.column(_ZONE_ID_FIELD).to_pylist()
+        columns = {stat: table.column(stat).to_pylist() for stat in statistics}
+        for row, zone_id in enumerate(zone_ids):
+            if zone_id is None:
+                raise RuntimeError(f"GDAL zonal-statistics output lacks '{_ZONE_ID_FIELD}'.")
+            zone_id = int(zone_id)
+            if zone_id in records:
+                raise RuntimeError(f"GDAL returned duplicate zone ID {zone_id}.")
+            if not 0 <= zone_id < zone_count:
+                raise RuntimeError(f"GDAL returned invalid zone ID {zone_id}.")
+            records[zone_id] = {stat: columns[stat][row] for stat in statistics}
 
     missing = sorted(set(range(zone_count)) - records.keys())
     if missing:
         raise RuntimeError(f"GDAL did not return zone IDs {missing}.")
     return [records[position] for position in range(zone_count)]
-
-
-def _output_value(feature, name: str):
-    """Read one nullable GDAL output field and decode array JSON.
-
-    Parameters
-    ----------
-    feature : osgeo.ogr.Feature
-        Output feature containing the requested field.
-    name : str
-        Statistic field name.
-
-    Returns
-    -------
-    object or None
-        Field value, decoded list for ``unique`` and ``frac``, or ``None`` for
-        an absent or null field.
-    """
-    field_index = feature.GetFieldIndex(name)
-    if field_index < 0 or not feature.IsFieldSetAndNotNull(field_index):
-        return None
-    value = feature.GetField(field_index)
-    if isinstance(value, str) and name in {"unique", "frac"}:
-        value = json.loads(value)
-    return value
 
 
 def _spatial_reference_from_crs(crs, source_name: str):
