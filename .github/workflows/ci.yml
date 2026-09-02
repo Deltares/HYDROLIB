@@ -9,13 +9,13 @@ jobs:
       matrix:
         include:
           - python-version: '3.11'
-            environment: test-py311
+            environment: py311
           - python-version: '3.12'
-            environment: test-py312
+            environment: py312
           - python-version: '3.13'
-            environment: test-py313
+            environment: py313
           - python-version: '3.14'
-            environment: test-py314
+            environment: py314
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
@@ -55,10 +55,10 @@ jobs:
         with:
           pixi-version: v0.78.0
           cache: true
-          environments: test-py312
+          environments: py312
 
       - name: Regenerate Conda environment exports
-        run: pixi run --environment test-py312 --locked export-conda-environments
+        run: pixi run --environment py312 --locked export-conda-environments
 
       - name: Fail if exported environments are stale
         run: git diff --exit-code -- environment-win-64.yml environment-linux-64.yml

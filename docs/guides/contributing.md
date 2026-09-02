@@ -32,7 +32,7 @@ If you use [conventional commit messages](https://www.conventionalcommits.org/en
 `environment-win-64.yml` and `environment-linux-64.yml` at the repository root
 are frozen Conda environment files, generated from `pixi.lock`, for
 Miniforge/Conda users who don't want to install Pixi. They let a user recreate
-the exact `test-py312` environment with:
+the exact `py312` environment with:
 
 ``` bash
 conda env create -f environment-win-64.yml
@@ -49,7 +49,7 @@ pixi run --environment test-py312 export-conda-environments
 and commit the regenerated files alongside `pixi.lock`.
 
 Install the [pre-commit](https://pre-commit.com) hook once with
-`pixi run --environment test-py312 pre-commit install` and it will regenerate
+`pixi run --environment py312 pre-commit install` and it will regenerate
 both files automatically whenever `pixi.lock` is staged; because the hook
 modifies files, the first `git commit` attempt after a lockfile change stops
 so you can `git add` the regenerated files and commit again. CI also

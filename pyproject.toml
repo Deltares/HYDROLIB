@@ -29,6 +29,11 @@ dependencies = [
   "shapely>=2.0.2",
   "ipykernel>=7",
   "ipywidgets>=8",
+  "pytest>=6.2",
+  "pytest-cov>=2.11",
+  "ruff>=0.12",
+  "mypy>=0.910",
+  "pre-commit>=3.7",
   # specific gridgeom imports
   "pillow>=11",
 ]
@@ -92,13 +97,6 @@ netcdf4 = ">=1.7.2"
 [tool.pixi.pypi-dependencies]
 hydrolib = { path = ".", editable = true }
 
-[tool.pixi.feature.test.dependencies]
-pytest = ">=6.2"
-pytest-cov = ">=2.11"
-ruff = ">=0.12"
-mypy = ">=0.910"
-pre-commit = ">=3.7"
-
 [tool.pixi.feature.docs.dependencies]
 mkdocs = ">=1.6,<2.0"
 mkdocs-material = ">=9.7,<10.0"
@@ -131,10 +129,10 @@ python = "3.13.*"
 python = "3.14.*"
 
 [tool.pixi.environments]
-test-py311 = ["test", "py311"]
-test-py312 = ["test", "py312"]
-test-py313 = ["test", "py313"]
-test-py314 = ["test", "py314"]
+py311 = ["py311"]
+py312 = ["py312"]
+py313 = ["py313"]
+py314 = ["py314"]
 docs = ["docs", "py312"]
 
 [tool.pixi.environments.release]
@@ -151,4 +149,4 @@ typecheck = "mypy hydrolib"
 docs-build = "mkdocs build"
 build = "python -m build"
 lock-check = "pixi lock --check"
-export-conda-environments = "pixi workspace export conda-environment environment-win-64.yml --environment test-py312 --platform win-64 --name hydrolib --from-lock-file && pixi workspace export conda-environment environment-linux-64.yml --environment test-py312 --platform linux-64 --name hydrolib --from-lock-file"
+export-conda-environments = "pixi workspace export conda-environment environment-win-64.yml --environment py312 --platform win-64 --name hydrolib --from-lock-file && pixi workspace export conda-environment environment-linux-64.yml --environment py312 --platform linux-64 --name hydrolib --from-lock-file"
