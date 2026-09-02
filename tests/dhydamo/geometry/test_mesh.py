@@ -21,7 +21,7 @@ from hydrolib.dhydamo.geometry.models import GeometryList
 from tests.dhydamo.io import test_from_hydamo
 
 hydamo_data_path = (
-    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
+    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"
 )
 
 test_figure_path = Path(__file__).parent / ".." / ".." / "figures"
