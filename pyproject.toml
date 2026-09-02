@@ -29,6 +29,7 @@ dependencies = [
   "shapely>=2.0.2",
   "ipykernel>=7",
   "ipywidgets>=8",
+  "pyarrow>=25",
   "pytest>=6.2",
   "pytest-cov>=2.11",
   "ruff>=0.12",

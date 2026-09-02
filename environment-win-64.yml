@@ -203,6 +203,7 @@ dependencies:
   - ruff==0.16.5
   - ast-serialize==0.8.0
   - comm==0.2.3
+  - pyarrow==25.0.1
   - coverage==7.16.0
   - typing-inspection==0.4.4
   - pygments==2.21.0
