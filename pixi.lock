@@ -10897,7 +10897,7 @@ packages:
   - tqdm>=4.66.1
   - rasterio>=1.4
   - netcdf4>=1.7.2
-  - rasterstats>=0.21
+  - gdal>=3.12,<4.0
   - dask>=2024
   - pyogrio>=0.9
   - folium>=0.18
@@ -10910,6 +10910,7 @@ packages:
   - mypy>=0.910
   - pre-commit>=3.7
   - pillow>=11
+  - rasterstats>=0.21
   requires_python: '>=3.11,<3.14'
 - pypi: https://files.pythonhosted.org/packages/00/18/04ea74843dca6f281d30b1b39e6548ea4396c36bf663d506013c8ce5d61d/meshkernel-8.3.0-py3-none-win_amd64.whl
   name: meshkernel
