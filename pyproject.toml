@@ -3,7 +3,7 @@ name = "hydrolib"
 version = "0.5.1" # Auto-updated by Commitizen during releases.
 description = "HYDROLIB tools for hydrodynamic and hydrological modelling workflows"
 readme = "README.md"
-requires-python = ">=3.11,<4"
+requires-python = ">=3.11,<3.14"
 license = { text = "LGPL" }
 authors = [{ name = "Deltares" }]
 maintainers = [
