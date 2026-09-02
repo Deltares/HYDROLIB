@@ -3,7 +3,7 @@ name = "hydrolib"
 version = "0.5.1" # Auto-updated by Commitizen during releases.
 description = "HYDROLIB tools for hydrodynamic and hydrological modelling workflows"
 readme = "README.md"
-requires-python = ">=3.10,<4"
+requires-python = ">=3.11,<4"
 license = { text = "LGPL" }
 authors = [{ name = "Deltares" }]
 maintainers = [
@@ -13,7 +13,7 @@ maintainers = [
 dependencies = [
   "pandas>=2,<3", # TODO add support for pandas 3: https://github.com/Deltares/HYDROLIB/issues/225
   "geopandas>=1,<2",
-  "xarray>=2024.1.0",
+  "xarray>=2024",
   "hydrolib-core>=1.0.1,<2",
   "numpy>=2,<3",
   "matplotlib>=3.9",
@@ -23,15 +23,14 @@ dependencies = [
   "rasterio>=1.4",
   "netcdf4>=1.7.2",
   "rasterstats>=0.21", # uses pyogrio instead of fiona as default engine and supports python 3.14
-  "jupyterlab>=4",
-  "contextily>=1.4",
-  "dask>=2024.1.0",
+  "dask>=2024",
   "pyogrio>=0.9",
   "folium>=0.18",
-  "pillow>=11",
-  "ipython>=8.29",
   "shapely>=2.0.2",
+  "ipykernel>=7",
   "ipywidgets>=8",
+  # specific gridgeom imports
+  "pillow>=11",
 ]
 
 [build-system]
@@ -90,6 +89,7 @@ numpy = ">=2,<3"
 pandas = ">=2,<3"
 scipy = ">=1.13"
 netcdf4 = ">=1.7.2"
+ipykernel = "*"
 
 [tool.pixi.pypi-dependencies]
 hydrolib = { path = ".", editable = true }
@@ -120,9 +120,6 @@ mkdocs-jupyter = ">=0.26,<1.0"
 commitizen = ">=2.17,<3"
 python-build = "*"
 
-[tool.pixi.feature.py310.dependencies]
-python = "3.10.*"
-
 [tool.pixi.feature.py311.dependencies]
 python = "3.11.*"
 
@@ -136,13 +133,17 @@ python = "3.13.*"
 python = "3.14.*"
 
 [tool.pixi.environments]
-test-py310 = ["test", "py310"]
 test-py311 = ["test", "py311"]
 test-py312 = ["test", "py312"]
 test-py313 = ["test", "py313"]
 test-py314 = ["test", "py314"]
 docs = ["docs", "py312"]
-release = ["release", "py312"]
+
+[tool.pixi.environments.release]
+#The release environment only bumps the version and builds the package, so it
+# doesn't need the runtime stack from [project.dependencies].
+features = ["release", "py312"]
+no-default-feature = true
 
 [tool.pixi.tasks]
 test = "pytest -v -m 'not slow and not plot and not dll' --cov=hydrolib --cov-report=xml --cov-report=term"
