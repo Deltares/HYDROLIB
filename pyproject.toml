@@ -13,7 +13,7 @@ maintainers = [
 dependencies = [
   "pandas>=2,<3", # TODO add support for pandas 3: https://github.com/Deltares/HYDROLIB/issues/225
   "geopandas>=1,<2",
-  "xarray>=2024.1.0",
+  "xarray>=2024",
   "hydrolib-core>=1.0.1,<2",
   "numpy>=2,<3",
   "matplotlib>=3.9",
@@ -21,15 +21,13 @@ dependencies = [
   "scipy>=1.13",
   "tqdm>=4.66.1",
   "rasterio>=1.4",
-  "gdal>=3.12,<4.0",
   "netcdf4>=1.7.2",
   "gdal>=3.12,<4.0",
   "dask>=2024",
   "pyogrio>=0.9",
   "folium>=0.18",
-  "pillow>=11",
-  "ipython>=8.29",
   "shapely>=2.0.2",
+  "ipykernel>=7",
   "ipywidgets>=8",
   "pytest>=6.2",
   "pytest-cov>=2.11",
@@ -100,13 +98,6 @@ netcdf4 = ">=1.7.2"
 [tool.pixi.pypi-dependencies]
 hydrolib = { path = ".", editable = true }
 
-[tool.pixi.feature.test.dependencies]
-pytest = ">=6.2"
-pytest-cov = ">=2.11"
-ruff = ">=0.12"
-mypy = ">=0.910"
-pre-commit = ">=3.7"
-
 [tool.pixi.feature.docs.dependencies]
 mkdocs = ">=1.6,<2.0"
 mkdocs-material = ">=9.7,<10.0"
@@ -144,7 +135,12 @@ py312 = ["py312"]
 py313 = ["py313"]
 # py314 = ["py314"]
 docs = ["docs", "py312"]
-release = ["release", "py312"]
+
+[tool.pixi.environments.release]
+#The release environment only bumps the version and builds the package, so it
+# doesn't need the runtime stack from [project.dependencies].
+features = ["release", "py312"]
+no-default-feature = true
 
 [tool.pixi.tasks]
 test = "pytest -v -m 'not slow and not plot and not dll' --cov=hydrolib --cov-report=xml --cov-report=term"
@@ -154,4 +150,4 @@ typecheck = "mypy hydrolib"
 docs-build = "mkdocs build"
 build = "python -m build"
 lock-check = "pixi lock --check"
-export-conda-environments = "pixi workspace export conda-environment environment-win-64.yml --environment test-py312 --platform win-64 --name hydrolib --from-lock-file && pixi workspace export conda-environment environment-linux-64.yml --environment test-py312 --platform linux-64 --name hydrolib --from-lock-file"
+export-conda-environments = "pixi workspace export conda-environment environment-win-64.yml --environment py312 --platform win-64 --name hydrolib --from-lock-file && pixi workspace export conda-environment environment-linux-64.yml --environment py312 --platform linux-64 --name hydrolib --from-lock-file"
