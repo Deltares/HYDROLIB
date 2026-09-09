@@ -779,7 +779,7 @@ class ExternalForcingsIO:
             seepage_folder (str): folder where the seepage rasters are stored
         """
         warnings.filterwarnings("ignore")
-        file_list = os.listdir(seepage_folder)
+        file_list = sorted(os.listdir(seepage_folder))
         file_list = [file for file in file_list if file.lower()]
         times = []
         convert_units=False
@@ -838,7 +838,7 @@ class ExternalForcingsIO:
         """
         if precip_file is None:
             warnings.filterwarnings("ignore")
-            file_list = os.listdir(precip_folder)
+            file_list = sorted(os.listdir(precip_folder))
             times = []
             zones = gpd.GeoDataFrame(areas)
             arr = np.zeros((len(file_list), len(areas.code)))
@@ -877,7 +877,7 @@ class ExternalForcingsIO:
         """
         if evap_file is None:
             warnings.filterwarnings("ignore")
-            file_list = os.listdir(evap_folder)
+            file_list = sorted(os.listdir(evap_folder))
             # aggregated evap
             # areas['dissolve'] = 1
             # agg_areas = areas.iloc[0:len(areas),:].dissolve(by='dissolve',aggfunc='mean')
