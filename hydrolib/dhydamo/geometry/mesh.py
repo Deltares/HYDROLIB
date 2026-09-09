@@ -946,18 +946,23 @@ def mesh2d_altitude_from_raster(
 
     # Create cells as polygons
     xy_facenodes = np.stack([mesh2d_output.node_x, mesh2d_output.node_y], axis=1)
-    cells = network._mesh2d.mesh2d_face_nodes
-    nodatavalue = np.iinfo(cells.dtype).min
-    indices = cells != nodatavalue
-    indices = cells != -2147483648
-    cells = [xy_facenodes[cell[index]] for cell, index in zip(cells, indices)]
-    facedata = gpd.GeoDataFrame(geometry=[Polygon(cell) for cell in cells])
+    # Use raw MeshKernel connectivity instead of mesh2d_face_nodes, whose
+    # fixed-width rows contain padding for triangles and other shorter faces.
+    # nodes_per_face marks each face boundary in the flattened coordinates.
+    face_node_counts = mesh2d_output.nodes_per_face
+    face_coords = xy_facenodes[mesh2d_output.face_nodes]
+    # Shapely's ``indices`` groups coordinates into rings. Repeat each face ID
+    # by its node count so every coordinate is assigned to the correct face.
+    face_ids = np.arange(len(face_node_counts))
+    face_idx = np.repeat(face_ids, face_node_counts)
+    facedata = gpd.GeoDataFrame(
+        geometry=shapely.polygons(shapely.linearrings(face_coords, indices=face_idx))
+    )
 
     if where == RasterStatPosition.NODE:
         logger.info(
             "Generating voronoi polygons around cell centers for determining raster statistics."
         )
-
         facedata = spatial.get_voronoi_around_nodes(xy, facedata)
 
     df = zonal.zonal_stats(facedata, rasterpath, statistics=(stat,), strategy="raster")
