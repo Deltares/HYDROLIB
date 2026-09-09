@@ -97,8 +97,7 @@ class UnpavedIO:
             all_touched=all_touched,
         )
 
-        # @TODO mean in naam maar median
-        mean_elev = zonal.zonal_stats(
+        stats_elev = zonal.zonal_stats(
             gpd.GeoDataFrame(catchments),
             surface_level,
             statistics=("median",),
@@ -153,7 +152,7 @@ class UnpavedIO:
         sobek_indices = [3, 5, 4, 2, 15, 10, 9, 1, 11, 12, 13, 14]
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
-            if pd.isna(mean_elev.iloc[num]["median"]): # @TODO mean in naam maar median
+            if pd.isna(stats_elev.iloc[num]["median"]):
                 logger.warning(NO_RASTERDATA_WARNING, cat.code)
                 self.unpaved.add_unpaved(
                     id="0.0",
@@ -202,7 +201,7 @@ class UnpavedIO:
             for i in range(1, 13):
                 mapping[sobek_indices[i - 1] - 1] = landuse_counts.get(i, 0) * px_area
             lu_map = " ".join(map(str, mapping))
-            elev = mean_elev.iloc[num]["median"] # @TODO mean in naam maar median
+            elev = stats_elev.iloc[num]["median"]
             self.unpaved.add_unpaved(
                 id=str(cat.code),
                 total_area=f"{cat.geometry.area:.0f}",
@@ -307,10 +306,10 @@ class PavedIO:
             landuse,
             all_touched=all_touched,
         )
-        mean_elev = zonal.zonal_stats(
+        stats_elev = zonal.zonal_stats(
             gpd.GeoDataFrame(catchments),
             surface_level,
-            statistics=("median",), # @TODO mean in naam maar median
+            statistics=("median",),
             all_touched=all_touched,
         )
 
@@ -379,10 +378,10 @@ class PavedIO:
                     all_touched=True,
                     raster_crs=reference_crs,
                 )
-            mean_sa_elev = zonal.zonal_stats(
+            stats_sa_elev = zonal.zonal_stats(
                 gpd.GeoDataFrame(sewer_areas),
                 surface_level,
-                statistics=("median",), # @TODO mean in naam maar median
+                statistics=("median",),
                 all_touched=True,
             )
             sewer_lu_counts = zonal.zonal_category_counts(
@@ -404,7 +403,7 @@ class PavedIO:
                 # lu_counts[cat_ind][14.0] -=  pav_pixels
                 # if lu_counts[cat_ind][14.0] < 0: lu_counts[cat_ind][14.0]  = 0
 
-                elev = mean_sa_elev.iloc[isew]["median"] # @TODO mean in naam maar median
+                elev = stats_sa_elev.iloc[isew]["median"]
                 # find overflows related to this sewer area
                 ovf = overflows[overflows.codegerelateerdobject == sew.code]
                 for ov in ovf.itertuples():
@@ -467,7 +466,7 @@ class PavedIO:
 
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
-            if pd.isna(mean_elev.iloc[num]["median"]): # @TODO mean in naam maar median
+            if pd.isna(stats_elev.iloc[num]["median"]):
                 logger.warning(NO_RASTERDATA_WARNING, cat.code)
                 self.paved.add_paved(**dict.fromkeys(paved_columns, "0.0"))
                 continue
@@ -515,7 +514,7 @@ class PavedIO:
             ]
             ms = meteo_areas.iloc[0, 0] if not tm else tm[0].code
 
-            elev = mean_elev.iloc[num]["median"] # @TODO mean in naam maar median
+            elev = stats_elev.iloc[num]["median"]
             # if a float is given, a standard value is passed. If a string is given, a rastername is assumed to zonal statistics are applied.
             street_storage_val = (
                 f"{street_storage:.2f}"
@@ -583,17 +582,17 @@ class GreenhouseIO:
             landuse,
             all_touched=all_touched,
         )
-        mean_elev = zonal.zonal_stats(
+        stats_elev = zonal.zonal_stats(
             gpd.GeoDataFrame(catchments),
             surface_level,
-            statistics=("median",), # @TODO mean in naam maar median
+            statistics=("median",),
             all_touched=all_touched,
         )
         if greenhouse_areas is not None:
-            mean_elev_gh = zonal.zonal_stats(
+            stats_elev_gh = zonal.zonal_stats(
                  gpd.GeoDataFrame(greenhouse_areas),
                  surface_level,
-                 statistics=("median",), # @TODO mean in naam maar median
+                 statistics=("median",),
                  all_touched=all_touched,
             )
             
@@ -629,7 +628,7 @@ class GreenhouseIO:
         if greenhouse_areas is not None:
             for num, gh in enumerate(greenhouse_areas.itertuples()):
                 # find corresponding meteo-station
-                if pd.isna(mean_elev_gh.iloc[num]["median"]): # @TODO mean in naam maar median
+                if pd.isna(stats_elev_gh.iloc[num]["median"]):
                     logger.warning(NO_RASTERDATA_WARNING, gh.code)
                     self.greenhouse.add_greenhouse(**dict.fromkeys(gh_columns, "0.0"))
                     continue
@@ -640,7 +639,7 @@ class GreenhouseIO:
                 ]
                 ms = meteo_areas.iloc[0, 0] if not tm else tm[0].code
 
-                elev = mean_elev_gh.iloc[num]["median"] # @TODO mean in naam maar median
+                elev = stats_elev_gh.iloc[num]["median"]
                 if hasattr(gh, 'roof_storage_mm') and not np.isnan(gh.roof_storage_mm):
                     roof_storage_val = f"{gh.roof_storage_mm:.2f}"
                 elif isinstance(roof_storage, float):
@@ -666,7 +665,7 @@ class GreenhouseIO:
 
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
-            if pd.isna(mean_elev.iloc[num]["median"]): # @TODO mean in naam maar median
+            if pd.isna(stats_elev.iloc[num]["median"]):
                 logger.warning(NO_RASTERDATA_WARNING, cat.code)
                 self.greenhouse.add_greenhouse(**dict.fromkeys(gh_columns, "0.0"))
                 continue
@@ -694,7 +693,7 @@ class GreenhouseIO:
                         [0.0, landuse_counts[15] - np.round(intersection_area / px_area)]
                     )
             
-            elev = mean_elev.iloc[num]["median"] # @TODO mean in naam maar median
+            elev = stats_elev.iloc[num]["median"]
             roof_storage_val = (
                 f"{roof_storage:.2f}"
                 if isinstance(roof_storage, float)
