@@ -9,18 +9,16 @@ import geopandas as gpd
 import pandas as pd
 import pytest
 from hydrolib.core.dflowfm.mdu.models import FMModel
-from shapely.geometry import LineString, Point
-
-from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.core.drtc import DRTCModel
+from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.io.damo_converters import (
     SUPPORTED_HYDAMO_VERSIONS,
     get_damo_converter,
 )
 from hydrolib.dhydamo.validation import HyDAMOValidationError
+from shapely.geometry import LineString, Point
 
-
-DATA_PATH = Path("hydrolib/tests/data").resolve()
+DATA_PATH = Path("hydrolib/sample_data/data").resolve()
 
 
 def _write_layer(gpkg_path: Path, layer_name: str, gdf: gpd.GeoDataFrame) -> None:
