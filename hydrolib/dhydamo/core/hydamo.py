@@ -23,11 +23,11 @@ from hydrolib.dhydamo.converters.hydamo2df import (
 )
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
+from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 from hydrolib.dhydamo.io.damo_converters import (
     SUPPORTED_HYDAMO_VERSIONS,
     get_damo_converter,
 )
-from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 from hydrolib.dhydamo.validation import (
     HydamoValidationResult,
     ValidationMode,
@@ -43,7 +43,7 @@ class HyDAMO:
     """
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
-    def __init__(self, extent_file: Path | str = None) -> None:
+    def __init__(self, extent_file: Path | str | None = None) -> None:
         """Initiate subclasses and IO-methods
 
         Args:

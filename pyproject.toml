@@ -38,6 +38,12 @@ dependencies = [
   "pillow>=11",
 ]
 
+[project.optional-dependencies]
+validation = [
+  "hydamo-validation>=1.6.0",
+  "fiona>=1.10",
+]
+
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
@@ -69,11 +75,12 @@ extend-select = ["I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short --durations=0"
+addopts = "-v --tb=short --durations=0 --basetemp=.pytest-tmp"
 markers = [
   "plot: tests that open plot windows",
   "slow: tests that are known to run slowly",
-  "dll: tests that are dependent on Windows DLL's"
+  "dll: tests that are dependent on Windows DLL's",
+  "requires_hydamo_validation: integration tests requiring hydamo-validation",
 ]
 
 [tool.pixi.workspace]
@@ -125,15 +132,24 @@ python = "3.12.*"
 [tool.pixi.feature.py313.dependencies]
 python = "3.13.*"
 
+[tool.pixi.feature.validation.dependencies]
+# Fiona is supplied by conda-forge to keep it ABI-compatible with Pixi's GDAL.
+fiona = ">=1.10"
+
+[tool.pixi.feature.validation.pypi-dependencies]
+# hydamo-validation 1.6.0 imports Fiona but does not declare it on PyPI.
+hydamo-validation = ">=1.6.0"
+
 # [tool.pixi.feature.py314.dependencies]
 # python = "3.14.*"
 
 [tool.pixi.environments]
 py311 = ["py311"]
-py312 = ["py312"]
+py312 = ["py312", "validation"]
 py313 = ["py313"]
 # py314 = ["py314"]
 docs = ["docs", "py312"]
+default = ["py312", "validation"]
 
 [tool.pixi.environments.release]
 #The release environment only bumps the version and builds the package, so it
