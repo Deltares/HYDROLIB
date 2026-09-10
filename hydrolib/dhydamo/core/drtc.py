@@ -14,6 +14,7 @@ from pydantic.v1 import ConfigDict, validate_arguments
 
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
+from hydrolib.dhydamo.core.relations import RelationsHyDAMO
 
 logger = logging.getLogger(__name__)
 
@@ -268,8 +269,9 @@ class DRTCModel:
 
     @validate_arguments
     def check_timeseries(self, timeseries):
+        management_device = RelationsHyDAMO.MANAGEMENT_DEVICE
         hydamo_controllers = self.hydamo.management[
-            ~self.hydamo.management.regelmiddelid.isna()
+            ~self.hydamo.management[management_device.foreign_key].isna()
         ]
         for _, management in hydamo_controllers.iterrows():
             resolved = self._resolve_management_structure(management)
@@ -281,9 +283,16 @@ class DRTCModel:
                     "For %s a controller is defined in hydamo.management, but no timeseries is provided for it.",
                     structure_id,
                 )
-        hydamo_pumps = self.hydamo.management[~self.hydamo.management.pompid.isna()].pompid
-        for pump in hydamo_pumps:
-            pmp = self.hydamo.pumps[self.hydamo.pumps.globalid ==pump].code.to_numpy()[0]
+        management_pump = RelationsHyDAMO.MANAGEMENT_PUMP
+        hydamo_pump_management = self.hydamo.management.loc[
+            ~self.hydamo.management[management_pump.foreign_key].isna()
+        ]
+        for _, management in hydamo_pump_management.iterrows():
+            management_rows = management.to_frame().T
+            pumps = management_pump.parents_of(management_rows, self.hydamo.pumps)
+            if pumps.empty:
+                continue
+            pmp = pumps["code"].to_numpy()[0]
             if pmp not in timeseries.columns:
                 logger.warning(f'For {pmp} a controller is defined in hydamo.management, but no timeseries is provided for it.')
 
@@ -326,28 +335,31 @@ class DRTCModel:
                 `management`, since a management record must reference one of
                 the two.
         """
-        if not pd.isna(management.pompid):
-            if not self.hydamo.pumps.empty and management.pompid in list(
-                self.hydamo.pumps.globalid
-            ):
-                struc_id = self.hydamo.pumps[
-                    self.hydamo.pumps.globalid == management.pompid
-                ].code.to_numpy()[0]
+        management_pump = RelationsHyDAMO.MANAGEMENT_PUMP
+        management_device = RelationsHyDAMO.MANAGEMENT_DEVICE
+        management_rows = management.to_frame().T
+        pump_id = management[management_pump.foreign_key]
+        if not pd.isna(pump_id):
+            pumps = management_pump.parents_of(management_rows, self.hydamo.pumps)
+            if not pumps.empty:
+                struc_id = pumps["code"].to_numpy()[0]
                 return "pump", struc_id
             return None
 
-        if pd.isna(management.regelmiddelid):
+        management_device_id = management[management_device.foreign_key]
+        if pd.isna(management_device_id):
             raise ValueError(
                 "Only management_devices and pumps can be connected to a management object."
             )
 
-        mandev = self.hydamo.management_device[
-            self.hydamo.management_device.globalid == management.regelmiddelid
-        ]
+        mandev = management_device.parents_of(
+            management_rows,
+            self.hydamo.management_device,
+        )
         if mandev.empty:
             logger.warning(
                 "Management for management_device %s could not be found.",
-                management.regelmiddelid,
+                management_device_id,
             )
             return None
 
@@ -358,7 +370,7 @@ class DRTCModel:
             # See the comment on Structures.compound_weir_structure_ids in
             # core/hydamo.py for why this lookup cannot be made statically.
             weir_code = self.hydamo.structures.compound_weir_structure_ids.get(
-                management.regelmiddelid
+                management_device_id
             )
         if weir_code is not None:
             if weir_code in list(self.hydamo.structures.rweirs_df.id) or (
@@ -372,26 +384,28 @@ class DRTCModel:
             logger.warning(
                 "Management for management_device %s resolved to structure '%s', "
                 "but it is not present in the built D-FlowFM structures.",
-                management.regelmiddelid,
+                management_device_id,
                 weir_code,
             )
             return None
 
-        if pd.notna(mandev.duikersifonhevelid).any():
-            struc = self.hydamo.culverts[
-                self.hydamo.culverts.globalid == mandev["duikersifonhevelid"].values[0]
-            ]
+        culvert_relation = RelationsHyDAMO.MANAGEMENT_DEVICE_CULVERT
+        if pd.notna(mandev[culvert_relation.foreign_key]).any():
+            struc = culvert_relation.parents_of(
+                mandev.iloc[:1],
+                self.hydamo.culverts,
+            )
             if struc.empty:
                 logger.warning(
                     "Management for management_device %s could not be connected to a culvert.",
-                    management.regelmiddelid,
+                    management_device_id,
                 )
                 return None
             return "culvert", struc.code.to_numpy()[0]
 
         logger.warning(
             "Management for management_device %s could not be connected to a culvert or weir.",
-            management.regelmiddelid,
+            management_device_id,
         )
         return None
 
@@ -431,20 +445,21 @@ class DRTCModel:
             `kunstwerkopeningid`, the chain to `weirs` cannot be resolved, or
             the weir turns out to be compound (multi-opening).
         """
-        if "kunstwerkopeningid" not in mandev.columns:
+        opening_relation = RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING
+        if opening_relation.foreign_key not in mandev.columns:
             return None
-        opening_id = mandev["kunstwerkopeningid"].to_numpy()[0]
+        opening_id = mandev[opening_relation.foreign_key].to_numpy()[0]
         if pd.isna(opening_id):
             return None
 
-        opening_row = self.hydamo.opening[self.hydamo.opening.globalid == opening_id]
-        if opening_row.empty or "stuwid" not in opening_row.columns:
+        opening_row = opening_relation.parents_of(
+            mandev.iloc[:1],
+            self.hydamo.opening,
+        )
+        weir_relation = RelationsHyDAMO.OPENING_WEIR
+        if opening_row.empty or weir_relation.foreign_key not in opening_row.columns:
             return None
-        weir_globalid = opening_row["stuwid"].to_numpy()[0]
-        if pd.isna(weir_globalid):
-            return None
-
-        weir_row = self.hydamo.weirs[self.hydamo.weirs.globalid == weir_globalid]
+        weir_row = weir_relation.parents_of(opening_row, self.hydamo.weirs)
         if weir_row.empty:
             return None
 
@@ -453,7 +468,7 @@ class DRTCModel:
         # weir.code itself. We cannot tell here which suffix belongs to this
         # particular opening, so defer to compound_weir_structure_ids instead
         # of returning the (wrong, unsuffixed) weir code.
-        sibling_openings = self.hydamo.opening[self.hydamo.opening["stuwid"] == weir_globalid]
+        sibling_openings = weir_relation.children_of(weir_row.iloc[:1], self.hydamo.opening)
         if len(sibling_openings) > 1:
             return None
 

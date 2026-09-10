@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hydrolib.dhydamo.core.relations import RelationsRR
 from hydrolib.dhydamo.io.damo_converters.base import BaseDamoConverter, LayerSpec
 
 
@@ -62,5 +63,8 @@ class Damo22Converter(BaseDamoConverter):
             # drrreader.py and drrwriter.py for every RR workflow. It resolves
             # the catchment→lateral FK (lateraleknoopid → laterals.globalid)
             # to the lateral's code, which is used as the RR boundary node ID.
-            mapping = hydamo.laterals.set_index("globalid")["code"]
-            hydamo.catchments["boundary_node"] = hydamo.catchments["lateraleknoopid"].map(mapping)
+            catchment_lateral = RelationsRR.CATCHMENT_LATERAL
+            mapping = hydamo.laterals.set_index(catchment_lateral.parent_key)["code"]
+            hydamo.catchments["boundary_node"] = hydamo.catchments[
+                catchment_lateral.foreign_key
+            ].map(mapping)

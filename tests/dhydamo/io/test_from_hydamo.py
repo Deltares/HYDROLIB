@@ -65,54 +65,14 @@ def _mixed_extended_geometries():
     return geoms
 
 
-def _check_related(hydamo_obj, hydamo_name):
-    # assert type of object
-    extendedgdf = getattr(hydamo_obj, hydamo_name)
-    assert isinstance(extendedgdf, ExtendedGeoDataFrame)
+def test_extended_geodataframe_copy_preserves_metadata():
+    geoms = _mixed_extended_geometries()
 
-    # Check relations recursively
-    if extendedgdf.related is not None:
-        for target_str, relation in extendedgdf.related.items():
-            print(f"{target_str}:")
-            _recursive_check_related(hydamo_obj, hydamo_name, target_str, **relation)
+    copied = geoms.copy()
 
-def _recursive_check_related(hydamo_obj, source_str, target_str, via, on, coupled_to):
-    source = getattr(hydamo_obj, source_str)
-    target = getattr(hydamo_obj, target_str)
+    assert copied.required_columns == geoms.required_columns
+    assert copied.geotype is geoms.geotype
 
-    assert not source.empty
-    assert not target.empty
-    assert via in source.columns
-    assert on in target.columns
-
-    if coupled_to is not None:
-        for next_target_str, next_relation in coupled_to.items():
-            return _recursive_check_related(
-                hydamo_obj, target_str, next_target_str, **next_relation
-            )
-
-def test_hydamo_related():
-    # all data is contained in one geopackage called 'Example model'
-    gpkg_file = hydamo_data_path / "Example_model.gpkg"
-    assert gpkg_file.exists()
-
-    hydamo = HyDAMO()
-    hydamo.load_from_gpkg(gpkg_file, hydamo_version="2.2")
-    hydamo.sewer_areas.read_shp(hydamo_data_path / 'rioleringsgebieden.shp', index_col='code', column_mapping={'Code':'code', 'Berging_mm':'riool_berging_mm', 'POC_m3s':'riool_poc_m3s' })
-    hydamo.overflows.read_shp(hydamo_data_path / 'overstorten.shp', column_mapping={'codegerela': 'codegerelateerdobject'})
-
-    _check_related(hydamo, "branches")
-    _check_related(hydamo, "profile")
-    _check_related(hydamo, "profile_line")
-    _check_related(hydamo, "weirs")
-    _check_related(hydamo, "bridges")
-    _check_related(hydamo, "culverts")
-    _check_related(hydamo, "pumpstations")
-    _check_related(hydamo, "boundary_conditions")
-    _check_related(hydamo, "catchments")
-    _check_related(hydamo, "laterals")
-    _check_related(hydamo, "overflows")
-    _check_related(hydamo, "sewer_areas")
 
 def test_clip_hydamo_object():
     extent_file = hydamo_data_path / "test_deelmodel.shp"
