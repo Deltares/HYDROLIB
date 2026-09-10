@@ -1,16 +1,61 @@
 # Contributing
 
+## Development setup
+
+HYDROLIB uses [Pixi](https://pixi.sh) to manage development environments, tasks, and
+the conda-forge-based GDAL/geospatial stack. After installing Pixi, set up a
+working copy with:
+
+``` bash
+pixi install
+pixi run test
+pixi run lint
+pixi run typecheck
+pixi run --environment docs docs-build
+```
 
 ## Tooling
-### Black
-We use `black` as an autoformatter. It is also run during CI and will fail if it's not formatted beforehand.
 
-### Isort
-We use `isort` as an autoformatter.
+### Ruff
+
+We use [Ruff](https://docs.astral.sh/ruff/) for formatting and import sorting,
+replacing Black and isort. Run `pixi run lint` locally to check formatting,
+imports, and lint rules. Run `pixi run fix` to apply formatting and Ruff's
+safe fixes. Linting is not enforced in CI yet.
 
 ### Commitizen
 We use `commitizen` to automatically bump the version number.
 If you use [conventional commit messages](https://www.conventionalcommits.org/en/v1.0.0/#summary), the [`changelog.md`](../changelog.md) is generated automatically. More details below under ["Merging"](#merging).
+
+### Conda environment exports
+
+`environment-win-64.yml` and `environment-linux-64.yml` at the repository root
+are frozen Conda environment files, generated from `pixi.lock`, for
+Miniforge/Conda users who don't want to install Pixi. They let a user recreate
+the exact `py312` environment with:
+
+``` bash
+conda env create -f environment-win-64.yml
+conda activate hydrolib
+```
+
+Pixi remains the source of truth; these files are a generated export, not a
+second dependency set to maintain by hand. Whenever `pixi.lock` changes, run
+
+``` bash
+pixi run --environment test-py312 export-conda-environments
+```
+
+and commit the regenerated files alongside `pixi.lock`.
+
+Install the [pre-commit](https://pre-commit.com) hook once with
+`pixi run --environment py312 pre-commit install` and it will regenerate
+both files automatically whenever `pixi.lock` is staged; because the hook
+modifies files, the first `git commit` attempt after a lockfile change stops
+so you can `git add` the regenerated files and commit again. CI also
+regenerates both files in a clean checkout and fails the `check-conda-exports`
+job if they differ from what's committed, so a PR can't merge with stale
+exports even if the hook was skipped or never installed.
 
 ## Development
 
@@ -28,7 +73,7 @@ When starting development on a branch, a pull request should be created for revi
 In the description text area on GitHub, use a [closing keyword](https://docs.github.com/articles/closing-issues-using-keywords) such that this PR will be automatically linked to the issue.
 For example: `Fixes #160`.
 
-During continuous integration, the checks will be run with several Python versions on Windows, Ubuntu and MacOS. The checks consist of running the tests, checking the code formatting and running SonarCloud.
+During continuous integration, the test suite runs with several Python versions on Windows and Ubuntu. Formatting and lint checks remain local developer tasks for now.
 We advise to use a draft pull request, to prevent the branch to be merged back before developement is finished. When the branch is ready for review, you can update the status of the pull request to "ready for review".
 
 ### Reviews

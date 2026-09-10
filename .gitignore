@@ -109,6 +109,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Pixi
+.pixi/
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -124,6 +127,9 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
+# Pytest
+.pytest-tmp/
+
 # Pyre type checker
 .pyre/
 
@@ -138,9 +144,9 @@ hydrolib/dhydamo/debug.py
 .DS_Store
 coverage-reports
 xunit-reports
-hydrolib/tests/model/*
+hydrolib/sample_data/model/*
 /tests/model/dflowfm
-hydrolib/tests/model_sturing/*
+hydrolib/sample_data/model_sturing/*
 hydrolib/notebooks/dimr_config.xml
 tests/model/dimr_config.xml
 /dimr_config.xml

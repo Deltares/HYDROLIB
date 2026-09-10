@@ -8,6 +8,7 @@ from netCDF4 import Dataset, chartostring
 from pydantic.v1 import ConfigDict, validate_arguments
 from shapely.geometry import Point
 
+from hydrolib.dhydamo.core.relations import RelationsHyDAMO
 from hydrolib.dhydamo.geometry.mesh import Network
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
@@ -121,41 +122,30 @@ class CrossSectionsIO:
         dp_branches = None
         dp_structures = None
         if profile_groups is not None:
+            profile_group_bridge = RelationsHyDAMO.PROFILE_GROUP_BRIDGE
+            profile_group_weir = RelationsHyDAMO.PROFILE_GROUP_WEIR
             # check for profile_groups items with valid brugid or stuwid. They need to be droppped from profiles.
-            groupidx = [
-                idx
-                for idx, group in profile_groups.iterrows()
-                if ("brugid" in profile_groups.columns) & (not pd.isna(group.brugid))
-            ]
+            structure_group_mask = pd.Series(False, index=profile_groups.index)
+            for relation in (profile_group_bridge, profile_group_weir):
+                if relation.foreign_key in profile_groups.columns:
+                    structure_group_mask |= profile_groups[
+                        relation.foreign_key
+                    ].notna()
 
-            groupidx = groupidx + [
-                idx
-                for idx, group in profile_groups.iterrows()
-                if ("stuwid" in profile_groups.columns) & (not pd.isna(group.stuwid))
-            ]
-
-            # index of the lines that are associated to these groups
-            lineidx = [
-                profile_lines[
-                    profile_lines["profielgroepid"]
-                    == profile_groups.loc[grindex, "globalid"]
-                ].index.to_numpy()[0]
-                for grindex in groupidx
-            ]
-            # index of the profiles associated to these lines
-            profidx = [
-                crosssections[
-                    crosssections["profiellijnid"]
-                    == profile_lines.loc[lindex, "globalid"]
-                ].index.to_numpy()[0]
-                for lindex in lineidx
-            ]
+            structure_groups = profile_groups.loc[structure_group_mask]
+            structure_lines = RelationsHyDAMO.PROFILE_LINE_GROUP.children_of(
+                structure_groups,
+                profile_lines,
+            )
+            structure_profiles = RelationsHyDAMO.PROFILE_LINE.children_of(
+                structure_lines,
+                crosssections,
+            )
             # make a copy and drop the profiles corresponding to a structure
             dp_branches = crosssections.copy(deep=True)
-            dp_branches.drop(profidx, axis=0, inplace=True)
+            dp_branches.drop(structure_profiles.index, axis=0, inplace=True)
 
-            dp_structures = crosssections.copy(deep=True)
-            dp_structures = dp_structures.loc[profidx, :]
+            dp_structures = structure_profiles.copy(deep=True)
         else:
             dp_branches = crosssections.copy(deep=True)
 
@@ -657,17 +647,27 @@ class StructuresIO:
 
         Parameters corrspond to the HyDAMO DAMO2.2 objects. DFlowFM keyword 'usevelocityheight' can be specificied as a string, default is 'true'.
         """
-        # bypass HyDAMO and add stuwid directly to managment for use in RTC
-        if not self.structures.hydamo.management.empty:
-            self.structures.hydamo.management['stuwid'] = None
-
+        opening_weir = RelationsHyDAMO.OPENING_WEIR
+        management_device_opening = RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING
+        profile_group_weir = RelationsHyDAMO.PROFILE_GROUP_WEIR
+        profile_line_group = RelationsHyDAMO.PROFILE_LINE_GROUP
+        profile_line = RelationsHyDAMO.PROFILE_LINE
         index = np.zeros(len(weirs.code))
-        if profile_groups is not None and hasattr(profile_groups, "stuwid"):
-            index[np.isin(weirs.globalid, np.asarray(profile_groups.stuwid))] = 1
+        if (
+            profile_groups is not None
+            and profile_group_weir.foreign_key in profile_groups
+        ):
+            index[
+                np.isin(
+                    weirs[opening_weir.parent_key],
+                    np.asarray(profile_groups[profile_group_weir.foreign_key]),
+                )
+            ] = 1
 
         rweirs = weirs[index == 0]
         for weir in rweirs.itertuples():
-            weir_opening = opening[opening.stuwid == weir.globalid]
+            weir_rows = rweirs.loc[[weir.Index]]
+            weir_opening = opening_weir.children_of(weir_rows, opening)
 
             # check if a separate name field is present
             if "naam" in weirs:
@@ -684,11 +684,14 @@ class StructuresIO:
                     weir_opening.shape[0],
                 )
                 cmp_list = []
-                for num_op, (_, op_row) in enumerate(weir_opening.iterrows()):
-                    weir_mandev = management_device[
-                        management_device.kunstwerkopeningid
-                        == op_row.globalid
-                    ]
+                for num_op, (op_index, op_row) in enumerate(
+                    weir_opening.iterrows()
+                ):
+                    opening_rows = weir_opening.loc[[op_index]]
+                    weir_mandev = management_device_opening.children_of(
+                        opening_rows,
+                        management_device,
+                    )
                     
                     if weir_mandev.empty:
                         logger.warning(
@@ -705,11 +708,14 @@ class StructuresIO:
                         )
                         weir_mandev = weir_mandev.iloc[[0]]                    
 
-
+                    # This weir has multiple openings, so its structure id gets an
+                    # enumeration suffix that is invented right here and is not
+                    # present anywhere in the HyDAMO data. Record it so DRTCModel
+                    # can later resolve a management record's regelmiddelid to
+                    # this structure id; see Structures.compound_weir_structure_ids
+                    # in core/hydamo.py.
                     weir_id = f'{weir.code}_{num_op+1}'
-                    if (not self.structures.hydamo.management.empty) & (hasattr(self.structures.hydamo.management, 'regelmiddelid')):
-                        if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).item():
-                            self.structures.hydamo.management.loc[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze(), 'stuwid'] = weir_id
+                    self.structures.compound_weir_structure_ids[weir_mandev.globalid.squeeze()] = weir_id
                     if weir_mandev.overlaatonderlaat.squeeze().lower() == 'overlaat':
                         cmp_list.append(weir_id)
                         self.structures.add_rweir(id=weir_id,
@@ -764,10 +770,15 @@ class StructuresIO:
                     continue
 
                 weir_id = weir.code
-                weir_mandev = management_device[
-                        management_device.kunstwerkopeningid
-                        == weir_opening.globalid.to_numpy()[0]
-                    ]
+                # Unlike the compound case above, no need to record this id in
+                # compound_weir_structure_ids: this weir has a single opening, so
+                # its structure id is just weir.code, which
+                # DRTCModel._resolve_weir_via_opening derives directly from
+                # HyDAMO's static relations.
+                weir_mandev = management_device_opening.children_of(
+                    weir_opening,
+                    management_device,
+                )
 
                 if weir_mandev.empty:
                     logger.warning(
@@ -782,12 +793,7 @@ class StructuresIO:
                         weir_opening.code.squeeze(),
                         weir_id
                     )
-                    weir_mandev = weir_mandev.iloc[[0]]                    
-
-
-                if (not self.structures.hydamo.management.empty) & hasattr(self.structures.hydamo.management, 'regelmiddelid'):
-                    if weir_mandev.globalid.isin(self.structures.hydamo.management.regelmiddelid).item():
-                        self.structures.hydamo.management.loc[self.structures.hydamo.management.regelmiddelid == weir_mandev.globalid.squeeze(), 'stuwid'] = weir_id
+                    weir_mandev = weir_mandev.iloc[[0]]
 
                 if isinstance(weir_mandev.overlaatonderlaat, pd.Series):
                     overlaatonderlaat = weir_mandev.overlaatonderlaat.squeeze()
@@ -846,6 +852,7 @@ class StructuresIO:
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
+            uweir_rows = uweirs.loc[[uweir.Index]]
             # check if a separate name field is present
             if "naam" in uweirs:
                 name = uweir.naam
@@ -853,12 +860,14 @@ class StructuresIO:
                 name = uweir.code
 
             prof = np.empty(0)
-            if (profiles is not None) & ("stuwid" in profile_groups):
-                group = profile_groups[profile_groups["stuwid"] == uweir.globalid]
-                line = profile_lines[
-                    profile_lines["profielgroepid"] == group["globalid"].to_numpy()[0]
-                ]
-                prof = profiles[profiles["profiellijnid"] == line["globalid"].to_numpy()[0]]
+            if (
+                profiles is not None
+                and profile_groups is not None
+                and profile_group_weir.foreign_key in profile_groups
+            ):
+                group = profile_group_weir.children_of(uweir_rows, profile_groups)
+                line = profile_line_group.children_of(group, profile_lines)
+                prof = profile_line.children_of(line, profiles)
                 if not prof.empty:
                     counts = len(prof.geometry.iloc[0].coords[:])
                     xyz = np.vstack(prof.geometry.iloc[0].coords[:])
@@ -946,13 +955,15 @@ class StructuresIO:
 
         Parameters corrspond to the HyDAMO DAMO2.2 objects.
         """
+        profile_group_bridge = RelationsHyDAMO.PROFILE_GROUP_BRIDGE
+        profile_line_group = RelationsHyDAMO.PROFILE_LINE_GROUP
+        profile_line = RelationsHyDAMO.PROFILE_LINE
         for bridge in bridges.itertuples():
+            bridge_rows = bridges.loc[[bridge.Index]]
             # first search in yz-profiles
-            group = profile_groups[profile_groups["brugid"] == bridge.globalid]
-            line = profile_lines[
-                profile_lines["profielgroepid"] == group["globalid"].to_numpy()[0]
-            ]
-            prof = profiles[profiles["profiellijnid"] == line["globalid"].to_numpy()[0]]
+            group = profile_group_bridge.children_of(bridge_rows, profile_groups)
+            line = profile_line_group.children_of(group, profile_lines)
+            prof = profile_line.children_of(line, profiles)
 
             if len(prof) == 0:
                 raise ValueError(f"{bridge.code} is not found in any cross-section.")
@@ -1007,11 +1018,13 @@ class StructuresIO:
 
         Parameters corrspond to the HyDAMO DAMO2.2 objects.
         """
+        management_device_culvert = RelationsHyDAMO.MANAGEMENT_DEVICE_CULVERT
         if management_device is not None:
             if 'soortafsluitmiddel' not in management_device.columns:
                management_device['soortafsluitmiddel'] = management_device['soortregelmiddel']
 
         for culvert in culverts.itertuples():
+            culvert_rows = culverts.loc[[culvert.Index]]
             # Generate cross section definition name
             if culvert.vormkoker.lower() == "rond" or culvert.vormkoker.lower() == "ellipsvormig":
                 crosssection = {"shape": "circle", "diameter": culvert.hoogteopening}
@@ -1036,9 +1049,10 @@ class StructuresIO:
 
             # check whether an afsluitmiddel is present and take action dependent on its settings
             if management_device is not None:
-                mandev = management_device[
-                    management_device.duikersifonhevelid == culvert.globalid
-                ]
+                mandev = management_device_culvert.children_of(
+                    culvert_rows,
+                    management_device,
+                )
                 if 'soortafsluitmiddel' not in mandev:
                     mandev.loc[mandev.index,'soortafsluitmiddel'] = mandev['soortregelmiddel']
             else:
@@ -1134,12 +1148,15 @@ class StructuresIO:
 
         Parameters corrspond to the HyDAMO DAMO2.2 objects.
         """
+        pump_pumpstation = RelationsHyDAMO.PUMP_PUMPSTATION
+        management_pump = RelationsHyDAMO.MANAGEMENT_PUMP
 
         # Add sturing to pumps
         for pumpstation in pumpstations.itertuples():
+            pumpstation_rows = pumpstations.loc[[pumpstation.Index]]
 
             # find pumps for gemaal
-            pumps_subset = pumps[pumps.gemaalid == pumpstation.globalid]
+            pumps_subset = pump_pumpstation.children_of(pumpstation_rows, pumps)
             if pumps_subset.empty:
                 logger.warning(
                     "Skipping %s because there is no associated pump.",
@@ -1159,9 +1176,13 @@ class StructuresIO:
                     pumpstation.code,
                     pumps_subset.shape[0],
                 )
-                for ipump, (_,pump) in enumerate(pumps_subset.iterrows()):
+                for ipump, (pump_index, pump) in enumerate(pumps_subset.iterrows()):
 
-                    pump_control = management[management.pompid== pump.globalid]
+                    pump_rows = pumps_subset.loc[[pump_index]]
+                    pump_control = management_pump.children_of(
+                        pump_rows,
+                        management,
+                    )
                     if pump_control.empty:
                         logger.warning("No management found for %s", pump.code)
                         continue
@@ -1190,7 +1211,10 @@ class StructuresIO:
 
             else:
                 #  only one pump
-                pump_control = management[management.pompid== pumps_subset.globalid.to_numpy()[0]]
+                pump_control = management_pump.children_of(
+                    pumps_subset,
+                    management,
+                )
                 if pump_control.empty:
                     logger.warning(
                         "Skipping %s because there is no associated management.",
