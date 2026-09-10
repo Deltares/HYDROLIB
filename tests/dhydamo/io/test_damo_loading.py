@@ -11,6 +11,7 @@ import pytest
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
+from hydrolib.dhydamo.core.relations import RelationsHyDAMO
 from hydrolib.dhydamo.io.damo_converters import (
     SUPPORTED_HYDAMO_VERSIONS,
     get_damo_converter,
@@ -162,6 +163,30 @@ def test_load_from_gpkg_maps_damo_25_to_canonical_internal_structure(tmp_path: P
 
     assert "regelmiddelid" in hydamo.opening.columns
     assert hydamo.opening.at[0, "regelmiddelid"] == "afsluit-guid"
+
+
+def test_damo_25_relations_resolve_expected_rows(tmp_path: Path):
+    hydamo = HyDAMO().load_from_gpkg(
+        _make_minimal_25_gpkg(tmp_path), hydamo_version="2.5"
+    )
+
+    opening = hydamo.opening.loc[[0]]
+    management = hydamo.management.loc[["CTRL1"]]
+    weir = RelationsHyDAMO.OPENING_WEIR.parents_of(opening, hydamo.weirs)
+    device_from_opening = RelationsHyDAMO.OPENING_MANAGEMENT_DEVICE.parents_of(
+        opening, hydamo.management_device
+    )
+    device_from_management = RelationsHyDAMO.MANAGEMENT_DEVICE.parents_of(
+        management, hydamo.management_device
+    )
+    opening_from_device = RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING.parents_of(
+        device_from_management, hydamo.opening
+    )
+
+    assert weir["globalid"].tolist() == ["stuw-guid"]
+    assert device_from_opening["globalid"].tolist() == ["afsluit-guid"]
+    assert device_from_management["globalid"].tolist() == ["afsluit-guid"]
+    assert opening_from_device["globalid"].tolist() == ["opening-guid"]
 
 
 def test_drtc_resolves_canonical_damo_25_management_links(tmp_path: Path):

@@ -11,6 +11,7 @@ from rasterio.transform import from_origin
 from rasterstats import zonal_stats
 from tqdm.auto import tqdm
 
+from hydrolib.dhydamo.core.relations import RelationsRR
 from hydrolib.dhydamo.io import idfreader
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
@@ -440,7 +441,9 @@ class PavedIO:
 
                 elev = mean_sa_elev[isew]["median"]
                 # find overflows related to this sewer area
-                ovf = overflows[overflows.codegerelateerdobject == sew.code]
+                overflow_sa = RelationsRR.OVERFLOW_SEWER_AREA
+                sewer_id = getattr(sew, overflow_sa.parent_key)
+                ovf = overflows[overflows[overflow_sa.foreign_key] == sewer_id]
                 for ov in ovf.itertuples():
                     # find corresponding meteo-station
                     tm = [
@@ -735,7 +738,11 @@ class GreenhouseIO:
                 gh_drr.at[gh.code, "meteo_area"] = str(ms)
                 gh_drr.at[gh.code, "px"] = f"{gh.geometry.centroid.coords[0][0]:.0f}"
                 gh_drr.at[gh.code, "py"] = f"{gh.geometry.centroid.coords[0][1]:.0f}"
-                latcode = greenhouse_laterals[greenhouse_laterals.codegerelateerdobject == gh.code].code.to_numpy()[0]
+                gh_area = RelationsRR.GREENHOUSE_LATERAL_AREA
+                area_id = getattr(gh, gh_area.parent_key)
+                laterals = greenhouse_laterals
+                related_laterals = laterals[laterals[gh_area.foreign_key] == area_id]
+                latcode = related_laterals.code.to_numpy()[0]
                 gh_drr.at[gh.code, "boundary_node"] = str(latcode)           
             [self.greenhouse.add_greenhouse(**gh) for gh in gh_drr.to_dict("records")]
 
@@ -1072,25 +1079,22 @@ class ExternalForcingsIO:
             index = pd.concat([index, greenhouse_laterals.code], ignore_index=True)
         
         bnd_drr.index = index
+        catchment_lat = RelationsRR.CATCHMENT_LATERAL
         for num, cat in enumerate(catchments.itertuples()):
             # logger.info(num, cat.code)
-            if boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid].empty:
+            lateral_id = getattr(cat, catchment_lat.foreign_key)
+            lat = boundary_nodes[
+                boundary_nodes[catchment_lat.parent_key] == lateral_id
+            ]
+            if lat.empty:
                 # raise IndexError(f'{cat.code} not connected to a boundary node. Skipping.')
                 logger.warning(
                     f"{cat.code} not connected to a boundary node. Skipping."
                 )
                 continue
             bnd_drr.at[cat.code, "id"] = f'lat_{cat.code}'
-            bnd_drr.at[cat.code, "px"] = str(
-                boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid][
-                    "geometry"
-                ].x.iloc[0]
-            ).strip()
-            bnd_drr.at[cat.code, "py"] = str(
-                boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid][
-                    "geometry"
-                ].y.iloc[0]
-            ).strip()
+            bnd_drr.at[cat.code, "px"] = str(lat.geometry.x.iloc[0]).strip()
+            bnd_drr.at[cat.code, "py"] = str(lat.geometry.y.iloc[0]).strip()
         if overflows is not None:
             logger.info("Adding overflows to the boundary nodes.")
             for num, ovf in enumerate(overflows.itertuples()):
