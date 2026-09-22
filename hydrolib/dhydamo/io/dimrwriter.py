@@ -109,6 +109,22 @@ class DIMRWriter:
         target.tail = "\n"
         return True
 
+    @staticmethod
+    def _get_complex_coupler_blocks(
+        rtc_model: DRTCModel, name_prefix: str
+    ) -> list[ET.Element]:
+        """Return the <coupler> blocks from the complex controllers' dimr_config whose name starts with name_prefix."""
+        if rtc_model.complex_controllers is None:
+            return []
+
+        complex_config = rtc_model.complex_controllers["dimr_config"][0]
+        blocks = []
+        for block in complex_config:
+            block_tag = block.tag.split("}", 1)[-1] if block.tag.startswith("{") else block.tag
+            if block_tag == "coupler" and block.attrib["name"].lower().startswith(name_prefix):
+                blocks.append(block)
+        return blocks
+
     #@validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def write_dimrconfig(
         self, fm: FMModel, rr_model: DRRModel = None, rtc_model: DRTCModel = None
@@ -155,6 +171,17 @@ class DIMRWriter:
             parallel.text = ""
 
         if RTC:
+            # a flow_to_rtc coupler is only needed for PID/interval controllers,
+            # or complex controllers whose dimr_config defines one themselves
+            complex_flow_to_rtc_blocks = self._get_complex_coupler_blocks(
+                rtc_model, "flow_to_rtc"
+            )
+            needs_flow_to_rtc_coupler = (
+                bool(rtc_model.pid_controllers)
+                or bool(rtc_model.interval_controllers)
+                or bool(complex_flow_to_rtc_blocks)
+            )
+
             startgrouprtc = ET.SubElement(parallel, gn_brackets + "startGroup")
             startgrouprtc.text = ""
             startgrouprtc.tail = "\n"
@@ -162,7 +189,7 @@ class DIMRWriter:
             timertc = ET.SubElement(startgrouprtc, gn_brackets + "time")
             timertc.text = f"{0} {rtc_model.time_settings['step']} {fm.time.tstop}"
             timertc.tail = "\n"
-            if bool(rtc_model.pid_controllers) or bool(rtc_model.interval_controllers):
+            if needs_flow_to_rtc_coupler:
                 couplerrtcrr = ET.SubElement(startgrouprtc, gn_brackets + "coupler")
                 couplerrtcrr.attrib = {"name": "flow_to_rtc"}
                 couplerrtcrr.tail = "\n"
@@ -407,44 +434,39 @@ class DIMRWriter:
                         flow_to_rtc_simple_count += 1
 
                 coupler_exists = True
-            # it could be that are no PID controllers, but there are complex controllers
-            if rtc_model.complex_controllers is not None:
-                complex_config = rtc_model.complex_controllers["dimr_config"][0]
-                for block in complex_config:
-                    block_tag = block.tag.split("}", 1)[-1] if block.tag.startswith("{") else block.tag
-                    if block_tag == "coupler":
-                        if block.attrib["name"].lower().startswith("flow_to_rtc"):
-                            if not coupler_exists:
-                                couplerfmrtc = ET.Element(gn_brackets + "coupler")
-                                couplerfmrtc.attrib = {"name": "flow_to_rtc"}
-                                couplerfmrtc.tail = "\n"
+            # it could be that there are no PID/interval controllers, but there are complex controllers
+            for block in complex_flow_to_rtc_blocks:
+                if not coupler_exists:
+                    couplerfmrtc = ET.Element(gn_brackets + "coupler")
+                    couplerfmrtc.attrib = {"name": "flow_to_rtc"}
+                    couplerfmrtc.tail = "\n"
 
-                                sourcefmrtc = ET.SubElement(
-                                    couplerfmrtc, gn_brackets + "sourceComponent"
-                                )
-                                sourcefmrtc.text = "DFM"
-                                sourcefmrtc.tail = "\n"
+                    sourcefmrtc = ET.SubElement(
+                        couplerfmrtc, gn_brackets + "sourceComponent"
+                    )
+                    sourcefmrtc.text = "DFM"
+                    sourcefmrtc.tail = "\n"
 
-                                targetfmrtc = ET.SubElement(
-                                    couplerfmrtc, gn_brackets + "targetComponent"
-                                )
-                                targetfmrtc.text = "Real_Time_Control"
-                                targetfmrtc.tail = "\n"
+                    targetfmrtc = ET.SubElement(
+                        couplerfmrtc, gn_brackets + "targetComponent"
+                    )
+                    targetfmrtc.text = "Real_Time_Control"
+                    targetfmrtc.tail = "\n"
 
-                                coupler_exists = True
-                            for iblock in block:
-                                iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
-                                if iblock_tag == "item":
-                                    source = iblock.find(".//{*}sourceName")
-                                    target = iblock.find(".//{*}targetName")
-                                    if self._add_unique_coupler_item(
-                                        couplerfmrtc,
-                                        source.text if source is not None else None,
-                                        target.text if target is not None else None,
-                                        flow_to_rtc_seen_pairs,
-                                        gn_brackets,
-                                    ):
-                                        flow_to_rtc_complex_count += 1
+                    coupler_exists = True
+                for iblock in block:
+                    iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
+                    if iblock_tag == "item":
+                        source = iblock.find(".//{*}sourceName")
+                        target = iblock.find(".//{*}targetName")
+                        if self._add_unique_coupler_item(
+                            couplerfmrtc,
+                            source.text if source is not None else None,
+                            target.text if target is not None else None,
+                            flow_to_rtc_seen_pairs,
+                            gn_brackets,
+                        ):
+                            flow_to_rtc_complex_count += 1
             # in any of those two cases, add the controllers and the logger
             if coupler_exists:
                 logger.info(

@@ -58,11 +58,11 @@ Define in- and output paths
 
 ```python
 # path to the package containing the dummy-data
-data_path = Path("../tests/data").resolve()
+data_path = Path("../sample_data/data").resolve()
 assert data_path.exists()
 
 # path to write the models
-output_path = Path("../tests/model").resolve()
+output_path = Path("../sample_data/model").resolve()
 # assert output_path.exists()
 ```
 
@@ -89,7 +89,7 @@ hydamo = HyDAMO(extent_file=data_path / "OLO_stroomgebied_incl.maas.shp")
 hydamo.branches.show_gpkg(gpkg_file)
 ```
 
-    Content of gpkg-file D:\3640.20\HYDROLIB-dhydamo\hydrolib\tests\data\Example_model.gpkg, containing 18 layers:
+    Content of gpkg-file D:\3640.20\HYDROLIB-dhydamo\hydrolib\sample_data\data\Example_model.gpkg, containing 18 layers:
     	INDEX	|	NAME                        	|	GEOM_TYPE      	|	 NFEATURES	|	   NFIELDS
     	    0	|	hydroobject                   	|	Line String 	|	        61	|	        35
     	    1	|	stuw                          	|	3D Point    	|	        25	|	        40
@@ -680,7 +680,7 @@ To add a mesh, currently 2 options exist:
 ```python
 # 2d mesh extent
 if TwoD:
-    extent = gpd.read_file(r"..\tests\data\2D_extent.shp").at[0, "geometry"]
+    extent = gpd.read_file(r"..\sample_data\data\2D_extent.shp").at[0, "geometry"]
     network = fm.geometry.netfile.network
 ```
 
@@ -711,7 +711,7 @@ if TwoD:
     print("Nodes after refinement:", network._mesh2d.mesh2d_node_x.size)
 
     # add terrain level
-    mesh.mesh2d_altitude_from_raster(network, "../tests/data/rasters/AHN_2m_clipped_filled.tif", "face", "mean", fill_value=-999)
+    mesh.mesh2d_altitude_from_raster(network, "../sample_data/data/rasters/AHN_2m_clipped_filled.tif", "face", "mean", fill_value=-999)
 ```
 
     Nodes before refinement: 7515
