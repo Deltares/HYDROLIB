@@ -21,7 +21,7 @@ from hydrolib.dhydamo.geometry.models import GeometryList
 from tests.dhydamo.io import test_from_hydamo
 
 hydamo_data_path = (
-    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
+    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"
 )
 
 test_figure_path = Path(__file__).parent / ".." / ".." / "figures"
@@ -716,16 +716,16 @@ def _prepare_hydamo(culverts: bool = False):
     assert gpkg_file.exists()
 
     # read branchs
-    hydamo.branches.read_gpkg_layer(
+    hydamo.branches._read_gpkg_layer(
         str(gpkg_file), layer_name="HydroObject", index_col="code"
     )
 
     # Read management device
-    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
+    hydamo.management_device._read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
 
     # read culverts
     if culverts:
-        hydamo.culverts.read_gpkg_layer(
+        hydamo.culverts._read_gpkg_layer(
             gpkg_file, layer_name="DuikerSifonHevel", index_col="code"
         )
         hydamo.culverts.snap_to_branch(hydamo.branches, snap_method="ends", maxdist=5)
