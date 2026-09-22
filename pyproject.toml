@@ -15,7 +15,7 @@ dependencies = [
   "geopandas>=1,<2",
   "xarray>=2024",
   "hydrolib-core>=1.0.1,<2",
-  "numpy>=2,<3",
+  "numpy>=2,<2.5",
   "matplotlib>=3.9",
   "openpyxl>=3",
   "scipy>=1.13",
@@ -96,7 +96,7 @@ rasterio = ">=1.4"
 geopandas = ">=1,<2"
 pyogrio = ">=0.9"
 shapely = ">=2.0.2"
-numpy = ">=2,<3"
+numpy = ">=2,<2.5"
 pandas = ">=2,<3"
 scipy = ">=1.13"
 netcdf4 = ">=1.7.2"
