@@ -60,12 +60,11 @@ include = ["hydrolib"]
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.5.1" # Current version used and updated by Commitizen during releases.
+version_provider = "pep621" # Reads and bumps [project].version.
 tag_format = "$version"
 version_files = [
     "hydrolib/post/__init__.py",
-    "hydrolib/dhydamo/__init__.py",
-    "pyproject.toml:project.version"
+    "hydrolib/dhydamo/__init__.py"
 ]
 changelog_file = "docs/changelog.md"
 
@@ -93,6 +92,13 @@ platforms = ["win-64", "linux-64"]
 [tool.pixi.pypi-dependencies]
 hydrolib = { path = ".", editable = true }
 
+# Tasks for the "dev" feature, whose dependencies come from [dependency-groups].
+[tool.pixi.feature.dev.tasks]
+test = "pytest -v -m 'not slow and not plot and not dll' --cov=hydrolib --cov-report=xml --cov-report=term"
+lint = "ruff format --check . && ruff check hydrolib tests"
+fix = "ruff format . && ruff check --fix hydrolib tests"
+typecheck = "mypy hydrolib"
+
 [tool.pixi.feature.docs.dependencies]
 mkdocs = ">=1.6,<2.0"
 mkdocs-material = ">=9.7,<10.0"
@@ -111,9 +117,15 @@ click = "!=8.2.1"
 # conda-forge tops out at 0.25.1; PyPI has the >=0.26 range the project pins.
 mkdocs-jupyter = ">=0.26,<1.0"
 
+[tool.pixi.feature.docs.tasks]
+docs-build = "mkdocs build"
+
 [tool.pixi.feature.release.dependencies]
-commitizen = ">=2.17,<3"
+commitizen = ">=4,<5"
 python-build = "*"
+
+[tool.pixi.feature.release.tasks]
+build = "python -m build"
 
 [tool.pixi.feature.py311.dependencies]
 python = "3.11.*"
@@ -143,11 +155,5 @@ features = ["release", "py312"]
 no-default-feature = true
 
 [tool.pixi.tasks]
-test = "pytest -v -m 'not slow and not plot and not dll' --cov=hydrolib --cov-report=xml --cov-report=term"
-lint = "ruff format --check . && ruff check hydrolib tests"
-fix = "ruff format . && ruff check --fix hydrolib tests"
-typecheck = "mypy hydrolib"
-docs-build = "mkdocs build"
-build = "python -m build"
 lock-check = "pixi lock --check"
 export-conda-environments = "pixi workspace export conda-environment environment-win-64.yml --environment py312 --platform win-64 --name hydrolib --from-lock-file && pixi workspace export conda-environment environment-linux-64.yml --environment py312 --platform linux-64 --name hydrolib --from-lock-file"
