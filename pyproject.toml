@@ -146,9 +146,6 @@ python = "3.12.*"
 [tool.pixi.feature.py313.dependencies]
 python = "3.13.*"
 
-[tool.pixi.feature.validation.pypi-dependencies]
-hydamo-validation = ">=1.6.0"
-
 # [tool.pixi.feature.py314.dependencies]
 # python = "3.14.*"
 
