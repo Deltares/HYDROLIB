@@ -78,11 +78,11 @@ def _add_default_simple_control(data_path, hydamo, drtcmodel):
     # pid controller to culvert valve
 
 def _setup_rtc_model(hydamo=None, fm=None, output_path=None):
-    data_path = Path("hydrolib/tests/data").resolve()
+    data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
 
     if output_path is None:
-        output_path = Path("hydrolib/tests/model").resolve()
+        output_path = Path("hydrolib/sample_data/model").resolve()
 
     if hydamo is None:
         hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
@@ -129,10 +129,10 @@ def test_complex_controller_already_present(caplog, hydamo=None):
     assert len(rtcd.all_controllers) == 9
 
 def test_complex_controller_multiple_folders(hydamo=None):
-    data_path = Path("hydrolib/tests/data").resolve()
+    data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
 
-    output_path = Path("hydrolib/tests/model").resolve()
+    output_path = Path("hydrolib/sample_data/model").resolve()
     if hydamo is None:
         hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
@@ -179,10 +179,10 @@ def test_complex_controller_multiple_folders(hydamo=None):
             assert len(rtcd1.complex_controllers[key]) + len(rtcd2.complex_controllers[key]) == len(rtcd.complex_controllers[key])
 
 def test_complex_controller_multiple_folders_dimr_merged(hydamo=None):
-    data_path = Path("hydrolib/tests/data").resolve()
+    data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
 
-    output_path = Path("hydrolib/tests/model").resolve()
+    output_path = Path("hydrolib/sample_data/model").resolve()
     if hydamo is None:
         hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
@@ -207,10 +207,10 @@ def test_complex_controller_multiple_folders_dimr_merged(hydamo=None):
 
 
 def test_dimrwriter_deduplicates_coupler_items(hydamo=None):
-    data_path = Path("hydrolib/tests/data").resolve()
+    data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
 
-    output_path = Path("hydrolib/tests/model").resolve()
+    output_path = Path("hydrolib/sample_data/model").resolve()
     if hydamo is None:
         hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
@@ -253,10 +253,10 @@ def test_dimrwriter_deduplicates_coupler_items(hydamo=None):
 
 
 def test_dimrwriter_flow_to_rtc_components_for_complex_only(hydamo=None):
-    data_path = Path("hydrolib/tests/data").resolve()
+    data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
 
-    output_path = Path("hydrolib/tests/model").resolve()
+    output_path = Path("hydrolib/sample_data/model").resolve()
     if hydamo is None:
         hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
@@ -286,10 +286,10 @@ def test_dimrwriter_flow_to_rtc_components_for_complex_only(hydamo=None):
 
 
 def test_drtc_deduplicates_complex_fragments(hydamo=None):
-    data_path = Path("hydrolib/tests/data").resolve()
+    data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
 
-    output_path = Path("hydrolib/tests/model").resolve()
+    output_path = Path("hydrolib/sample_data/model").resolve()
     if hydamo is None:
         hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
@@ -348,9 +348,9 @@ def test_drtc_deduplicates_complex_fragments(hydamo=None):
 
 
 def test_complex_controller_fourtypes(caplog, hydamo=None):
-    data_path = Path("hydrolib/tests/data").resolve()
+    data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
-    output_path = Path("hydrolib/tests/model").resolve()
+    output_path = Path("hydrolib/sample_data/model").resolve()
     if hydamo is None:
         hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
@@ -389,9 +389,9 @@ def test_complex_controller_fourtypes(caplog, hydamo=None):
 
 
 def test_complex_controller_fourtypes_limit(caplog, hydamo=None):
-    data_path = Path("hydrolib/tests/data").resolve()
+    data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
-    output_path = Path("hydrolib/tests/model").resolve()
+    output_path = Path("hydrolib/sample_data/model").resolve()
     if hydamo is None:
         hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
@@ -434,9 +434,9 @@ def test_complex_controller_fourtypes_limit(caplog, hydamo=None):
 
 
 def test_complex_controller_filters_dimr_items_missing_from_hydamo(caplog, hydamo=None):
-    data_path = Path("hydrolib/tests/data").resolve()
+    data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
-    output_path = Path("hydrolib/tests/model").resolve()
+    output_path = Path("hydrolib/sample_data/model").resolve()
     if hydamo is None:
         hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
@@ -506,9 +506,9 @@ def test_complex_controller_filters_dimr_items_missing_from_hydamo(caplog, hydam
 
 
 def test_complex_controller_logs_items_not_referenced_by_dimr(caplog, hydamo=None):
-    data_path = Path("hydrolib/tests/data").resolve()
+    data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
-    output_path = Path("hydrolib/tests/model").resolve()
+    output_path = Path("hydrolib/sample_data/model").resolve()
     if hydamo is None:
         hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
@@ -562,9 +562,9 @@ def test_complex_controller_logs_items_not_referenced_by_dimr(caplog, hydamo=Non
 
 
 def test_complex_controller_wrong(caplog, hydamo=None):
-    data_path = Path("hydrolib/tests/data").resolve()
+    data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
-    output_path = Path("hydrolib/tests/model").resolve()
+    output_path = Path("hydrolib/sample_data/model").resolve()
     if hydamo is None:
         hydamo, fm = setup_model(hydamo_obj=hydamo, full_test=True)
 
