@@ -141,7 +141,7 @@ python = "3.13.*"
 
 [tool.pixi.environments]
 # The "dev" feature is the [dependency-groups] dev group, picked up by pixi.
-default = ["dev", "py312"]
+default = ["py312", "dev"]
 py311 = ["py311", "dev"]
 py312 = ["py312", "dev"]
 py313 = ["py313", "dev"]
