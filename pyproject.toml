@@ -151,12 +151,12 @@ python = "3.13.*"
 
 [tool.pixi.environments]
 # The "dev" feature is the [dependency-groups] dev group, picked up by pixi.
+default = ["py312", "dev", "validation"]
 py311 = ["py311", "dev"]
-py312 = ["py312", "validation", "dev"]
+py312 = ["py312", "dev", "validation"]
 py313 = ["py313", "dev"]
 # py314 = ["py314"]
 docs = ["docs", "py312"]
-default = ["py312", "dev", "validation"]
 
 [tool.pixi.environments.release]
 #The release environment only bumps the version and builds the package, so it
