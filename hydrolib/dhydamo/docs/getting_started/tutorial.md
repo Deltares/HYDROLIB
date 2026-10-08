@@ -2,7 +2,7 @@
 
 This notebook gives an overview of the functionalities of the D-HyDAMO module, part of the Hydrolib environment.
 
-This notebook is based on previous examples of the python package delft3dfmpy, but now connnected to the Hydrolib-core package, which is used for writing a D-Hydro model. It contains similar functinality as delft3dfmpy v2.0.1; input data is expected to be according to HyDAMO DAMO2.2 gpkg-format. The example model used here is based on a part of the Oostrumsche beek in Limburg, ameded with some fictional dummy data to better illustrate functionalities.
+This notebook is based on previous examples of the python package delft3dfmpy, but now connnected to the Hydrolib-core package, which is used for writing a D-Hydro model. It contains similar functinality as delft3dfmpy v2.0.1; input data can be loaded from HyDAMO DAMO 2.2-2.5 GeoPackages through the versioned `HyDAMO.load_from_gpkg(...)` workflow. The example model used here is based on a part of the Oostrumsche beek in Limburg, ameded with some fictional dummy data to better illustrate functionalities.
 
 ## Load Python libraries and Hydrolib-core functionality
 
@@ -58,11 +58,11 @@ Define in- and output paths
 
 ```python
 # path to the package containing the dummy-data
-data_path = Path("../tests/data").resolve()
+data_path = Path("../sample_data/data").resolve()
 assert data_path.exists()
 
 # path to write the models
-output_path = Path("../tests/model").resolve()
+output_path = Path("../sample_data/model").resolve()
 # assert output_path.exists()
 ```
 
@@ -89,7 +89,7 @@ hydamo = HyDAMO(extent_file=data_path / "OLO_stroomgebied_incl.maas.shp")
 hydamo.branches.show_gpkg(gpkg_file)
 ```
 
-    Content of gpkg-file D:\3640.20\HYDROLIB-dhydamo\hydrolib\tests\data\Example_model.gpkg, containing 18 layers:
+    Content of gpkg-file D:\3640.20\HYDROLIB-dhydamo\hydrolib\sample_data\data\Example_model.gpkg, containing 18 layers:
     	INDEX	|	NAME                        	|	GEOM_TYPE      	|	 NFEATURES	|	   NFIELDS
     	    0	|	hydroobject                   	|	Line String 	|	        61	|	        35
     	    1	|	stuw                          	|	3D Point    	|	        25	|	        40
@@ -680,7 +680,7 @@ To add a mesh, currently 2 options exist:
 ```python
 # 2d mesh extent
 if TwoD:
-    extent = gpd.read_file(r"..\tests\data\2D_extent.shp").at[0, "geometry"]
+    extent = gpd.read_file(r"..\sample_data\data\2D_extent.shp").at[0, "geometry"]
     network = fm.geometry.netfile.network
 ```
 
@@ -711,7 +711,7 @@ if TwoD:
     print("Nodes after refinement:", network._mesh2d.mesh2d_node_x.size)
 
     # add terrain level
-    mesh.mesh2d_altitude_from_raster(network, "../tests/data/rasters/AHN_2m_clipped_filled.tif", "face", "mean", fill_value=-999)
+    mesh.mesh2d_altitude_from_raster(network, "../sample_data/data/rasters/AHN_2m_clipped_filled.tif", "face", "mean", fill_value=-999)
 ```
 
     Nodes before refinement: 7515

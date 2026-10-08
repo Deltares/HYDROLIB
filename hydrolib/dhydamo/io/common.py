@@ -1,5 +1,6 @@
 import logging
 import re
+import warnings
 from copy import deepcopy
 from pathlib import Path
 
@@ -16,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
     # normal properties
-    _metadata = ["required_columns", "geotype", "related"] + gpd.GeoDataFrame._metadata
+    _metadata = ["required_columns", "geotype"] + gpd.GeoDataFrame._metadata
 
-    def __init__(self, geotype, required_columns=None, related=None, logger=logging, *args, **kwargs):
+    def __init__(self, geotype, required_columns=None, logger=logging, *args, **kwargs):
         # Check type
         if required_columns is None:
             required_columns = []
@@ -35,7 +36,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         self.required_columns = required_columns[:]
         self.geotype = geotype
-        self.related = deepcopy(related)
 
     def copy(self, deep=True):
         """
@@ -240,7 +240,44 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         check_geotype: bool = True,
         clip: Polygon | MultiPolygon = None,
         cliptype: str = "select",
-        check_3d: bool = True
+        check_3d: bool = True,
+    ):
+        """Deprecated. Use ``HyDAMO.load_from_gpkg()`` for DAMO data loading."""
+        warnings.warn(
+            "read_gpkg_layer() is deprecated and will be removed in a future release. "
+            "Use HyDAMO.load_from_gpkg() to load DAMO-formatted GeoPackages.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._read_gpkg_layer(
+            gpkg_path=gpkg_path,
+            layer_name=layer_name,
+            index_col=index_col,
+            groupby_column=groupby_column,
+            order_column=order_column,
+            id_col=id_col,
+            column_mapping=column_mapping,
+            check_columns=check_columns,
+            check_geotype=check_geotype,
+            clip=clip,
+            cliptype=cliptype,
+            check_3d=check_3d,
+        )
+
+    def _read_gpkg_layer(
+        self,
+        gpkg_path: str | Path,
+        layer_name: str,
+        index_col: str = None,
+        groupby_column: str = None,
+        order_column: str = None,
+        id_col: str = "code",
+        column_mapping: dict = None,
+        check_columns: bool = True,
+        check_geotype: bool = True,
+        clip: Polygon | MultiPolygon = None,
+        cliptype: str = "select",
+        check_3d: bool = True,
     ):
         if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
@@ -507,6 +544,28 @@ class ExtendedDataFrame(pd.DataFrame):
         layer_name: str = None,
         column_mapping: dict = None,
         index_col: str = None,
+    ):
+        """Deprecated. Use ``HyDAMO.load_from_gpkg()`` for DAMO data loading."""
+        warnings.warn(
+            "read_gpkg_layer() is deprecated and will be removed in a future release. "
+            "Use HyDAMO.load_from_gpkg() to load DAMO-formatted GeoPackages.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._read_gpkg_layer(
+            gpkg_path=gpkg_path,
+            layer_name=layer_name,
+            column_mapping=column_mapping,
+            index_col=index_col,
+        )
+
+    def _read_gpkg_layer(
+        self,
+        gpkg_path: str | Path,
+        layer_name: str = None,
+        column_mapping: dict = None,
+        index_col: str = None,
+        **kwargs,
     ):
         """
         Read GML file to GeoDataFrame.

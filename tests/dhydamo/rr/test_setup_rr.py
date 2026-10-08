@@ -5,7 +5,7 @@ from tests.dhydamo.io import test_from_hydamo
 
 
 def _setup_rr_model(hydamo=None):
-    data_path = Path("hydrolib/tests/data").resolve()
+    data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
     
     drrmodel = DRRModel()
