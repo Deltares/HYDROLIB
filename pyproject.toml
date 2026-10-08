@@ -146,6 +146,14 @@ python = "3.12.*"
 [tool.pixi.feature.py313.dependencies]
 python = "3.13.*"
 
+[tool.pixi.feature.validation.dependencies]
+# Fiona is supplied by conda-forge to keep it ABI-compatible with Pixi's GDAL.
+fiona = ">=1.10"
+
+[tool.pixi.feature.validation.pypi-dependencies]
+# hydamo-validation 1.6.0 imports Fiona but does not declare it on PyPI.
+hydamo-validation = ">=1.6.0"
+
 # [tool.pixi.feature.py314.dependencies]
 # python = "3.14.*"
 
