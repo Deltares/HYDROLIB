@@ -18,7 +18,7 @@ dependencies = [
   "pydantic>=2,<3",
   "meshkernel",
   "hydrolib-core>=1.5,<1.6",
-  "numpy>=2,<3",
+  "numpy>=2,<2.5", # 2.5 pin can be removed once we move to pandas 3.0.6 or newer
   "matplotlib>=3.9",
   "openpyxl>=3",
   "scipy>=1.13",
