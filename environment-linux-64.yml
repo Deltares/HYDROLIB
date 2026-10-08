@@ -68,7 +68,6 @@ dependencies:
   - jinja2==3.1.6
   - packaging==26.3
   - attrs==26.1.0
-  - numpy==2.5.3
   - typing-inspection==0.4.4
   - fsspec==2026.9.0
   - pure-eval==0.2.4
@@ -87,6 +86,7 @@ dependencies:
   - urllib3==2.8.0
   - tzdata==2026.5
   - parso==0.8.7
+  - numpy==2.4.6
   - annotated-types==0.8.0
   - jedi==0.20.0
   - pytest-cov==7.1.0
