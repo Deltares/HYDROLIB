@@ -17,7 +17,7 @@ from hydrolib.dhydamo.geometry import mesh
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 
 hydamo_data_path = (
-    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
+    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"
 )
 
 
