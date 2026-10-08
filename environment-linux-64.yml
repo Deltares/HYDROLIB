@@ -42,6 +42,7 @@ dependencies:
   - pytest==9.1.1
   - ipython==9.17.1
   - simplejson==4.2.0
+  - pydantic==2.14.0
   - pydantic-settings==2.15.0
   - jupyterlab-widgets==3.0.17
   - widgetsnbextension==4.0.16
@@ -105,12 +106,13 @@ dependencies:
   - six==1.17.0
   - matplotlib==3.11.2
   - ast-serialize==0.12.1
-  - pydantic-core==2.46.5
   - openpyxl==3.1.5
   - et-xmlfile==2.0.0
   - executing==2.2.1
   - ipywidgets==8.1.9
   - geopandas==1.2.0
+  - virtualenv==21.14.6
+  - pydantic-core==2.50.0
   - coverage==7.16.2
   - asttokens==3.0.2
   - ipython-pygments-lexers==1.1.1
@@ -120,14 +122,12 @@ dependencies:
   - wcwidth==0.9.2
   - locket==1.0.0
   - scipy==1.18.1
-  - virtualenv==21.14.5
   - hydrolib-core==1.5.0
   - meshkernel==8.3.0
   - ruff==0.16.10
   - pandas==2.3.3
   - cycler==0.12.1
   - jupyter-core==5.9.1
-  - pydantic==2.13.5
   - python-dateutil==2.9.0.post0
   - stack-data==0.6.3
   - pathspec==1.1.1
