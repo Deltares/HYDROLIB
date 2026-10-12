@@ -4,6 +4,9 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.dhydamo.core.hydamo import HyDAMO
+from hydrolib.dhydamo.geometry import mesh
+from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 from shapely.geometry import (
     LineString,
     MultiPolygon,
@@ -12,12 +15,8 @@ from shapely.geometry import (
 )
 from shapely.geometry.base import BaseGeometry
 
-from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.geometry import mesh
-from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
-
 hydamo_data_path = (
-    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
+    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"
 )
 
 

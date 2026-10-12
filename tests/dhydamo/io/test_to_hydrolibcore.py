@@ -1,6 +1,3 @@
-import sys
-
-sys.path.insert(0, r".")
 from pathlib import Path
 
 import geopandas as gpd
@@ -17,15 +14,15 @@ from hydrolib.core.dflowfm.structure.models import StructureModel
 
 # and from hydrolib-core
 from hydrolib.core.dimr.models import DIMR, FMComponent
-from shapely.geometry import Point
 
 # Importing relevant classes from Hydrolib-dhydamo
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
 from hydrolib.dhydamo.geometry import mesh
+from shapely.geometry import Point
 from tests.dhydamo.io import test_from_hydamo
 
 # path where the input data is located
-data_path = Path("hydrolib/tests/data").resolve()
+data_path = Path("hydrolib/sample_data/data").resolve()
 assert data_path.exists()
 
 # path to write the models
