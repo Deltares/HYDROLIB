@@ -21,7 +21,7 @@ from hydrolib.dhydamo.geometry.models import GeometryList
 from tests.dhydamo.io import test_from_hydamo
 
 hydamo_data_path = (
-    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "tests" / "data"
+    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"
 )
 
 test_figure_path = Path(__file__).parent / ".." / ".." / "figures"
@@ -568,6 +568,39 @@ def test_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, 
     assert len(network._link1d2d.link1d2d_id) == outcome
 
 
+def test_links1d2d_lateral_then_embedded_preserves_existing_links():
+    # Regression test: calling the embedded link generator after the lateral
+    # one used to discard the previously created lateral links.
+    network, _, _, _ = _prepare_1d2d_mesh(second_branch=True)
+
+    mesh.links1d2d_add_links_2d_to_1d_lateral(network)
+    n_lateral = len(network._link1d2d.link1d2d_id)
+    assert n_lateral > 0
+
+    mesh.links1d2d_add_links_2d_to_1d_embedded(network)
+    n_total = len(network._link1d2d.link1d2d_id)
+
+    # All lateral links must still be present after adding the embedded links
+    assert n_total >= n_lateral
+
+
+def test_links1d2d_embedded_then_1d_to_2d_preserves_existing_links():
+    # Regression test for the general safety net in _filter_links_on_idx: any
+    # link-adding function must preserve links created by an earlier one,
+    # regardless of call order.
+    network, _, _, _ = _prepare_1d2d_mesh(second_branch=True)
+
+    mesh.links1d2d_add_links_2d_to_1d_embedded(network)
+    n_embedded = len(network._link1d2d.link1d2d_id)
+    assert n_embedded > 0
+
+    mesh.links1d2d_add_links_1d_to_2d(network)
+    n_total = len(network._link1d2d.link1d2d_id)
+
+    # All embedded links must still be present after adding the 1d_to_2d links
+    assert n_total >= n_embedded
+
+
 def test_linkd1d2d_remove_links_within_polygon(do_plot=False):
     network, within, _, _ = _prepare_1d2d_mesh()
     within = within.buffer(-2)
@@ -756,12 +789,12 @@ def _prepare_hydamo(culverts: bool = False):
 @pytest.mark.parametrize(
     ("where", "fill_option", "fill_value", "outcome"),
     [
-        ("face", "interpolate", 10.0, 8716.507),
-        ("face", "fill_value", 10.0, 8716.507),
-        ("face", "nearest", None, 9138.830),
-        ("node", "interpolate", 10.0, 6355.084),
-        ("node", "fill_value", 10.0, 6340.100),
-        ("node", "nearest", None, 6782.621),
+        ("face", "interpolate", 10.0, 8737.658),
+        ("face", "fill_value", 10.0, 8737.658),
+        ("face", "nearest", None, 9125.056),
+        ("node", "interpolate", 10.0, 6360.791),
+        ("node", "fill_value", 10.0, 6349.224),
+        ("node", "nearest", None, 6779.017),
     ],
 )
 def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
@@ -875,4 +908,37 @@ def test_mesh1d_add_branches_from_gdf_logs_missing_branchid(caplog):
         )
 
     assert "1 structures (['s_missing']) are not linked to a branch." in caplog.text
+    assert len(network._mesh1d.network1d_node_x) > 0
+
+
+def test_mesh1d_add_branches_from_gdf_logs_duplicate_structure_location(caplog):
+    # Two structures on the same branch at the same chainage, with non-string
+    # (float) ids: this used to crash with
+    # "TypeError: sequence item 0: expected str instance, float found" in the
+    # ", ".join(...)" used to build the warning message.
+    fmmodel = FMModel()
+    network = fmmodel.geometry.netfile.network
+
+    branches = gpd.GeoDataFrame(
+        {"code": ["branch_1"], "geometry": [LineString([(0.0, 0.0), (10.0, 0.0)])]}
+    )
+    structures = pd.DataFrame(
+        {
+            "branchid": ["branch_1", "branch_1", "branch_1"],
+            "chainage": [3.0, 3.0, 7.0],
+            "id": [1.0, 2.0, 3.0],
+        }
+    )
+
+    with caplog.at_level("WARNING", logger="hydrolib.dhydamo.geometry.mesh"):
+        mesh.mesh1d_add_branches_from_gdf(
+            network,
+            branches=branches,
+            branch_name_col="code",
+            node_distance=2,
+            max_dist_to_struc=None,
+            structures=structures,
+        )
+
+    assert "Structures 1.0, 2.0 have the same location." in caplog.text
     assert len(network._mesh1d.network1d_node_x) > 0

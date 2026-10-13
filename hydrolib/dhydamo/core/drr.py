@@ -32,6 +32,12 @@ class DRRModel:
 
         self.dimr_path = ""
 
+    @staticmethod
+    def _time_from_filename(path: str | Path) -> pd.Timestamp:
+        """Extract timestamp from filename following DRRModel.read_raster convention."""
+        filename = os.path.split(path)[1]
+        return pd.Timestamp(filename.split("_")[1].split(".")[0])
+
     @validate_arguments
     def read_raster(self, file: str | Path, static: bool = False) -> tuple:
         """
@@ -55,7 +61,7 @@ class DRRModel:
             filename = file
 
         if not static:
-            time = pd.Timestamp(os.path.split(file)[1].split("_")[1].split(".")[0])
+            time = self._time_from_filename(file)
 
         dataset = rasterio.open(filename)
         affine = dataset.transform

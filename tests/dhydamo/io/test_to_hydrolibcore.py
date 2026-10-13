@@ -25,7 +25,7 @@ from hydrolib.dhydamo.geometry import mesh
 from tests.dhydamo.io import test_from_hydamo
 
 # path where the input data is located
-data_path = Path("hydrolib/tests/data").resolve()
+data_path = Path("hydrolib/sample_data/data").resolve()
 assert data_path.exists()
 
 # path to write the models
