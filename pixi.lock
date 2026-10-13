@@ -6287,7 +6287,7 @@ packages:
   - ipykernel>=7
   - ipywidgets>=8
   - pillow>=11
-  - gdal>=3.12,<4
+  - gdal>=3.13,<4
   - pyarrow>=14
   requires_python: '>=3.11,<3.14'
 - pypi: https://files.pythonhosted.org/packages/00/18/04ea74843dca6f281d30b1b39e6548ea4396c36bf663d506013c8ce5d61d/meshkernel-8.3.0-py3-none-win_amd64.whl
