@@ -37,6 +37,8 @@ dependencies = [
   "ipywidgets>=8",
   # specific gridgeom imports
   "pillow>=11",
+  "gdal>=3.12,<4",
+  "pyarrow>=14",
 ]
 
 [dependency-groups]
@@ -88,6 +90,10 @@ markers = [
 [tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["win-64", "linux-64"]
+
+[tool.pixi.dependencies]
+gdal = ">=3.13,<4.0" # GDAL from conda-forge, PyPI only ships an sdist which rarely builds on Windows
+numpy = ">=2,<2.5" # keep the conda solve in line with the numpy pin above
 
 [tool.pixi.pypi-dependencies]
 hydrolib = { path = ".", editable = true }
@@ -141,7 +147,7 @@ python = "3.13.*"
 
 [tool.pixi.environments]
 # The "dev" feature is the [dependency-groups] dev group, picked up by pixi.
-default = ["dev"]
+default = ["py312", "dev"]
 py311 = ["py311", "dev"]
 py312 = ["py312", "dev"]
 py313 = ["py313", "dev"]
