@@ -1,17 +1,15 @@
-import re
 from pathlib import Path
-
+import tomllib
 
 def _pyproject_version():
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
-    match = re.search(
-        r'^\[project\][\s\S]*?^version = "([^"]+)"',
-        pyproject.read_text(encoding="utf-8"),
-        re.MULTILINE,
+    data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    version = (
+        data.get("project", {}).get("version")
+        or data.get("tool", {}).get("poetry", {}).get("version")
     )
-    assert match is not None
-    return match.group(1)
-
+    assert version is not None, "no version found in pyproject.toml"
+    return version
 
 def test_version():
     from hydrolib.dhydamo import __version__ as dhydamo_version

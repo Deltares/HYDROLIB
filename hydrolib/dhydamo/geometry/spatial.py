@@ -2,7 +2,10 @@ import logging
 
 import geopandas as gpd
 import numpy as np
+import rasterio
 import shapely
+from rasterio import features
+from rasterio.transform import from_origin
 from scipy.spatial import Voronoi
 from shapely import affinity
 from shapely.geometry import (
@@ -266,3 +269,39 @@ def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> g
     facedata.index=np.arange(len(nodes), dtype=np.uint32) + 1
 
     return facedata
+
+
+def rasterize_polygons(
+    polygons: gpd.GeoDataFrame, column: str, cellsize: float, fill: float = -999.0
+) -> tuple[np.ndarray, rasterio.Affine]:
+    """Rasterize the values in a column of a polygon GeoDataFrame.
+
+    The raster extent is aligned to a multiple of the cellsize. Where polygons
+    overlap, the last polygon in the GeoDataFrame determines the value.
+
+    Args:
+        polygons (gpd.GeoDataFrame): (multi)polygons with values
+        column (str): column with the values to burn into the raster
+        cellsize (float): raster cell size
+        fill (float, optional): value for cells outside the polygons. Defaults to -999.0.
+
+    Returns:
+        tuple[np.ndarray, rasterio.Affine]: float32 array and its transform
+    """
+    xmin, ymin, xmax, ymax = polygons.total_bounds
+    xmin = np.floor(xmin / cellsize) * cellsize
+    ymin = np.floor(ymin / cellsize) * cellsize
+    xmax = np.ceil(xmax / cellsize) * cellsize
+    ymax = np.ceil(ymax / cellsize) * cellsize
+    ncols = max(int(round((xmax - xmin) / cellsize)), 1)
+    nrows = max(int(round((ymax - ymin) / cellsize)), 1)
+
+    transform = from_origin(xmin, ymax, cellsize, cellsize)
+    array = features.rasterize(
+        zip(polygons.geometry, polygons[column].astype(float)),
+        out_shape=(nrows, ncols),
+        transform=transform,
+        fill=fill,
+        dtype="float32",
+    )
+    return array, transform

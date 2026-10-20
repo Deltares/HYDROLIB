@@ -643,7 +643,7 @@ class GreenhouseIO:
                 latcode = greenhouse_laterals[greenhouse_laterals.codegerelateerdobject == gh.code].code.to_numpy()[0]
                 self.greenhouse.add_greenhouse(
                     id=str(gh.code),
-                    area=gh.geometry.area,
+                    area= f"{gh.geometry.area:.2f}",
                     surface_level=f"{elev:.2f}",
                     roof_storage=roof_storage_val,
                     basin_storage_class=basin_storage_class_val,

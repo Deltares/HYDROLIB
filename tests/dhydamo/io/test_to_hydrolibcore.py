@@ -6,10 +6,8 @@ import pandas as pd
 from hydrolib.core.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
 from hydrolib.core.dflowfm.ext.models import ExtModel
 from hydrolib.core.dflowfm.friction.models import FrictionModel
-from hydrolib.core.dflowfm.inifield.models import DiskOnlyFileModel, IniFieldModel
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.core.dflowfm.obs.models import ObservationPointModel
-from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
 from hydrolib.core.dflowfm.structure.models import StructureModel
 
 # and from hydrolib-core
@@ -26,10 +24,12 @@ data_path = Path("hydrolib/sample_data/data").resolve()
 assert data_path.exists()
 
 # path to write the models
-output_path = Path(__file__).parent / ".." / ".." / "model"
+output_path = (Path(__file__).parent / ".." / ".." / "model").resolve()
 output_path.mkdir(parents=False, exist_ok=True)
 
-def setup_model(hydamo_obj=None, full_test=False):
+def setup_model(hydamo_obj=None, full_test=False, model_path=None):
+    # model_path: folder to write the model to, defaults to the global output_path
+    model_path = output_path if model_path is None else Path(model_path)
     fm = FMModel()
     # Set start and stop time
     fm.time.refdate = 20160601
@@ -149,7 +149,7 @@ def setup_model(hydamo_obj=None, full_test=False):
         mesh.links1d2d_remove_1d_endpoints(network)
 
     # main filepath
-    fm.filepath = Path(output_path) / "dflowfm" / "DFM.mdu"
+    fm.filepath = model_path / "dflowfm" / "DFM.mdu"
     # we first need to set the forcing model, because it is referred to in the ext model components
     return hydamo, fm
 
@@ -162,8 +162,9 @@ def test_convert_to_hydrolibmodel():
     assert len(models.crossdefs) == 443
 
 
-def _add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False):
-    hydamo, fm = setup_model(hydamo_obj=hydamo_obj, full_test=full_test)
+def _add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False, model_path=None):
+    model_path = output_path if model_path is None else Path(model_path)
+    hydamo, fm = setup_model(hydamo_obj=hydamo_obj, full_test=full_test, model_path=model_path)
 
     if drrmodel is not None:
         hydamo.external_forcings.convert.laterals(
@@ -187,23 +188,15 @@ def _add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False):
     fm.output.obsfile = [ObservationPointModel(observationpoint=models.obspoints)]
 
     extmodel = ExtModel()
+    # HYDROLIB-core writes ext file version 3.00 by default, which D-HYDRO Suite 2026.02 cannot read yet.
+    # Version 2.02 is sufficient for [Boundary] and [Lateral] blocks.
+    extmodel.general.fileversion = "2.02"
     extmodel.boundary = models.boundaries_ext
     extmodel.lateral = models.laterals_ext
     fm.external_forcing.extforcefilenew = extmodel
 
-    fm.geometry.inifieldfile = IniFieldModel(initial=models.inifields)
-
-    for ifield, onedfield in enumerate(models.onedfieldmodels):
-        # eventually this is the way, but it has not been implemented yet in Hydrolib core
-        # fm.geometry.inifieldfile.initial[ifield].datafile = OneDFieldModel(global_=onedfield)
-
-        # this is a workaround to do the same
-        onedfield_filepath = output_path / "dflowfm" / "initialwaterdepth.ini"
-        onedfieldmodel = OneDFieldModel(global_=onedfield)
-        onedfieldmodel.save(filepath=onedfield_filepath)
-        fm.geometry.inifieldfile.initial[ifield].datafile = DiskOnlyFileModel(
-            filepath=onedfield_filepath
-        )
+    # initial fields: writes the data files and links them in the initial field file
+    models.write_initial_fields(fm, model_path / "dflowfm")
 
     return fm
 
@@ -212,8 +205,11 @@ def test_add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False):
     assert hasattr(fm, "geometry")
     assert hasattr(fm.geometry, "inifieldfile")
     
-def _write_model(drrmodel=None, hydamo_obj=None, full_test=False):
-    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test)
+def _write_model(drrmodel=None, hydamo_obj=None, full_test=False, model_path=None):
+    model_path = output_path if model_path is None else Path(model_path)
+    fm = _add_to_filestructure(
+        drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test, model_path=model_path
+    )
 
     fm.geometry.uniformwidth1d = 1.0            # default  breedte 
     fm.geometry.bedlevtype = 1                  # 1: at cell center (tiles xz,yz,bl,bob=max(bl)), 2: at face (tiles xu,yu,blu,bob=blu), 3: at face (using mean node values), 4: at face 
@@ -245,14 +241,14 @@ def _write_model(drrmodel=None, hydamo_obj=None, full_test=False):
     dimr.component.append(
         FMComponent(
             name="DFM",
-            workingDir=Path(output_path) / "dflowfm",
+            workingDir=model_path / "dflowfm",
             model=fm,
             inputfile=fm.filepath,
-        )        
+        )
     )
-    dimr.save(recurse=True)    
+    dimr.save(recurse=True)
 
-    return fm, output_path
+    return fm, model_path
 
 def test_write_model(drrmodel=None, hydamo_obj=None, full_test=False):
     _, output_path = _write_model(drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test)

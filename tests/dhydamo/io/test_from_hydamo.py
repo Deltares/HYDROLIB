@@ -14,6 +14,9 @@ from shapely.geometry import (
     Polygon,
 )
 from shapely.geometry.base import BaseGeometry
+import pytest
+from hydrolib.dhydamo.core import hydamo
+from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 hydamo_data_path = (
     Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"
@@ -199,7 +202,6 @@ def test_clip_and_drop_linestring_uses_first_with_warning(caplog):
     assert lines.shape[0] == 1
     assert lines.index.tolist() == ["line_split"]
     assert lines.geometry.iloc[0].geom_type == "LineString"
-
 
 def _hydamo_object_from_gpkg():
     # initialize a hydamo object
@@ -439,13 +441,13 @@ def _add_structures_manually():
     hydamo.structures.add_uweir(
         id="uwtest",
         name="uwtest",
-        branchid="W_1486_0",
-        chainage=112.0,
-        dischargecoeff=0.9,
+        branchid="W_242213_0",
+        chainage=2.0,
+        dischargecoeff=1.0,
         crestlevel=18.0,
-        numlevels=3,
-        yvalues="0 0.5 1.0",
-        zvalues="19.0 18.0 19.0",
+        numlevels=4,
+        yvalues="0.0 1.0 2.0 3.0",
+        zvalues="19.0 18.0 18.2 19.0",
     )
 
     hydamo.structures.add_bridge(
@@ -516,6 +518,24 @@ def test_observationpoints():
     )
     assert len(hydamo.observationpoints.observation_points) == 2
 
+
+@pytest.mark.parametrize(
+    ("snapping_distance", "shape", "outcome"),
+    [
+        (10, 1, 'W_242224_0'),
+        (0.1, 1, '')   ],
+)
+def test_observationpoint_snapping(snapping_distance, shape, outcome):
+    hydamo, _ = _hydamo_object_from_gpkg()
+    hydamo.observationpoints.add_points(
+        [(200200, 396200)],
+        ["TestObs"],
+        locationTypes=["1d"],
+        snap_distance=snapping_distance,
+    )
+
+    assert hydamo.observationpoints.observation_points.shape[0] == shape
+    assert hydamo.observationpoints.observation_points.branchid.values[0] == outcome
 
 def test_storagenodes():
     hydamo, _ = _hydamo_object_from_gpkg()
@@ -639,15 +659,126 @@ def test_add_boundary_condition_accepts_integer_value():
     assert boundary["unit2"] == "m3/s"
 
 
-def test_add_initialfields():
+    # pseude-code:
+    # invoeropties:
+    # - linestrings with waterlevels
+    # - linestrings with waterdepths
+    # - polygons with streefpeilen. Of een combinatie van die twee?
+    # - his-bestand met waterstanden op rekenpunten 
+
+    # polygonen --> pol-bestanden met waterdiepte/waterstand
+    # his-bestand --> linestrings --> xyz-file
+    # linestrings --> xyz-file
+
+    # end pseudocode
+
+    # tijdelijke code voor maken test data
+    # data_path = Path(r'hydrolib\tests\data')
+    # branches = gpd.read_file(data_path / 'Example_model.gpkg', layer='hydroobject')
+    # linestrings_wl = branches.copy(deep=True)
+    # linestrings_wl['init_wlev'] = 17.5
+    # linestrings_wl['init_wlev'].iloc[10] = 18.0
+    # linestrings_wl['init_wlev'].iloc[20] = 18.0
+    # linestrings_wl.to_file(data_path / 'Example_model.gpkg', layer='beginwaterstanden')
+    # linestrings_wd = branches.copy(deep=True)
+    # linestrings_wd['init_wdep'] = 1.5
+    # linestrings_wd['init_wdep'].iloc[10] = 2.0
+    # linestrings_wd['init_wdep'].iloc[20] = 2.0
+    # linestrings_wd.to_file(data_path / 'Example_model.gpkg', layer='beginwaterdieptes')
+
+    # catchments = gpd.read_file(data_path / 'Example_model.gpkg', layer='afvoergebiedaanvoergebied') 
+    # polys_wl = branches.copy(deep=True)
+    # polys_wl['streefpeil'] = 17.5
+    # polys_wl['streefpeil'].iloc[10] = 16.5
+    # polys_wl['streefpeil'].iloc[20] = 18.5
+    # polys_wl.to_file(data_path / 'Example_model.gpkg', layer='streefpeilen')
+    # # eind tijdelijke code       
+    
+
+def test_add_initialfields_uniform_depth():
+
+    uniform_depth = 1.5
+     
     hydamo, _ = _hydamo_object_from_gpkg()
 
-    hydamo.external_forcings.set_initial_waterdepth(1.5)
+    hydamo.external_forcings.set_initial_waterdepth(uniform_depth)
 
-    assert np.isclose(
-        np.round(hydamo.external_forcings.initial_waterdepth_polygons.waterdepth.to_numpy()[0]), 2
-    )
+    assert len(hydamo.external_forcings.initial_waterdepth_polygons) == 1
+    assert hydamo.external_forcings.initial_waterdepth_polygons.waterdepth.to_numpy()[0] == uniform_depth
+     
+    
+def test_add_initialfields_uniform_level():
 
+    uniform_level = 17.5
+     
+    hydamo, _ = _hydamo_object_from_gpkg()
+
+    hydamo.external_forcings.set_initial_waterlevel(uniform_level)
+
+    assert len(hydamo.external_forcings.initial_waterlevel_polygons) == 1
+    assert hydamo.external_forcings.initial_waterlevel_polygons.waterlevel.to_numpy()[0] == uniform_level
+    
+def test_add_initialfields_level_from_polygon():
+
+    poly_values = gpd.read_file(hydamo_data_path / 'Example_model.gpkg', layer='afvoergebiedaanvoergebied')
+    poly_values['waterstand'] = 17.5
+    hydamo, _ = _hydamo_object_from_gpkg()
+
+    hydamo.external_forcings.set_initial_waterlevel(poly_values, name_column='code', value_column='waterstand')
+
+    assert len(hydamo.external_forcings.initial_waterlevel_polygons) == 121
+    assert np.min(hydamo.external_forcings.initial_waterlevel_polygons.waterlevel.to_numpy()[0]) == 17.5
+        
+
+def test_add_initialfields_depth_from_polygon():
+
+    poly_values = gpd.read_file(hydamo_data_path / 'Example_model.gpkg', layer='afvoergebiedaanvoergebied')
+    poly_values['waterdiepte'] = 1.5
+
+    hydamo, _ = _hydamo_object_from_gpkg()
+    hydamo.external_forcings.set_initial_waterdepth(poly_values, name_column='code', value_column='waterdiepte')
+
+    assert len(hydamo.external_forcings.initial_waterdepth_polygons) == 121
+    assert np.min(hydamo.external_forcings.initial_waterdepth_polygons.waterdepth.to_numpy()[0]) == 1.5
+
+def test_read_values_from_modelrun_fou():
+
+    hydamo, _ = _hydamo_object_from_gpkg()
+
+    nc_path = hydamo_data_path / 'model_result' / 'DFM_fou.nc'
+    nc_field = 'mesh1d_fourier001_max' 
+    netcdf_index = None
+    df = hydamo.external_forcings.read_values_from_modelrun(nc_path, nc_field, netcdf_index=netcdf_index)
+    assert not df.empty
+ 
+def test_read_values_from_modelrun_map():
+
+    hydamo, _ = _hydamo_object_from_gpkg()
+
+    # reduced map file with only the last time step, see model_result/reduce_map.py
+    nc_path = hydamo_data_path / 'model_result' / 'DFM_map_last.nc'
+    nc_field = 'mesh1d_s1' 
+    netcdf_index = -1
+    df = hydamo.external_forcings.read_values_from_modelrun(nc_path, nc_field, netcdf_index=netcdf_index)
+    assert not df.empty
+
+def test_correct_values_from_modelrun():
+
+    hydamo, _ = _hydamo_object_from_gpkg()
+    
+    nc_path = hydamo_data_path / 'model_result' / 'DFM_fou.nc'
+    nc_field = 'mesh1d_fourier001_max_depth' 
+
+    poly_values = gpd.read_file(hydamo_data_path / 'Example_model.gpkg', layer='afvoergebiedaanvoergebied')
+    selection = poly_values[poly_values['code'].isin([246.,285.,293.])]
+    selection['waterdiepte'] = 0
+                            
+    df = hydamo.external_forcings.read_values_from_modelrun(nc_path, nc_field)
+    df_cor = hydamo.external_forcings.correct_values_from_modelrun(df, selection, value_column='waterdiepte')
+    
+    assert not df_cor.empty
+    assert len(df_cor) == len(df)
+    assert len(df_cor[df_cor['value']==0]) == 69
 
 def test_write_laterals():
     # Get full hydamo object

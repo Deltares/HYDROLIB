@@ -8,18 +8,18 @@ from tests.dhydamo.io import test_from_hydamo
 
 
 def _setup_rr_model(hydamo=None):
-    data_path = Path("hydrolib/sample_data/data").resolve()
-    assert data_path.exists()
-    
+    hydamo_data_path = Path("hydrolib/sample_data/data").resolve()
+    assert hydamo_data_path.exists()
+
     drrmodel = DRRModel()
 
     if hydamo is None:
         hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
 
     # all data and settings to create the RR-model
-    lu_file = data_path / "rasters" / "sobek_landuse2.tif"
-    ahn_file = data_path / "rasters" / "AHN_2m_clipped_filled.tif"
-    soil_file = data_path / "rasters" / "sobek_soil.tif"
+    lu_file = hydamo_data_path / "rasters" / "sobek_landuse2.tif"
+    ahn_file = hydamo_data_path / "rasters" / "AHN_2m_clipped_filled.tif"
+    soil_file = hydamo_data_path / "rasters" / "sobek_soil.tif"
     surface_storage = 10.0
     infiltration_capacity = 100.0
     initial_gwd = 1.2  # water level depth below surface
@@ -30,7 +30,7 @@ def _setup_rr_model(hydamo=None):
     layer_resistances = [30, 200, 10000]
     street_storage = 10.0
     sewer_storage = 10.0
-    pumpcapacity = data_path / "rasters/pumpcap.tif"
+    pumpcapacity = hydamo_data_path / "rasters/pumpcap.tif"
     roof_storage = 10.0
     meteo_areas = hydamo.catchments
 
@@ -80,9 +80,9 @@ def _setup_rr_model(hydamo=None):
         hydamo.laterals, hydamo.catchments, drrmodel
     )
 
-    seepage_folder = data_path / "rasters" / "seepage"
-    precip_folder = data_path /  "rasters" / "precipitation"
-    evap_folder = data_path / "rasters" / "evaporation"
+    seepage_folder = hydamo_data_path / "rasters" / "seepage"
+    precip_folder = hydamo_data_path /  "rasters" / "precipitation"
+    evap_folder = hydamo_data_path / "rasters" / "evaporation"
     drrmodel.external_forcings.io.seepage_from_input(hydamo.catchments, seepage_folder)
     drrmodel.external_forcings.io.precip_from_input(
         meteo_areas, precip_folder=precip_folder, precip_file=None

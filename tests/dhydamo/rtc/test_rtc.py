@@ -9,6 +9,7 @@ import pandas as pd
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
 from shapely.geometry import Point
+from tests.dhydamo.io.test_to_hydrolibcore import output_path as model_path
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
 
 
@@ -98,7 +99,7 @@ def _setup_rtc_model(hydamo=None, fm=None, output_path=None):
     assert data_path.exists()
 
     if output_path is None:
-        output_path = Path("hydrolib/sample_data/model").resolve()
+        output_path = model_path
 
     if hydamo is None:
         hydamo, fm = _full_model()
@@ -150,7 +151,7 @@ def test_complex_controller_multiple_folders():
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
 
-    output_path = Path("hydrolib/sample_data/model").resolve()
+    output_path = model_path
     hydamo, fm = _full_model()
 
     id_limit_complex_controllers = ["S_96684", "ObsS_96684", "ObsS_96789"]
@@ -197,7 +198,7 @@ def test_complex_controller_multiple_folders_dimr_merged():
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
 
-    output_path = Path("hydrolib/sample_data/model").resolve()
+    output_path = model_path
     hydamo, fm = _full_model()
 
     rtcd = DRTCModel(
@@ -226,7 +227,7 @@ def test_dimrwriter_deduplicates_coupler_items():
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
 
-    output_path = Path("hydrolib/sample_data/model").resolve()
+    output_path = model_path
     hydamo, fm = _full_model()
 
     rtcd = DRTCModel(
@@ -271,7 +272,7 @@ def test_dimrwriter_flow_to_rtc_components_for_complex_only():
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
 
-    output_path = Path("hydrolib/sample_data/model").resolve()
+    output_path = model_path
     hydamo, fm = _full_model()
 
     rtcd = DRTCModel(
@@ -311,7 +312,7 @@ def test_drtc_deduplicates_complex_fragments():
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
 
-    output_path = Path("hydrolib/sample_data/model").resolve()
+    output_path = model_path
     hydamo, fm = _full_model()
 
     rtcd = DRTCModel(
@@ -371,7 +372,7 @@ def test_drtc_deduplicates_complex_fragments():
 def test_complex_controller_fourtypes(caplog):
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
-    output_path = Path("hydrolib/sample_data/model").resolve()
+    output_path = model_path
     hydamo, fm = _full_model()
 
     hydamo.observationpoints.add_points(
@@ -416,7 +417,7 @@ def test_complex_controller_fourtypes(caplog):
 def test_complex_controller_fourtypes_limit(caplog):
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
-    output_path = Path("hydrolib/sample_data/model").resolve()
+    output_path = model_path
     hydamo, fm = _full_model()
 
     hydamo.observationpoints.add_points(
@@ -465,7 +466,7 @@ def test_complex_controller_fourtypes_limit(caplog):
 def test_complex_controller_filters_dimr_items_missing_from_hydamo(caplog):
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
-    output_path = Path("hydrolib/sample_data/model").resolve()
+    output_path = model_path
     hydamo, fm = _full_model()
 
     # Reuse an existing complex-controller fixture, but make one referenced
@@ -536,7 +537,7 @@ def test_complex_controller_filters_dimr_items_missing_from_hydamo(caplog):
 def test_complex_controller_logs_items_not_referenced_by_dimr(caplog):
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
-    output_path = Path("hydrolib/sample_data/model").resolve()
+    output_path = model_path
     hydamo, fm = _full_model()
 
     rtcd = DRTCModel(
@@ -591,7 +592,7 @@ def test_complex_controller_logs_items_not_referenced_by_dimr(caplog):
 def test_complex_controller_wrong(caplog):
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
-    output_path = Path("hydrolib/sample_data/model").resolve()
+    output_path = model_path
     hydamo, fm = _full_model()
 
     hydamo.observationpoints.add_points(
@@ -632,3 +633,52 @@ def test_complex_controller_wrong(caplog):
     assert check_msg2 in caplog.messages
     assert check_msg3 in caplog.messages
     assert check_msg4 in caplog.messages
+
+
+def test_state_from_file(tmp_path, caplog):
+    state_path = Path("hydrolib/sample_data/data/rtc_state").resolve()
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
+        rtcd.set_state_from_file(state_path)
+        rtcd.write_xml_v1()
+
+    state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
+    exported = DRTCModel._read_state_leaves(state_path / "state_export.xml")
+    valid_ids = rtcd._dataconfig_ids()
+
+    # all exported items that are part of this RTC model are copied, the others are skipped
+    copied = {key: value for key, value in exported.items() if key in valid_ids}
+    assert len(copied) > 0
+    assert all(state[key] == value for key, value in copied.items())
+    assert all(key in valid_ids for key in state)
+    assert any("not part of this RTC model and are skipped" in msg for msg in caplog.messages)
+    # the state is valid for the end of the earlier run, which differs from the start of this model
+    assert any("The RTC state is valid for 2016-06-03" in msg for msg in caplog.messages)
+
+
+def test_set_initial_state(tmp_path, caplog):
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    structure_id = next(iter(rtcd.pid_controllers))
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
+        rtcd.set_initial_state({structure_id: 12.34, "not_a_structure": 1.0})
+        rtcd.write_xml_v1()
+
+    state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
+    steering_variable = rtcd.pid_controllers[structure_id]["steering_variable"]
+    assert state[f"[Output]{structure_id}/{steering_variable}"] == "12.34"
+    assert any("no controlled structure not_a_structure" in msg for msg in caplog.messages)
+
+
+def test_initial_pid_setting_from_structure(tmp_path):
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    rtcd.write_xml_v1()
+    state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
+
+    for structure_id, controller in rtcd.pid_controllers.items():
+        leaf_id = f"[Output]{structure_id}/{controller['steering_variable']}"
+        if leaf_id not in state:
+            continue  # replaced by a complex controller
+        setting = rtcd._structure_setting(structure_id, controller["steering_variable"])
+        lower, upper = float(controller["lower_bound"]), float(controller["upper_bound"])
+        expected = upper if setting is None else min(max(setting, lower), upper)
+        assert float(state[leaf_id]) == expected

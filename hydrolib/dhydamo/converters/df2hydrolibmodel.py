@@ -20,9 +20,9 @@ from hydrolib.core.dflowfm.crosssection.models import (
 )
 from hydrolib.core.dflowfm.ext.models import Boundary, Lateral
 from hydrolib.core.dflowfm.friction.models import FrictGlobal
-from hydrolib.core.dflowfm.inifield.models import InitialField
+from hydrolib.core.dflowfm.inifield.models import IniFieldModel, InitialField, ParameterField
 from hydrolib.core.dflowfm.obs.models import ObservationPoint
-from hydrolib.core.dflowfm.onedfield.models import OneDFieldGlobal
+from hydrolib.core.dflowfm.onedfield.models import OneDFieldGlobal, OneDFieldModel
 from hydrolib.core.dflowfm.storagenode.models import StorageNode
 from hydrolib.core.dflowfm.structure.models import (
     Bridge,
@@ -33,6 +33,13 @@ from hydrolib.core.dflowfm.structure.models import (
     UniversalWeir,
     Weir,
 )
+from hydrolib.core.dflowfm.polyfile.models import Metadata, PolyFile, PolyObject
+from hydrolib.core.dflowfm.polyfile.models import Point as PolyPoint
+from hydrolib.core.dflowfm.xyz.models import XYZModel, XYZPoint
+
+from hydrolib.dhydamo.geometry import common
+from hydrolib.dhydamo.geometry.spatial import rasterize_polygons
+from hydrolib.dhydamo.io.rasterwriter import write_raster
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +60,9 @@ class Df2HydrolibModel:
         self.storagenodes = []
         self.inifields = []
         self.onedfields = []
+        self.parameterfields = []
+        # data for the spatial fields, written by write_spatial_fields()
+        self.spatial_data = {}
 
         self.assign_default_profiles = assign_default_profiles
         self.forcingmodel = ForcingModel()
@@ -80,6 +90,7 @@ class Df2HydrolibModel:
         self.observation_points_to_dhydro()
         self.storagenodes_to_dhydro()
         self.inifields_to_dhydro()
+        self.spatial_fields_to_dhydro()
 
     @staticmethod
     def _clear_comments(lst):
@@ -359,48 +370,177 @@ class Df2HydrolibModel:
             self.obspoints += obspoints
 
     def inifields_to_dhydro(self):
-        """Convert initial conditions to InitialField objects"""
-        for (
-            level
-        ) in self.hydamo.external_forcings.initial_waterlevel_polygons.itertuples():
-            inifield = InitialField(
-                quantity="waterlevel",
-                datafiletype="1dField",
-                unit="m",
-                datafile="initialwaterdepth.ini",
-            )
-            if level.geometry is None:
-                onedfield = OneDFieldGlobal(
-                    quantity="waterlevel",
-                    locationtype=level.locationtype,
-                    unit="m",
-                    value=str(level.value),
-                )
-            self._clear_comments(inifield)
-            self._clear_comments(onedfield)
-            self.inifields.append(inifield)
-            self.onedfields.append(onedfield)
+        """Convert uniform initial water levels and depths to InitialField objects with a 1dField data file.
 
-        for (
-            depth
-        ) in self.hydamo.external_forcings.initial_waterdepth_polygons.itertuples():
-            inifield = InitialField(
-                quantity="waterdepth",
-                datafiletype="1dField",
-                datafile="initialwaterdepth.ini",
-            )
-            if depth.geometry is None:
-                onedfield = OneDFieldGlobal(
-                    quantity="waterdepth",
-                    unit="m",
-                    value=str(depth.waterdepth),
+        The corresponding OneDFieldGlobal objects are stored in self.onedfieldmodels, in the same order as the
+        1dField entries in self.inifields. Use write_initial_fields() to write them.
+        """
+        initial = [
+            ("waterlevel", self.hydamo.external_forcings.initial_waterlevel_polygons, "initialwaterlevel.ini"),
+            ("waterdepth", self.hydamo.external_forcings.initial_waterdepth_polygons, "initialwaterdepth.ini"),
+        ]
+        for quantity, gdf, filename in initial:
+            if gdf.empty:
+                continue
+            if gdf.geometry.notnull().any() or len(gdf) > 1:
+                raise ValueError(
+                    f"Initial {quantity} with polygons is not supported by set_initial_{quantity}. "
+                    "Use hydamo.external_forcings.set_spatial_field() for spatially varying values."
                 )
+            row = gdf.iloc[0]
+            inifield = InitialField(
+                quantity=quantity,
+                datafiletype="1dField",
+                datafile=filename,
+                locationtype=row["locationtype"],
+            )
+            onedfield = OneDFieldGlobal(
+                quantity=quantity,
+                unit="m",
+                value=str(row[quantity]),
+            )
             self._clear_comments(inifield)
             self._clear_comments(onedfield)
             self.inifields.append(inifield)
             self.onedfieldmodels.append(onedfield)
 
-            #          onedfieldmodel = OneDFieldModel(global_=sekf.onedfields[0])
-            # onedfieldmodel.filepath = Path("initialwaterdepth.ini")
-            # fm.geometry.inifieldfile = onedfieldmodel
-            # self.onedfields.append(onedfield)
+    def spatial_fields_to_dhydro(self):
+        """Convert spatial fields (polygons, rasters or samples) to InitialField/ParameterField objects.
+
+        Polygons get one .pol file and one block per distinct value. Only the references are created here;
+        the data files themselves are written by write_spatial_fields().
+        """
+        for sf in self.hydamo.external_forcings.spatial_fields:
+            gdf, column = sf["gdf"], sf["column"]
+
+            # list of (filename, datafiletype, value) per block
+            blocks = []
+            if sf["filetype"] == "polygon":
+                values = sorted(gdf[column].astype(float).unique())
+                stem, suffix = Path(sf["filename"]).stem, Path(sf["filename"]).suffix or ".pol"
+                for i, value in enumerate(values):
+                    filename = sf["filename"] if len(values) == 1 else f"{stem}_{i:02d}{suffix}"
+                    geometries = gdf.loc[gdf[column].astype(float) == value].geometry
+                    self.spatial_data[filename] = {
+                        "filetype": "polygon",
+                        "polygons": [
+                            poly for geom in geometries for poly in common.as_polygon_list(geom)
+                        ],
+                    }
+                    blocks.append((filename, "polygon", value))
+
+            elif sf["filetype"] == "raster":
+                array, transform = rasterize_polygons(
+                    gdf, column, sf["cellsize"], fill=sf["nodata"]
+                )
+                self.spatial_data[sf["filename"]] = {
+                    "filetype": "raster",
+                    "array": array,
+                    "transform": transform,
+                    "crs": gdf.crs,
+                    "nodata": sf["nodata"],
+                }
+                datafiletype = (
+                    "arcInfo" if Path(sf["filename"]).suffix.lower() == ".asc" else "GeoTIFF"
+                )
+                blocks.append((sf["filename"], datafiletype, None))
+
+            else:
+                self.spatial_data[sf["filename"]] = {
+                    "filetype": "sample",
+                    "x": gdf.geometry.x.to_numpy(),
+                    "y": gdf.geometry.y.to_numpy(),
+                    "z": gdf[column].to_numpy(dtype=float),
+                }
+                blocks.append((sf["filename"], "sample", None))
+
+            for filename, datafiletype, value in blocks:
+                kwargs = dict(
+                    quantity=sf["quantity"],
+                    datafile=filename,
+                    datafiletype=datafiletype,
+                    interpolationmethod=sf["interpolationmethod"],
+                    locationtype=sf["locationtype"],
+                    operand=sf["operand"],
+                )
+                if value is not None:
+                    kwargs["value"] = value
+                if sf["interpolationmethod"] == "averaging":
+                    kwargs["averagingtype"] = sf["averagingtype"]
+
+                if sf["kind"] == "initial":
+                    field = InitialField(**kwargs)
+                    self._clear_comments(field)
+                    self.inifields.append(field)
+                else:
+                    field = ParameterField(**kwargs)
+                    self._clear_comments(field)
+                    self.parameterfields.append(field)
+
+    def write_spatial_fields(self, output_dir: Path | str) -> None:
+        """Write the data files of the spatial fields (polygon files, rasters and samples).
+
+        The files are referenced relative to initialFields.ini, so output_dir should be the
+        folder where the FMModel (and its initialFields.ini) is saved.
+
+        Args:
+            output_dir (Path | str): fm-folder of the model
+        """
+        output_dir = Path(output_dir)
+        for filename, data in self.spatial_data.items():
+            path = output_dir / filename
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if data["filetype"] == "polygon":
+                objects = []
+                for i, polygon in enumerate(data["polygons"]):
+                    coords = list(polygon.exterior.coords)
+                    objects.append(
+                        PolyObject(
+                            metadata=Metadata(name=f"{path.stem}_{i:04d}", n_rows=len(coords), n_columns=2),
+                            points=[PolyPoint(x=x, y=y, data=[]) for x, y, *_ in coords],
+                        )
+                    )
+                PolyFile(objects=objects).save(filepath=path)
+            elif data["filetype"] == "raster":
+                write_raster(
+                    path,
+                    data["array"],
+                    data["transform"],
+                    crs=data["crs"],
+                    nodata=data["nodata"],
+                )
+            else:
+                xyz = XYZModel(
+                    points=[
+                        XYZPoint(x=x, y=y, z=z)
+                        for x, y, z in zip(data["x"], data["y"], data["z"])
+                    ]
+                )
+                xyz.save(filepath=path)
+
+    def write_initial_fields(self, fm, fm_dir: Path | str) -> IniFieldModel:
+        """Add all initial fields and parameter fields to the FM model and write their data files.
+
+        This writes the 1dField files (uniform values), rasters and sample files to fm_dir, and links them
+        in initialFields.ini, using paths relative to the fm folder. Call this before saving the FM model.
+
+        Args:
+            fm (FMModel): the FM model
+            fm_dir (Path | str): folder where the FM model (mdu-file) is written
+
+        Returns:
+            IniFieldModel: the initial fields model, also set as fm.geometry.inifieldfile
+        """
+        fm_dir = Path(fm_dir)
+        fm_dir.mkdir(parents=True, exist_ok=True)
+
+        onedfield_inifields = [f for f in self.inifields if f.datafiletype == "1dField"]
+        for inifield, onedfield in zip(onedfield_inifields, self.onedfieldmodels):
+            onedfieldmodel = OneDFieldModel(global_=onedfield)
+            onedfieldmodel.save(filepath=fm_dir / inifield.datafile.filepath.name)
+
+        self.write_spatial_fields(fm_dir)
+
+        inifieldmodel = IniFieldModel(initial=self.inifields, parameter=self.parameterfields)
+        fm.geometry.inifieldfile = inifieldmodel
+        return inifieldmodel
