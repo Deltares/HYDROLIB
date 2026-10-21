@@ -121,7 +121,8 @@ def test_run_model(model_run):
         ('weir'             , 'S_96550'     , 'waterlevel_upstream'  ),
         ('weir'             , 'S_96550'     , 'waterlevel_downstream'),
         ('pump'             , '113GIS'      , 'discharge'            ),
-        ('uweir'            , 'uwtest'      , 'discharge'            ),
+        # uwtest does not flow (crest above the water level), so its discharge is missing; test the water level
+        ('uweir'            , 'uwtest'      , 'waterlevel_upstream'  ),
         ('bridge'           , 'KBR_test'    , 'discharge'            ),
         ('compound'         , 'cmp_S_97947' , 'discharge'            ),
         ('culvert'          , 'D_25561'     , 'discharge'            ),
@@ -153,6 +154,8 @@ def test_read_output(model_run, location_type, location_id, variable):
     plt.close()
 
     assert series_ref.shape[0] == series_test.shape[0]
-    assert np.round(np.max(series_ref),1) == np.round(np.max(series_test),1)
+    assert series_test.notna().any(), f'No values for {variable} at {location_id}'
+    # D-Flow FM writes missing values (NaN) for structures without flow; max() skips them
+    assert np.allclose(np.round(series_ref.max(), 1), np.round(series_test.max(), 1), equal_nan=True)
 
     assert geom_test == geom_ref

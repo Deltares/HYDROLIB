@@ -4,11 +4,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from pydantic import Field
+
 from hydrolib.core.dflowfm.bc.models import (
     Constant,
     ForcingModel,
     QHTable,
     QuantityUnitPair,
+    TimeInterpolation,
     TimeSeries,
 )
 from hydrolib.core.dflowfm.crosssection.models import (
@@ -22,7 +25,7 @@ from hydrolib.core.dflowfm.ext.models import Boundary, Lateral
 from hydrolib.core.dflowfm.friction.models import FrictGlobal
 from hydrolib.core.dflowfm.inifield.models import IniFieldModel, InitialField, ParameterField
 from hydrolib.core.dflowfm.obs.models import ObservationPoint
-from hydrolib.core.dflowfm.onedfield.models import OneDFieldGlobal, OneDFieldModel
+from hydrolib.core.dflowfm.onedfield.models import OneDFieldBranch, OneDFieldGlobal, OneDFieldModel
 from hydrolib.core.dflowfm.storagenode.models import StorageNode
 from hydrolib.core.dflowfm.structure.models import (
     Bridge,
@@ -38,10 +41,24 @@ from hydrolib.core.dflowfm.polyfile.models import Point as PolyPoint
 from hydrolib.core.dflowfm.xyz.models import XYZModel, XYZPoint
 
 from hydrolib.dhydamo.geometry import common
-from hydrolib.dhydamo.geometry.spatial import rasterize_polygons
+from hydrolib.dhydamo.geometry.spatial import (
+    points_to_branch_values,
+    polygons_to_branch_values,
+    rasterize_polygons,
+)
 from hydrolib.dhydamo.io.rasterwriter import write_raster
 
 logger = logging.getLogger(__name__)
+
+
+class ConstantWithInterpolation(Constant):
+    """Constant [Forcing] block that also writes timeInterpolation.
+
+    hydrolib-core's Constant has no timeInterpolation field, but the D-HYDRO GUI raises an error when it is
+    missing. D-Flow FM (2026.02) accepts it and ignores it for constant values.
+    """
+
+    timeinterpolation: TimeInterpolation = Field(TimeInterpolation.linear, alias="timeInterpolation")
 
 
 class Df2HydrolibModel:
@@ -248,7 +265,7 @@ class Df2HydrolibModel:
         """Convert dataframe of boundaries to ext and bc models"""
         for bound in self.hydamo.external_forcings.boundary_nodes.values():
             if bound["vec1"] is None:
-                bnd_bc = Constant(
+                bnd_bc = ConstantWithInterpolation(
                     name=bound["nodeid"],
                     function="constant",
                     quantity=bound["quantity"],
@@ -322,7 +339,7 @@ class Df2HydrolibModel:
                     )
                     self.laterals_bc.append(lat_bc)
                 elif isinstance(lateral["discharge"], float):
-                    lat_bc = Constant(
+                    lat_bc = ConstantWithInterpolation(
                         name=key,
                         function="constant",
                         quantity="lateral_discharge",
@@ -405,11 +422,14 @@ class Df2HydrolibModel:
             self.onedfieldmodels.append(onedfield)
 
     def spatial_fields_to_dhydro(self):
-        """Convert spatial fields (polygons, rasters or samples) to InitialField/ParameterField objects.
+        """Convert spatial fields (branch values, polygons, rasters or samples) to InitialField/ParameterField objects.
 
-        Polygons get one .pol file and one block per distinct value. Only the references are created here;
+        Branch values are derived from the HyDAMO branches and written as one 1dField file. Polygon files
+        get one .pol file and one block per distinct value. Only the references are created here;
         the data files themselves are written by write_spatial_fields().
         """
+        # (quantity, filename, branch ids) of the branch fields, to check for level and depth on the same branch
+        branch_fields = []
         for sf in self.hydamo.external_forcings.spatial_fields:
             gdf, column = sf["gdf"], sf["column"]
 
@@ -428,6 +448,25 @@ class Df2HydrolibModel:
                         ],
                     }
                     blocks.append((filename, "polygon", value))
+
+            elif sf["filetype"] == "branch":
+                if gdf.geom_type.isin(["Polygon", "MultiPolygon"]).all():
+                    branch_values = polygons_to_branch_values(self.hydamo.branches, gdf, column)
+                else:
+                    branch_values = points_to_branch_values(
+                        self.hydamo.branches, gdf, column, max_distance=sf["max_snap_distance"]
+                    )
+                if not branch_values:
+                    logger.warning(f"No values on any branch for {sf['filename']}; the file is empty.")
+                self.spatial_data[sf["filename"]] = {
+                    "filetype": "branch",
+                    "branches": branch_values,
+                    "quantity": sf["quantity"],
+                    "nodata": sf["nodata"],
+                }
+                blocks.append((sf["filename"], "1dField", None))
+                if sf["kind"] == "initial":
+                    branch_fields.append((sf["quantity"], sf["filename"], set(branch_values)))
 
             elif sf["filetype"] == "raster":
                 array, transform = rasterize_polygons(
@@ -465,6 +504,9 @@ class Df2HydrolibModel:
                 )
                 if value is not None:
                     kwargs["value"] = value
+                if datafiletype == "1dField":
+                    # interpolation and location type are not used for 1dField files
+                    del kwargs["interpolationmethod"], kwargs["locationtype"]
                 if sf["interpolationmethod"] == "averaging":
                     kwargs["averagingtype"] = sf["averagingtype"]
 
@@ -477,8 +519,30 @@ class Df2HydrolibModel:
                     self._clear_comments(field)
                     self.parameterfields.append(field)
 
+        self._check_level_and_depth_on_branches(branch_fields)
+
+    @staticmethod
+    def _check_level_and_depth_on_branches(branch_fields: list[tuple[str, str, set]]) -> None:
+        """Warn for branches that get both a water level and a water depth from branch fields.
+
+        A 1dField file cannot leave part of a branch empty: beyond the given chainages the value is kept
+        constant up to the branch ends. A branch in both a water level and a water depth field therefore
+        gets the quantity of the last of these fields over its whole length.
+        """
+        for i, (quantity_i, file_i, branches_i) in enumerate(branch_fields):
+            for quantity_j, file_j, branches_j in branch_fields[i + 1:]:
+                kinds = {q.lower().replace("initial", "") for q in (quantity_i, quantity_j)}
+                if kinds != {"waterlevel", "waterdepth"}:
+                    continue
+                shared = sorted(branches_i & branches_j)
+                if shared:
+                    logger.warning(
+                        f"{len(shared)} branch(es) get both a {quantity_i} ({file_i}) and a {quantity_j} ({file_j}). "
+                        f"On these branches the {quantity_j} applies over the whole branch, as it is added last: {shared[:10]}"
+                    )
+
     def write_spatial_fields(self, output_dir: Path | str) -> None:
-        """Write the data files of the spatial fields (polygon files, rasters and samples).
+        """Write the data files of the spatial fields (1dField files, polygon files, rasters and samples).
 
         The files are referenced relative to initialFields.ini, so output_dir should be the
         folder where the FMModel (and its initialFields.ini) is saved.
@@ -490,7 +554,21 @@ class Df2HydrolibModel:
         for filename, data in self.spatial_data.items():
             path = output_dir / filename
             path.parent.mkdir(parents=True, exist_ok=True)
-            if data["filetype"] == "polygon":
+            if data["filetype"] == "branch":
+                # The D-HYDRO GUI requires a [Global] block. D-Flow FM (2026.02) treats the nodata value as no
+                # value, so branches without values keep the value of earlier fields or WaterLevIni.
+                quantity = data["quantity"]
+                unit = "m" if quantity.lower().replace("initial", "") in ("waterlevel", "waterdepth") else "-"
+                OneDFieldModel(
+                    global_=OneDFieldGlobal(quantity=quantity, unit=unit, value=data["nodata"]),
+                    branch=[
+                        OneDFieldBranch(
+                            branchid=str(branch_id), numlocations=len(chainage), chainage=chainage, values=values
+                        )
+                        for branch_id, (chainage, values) in data["branches"].items()
+                    ]
+                ).save(filepath=path)
+            elif data["filetype"] == "polygon":
                 objects = []
                 for i, polygon in enumerate(data["polygons"]):
                     coords = list(polygon.exterior.coords)

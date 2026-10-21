@@ -15,6 +15,7 @@ from shapely.geometry import (
 )
 from shapely.geometry.base import BaseGeometry
 import pytest
+from netCDF4 import Dataset
 from hydrolib.dhydamo.core import hydamo
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 
@@ -441,8 +442,8 @@ def _add_structures_manually():
     hydamo.structures.add_uweir(
         id="uwtest",
         name="uwtest",
-        branchid="W_242213_0",
-        chainage=2.0,
+        branchid="W_1486_0",
+        chainage=27.0,
         dischargecoeff=1.0,
         crestlevel=18.0,
         numlevels=4,
@@ -794,3 +795,78 @@ def test_write_laterals():
     assert np.isclose(
         np.round(np.mean(hydamo.external_forcings.lateral_nodes["LAT_01"]["value"])), 1
     )
+
+
+def test_read_values_from_modelrun_edges():
+    # velocities are on the 1D flow links (edges), not on the nodes
+    hydamo, _ = _hydamo_object_from_gpkg()
+    nc_path = hydamo_data_path / 'model_result' / 'DFM_map_last.nc'
+    df = hydamo.external_forcings.read_values_from_modelrun(nc_path, 'mesh1d_u1')
+
+    assert len(df) == 1423
+    assert {'branchid', 'chainage'} <= set(df.columns)
+    assert df['value'].notna().all()
+
+
+def test_read_values_from_modelrun_time():
+    hydamo, _ = _hydamo_object_from_gpkg()
+    nc_path = hydamo_data_path / 'model_result' / 'DFM_map.nc'
+    by_time = hydamo.external_forcings.read_values_from_modelrun(nc_path, 'mesh1d_s1', time='2016-06-02 12:00')
+    with Dataset(nc_path) as nc:
+        index = int(np.argmin(np.abs(nc['time'][:] - 36 * 3600)))
+    by_index = hydamo.external_forcings.read_values_from_modelrun(nc_path, 'mesh1d_s1', netcdf_index=index)
+    assert np.allclose(by_time['value'], by_index['value'])
+
+    with pytest.raises(ValueError):
+        hydamo.external_forcings.read_values_from_modelrun(nc_path, 'mesh1d_s1', time='2030-01-01')
+
+
+def test_read_values_from_modelrun_level_from_depth(tmp_path):
+    # a map-file without water level: the level is computed as bed level + water depth
+    src = hydamo_data_path / 'model_result' / 'DFM_map_last.nc'
+    dst = tmp_path / 'map_without_s1.nc'
+    with Dataset(src) as s, Dataset(dst, 'w') as d:
+        for name, dim in s.dimensions.items():
+            d.createDimension(name, None if dim.isunlimited() else len(dim))
+        for name, var in s.variables.items():
+            if name == 'mesh1d_s1':
+                continue
+            fill = var.getncattr('_FillValue') if '_FillValue' in var.ncattrs() else None
+            v = d.createVariable(name, var.datatype, var.dimensions, fill_value=fill)
+            v.setncatts({k: var.getncattr(k) for k in var.ncattrs() if k != '_FillValue'})
+            v[:] = var[:]
+
+    hydamo, _ = _hydamo_object_from_gpkg()
+    level = hydamo.external_forcings.read_values_from_modelrun(src, 'mesh1d_s1')
+    derived = hydamo.external_forcings.read_values_from_modelrun(dst, 'mesh1d_s1')
+    assert len(derived) == len(level)
+    # compare wet nodes; at dry nodes the map-file can still contain a small water depth
+    with Dataset(src) as nc:
+        wet = ~np.ma.getmaskarray(nc['mesh1d_s1'][-1, :])
+    assert np.allclose(derived['value'][wet], level['value'][wet], atol=1e-3)
+    assert (derived['value'] >= level['value'] - 1e-3).all()
+
+
+def test_read_values_from_modelrun_default_last_time_step():
+    hydamo, _ = _hydamo_object_from_gpkg()
+    nc_path = hydamo_data_path / 'model_result' / 'DFM_map.nc'
+    default = hydamo.external_forcings.read_values_from_modelrun(nc_path, 'mesh1d_s1')
+    last = hydamo.external_forcings.read_values_from_modelrun(nc_path, 'mesh1d_s1', netcdf_index=-1)
+    assert np.allclose(default['value'], last['value'])
+
+
+def test_set_initial_velocity():
+    hydamo, _ = _hydamo_object_from_gpkg()
+    nc_path = hydamo_data_path / 'model_result' / 'DFM_map_last.nc'
+    u = hydamo.external_forcings.read_values_from_modelrun(nc_path, 'mesh1d_u1')
+    assert 'direction' in u.columns
+
+    hydamo.external_forcings.set_initial_velocity(u)
+    fields = hydamo.external_forcings.spatial_fields
+    assert [f['quantity'] for f in fields] == ['initialvelocityx', 'initialvelocityy']
+    vx, vy = (f['gdf']['_component'].to_numpy() for f in fields)
+    assert np.allclose(np.hypot(vx, vy), np.abs(u['value']))
+
+    # D-Flow FM does not accept 'initialvelocity' itself
+    with pytest.raises(ValueError):
+        hydamo.external_forcings.set_spatial_field(u, 'value', quantity='initialvelocity')

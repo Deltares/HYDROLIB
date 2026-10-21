@@ -305,3 +305,144 @@ def rasterize_polygons(
         dtype="float32",
     )
     return array, transform
+
+
+def _line_parts(geometry) -> list[LineString]:
+    """All LineStrings in a geometry, including those in a GeometryCollection; points are ignored."""
+    if isinstance(geometry, LineString):
+        return [geometry]
+    if hasattr(geometry, "geoms"):
+        return [part for geom in geometry.geoms for part in _line_parts(geom)]
+    return []
+
+def polygons_to_branch_values(
+    branches: gpd.GeoDataFrame, polygons: gpd.GeoDataFrame, column: str, step: float = 0.01
+) -> dict[str, tuple[list[float], list[float]]]:
+    """Convert polygon values to values per branch and chainage, e.g. for a 1dField file.
+
+    Each part of a branch inside a polygon gets the value of that polygon. At polygon boundaries two
+    chainages are written, `step` apart, so the value changes stepwise. Where polygons overlap, the last
+    polygon in the GeoDataFrame determines the value. Parts of a branch outside all polygons get no
+    chainage: D-Flow FM interpolates linearly between the given chainages and keeps the value constant
+    beyond the first and last chainage of a branch. Branches that do not intersect any polygon are left out.
+
+    Args:
+        branches (gpd.GeoDataFrame): branches, with the branch id as index
+        polygons (gpd.GeoDataFrame): (multi)polygons with values
+        column (str): column with the values
+        step (float, optional): distance between the two chainages at a polygon boundary. Defaults to 0.01.
+
+    Returns:
+        dict[str, tuple[list[float], list[float]]]: chainages and values per branch id
+    """
+    polygons = polygons.reset_index(drop=True)
+    values = polygons[column].astype(float).to_numpy()
+    result = {}
+    for branch_id, line in zip(branches.index, branches.geometry):
+        candidates = sorted(polygons.sindex.query(line, predicate="intersects"))
+        if len(candidates) == 0:
+            continue
+        length = line.length
+
+        # intervals (start, end) along the branch per polygon, in the order of the polygons
+        intervals = []
+        for i in candidates:
+            for part in _line_parts(line.intersection(polygons.geometry.iloc[i])):
+                if part.length < step:
+                    continue
+                chainages = [line.project(Point(c)) for c in part.coords]
+                intervals.append((min(chainages), max(chainages), i))
+        if not intervals:
+            continue
+
+        # value per sub-interval between breakpoints: the last polygon covering it
+        breakpoints = sorted({0.0, length} | {s for s0, s1, _ in intervals for s in (s0, s1)})
+        segments = []
+        for a, b in zip(breakpoints[:-1], breakpoints[1:]):
+            if b - a < step:
+                continue
+            mid = 0.5 * (a + b)
+            covering = [i for s0, s1, i in intervals if s0 <= mid <= s1]
+            if not covering:
+                continue
+            value = values[max(covering)]
+            if segments and np.isclose(segments[-1][1], a) and segments[-1][2] == value:
+                segments[-1][1] = b
+            else:
+                segments.append([a, b, value])
+
+        chainage, branch_values = [], []
+        for a, b, value in segments:
+            start = a if np.isclose(a, 0.0) else a + 0.5 * step
+            end = b if np.isclose(b, length) else b - 0.5 * step
+            chainage += [start, end]
+            branch_values += [value, value]
+        result[branch_id] = (chainage, branch_values)
+    return result
+
+
+def points_to_branch_values(
+    branches: gpd.GeoDataFrame,
+    points: gpd.GeoDataFrame,
+    column: str,
+    max_distance: float = 5.0,
+    junction_tolerance: float = 0.1,
+) -> dict[str, tuple[list[float], list[float]]]:
+    """Convert point values to values per branch and chainage, e.g. for a 1dField file.
+
+    If the points have columns 'branchid' and 'chainage' (e.g. from a model result on the same network),
+    these are used. Otherwise each point is snapped to the nearest branch within `max_distance` and its
+    chainage is the projection on that branch. D-Flow FM interpolates linearly between the chainages of a
+    branch and keeps the value constant beyond the first and last chainage.
+
+    Args:
+        branches (gpd.GeoDataFrame): branches, with the branch id as index
+        points (gpd.GeoDataFrame): points with values
+        column (str): column with the values
+        max_distance (float, optional): maximum distance to snap a point to a branch. Defaults to 5.0.
+        junction_tolerance (float, optional): distance within which a point at a branch end is also used for the
+            other branches at that junction. Defaults to 0.1.
+
+    Returns:
+        dict[str, tuple[list[float], list[float]]]: chainages and values per branch id
+    """
+    if {"branchid", "chainage"} <= set(points.columns):
+        data = points[["branchid", "chainage", column]].copy()
+        unknown = ~data["branchid"].isin(branches.index)
+        if unknown.any():
+            logger.warning(f"{unknown.sum()} points refer to branches that are not in the model and are left out.")
+            data = data[~unknown]
+    else:
+        # first row: index of the point, second row: index of the nearest branch
+        point_idx, branch_idx = branches.sindex.nearest(points.geometry, max_distance=max_distance, return_all=False)
+        if len(point_idx) < len(points):
+            logger.warning(
+                f"{len(points) - len(point_idx)} points are further than {max_distance} m from a branch and are left out."
+            )
+        geometries = branches.geometry.to_numpy()
+        data = points.iloc[point_idx][[column]].copy()
+        data["branchid"] = branches.index.to_numpy()[branch_idx]
+        data["chainage"] = [
+            geometries[b].project(p) for b, p in zip(branch_idx, points.geometry.to_numpy()[point_idx])
+        ]
+
+    result = {}
+    for branch_id, group in data.groupby("branchid", sort=False):
+        group = group.sort_values("chainage").drop_duplicates("chainage", keep="last")
+        result[branch_id] = (group["chainage"].astype(float).tolist(), group[column].astype(float).tolist())
+
+    # A point at a junction belongs to one branch only. Give the other branches at that junction the same
+    # value at their end, otherwise D-Flow FM extrapolates from their first inner point to the junction.
+    geometries = branches.geometry
+    for branch_id, (chainage, values) in result.items():
+        line = geometries.loc[branch_id]
+        for end_chainage, end_point in ((0.0, Point(line.coords[0])), (line.length, Point(line.coords[-1]))):
+            if any(abs(c - end_chainage) < junction_tolerance for c in chainage):
+                continue
+            nearby = points.sindex.query(end_point.buffer(junction_tolerance), predicate="intersects")
+            if len(nearby) == 0:
+                continue
+            position = int(np.searchsorted(chainage, end_chainage))
+            chainage.insert(position, end_chainage)
+            values.insert(position, float(points[column].iloc[nearby[0]]))
+    return result

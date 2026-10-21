@@ -13,7 +13,9 @@ from rasterstats import zonal_stats
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from tqdm.auto import tqdm
-from netCDF4 import Dataset
+from netCDF4 import Dataset, chartostring
+
+from hydrolib.dhydamo.io.netcdfreader import time_index
 from hydrolib import dhydamo
 from hydrolib.dhydamo.converters.hydamo2df import (
     CrossSectionsIO,
@@ -1598,69 +1600,162 @@ class ExternalForcings:
         return model_values_corrected
 
 
-    def read_values_from_modelrun(self, netcdf_path: str | Path, netcdf_field: str, netcdf_index: int = None, crs=None) -> gpd.GeoDataFrame:
+    def read_values_from_modelrun(
+        self,
+        netcdf_path: str | Path,
+        netcdf_field: str,
+        netcdf_index: int = None,
+        crs=None,
+        time: datetime | pd.Timestamp | str = None,
+    ) -> gpd.GeoDataFrame:
         """
-        Read the values of a variable on the 1D mesh nodes from a model result (map- or fou-file).
+        Read the values of a 1D variable from a model result (map- or fou-file).
+
+        Variables on the 1D nodes (e.g. 'mesh1d_s1', 'mesh1d_waterdepth') are returned at the node locations,
+        variables on the 1D edges/flow links (e.g. 'mesh1d_u1') at the edge locations.
 
         Args:
             netcdf_path (str | Path): path to the netcdf file
             netcdf_field (str): variable to read, e.g. 'mesh1d_s1' (map) or 'mesh1d_fourier001_max' (fou)
-            netcdf_index (int, optional): time index, required for variables with more than one time step
-                (map-file), e.g. -1 for the last time step. Defaults to None.
+            netcdf_index (int, optional): time index, e.g. 0 for the first time step. If neither netcdf_index
+                nor time is given, the last time step is used. Defaults to None.
             crs (optional): coordinate reference system of the model. Defaults to None.
+            time (datetime | pd.Timestamp | str, optional): time for which the values are read, e.g.
+                "2016-06-02 12:00"; the nearest time step is used. Defaults to None.
 
-        Missing values (nodes that are dry in a map-file) are replaced by the bed level for water levels
-        and by 0 for water depths; for other variables these nodes are left out.
+        If 'mesh1d_s1' is requested but the file only contains the water depth, the water level is computed
+        as bed level + water depth.
+
+        Missing values (dry nodes or links in a map-file) are replaced by the bed level for water levels,
+        and by 0 for water depths, velocities and discharges; for other variables they are left out.
+
+        If the file contains the 1D network topology, the columns 'branchid' and 'chainage' are added, so the
+        values can be written per branch with set_spatial_field(..., filetype="branch"). For edge variables,
+        the column 'direction' (angle of the link in radians) is added, as used by set_initial_velocity.
 
         Returns:
-            gpd.GeoDataFrame: points with columns x, y and value
+            gpd.GeoDataFrame: points with columns x, y and value (and branchid, chainage and direction, if available)
         """
         logging.info(f"Reading {netcdf_field} from {netcdf_path} ...")
         with Dataset(netcdf_path, "r") as results:  # Open file in read mode
-            variable = results[netcdf_field]
+            from_depth = (
+                netcdf_field == "mesh1d_s1"
+                and netcdf_field not in results.variables
+                and {"mesh1d_waterdepth", "mesh1d_flowelem_bl"} <= set(results.variables)
+            )
+            if from_depth:
+                logging.info("mesh1d_s1 is not in the file; the water level is computed as bed level + water depth.")
+                variable = results["mesh1d_waterdepth"]
+            elif netcdf_field in results.variables:
+                variable = results[netcdf_field]
+            else:
+                raise KeyError(f"{netcdf_field} not found in {netcdf_path}.")
+
+            if time is not None:
+                if netcdf_index is not None:
+                    raise ValueError("Provide either netcdf_index or time, not both.")
+                if "time" not in variable.dimensions:
+                    raise ValueError(f"{netcdf_field} in {netcdf_path} has no time dimension.")
+                netcdf_index = time_index(results, time)
             if netcdf_index is None and "time" in variable.dimensions:
                 n_time = results.dimensions["time"].size
                 if n_time != 1:
-                    raise ValueError(
-                        f"{netcdf_field} in {netcdf_path} has {n_time} time steps. "
-                        "Provide netcdf_index, e.g. netcdf_index=-1 for the last time step."
-                    )
-                netcdf_index = 0
+                    logging.info(f"No time given; the last of the {n_time} time steps in {netcdf_path} is used.")
+                netcdf_index = -1
             if netcdf_index is None:
-                node_value = np.ma.masked_invalid(variable[:])
+                value = np.ma.masked_invalid(variable[:])
             else:
-                node_value = np.ma.masked_invalid(variable[netcdf_index, :])
-            node_x = np.array(results['mesh1d_node_x'][:])
-            node_y = np.array(results['mesh1d_node_y'][:])
-            if node_value.ndim != 1 or len(node_x) != len(node_value):
+                value = np.ma.masked_invalid(variable[netcdf_index, :])
+            if from_depth:
+                # dry nodes (missing depth) get the bed level
+                bed_level = np.ma.filled(results["mesh1d_flowelem_bl"][:], np.nan)
+                value = np.ma.masked_invalid(bed_level + np.ma.filled(value, 0.0))
+
+            # location of the variable: 1D nodes or 1D edges (flow links)
+            location = "edge" if variable.dimensions[-1] == "mesh1d_nEdges" else "node"
+            x = np.array(results[f"mesh1d_{location}_x"][:])
+            y = np.array(results[f"mesh1d_{location}_y"][:])
+            if value.ndim != 1 or len(x) != len(value):
                 raise ValueError(f'For {netcdf_field} in {netcdf_path}, length of coordinates and values are not equal.')
 
-            missing = np.ma.getmaskarray(node_value)
+            topology = {}
+            if all(v in results.variables for v in (f"mesh1d_{location}_branch", f"mesh1d_{location}_offset", "network1d_branch_id")):
+                branch_ids = np.array([b.strip() for b in chartostring(results["network1d_branch_id"][:])], dtype=object)
+                branch_index = np.array(results[f"mesh1d_{location}_branch"][:]).astype(int)
+                branch_index -= int(getattr(results[f"mesh1d_{location}_branch"], "start_index", 0))
+                topology = {"branchid": branch_ids[branch_index], "chainage": np.array(results[f"mesh1d_{location}_offset"][:])}
+            if location == "edge" and "mesh1d_edge_nodes" in results.variables:
+                # direction of the link (from its first to its second node), to decompose velocities in x and y
+                edge_nodes = np.array(results["mesh1d_edge_nodes"][:]).astype(int)
+                edge_nodes -= int(getattr(results["mesh1d_edge_nodes"], "start_index", 0))
+                node_x, node_y = np.array(results["mesh1d_node_x"][:]), np.array(results["mesh1d_node_y"][:])
+                topology["direction"] = np.arctan2(
+                    node_y[edge_nodes[:, 1]] - node_y[edge_nodes[:, 0]], node_x[edge_nodes[:, 1]] - node_x[edge_nodes[:, 0]]
+                )
+
+            missing = np.ma.getmaskarray(value)
             if missing.any():
-                if "depth" in netcdf_field.lower():
-                    fill, label = np.zeros(len(node_value)), "0"
-                elif "s1" in netcdf_field or "waterlevel" in netcdf_field.lower():
+                name = netcdf_field.lower()
+                if "depth" in name or location == "edge" or "velocity" in name:
+                    fill, label = np.zeros(len(value)), "0"
+                elif "s1" in netcdf_field or "waterlevel" in name:
                     fill = np.ma.filled(results["mesh1d_flowelem_bl"][:], np.nan) if "mesh1d_flowelem_bl" in results.variables else None
                     label = "the bed level"
                 else:
                     fill = None
                 if fill is not None:
-                    logging.info(f"{missing.sum()} nodes without a value (dry) in {netcdf_field}, set to {label}.")
-                    node_value = np.where(missing, fill, np.ma.filled(node_value, np.nan))
-                    missing = np.isnan(node_value)
+                    logging.info(f"{missing.sum()} {location}s without a value (dry) in {netcdf_field}, set to {label}.")
+                    value = np.where(missing, fill, np.ma.filled(value, np.nan))
+                    missing = np.isnan(value)
                 else:
-                    node_value = np.ma.filled(node_value, np.nan)
+                    value = np.ma.filled(value, np.nan)
                 if missing.any():
-                    logging.warning(f"{missing.sum()} nodes without a value in {netcdf_field} are left out.")
-                    node_x, node_y, node_value = node_x[~missing], node_y[~missing], node_value[~missing]
+                    logging.warning(f"{missing.sum()} {location}s without a value in {netcdf_field} are left out.")
+                    x, y, value = x[~missing], y[~missing], value[~missing]
+                    topology = {key: values[~missing] for key, values in topology.items()}
             else:
-                node_value = np.ma.filled(node_value, np.nan)
+                value = np.ma.filled(value, np.nan)
 
         return gpd.GeoDataFrame(
-            {"x": node_x, "y": node_y, "value": node_value},
-            geometry=gpd.points_from_xy(node_x, node_y),
+            {"x": x, "y": y, "value": value, **topology},
+            geometry=gpd.points_from_xy(x, y),
             crs=crs,
         )
+
+    def set_initial_velocity(self, velocities: gpd.GeoDataFrame, column: str = "value", filename: str = "initial_velocity") -> None:
+        """
+        Set the initial velocity on the 1D flow links from a model result, e.g. 'mesh1d_u1' read with
+        read_values_from_modelrun.
+
+        D-Flow FM (2026.02) does not accept 'initialvelocity' in the initial fields file, only the components
+        'initialvelocityx' and 'initialvelocityy'. The velocity along each link is therefore decomposed with
+        the link direction and written as two sample files (triangulation). Tested with DIMR: on links that
+        are in both models, the initial velocity equals the velocity of the model result within 1 cm/s.
+        The effect of an initial velocity is short: the flow adapts within the first minutes.
+
+        Args:
+            velocities (gpd.GeoDataFrame): points at the link locations with the velocity and the column
+                'direction' (angle of the link in radians), as returned by read_values_from_modelrun.
+            column (str, optional): column with the velocity along the link. Defaults to "value".
+            filename (str, optional): base name of the sample files; '_x.xyz' and '_y.xyz' are added.
+                Defaults to "initial_velocity".
+        """
+        if "direction" not in velocities.columns:
+            raise ValueError(
+                "The column 'direction' (angle of the link) is required. Read the velocity with "
+                "read_values_from_modelrun from a file with 'mesh1d_edge_nodes'."
+            )
+        speed = velocities[column].astype(float).to_numpy()
+        angle = velocities["direction"].astype(float).to_numpy()
+        for component, values in (("x", speed * np.cos(angle)), ("y", speed * np.sin(angle))):
+            self.set_spatial_field(
+                velocities.assign(_component=values)[["_component", "geometry"]],
+                "_component",
+                quantity=f"initialvelocity{component}",
+                filetype="sample",
+                filename=f"{filename}_{component}.xyz",
+                interpolationmethod="triangulation",
+            )
 
     def set_spatial_field(
         self,
@@ -1676,69 +1771,90 @@ class ExternalForcings:
         averagingtype: str = "nearestNb",
         operand: str = "O",
         nodata: float = -999.0,
+        max_snap_distance: float = 5.0,
     ) -> None:
         """
         Add a spatially varying field to the initial fields file (initialFields.ini).
 
-        Three file types are supported:
+        Four file types are supported:
 
+        - 'branch': values per branch and chainage in a 1dField file. Values are interpolated linearly
+          along each branch only, and kept constant beyond the first and last chainage of a branch.
+          For polygons, each part of a branch inside a polygon gets the polygon value, with a step at the
+          polygon boundary. For points, the columns 'branchid' and 'chainage' are used if present (e.g. from
+          read_values_from_modelrun on the same network); otherwise points are snapped to the nearest branch
+          within max_snap_distance. Default for polygons; independent of the 1D computational grid.
+        - 'sample': points are written as samples (.xyz) with triangulation. Default for points: values
+          from a model result on the same network are reproduced exactly at the nodes.
         - 'polygon': polygons are written as .pol files with interpolationMethod=constant. Polygons with
-          the same value share one file and one block. This is the default for polygons, and the one to
-          use for 1D nodes (e.g. target levels per level area).
-        - 'raster': polygons are rasterized to a GeoTIFF (.tif) or ArcInfo grid (.asc), e.g. for 2D
-          roughness. Requires a cellsize. Note that D-Flow FM (2026.02) uses the nodata value as data.
-        - 'sample': points are written as samples (.xyz), e.g. values from a model result. This is the
-          only option for points.
+          the same value share one file and one block.
+        - 'raster': polygons are rasterized to a GeoTIFF (.tif) or ArcInfo grid (.asc). Requires a cellsize.
+          Note that D-Flow FM (2026.02) uses the nodata value as data.
 
         Tested with D-HYDRO 2026.02 on 1D nodes: interpolationMethod=averaging assigns no values, so it is
         refused for locationtype '1d'; triangulation fills the convex hull of the samples; nodes that get no
         value from any field keep the default water level (WaterLevIni in the MDU), which leaves them dry when it
-        is below the bed level, so cover all nodes. Fields are applied in
-        the order they are added (the last one wins), after the uniform values of set_initial_waterlevel/-depth.
-        A uniform water depth overrides spatial water levels, and a water depth field removes water levels
-        set before it: add water depth fields before water level fields.
+        is below the bed level, so cover all nodes. Fields are applied in the order they are added (the last
+        one wins), after the uniform values of set_initial_waterlevel/-depth. A uniform water depth overrides
+        spatial water levels, and a water depth field removes water levels set before it: add water depth
+        fields before water level fields.
 
         The data files are written by Df2HydrolibModel.write_initial_fields().
 
         Args:
             gdf (gpd.GeoDataFrame): polygons or points with values
             column (str, optional): column with values. For points, None means the Z-coordinate is used.
-            quantity (str, optional): D-Flow FM quantity, e.g. 'waterlevel', 'waterdepth' or 'frictioncoefficient'. Defaults to "waterlevel".
+            quantity (str, optional): D-Flow FM quantity, e.g. 'waterlevel' or 'waterdepth'. For velocities, use
+                set_initial_velocity. Defaults to "waterlevel".
             kind (str, optional): 'initial' ([Initial] block) or 'parameter' ([Parameter] block). Defaults to "initial".
-            filetype (str, optional): 'polygon', 'raster' or 'sample'. Defaults to 'polygon' for polygons and 'sample' for points.
+            filetype (str, optional): 'branch', 'sample', 'polygon' or 'raster'. Defaults to 'branch' for polygons
+                and 'sample' for points.
             cellsize (float, optional): raster cell size, required for filetype 'raster'.
             filename (str, optional): name of the data file, relative to the fm-folder. For 'polygon', a number is added
-                per distinct value. Defaults to '<quantity>_<nr>.pol/.tif/.xyz'.
+                per distinct value. Defaults to '<quantity>_<nr>.ini/.xyz/.pol/.tif'.
             locationtype (str, optional): '1d', '2d' or 'all'. Defaults to "1d".
-            interpolationmethod (str, optional): 'constant' (polygon), 'triangulation' or 'averaging'. Defaults to
-                'constant' for polygons, 'triangulation' for samples, and 'averaging' for rasters (2D) or 'triangulation' (1D).
+            interpolationmethod (str, optional): 'constant' (polygon), 'triangulation' or 'averaging'. Not used for
+                'branch'. Defaults to 'triangulation' for samples, 'constant' for polygon files, and 'averaging'
+                for rasters (2D) or 'triangulation' (1D).
             averagingtype (str, optional): averaging type, if interpolationmethod is 'averaging'. Defaults to "nearestNb".
             operand (str, optional): how the field is combined with previous fields. Defaults to "O" (override).
-            nodata (float, optional): nodata value for rasters. Defaults to -999.0.
+            nodata (float, optional): nodata value for rasters, and the [Global] value of 1dField files (branch), which
+                D-Flow FM treats as no value. Defaults to -999.0.
+            max_snap_distance (float, optional): maximum distance to snap points to a branch for filetype 'branch'.
+                Defaults to 5.0.
         """
         if kind not in ("initial", "parameter"):
             raise ValueError(f"kind should be 'initial' or 'parameter', not '{kind}'.")
         if gdf.empty:
             raise ValueError("The provided GeoDataFrame is empty.")
+        if quantity.lower() == "initialvelocity":
+            raise ValueError(
+                "D-Flow FM (2026.02) does not support 'initialvelocity' in the initial fields file. "
+                "Use set_initial_velocity, which writes the x and y components."
+            )
 
         geomtypes = set(gdf.geom_type)
         if geomtypes <= {"Polygon", "MultiPolygon"}:
-            filetype = "polygon" if filetype is None else filetype
-            if filetype not in ("polygon", "raster"):
-                raise ValueError(f"For polygons, filetype should be 'polygon' or 'raster', not '{filetype}'.")
+            filetype = "branch" if filetype is None else filetype
+            if filetype not in ("branch", "polygon", "raster"):
+                raise ValueError(f"For polygons, filetype should be 'branch', 'polygon' or 'raster', not '{filetype}'.")
         elif geomtypes <= {"Point"}:
             filetype = "sample" if filetype is None else filetype
-            if filetype != "sample":
-                raise ValueError(f"For points, filetype should be 'sample', not '{filetype}'.")
+            if filetype not in ("sample", "branch"):
+                raise ValueError(f"For points, filetype should be 'sample' or 'branch', not '{filetype}'.")
         else:
             raise ValueError(
                 f"Only (multi)polygons or points are supported, found: {geomtypes}."
             )
 
+        if filetype == "branch" and locationtype != "1d":
+            raise ValueError("Filetype 'branch' is only available for locationtype '1d'.")
         if filetype == "raster" and cellsize is None:
             raise ValueError("A cellsize is required to rasterize polygons.")
 
-        if interpolationmethod is None:
+        if filetype == "branch":
+            interpolationmethod = None
+        elif interpolationmethod is None:
             if filetype == "polygon":
                 interpolationmethod = "constant"
             elif filetype == "raster" and locationtype != "1d":
@@ -1750,12 +1866,12 @@ class ExternalForcings:
         if interpolationmethod == "averaging" and locationtype == "1d":
             raise ValueError(
                 "interpolationmethod 'averaging' assigns no values to 1D nodes (D-HYDRO 2026.02). "
-                "Use filetype 'polygon' for polygons or 'triangulation' for samples."
+                "Use filetype 'branch' or 'polygon' for polygons, or 'triangulation' for samples."
             )
         if filetype == "raster" and locationtype in ("1d", "all"):
             logger.warning(
                 "D-Flow FM uses the raster nodata value as data, which affects 1D nodes near polygon edges. "
-                "Consider filetype 'polygon' for 1D."
+                "Consider filetype 'branch' for 1D."
             )
         if filetype == "polygon" and any(
             len(p.interiors) > 0 for geom in gdf.geometry for p in common.as_polygon_list(geom)
@@ -1763,7 +1879,7 @@ class ExternalForcings:
             logger.warning("Polygon files do not support holes; interiors of the polygons are ignored.")
 
         if column is None:
-            if filetype != "sample" or not gdf.has_z.all():
+            if "Point" not in geomtypes or not gdf.has_z.all():
                 raise ValueError(
                     "Provide a value column, or use points with a Z-coordinate."
                 )
@@ -1776,14 +1892,18 @@ class ExternalForcings:
             )
 
         if filename is None:
-            ext = {"polygon": ".pol", "raster": ".tif", "sample": ".xyz"}[filetype]
+            ext = {"branch": ".ini", "polygon": ".pol", "raster": ".tif", "sample": ".xyz"}[filetype]
             filename = f"{quantity}_{len(self.spatial_fields):02d}{ext}"
         if filename in [sf["filename"] for sf in self.spatial_fields]:
             raise ValueError(f"Filename {filename} is already used for another spatial field.")
 
+        columns = [column, "geometry"]
+        if filetype == "branch" and {"branchid", "chainage"} <= set(gdf.columns):
+            columns = ["branchid", "chainage"] + columns
+
         self.spatial_fields.append(
             {
-                "gdf": gpd.GeoDataFrame(gdf[[column, "geometry"]].copy()),
+                "gdf": gpd.GeoDataFrame(gdf[columns].copy()),
                 "column": column,
                 "quantity": quantity,
                 "kind": kind,
@@ -1795,6 +1915,7 @@ class ExternalForcings:
                 "averagingtype": averagingtype,
                 "operand": operand,
                 "nodata": nodata,
+                "max_snap_distance": max_snap_distance,
             }
         )
 
