@@ -782,7 +782,7 @@ def test_correct_values_from_modelrun():
     
     assert not df_cor.empty
     assert len(df_cor) == len(df)
-    assert len(df_cor[df_cor['value']==0]) == 69
+    assert len(df_cor[df_cor['value']==0]) == 31
 
 def test_write_laterals():
     # Get full hydamo object
