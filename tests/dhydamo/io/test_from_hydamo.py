@@ -742,6 +742,7 @@ def test_add_initialfields_depth_from_polygon():
     assert len(hydamo.external_forcings.initial_waterdepth_polygons) == 121
     assert np.min(hydamo.external_forcings.initial_waterdepth_polygons.waterdepth.to_numpy()[0]) == 1.5
 
+@pytest.mark.slow
 def test_read_values_from_modelrun_fou():
 
     hydamo, _ = _hydamo_object_from_gpkg()
@@ -767,13 +768,15 @@ def test_correct_values_from_modelrun():
 
     hydamo, _ = _hydamo_object_from_gpkg()
     
-    nc_path = hydamo_data_path / 'model_result' / 'DFM_fou.nc'
-    nc_field = 'mesh1d_fourier001_max_depth' 
+    nc_path = hydamo_data_path / 'model_result' / 'DFM_map_last.nc'
+    nc_field = 'mesh1d_s1' 
+
 
     poly_values = gpd.read_file(hydamo_data_path / 'Example_model.gpkg', layer='afvoergebiedaanvoergebied')
     selection = poly_values[poly_values['code'].isin([246.,285.,293.])]
     selection['waterdiepte'] = 0
-                            
+    netcdf_index = -1          
+    
     df = hydamo.external_forcings.read_values_from_modelrun(nc_path, nc_field)
     df_cor = hydamo.external_forcings.correct_values_from_modelrun(df, selection, value_column='waterdiepte')
     
@@ -807,7 +810,7 @@ def test_read_values_from_modelrun_edges():
     assert {'branchid', 'chainage'} <= set(df.columns)
     assert df['value'].notna().all()
 
-
+@pytest.mark.slow
 def test_read_values_from_modelrun_time():
     hydamo, _ = _hydamo_object_from_gpkg()
     nc_path = hydamo_data_path / 'model_result' / 'DFM_map.nc'
@@ -849,7 +852,7 @@ def test_read_values_from_modelrun_level_from_depth(tmp_path):
 
 def test_read_values_from_modelrun_default_last_time_step():
     hydamo, _ = _hydamo_object_from_gpkg()
-    nc_path = hydamo_data_path / 'model_result' / 'DFM_map.nc'
+    nc_path = hydamo_data_path / 'model_result' / 'DFM_map_last.nc'
     default = hydamo.external_forcings.read_values_from_modelrun(nc_path, 'mesh1d_s1')
     last = hydamo.external_forcings.read_values_from_modelrun(nc_path, 'mesh1d_s1', netcdf_index=-1)
     assert np.allclose(default['value'], last['value'])
