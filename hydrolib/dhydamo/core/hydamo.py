@@ -1810,8 +1810,9 @@ class ExternalForcings:
             filetype (str, optional): 'branch', 'sample', 'polygon' or 'raster'. Defaults to 'branch' for polygons
                 and 'sample' for points.
             cellsize (float, optional): raster cell size, required for filetype 'raster'.
-            filename (str, optional): name of the data file, relative to the fm-folder. For 'polygon', a number is added
-                per distinct value. Defaults to '<quantity>_<nr>.ini/.xyz/.pol/.tif'.
+            filename (str, optional): name of the data file, relative to the fm-folder. Without an extension, the
+                extension of the file type is added (.ini, .xyz, .pol or .tif). For 'polygon', a number is added per
+                distinct value. Defaults to '<quantity>_<nr>' with that extension.
             locationtype (str, optional): '1d', '2d' or 'all'. Defaults to "1d".
             interpolationmethod (str, optional): 'constant' (polygon), 'triangulation' or 'averaging'. Not used for
                 'branch'. Defaults to 'triangulation' for samples, 'constant' for polygon files, and 'averaging'
@@ -1891,9 +1892,12 @@ class ExternalForcings:
                 f"Column {column} not filled for all features. Please provide valid values."
             )
 
+        ext = {"branch": ".ini", "polygon": ".pol", "raster": ".tif", "sample": ".xyz"}[filetype]
         if filename is None:
-            ext = {"branch": ".ini", "polygon": ".pol", "raster": ".tif", "sample": ".xyz"}[filetype]
             filename = f"{quantity}_{len(self.spatial_fields):02d}{ext}"
+        elif Path(filename).suffix == "":
+            # without an extension, the extension follows the file type
+            filename = f"{filename}{ext}"
         if filename in [sf["filename"] for sf in self.spatial_fields]:
             raise ValueError(f"Filename {filename} is already used for another spatial field.")
 

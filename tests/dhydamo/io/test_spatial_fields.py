@@ -181,3 +181,10 @@ def test_level_and_depth_on_same_branch_warns(caplog):
     messages = [msg for msg in caplog.messages if "get both a waterdepth" in msg]
     assert len(messages) == 1
     assert "['br1']" in messages[0]
+
+
+@pytest.mark.parametrize(("filetype", "extension"), [("branch", ".ini"), ("polygon", ".pol")])
+def test_filename_extension_follows_filetype(filetype, extension):
+    hydamo = HyDAMO()
+    hydamo.external_forcings.set_spatial_field(_polygons(), "peil", filetype=filetype, filename="initial_waterlevel")
+    assert hydamo.external_forcings.spatial_fields[0]["filename"] == f"initial_waterlevel{extension}"
