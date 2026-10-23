@@ -3,7 +3,7 @@ channels:
 - conda-forge
 - nodefaults
 dependencies:
-- ca-certificates ==2026.7.22 h4c7d964_0
+- ca-certificates ==2026.10.19 h4c7d964_0
 - tzdata ==2026c h151e31d_0
 - bzip2 ==1.0.8 h0ad9c76_10
 - libexpat ==2.8.5 hac47afa_0
@@ -28,7 +28,6 @@ dependencies:
   - matplotlib==3.11.2
   - rasterstats==0.21.0
   - nest-asyncio2==1.7.4
-  - certifi==2026.7.22
   - jupyter-client==8.10.0
   - python-discovery==1.6.1
   - netcdf4==1.7.4
@@ -102,6 +101,7 @@ dependencies:
   - et-xmlfile==2.0.0
   - executing==2.2.1
   - ipywidgets==8.1.9
+  - certifi==2026.10.19
   - geopandas==1.2.0
   - virtualenv==21.14.6
   - colorama==0.4.6
