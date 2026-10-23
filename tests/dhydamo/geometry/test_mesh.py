@@ -4,6 +4,8 @@ from pathlib import Path
 from folium import folium, GeoJson
 import branca
 import geopandas as gpd
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for headless environments
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd

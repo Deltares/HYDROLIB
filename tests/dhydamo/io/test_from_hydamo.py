@@ -743,6 +743,7 @@ def test_add_initialfields_depth_from_polygon():
     assert np.min(hydamo.external_forcings.initial_waterdepth_polygons.waterdepth.to_numpy()[0]) == 1.5
 
 @pytest.mark.slow
+@pytest.mark.skipif(not (hydamo_data_path / 'model_result' / 'DFM_fou.nc').exists(), reason='DFM_fou.nc is not in the repository')
 def test_read_values_from_modelrun_fou():
 
     hydamo, _ = _hydamo_object_from_gpkg()
@@ -811,6 +812,7 @@ def test_read_values_from_modelrun_edges():
     assert df['value'].notna().all()
 
 @pytest.mark.slow
+@pytest.mark.skipif(not (hydamo_data_path / 'model_result' / 'DFM_map.nc').exists(), reason='DFM_map.nc is not in the repository')
 def test_read_values_from_modelrun_time():
     hydamo, _ = _hydamo_object_from_gpkg()
     nc_path = hydamo_data_path / 'model_result' / 'DFM_map.nc'

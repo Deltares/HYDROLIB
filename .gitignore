@@ -152,3 +152,7 @@ tests/model/dimr_config.xml
 
 
 /tests/model
+
+# large model results, used by the slow tests in tests/dhydamo/io/test_from_hydamo.py (not in the repository)
+hydrolib/sample_data/data/model_result/DFM_map.nc
+hydrolib/sample_data/data/model_result/DFM_fou.nc
