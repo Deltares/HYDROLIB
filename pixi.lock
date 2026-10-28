@@ -4020,7 +4020,7 @@ packages:
   - xarray>=2024
   - pydantic>=2,<3
   - meshkernel
-  - hydrolib-core>=1.5,<1.6
+  - hydrolib-core>=1.5,<2
   - numpy>=2,<2.5
   - matplotlib>=3.9
   - openpyxl>=3
