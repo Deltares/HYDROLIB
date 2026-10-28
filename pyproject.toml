@@ -3,7 +3,7 @@ name = "hydrolib"
 version = "0.5.1" # Auto-updated by Commitizen during releases.
 description = "HYDROLIB tools for hydrodynamic and hydrological modelling workflows"
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.11"
 license = { text = "LGPL" }
 authors = [{ name = "Deltares" }]
 maintainers = [
@@ -16,9 +16,12 @@ dependencies = [
   "geopandas>=1,<2",
   "xarray>=2024",
   "pydantic>=2,<3",
+  # implicit dependency, specific version follows from hydrolib-core
   "meshkernel",
-  "hydrolib-core>=1.5,<1.6",
-  "numpy>=2,<2.5", # 2.5 pin can be removed once we move to pandas 3.0.6 or newer
+  "hydrolib-core>=1.5,<2",
+  # 2.5 pin can be removed once we move to pandas 3.0.6 or newer: https://github.com/pandas-dev/pandas/pull/66621
+  # pandas 3 is not yet supported: https://github.com/Deltares/HYDROLIB/issues/225
+  "numpy>=2,<2.5",
   "matplotlib>=3.9",
   "openpyxl>=3",
   "scipy>=1.13",
@@ -99,6 +102,7 @@ lint = "ruff format --check . && ruff check hydrolib tests"
 fix = "ruff format . && ruff check --fix hydrolib tests"
 typecheck = "mypy hydrolib"
 
+# update docs dependency versions https://github.com/Deltares/HYDROLIB/issues/246
 [tool.pixi.feature.docs.dependencies]
 mkdocs = ">=1.6,<2.0"
 mkdocs-material = ">=9.7,<10.0"
@@ -136,8 +140,8 @@ python = "3.12.*"
 [tool.pixi.feature.py313.dependencies]
 python = "3.13.*"
 
-# [tool.pixi.feature.py314.dependencies]
-# python = "3.14.*"
+[tool.pixi.feature.py314.dependencies]
+python = "3.14.*"
 
 [tool.pixi.environments]
 # The "dev" feature is the [dependency-groups] dev group, picked up by pixi.
@@ -145,7 +149,7 @@ default = ["py312", "dev"]
 py311 = ["py311", "dev"]
 py312 = ["py312", "dev"]
 py313 = ["py313", "dev"]
-# py314 = ["py314"]
+py314 = ["py314", "dev"]
 docs = ["docs", "py312"]
 
 [tool.pixi.environments.release]
