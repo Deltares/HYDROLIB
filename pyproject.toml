@@ -18,8 +18,9 @@ dependencies = [
   "pydantic>=2,<3",
   # implicit dependency, specific version follows from hydrolib-core
   "meshkernel",
-  # upper pin because hydrolib-core will remove support for some quantities/blocks
-  "hydrolib-core>=1.5,<2",
+  # upper pin <2 because hydrolib-core will remove support for some quantities/blocks
+  # temporary upper pin on <1.6 until fixing https://github.com/Deltares/HYDROLIB/issues/248
+  "hydrolib-core>=1.5,<1.6",
   # 2.5 pin can be removed once we move to pandas 3.0.6 or newer: https://github.com/pandas-dev/pandas/pull/66621
   # pandas 3 is not yet supported: https://github.com/Deltares/HYDROLIB/issues/225
   "numpy>=2,<2.5",
