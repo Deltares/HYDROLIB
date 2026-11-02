@@ -37,7 +37,7 @@ jobs:
         # own dependency graph. The job fails only when a real vulnerability is reported
         # (pip-audit exits non-zero).
         run: |
-          poetry run python -m pip freeze --exclude-editable \
+          pixi run python -m pip freeze --exclude-editable \
             | grep -E '^[A-Za-z0-9_.-]+==' > "${RUNNER_TEMP}/pip-audit-reqs.txt"
           echo "Auditing $(wc -l < "${RUNNER_TEMP}/pip-audit-reqs.txt") pinned packages against the advisory DB"
           pipx run pip-audit --requirement "${RUNNER_TEMP}/pip-audit-reqs.txt" --desc
