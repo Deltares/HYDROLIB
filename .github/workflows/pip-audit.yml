@@ -25,11 +25,11 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
-      - name: Set up Python with Poetry
-        uses: Deltares-research/github-actions/actions/python-setup/poetry@1115dc52374f2f83cb6aff2a62a3db6cc607f1c0
+      - name: Set up Pixi
+        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
         with:
-          python-version: "3.12"
-          version: 2.3.3
+          pixi-version: v0.83.0
+          cache: true
 
       - name: Audit dependencies with pip-audit
         # pip-audit checks the pinned packages of the locked environment against the
