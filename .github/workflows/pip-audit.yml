@@ -32,12 +32,23 @@ jobs:
           cache: true
 
       - name: Audit dependencies with pip-audit
-        # pip-audit checks the pinned packages of the locked environment against the
-        # PyPI/OSV advisory DB. It is run via pipx so it is never added to the project's
-        # own dependency graph. The job fails only when a real vulnerability is reported
-        # (pip-audit exits non-zero).
+        # pip-audit checks the pinned packages of every locked pixi environment against the
+        # PyPI/OSV advisory DB. The pinned set comes from `pixi list` (the pixi envs ship no
+        # pip), keeping only plain numeric versions of PyPI-style names; conda-only system libraries
+        # (libgcc, openssl, ...) are not on PyPI and are skipped. pip-audit is run via pipx so
+        # it is never added to the project's own dependency graph. The job fails only when a
+        # real vulnerability is reported (pip-audit exits non-zero).
         run: |
-          pixi run python -m pip freeze --exclude-editable \
-            | grep -E '^[A-Za-z0-9_.-]+==' > "${RUNNER_TEMP}/pip-audit-reqs.txt"
-          echo "Auditing $(wc -l < "${RUNNER_TEMP}/pip-audit-reqs.txt") pinned packages against the advisory DB"
-          pipx run pip-audit --requirement "${RUNNER_TEMP}/pip-audit-reqs.txt" --desc
+          # Every environment declared in the workspace, so new ones are audited automatically.
+          envs=$(pixi info --json | python3 -c 'import json, sys; print(*[e["name"] for e in json.load(sys.stdin)["environments_info"]])')
+          for env in $envs; do
+            pixi list --environment "$env" --json | python3 -c '
+          import json, re, sys
+          for pkg in json.load(sys.stdin):
+              name, version = pkg["name"], pkg["version"]
+              if name != "hydrolib" and name[0].isalnum() and re.fullmatch(r"\d+(\.\d+)*", version):
+                  print(name + "==" + version)
+            ' | sort -u > "${RUNNER_TEMP}/pip-audit-${env}.txt"
+            echo "Auditing $(wc -l < "${RUNNER_TEMP}/pip-audit-${env}.txt") packages of the ${env} environment"
+            pipx run pip-audit --requirement "${RUNNER_TEMP}/pip-audit-${env}.txt" --no-deps --disable-pip --desc
+          done
