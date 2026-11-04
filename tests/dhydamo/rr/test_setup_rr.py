@@ -94,8 +94,8 @@ def _setup_rr_model(hydamo=None):
     return drrmodel
 
 
-def test_setup_rr_model(hydamo=None):
-    drrmodel = _setup_rr_model(hydamo=hydamo)
+def test_setup_rr_model():
+    drrmodel = _setup_rr_model()
     assert len([i[1]['ga'] for i in drrmodel.unpaved.unp_nodes.items() if float(i[1]['ga']) > 0.0]) == 121
     assert len([i[1]['ar'] for i in drrmodel.paved.pav_nodes.items() if float(i[1]['ar']) > 0.0]) == 101
     assert len([i[1]['ar'] for i in drrmodel.greenhouse.gh_nodes.items() if float(i[1]['ar']) > 0.0]) == 1

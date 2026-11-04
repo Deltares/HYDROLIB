@@ -5,12 +5,14 @@ import subprocess
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
 from hydrolib.dhydamo.io.drrwriter import DRRWriter
 from tests.dhydamo.io import test_from_hydamo, test_to_hydrolibcore
 from tests.dhydamo.rr import test_setup_rr
 from tests.dhydamo.rtc import test_rtc
+
+# Set to e.g. "2025.01" to run test_run_model against a specific D-HYDRO install.
+DHYDRO_VERSION = None
 
 
 def _find_dimr(dhydro_path="C:/Program Files/Deltares", version=None):
@@ -36,9 +38,7 @@ def _find_dimr(dhydro_path="C:/Program Files/Deltares", version=None):
 
 @pytest.mark.slow
 @pytest.mark.skipif(_find_dimr() is None, reason="D-Hydro not installed or run_dimr.bat not found")
-
-# change version here to get test a different DHYDRO version
-def test_run_model(version=None):
+def test_run_model():
     # Read hydamo object only once    
     hydamo = test_from_hydamo._add_structures_manually()
     hydamo = test_from_hydamo._convert_structures(hydamo_obj=hydamo)
@@ -64,7 +64,7 @@ def test_run_model(version=None):
     drtcmodel.write_xml_v1()
 
     # Find DIMR path
-    dimr_path = _find_dimr(version=version)
+    dimr_path = _find_dimr(version=DHYDRO_VERSION)
     # dimr_path = dimr_path.replace('2026.01', '2025.01')
 
     # Write DIMR config

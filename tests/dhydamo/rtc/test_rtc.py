@@ -368,7 +368,9 @@ def test_drtc_deduplicates_complex_fragments():
     assert len(state_ids) == len(set(state_ids))
 
 
-def test_complex_controller_fourtypes(caplog):
+def _build_fourtypes_rtc(caplog, folder, id_limit):
+    """Build an RTC model with the four observation points used by the
+    complex-controller fixtures, then add default simple control and write XML."""
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
     output_path = Path("hydrolib/sample_data/model").resolve()
@@ -382,7 +384,7 @@ def test_complex_controller_fourtypes(caplog):
             Point(199877, 393954),
         ],
         ["ObsS_98143", "ObsS_96840", "ObsS_96547", "ObsS_96789"],
-        locationTypes=["1d", "1d", "1d", "1d"],
+        locationTypes=["1d"] * 4,
         snap_distance=10.0,
     )
 
@@ -391,17 +393,21 @@ def test_complex_controller_fourtypes(caplog):
             hydamo,
             fm,
             output_path=output_path,
-            complex_controllers_folder=data_path / "complex_controllers_4types",
-            id_limit_complex_controllers=[
-                "S_98143",
-                "S_96789",
-                "S_96547",
-                "S_96840",
-            ],
+            complex_controllers_folder=data_path / folder,
+            id_limit_complex_controllers=id_limit,
             rtc_timestep=60.0,
         )
         _add_default_simple_control(data_path, hydamo, rtcd)
         rtcd.write_xml_v1()
+    return rtcd
+
+
+def test_complex_controller_fourtypes(caplog):
+    rtcd = _build_fourtypes_rtc(
+        caplog,
+        "complex_controllers_4types",
+        ["S_98143", "S_96789", "S_96547", "S_96840"],
+    )
 
     check_msg = "RtcToolsConfig.xml: Skipped writing Time control for S_96840, complex controller already present"
     assert check_msg in caplog.messages
@@ -414,39 +420,11 @@ def test_complex_controller_fourtypes(caplog):
 
 
 def test_complex_controller_fourtypes_limit(caplog):
-    data_path = Path("hydrolib/sample_data/data").resolve()
-    assert data_path.exists()
-    output_path = Path("hydrolib/sample_data/model").resolve()
-    hydamo, fm = _full_model()
-
-    hydamo.observationpoints.add_points(
-        [
-            Point(200064, 395087),
-            Point(200775, 395209),
-            Point(201585, 395162),
-            Point(199877, 393954),
-        ],
-        ["ObsS_98143", "ObsS_96840", "ObsS_96547", "ObsS_96789"],
-        locationTypes=["1d", "1d", "1d", "1d"],
-        snap_distance=10.0,
+    rtcd = _build_fourtypes_rtc(
+        caplog,
+        "complex_controllers_4types",
+        ["S_98143", "S_96789", "S_96547"],  # removed "S_96840"
     )
-
-    with caplog.at_level(logging.INFO, logger="hydrolib.dhydamo.core.drtc"):
-        rtcd = DRTCModel(
-            hydamo,
-            fm,
-            output_path=output_path,
-            complex_controllers_folder=data_path / "complex_controllers_4types",
-            id_limit_complex_controllers=[
-                "S_98143",
-                "S_96789",
-                "S_96547",
-                # removed "S_96840"
-            ],
-            rtc_timestep=60.0,
-        )
-        _add_default_simple_control(data_path, hydamo, rtcd)
-        rtcd.write_xml_v1()
 
     check_msg1 = "dimr_config.xml: Skipped rtc_to_flow element with 'targetName' 'weirs/S_96840/crestLevel': excluded by id_limit_complex_controllers."
     check_msg2 = "rtcDataConfig.xml: Skipped exportSeries item for elementId 'S_96840': excluded by id_limit_complex_controllers."
@@ -589,39 +567,11 @@ def test_complex_controller_logs_items_not_referenced_by_dimr(caplog):
 
 
 def test_complex_controller_wrong(caplog):
-    data_path = Path("hydrolib/sample_data/data").resolve()
-    assert data_path.exists()
-    output_path = Path("hydrolib/sample_data/model").resolve()
-    hydamo, fm = _full_model()
-
-    hydamo.observationpoints.add_points(
-        [
-            Point(200064, 395087),
-            Point(200775, 395209),
-            Point(201585, 395162),
-            Point(199877, 393954),
-        ],
-        ["ObsS_98143", "ObsS_96840", "ObsS_96547", "ObsS_96789"],
-        locationTypes=["1d", "1d", "1d", "1d"],
-        snap_distance=10.0,
+    _build_fourtypes_rtc(
+        caplog,
+        "complex_controllers_fout",
+        ["S_98143", "S_96789", "S_96547", "S_96840"],
     )
-
-    with caplog.at_level(logging.INFO, logger="hydrolib.dhydamo.core.drtc"):
-        rtcd = DRTCModel(
-            hydamo,
-            fm,
-            output_path=output_path,
-            complex_controllers_folder=data_path / "complex_controllers_fout",
-            id_limit_complex_controllers=[
-                "S_98143",
-                "S_96789",
-                "S_96547",
-                "S_96840",
-            ],
-            rtc_timestep=60.0,
-        )
-        _add_default_simple_control(data_path, hydamo, rtcd)
-        rtcd.write_xml_v1()
 
     check_msg1 = "dimr_config.xml: Skipped rtc_to_flow element with 'targetName' 'weirs/S_96548/crestLevel': excluded by id_limit_complex_controllers."
     check_msg2 = "rtcDataConfig.xml: Skipped exportSeries item for elementId 'S_96548': excluded by id_limit_complex_controllers."
