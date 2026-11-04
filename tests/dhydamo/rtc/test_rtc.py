@@ -567,7 +567,7 @@ def test_complex_controller_logs_items_not_referenced_by_dimr(caplog):
 
 
 def test_complex_controller_wrong(caplog):
-    rtcd = _build_fourtypes_rtc(
+    _build_fourtypes_rtc(
         caplog,
         "complex_controllers_fout",
         ["S_98143", "S_96789", "S_96547", "S_96840"],

@@ -1,11 +1,9 @@
-import pytest
-import sys
-
-import numpy as np
 import matplotlib
+import numpy as np
+import pytest
+
 matplotlib.use('Agg')  # Use non-interactive backend for headless environments
 
-sys.path.append(".")
 from tests.dhydamo.geometry import test_mesh
 
 
