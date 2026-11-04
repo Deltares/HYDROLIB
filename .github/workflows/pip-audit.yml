@@ -1,0 +1,54 @@
+name: pip-audit
+
+# Dependency-vulnerability scan. CVEs are disclosed over time against packages we already
+# ship, so besides every PR the weekly schedule re-audits the unchanged tree and catches a
+# freshly disclosed vulnerability without needing a code change.
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+  schedule:
+    # Weekly, Monday 06:00 UTC.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Set up Pixi
+        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          pixi-version: v0.83.0
+          cache: true
+
+      - name: Audit dependencies with pip-audit
+        # pip-audit checks the pinned packages of every locked pixi environment against the
+        # PyPI/OSV advisory DB. The pinned set comes from `pixi list` (the pixi envs ship no
+        # pip), keeping only plain numeric versions of PyPI-style names; conda-only system libraries
+        # (libgcc, openssl, ...) are not on PyPI and are skipped. pip-audit is run via pipx so
+        # it is never added to the project's own dependency graph. The job fails only when a
+        # real vulnerability is reported (pip-audit exits non-zero).
+        run: |
+          # Every environment declared in the workspace, so new ones are audited automatically.
+          envs=$(pixi info --json | python3 -c 'import json, sys; print(*[e["name"] for e in json.load(sys.stdin)["environments_info"]])')
+          for env in $envs; do
+            pixi list --environment "$env" --json | python3 -c '
+          import json, re, sys
+          for pkg in json.load(sys.stdin):
+              name, version = pkg["name"], pkg["version"]
+              if name != "hydrolib" and name[0].isalnum() and re.fullmatch(r"\d+(\.\d+)*", version):
+                  print(name + "==" + version)
+            ' | sort -u > "${RUNNER_TEMP}/pip-audit-${env}.txt"
+            echo "Auditing $(wc -l < "${RUNNER_TEMP}/pip-audit-${env}.txt") packages of the ${env} environment"
+            pipx run pip-audit --requirement "${RUNNER_TEMP}/pip-audit-${env}.txt" --no-deps --disable-pip --desc
+          done
