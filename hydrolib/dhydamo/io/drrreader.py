@@ -954,7 +954,8 @@ class ExternalForcingsIO:
                 "%d catchments removed because of an area of 0 m2.",
                 len(drop_idx),
             )
-            catchments.drop(drop_idx, inplace=True)
+            # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
+            catchments.drop(drop_idx, inplace=True)  # noqa: PD002
 
         for cat in catchments.itertuples():
             if boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid].empty:

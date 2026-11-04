@@ -425,7 +425,8 @@ class HyDAMO:
 
         # Drop the relevant rows with the list of labels
         for source, drop_idx in drop_list:
-            source.drop(labels=drop_idx, inplace=True)
+            # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
+            source.drop(labels=drop_idx, inplace=True)  # noqa: PD002
 
     def _recursive_drop_related(self, drop_list, source, drop_idx, target_str, via, on, coupled_to):
         target = getattr(self, target_str)
@@ -2198,13 +2199,13 @@ class ObservationPoints:
         find_nearest_branch(
             self.hydamo.branches, obs1d, method="overal", maxdist=snap_distance
         )
-        obs1d.rename(
-            columns={"branch_id": "branchid", "branch_offset": "chainage"}, inplace=True
+        obs1d = obs1d.rename(
+            columns={"branch_id": "branchid", "branch_offset": "chainage"}
         )
 
         obs = pd.concat([obs1d, obs2d], sort=True) if locationTypes is not None else obs1d
 
-        obs.dropna(how="all", axis=1, inplace=True)
+        obs = obs.dropna(how="all", axis=1)
 
         # Add to dataframe
         if self.observation_points.empty:
