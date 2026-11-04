@@ -4,6 +4,9 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.dhydamo.core.hydamo import HyDAMO
+from hydrolib.dhydamo.geometry import mesh
+from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 from shapely.geometry import (
     LineString,
     MultiPolygon,
@@ -11,10 +14,6 @@ from shapely.geometry import (
     Polygon,
 )
 from shapely.geometry.base import BaseGeometry
-
-from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.geometry import mesh
-from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 
 hydamo_data_path = (
     Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"
@@ -230,7 +229,7 @@ def _hydamo_object_from_gpkg():
 
     hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name="profiellijn")
     hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name="profielgroep")
-    hydamo.profile.drop("code", axis=1, inplace=True)
+    hydamo.profile.drop("code", axis=1, inplace=True)  # noqa: PD002
     hydamo.profile["code"] = hydamo.profile["profiellijnid"]
     len_profile_before = len(hydamo.profile)
     hydamo.snap_to_branch_and_drop(hydamo.profile, hydamo.branches, snap_method="intersecting", drop_related=True)
@@ -350,8 +349,8 @@ def _convert_structures(hydamo_obj=None):
 
     return hydamo_obj
 
-def test_convert_structures(hydamo_obj=None):
-    hydamo = _convert_structures(hydamo_obj=hydamo_obj)
+def test_convert_structures():
+    hydamo = _convert_structures()
     # one weir is converted to an orifice, one tol a universal weir. w weirs have in total 4 extra openings, so fictional weirs are added.
     assert hydamo.structures.rweirs_df.shape[0] == hydamo.weirs.shape[0] - 2 + 4
     assert len(hydamo.structures.compounds_df)==2
@@ -400,11 +399,9 @@ def test_convert_crosssections():
     assert len(hydamo.crosssections.crosssection_loc) == 349
 
     # check whether the bridge profile in in the crosssection definitions
-    assert (
-        hydamo.structures.bridges_df.csdefid.to_numpy()[0]
-        in hydamo.crosssections.crosssection_def.keys()
-    )
-    assert "default" in hydamo.crosssections.crosssection_def.keys()
+    bridge_profile = hydamo.structures.bridges_df.csdefid.to_numpy()[0]
+    assert bridge_profile  in hydamo.crosssections.crosssection_def
+    assert "default" in hydamo.crosssections.crosssection_def
 
 
 def _add_structures_manually():
@@ -580,7 +577,7 @@ def test_convert_boundaries():
     hydamo.external_forcings.convert.boundaries(
         hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network
     )
-    assert [i == "RVM_02" for i in hydamo.external_forcings.boundary_nodes.keys()][0]
+    assert next(i == "RVM_02" for i in hydamo.external_forcings.boundary_nodes)
     assert len(hydamo.external_forcings.boundary_nodes.keys()) == 1
 
 

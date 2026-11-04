@@ -1,23 +1,26 @@
 import platform
-import sys
 from pathlib import Path
-from folium import folium, GeoJson
+
 import branca
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
-from meshkernel.py_structures import DeleteMeshOption
-from shapely.affinity import translate
-from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon, box, MultiPoint, mapping
-from xarray.tests import network
-
-sys.path.append(".")
+from folium import GeoJson
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.geometry import common, mesh, viz
+from hydrolib.dhydamo.geometry import mesh, viz
 from hydrolib.dhydamo.geometry.models import GeometryList
+from meshkernel.py_structures import DeleteMeshOption
+from shapely.affinity import translate
+from shapely.geometry import (
+    LineString,
+    MultiLineString,
+    MultiPoint,
+    MultiPolygon,
+    Polygon,
+    box,
+)
 from tests.dhydamo.io import test_from_hydamo
 
 hydamo_data_path = (
@@ -28,7 +31,13 @@ test_figure_path = Path(__file__).parent / ".." / ".." / "figures"
 test_figure_path.mkdir(parents=True, exist_ok=True)
 
 
-def test_create_2d_rectilinear(do_plot=False):
+@pytest.fixture
+def do_plot():
+    """Plots are off in normal runs; test_mesh_plots.py passes do_plot=True."""
+    return False
+
+
+def test_create_2d_rectilinear(do_plot):
     # Define polygon
     # bbox = (1.0, -2.0, 3.0, 4.0)
 
@@ -63,7 +72,7 @@ def _get_circle_polygon(
     n_points: int = 361,
     xoff: float = 0,
     yoff: float = 0,
-    hole_radius: int = None,
+    hole_radius: int | None = None,
 ) -> Polygon:
     theta = np.linspace(0, 2 * np.pi, n_points)
     coords = np.c_[np.sin(theta), np.cos(theta)] * radius
@@ -79,7 +88,7 @@ def _get_circle_polygon(
     return circle
 
 
-def test_create_2d_rectilinear_within_circle(do_plot=False):
+def test_create_2d_rectilinear_within_circle(do_plot):
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
 
@@ -108,7 +117,7 @@ def test_create_2d_rectilinear_within_circle(do_plot=False):
     assert len(network._mesh2d.mesh2d_face_x) == 88
 
 
-def test_create_2d_triangular_within_circle(do_plot=False):
+def test_create_2d_triangular_within_circle(do_plot):
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
 
@@ -134,7 +143,7 @@ def test_create_2d_triangular_within_circle(do_plot=False):
         assert len(network._mesh2d.get_mesh2d().face_x) == 258
 
 
-def test_create_2d_rectangular_from_multipolygon(do_plot=False):
+def test_create_2d_rectangular_from_multipolygon(do_plot):
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -198,7 +207,7 @@ def test_create_2d_rectangular_from_multipolygon(do_plot=False):
     assert len(network._mesh2d.mesh2d_face_x) == 637
 
 
-def test_create_2d_triangular_from_multipolygon(do_plot=False):
+def test_create_2d_triangular_from_multipolygon(do_plot):
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -248,7 +257,7 @@ def test_create_2d_triangular_from_multipolygon(do_plot=False):
         assert pre_refine_length_edge == 598
         assert len(network._mesh2d.mesh2d_face_x) == 1360
 
-def test_2d_refine_ring_geometry(do_plot=False):
+def test_2d_refine_ring_geometry(do_plot):
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -293,7 +302,7 @@ def test_2d_refine_ring_geometry(do_plot=False):
     assert len(network._mesh2d.mesh2d_face_x) == 27534
 
 
-def test_2d_clip_outside_polygon(do_plot=False):
+def test_2d_clip_outside_polygon(do_plot):
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -333,7 +342,7 @@ def test_2d_clip_outside_polygon(do_plot=False):
     assert len(network._mesh2d.mesh2d_face_x) == 244
 
 
-def test_plot_2d_clip_inside_polygon_with_holes(do_plot=False):
+def test_plot_2d_clip_inside_polygon_with_holes(do_plot):
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -371,7 +380,7 @@ def test_plot_2d_clip_inside_polygon_with_holes(do_plot=False):
     assert len(network._mesh2d.mesh2d_node_x) == 305
 
 
-def test_2d_clip_inside_multipolygon(do_plot=False):
+def test_2d_clip_inside_multipolygon(do_plot):
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -406,7 +415,7 @@ def test_2d_clip_inside_multipolygon(do_plot=False):
      
     assert len(network._mesh2d.mesh2d_node_x) == 357
 
-def test_1d_add_branch_from_linestring(do_plot=False):
+def test_1d_add_branch_from_linestring(do_plot):
     # Define polygon
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
@@ -568,7 +577,40 @@ def test_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, 
     assert len(network._link1d2d.link1d2d_id) == outcome
 
 
-def test_linkd1d2d_remove_links_within_polygon(do_plot=False):
+def test_links1d2d_lateral_then_embedded_preserves_existing_links():
+    # Regression test: calling the embedded link generator after the lateral
+    # one used to discard the previously created lateral links.
+    network, _, _, _ = _prepare_1d2d_mesh(second_branch=True)
+
+    mesh.links1d2d_add_links_2d_to_1d_lateral(network)
+    n_lateral = len(network._link1d2d.link1d2d_id)
+    assert n_lateral > 0
+
+    mesh.links1d2d_add_links_2d_to_1d_embedded(network)
+    n_total = len(network._link1d2d.link1d2d_id)
+
+    # All lateral links must still be present after adding the embedded links
+    assert n_total >= n_lateral
+
+
+def test_links1d2d_embedded_then_1d_to_2d_preserves_existing_links():
+    # Regression test for the general safety net in _filter_links_on_idx: any
+    # link-adding function must preserve links created by an earlier one,
+    # regardless of call order.
+    network, _, _, _ = _prepare_1d2d_mesh(second_branch=True)
+
+    mesh.links1d2d_add_links_2d_to_1d_embedded(network)
+    n_embedded = len(network._link1d2d.link1d2d_id)
+    assert n_embedded > 0
+
+    mesh.links1d2d_add_links_1d_to_2d(network)
+    n_total = len(network._link1d2d.link1d2d_id)
+
+    # All embedded links must still be present after adding the 1d_to_2d links
+    assert n_total >= n_embedded
+
+
+def test_linkd1d2d_remove_links_within_polygon(do_plot):
     network, within, _, _ = _prepare_1d2d_mesh()
     within = within.buffer(-2)
 
@@ -583,12 +625,12 @@ def test_linkd1d2d_remove_links_within_polygon(do_plot=False):
             gpd.GeoDataFrame(geometry=[within], crs=4326),  # shapely geometry, folium accepts it directly
             style_function=lambda x: {"color": "green", "dashArray": "5 5", "fillOpacity": 0}
         ).add_to(m)
-        m.save(test_figure_path / f"test_linkd1d2d_remove_links_within_polygon_mk.html")
+        m.save(test_figure_path / "test_linkd1d2d_remove_links_within_polygon_mk.html")
     
     assert len(network._link1d2d.link1d2d_id) == 4
 
 
-def test_linkd1d2d_remove_links_within_small_polygon(do_plot=False):
+def test_linkd1d2d_remove_links_within_small_polygon(do_plot):
     network, _, _, _ = _prepare_1d2d_mesh()
 
     # Generate all links
@@ -604,11 +646,11 @@ def test_linkd1d2d_remove_links_within_small_polygon(do_plot=False):
             gpd.GeoDataFrame(geometry=[within], crs=4326),  # shapely geometry, folium accepts it directly
             style_function=lambda x: {"color": "red", "dashArray": "5 5", "fillOpacity": 0}
         ).add_to(m)
-        m.save(test_figure_path / f"test_linkd1d2d_remove_links_within_small_polygon_mk.html")
+        m.save(test_figure_path / "test_linkd1d2d_remove_links_within_small_polygon_mk.html")
 
     assert len(network._link1d2d.link1d2d_id) == 0
 
-def test_links1d2d_remove_1d_endpoints(do_plot=False):
+def test_links1d2d_remove_1d_endpoints(do_plot):
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
 
@@ -653,7 +695,7 @@ def test_links1d2d_remove_1d_endpoints(do_plot=False):
         fig.add_subplot(1, 2, 2).add_child(m2)
         fig.save(test_figure_path / "test_links1d2d_remove_1d_endpoints_mk.html")
 
-def test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(do_plot=False):
+def test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(do_plot):
     fmmodel = FMModel()
     network = fmmodel.geometry.netfile.network
 
@@ -705,7 +747,7 @@ def test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(do_
         fig.save(test_figure_path / "test_links1d2d_remove_1d_endpoints_removes_all_matches_mk.html")
 
 
-def _prepare_hydamo(culverts: bool = False):
+def _prepare_hydamo():
     # initialize a hydamo object
     extent_file = hydamo_data_path / "OLO_stroomgebied_incl.maas.shp"
     assert extent_file.exists()
@@ -722,32 +764,6 @@ def _prepare_hydamo(culverts: bool = False):
 
     # Read management device
     hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-
-    # read culverts
-    if culverts:
-        hydamo.culverts.read_gpkg_layer(
-            gpkg_file, layer_name="DuikerSifonHevel", index_col="code"
-        )
-        hydamo.culverts.snap_to_branch(hydamo.branches, snap_method="ends", maxdist=5)
-        hydamo.culverts.dropna(axis=0, inplace=True, subset=["branch_offset"])
-
-        # Connect to management_device
-        idx = hydamo.management_device.loc[
-            hydamo.management_device["duikersifonhevelid"].notnull()
-        ].index
-        for i in idx:
-            globid = hydamo.culverts.loc[
-                hydamo.culverts["code"].eq(
-                    hydamo.management_device.at[i, "duikersifonhevelid"]
-                ),
-                "globalid",
-            ].values[0]
-            hydamo.management_device.at[i, "duikersifonhevelid"] = globid
-
-        # Convert culverts
-        hydamo.structures.convert.culverts(
-            hydamo.culverts, management_device=hydamo.management_device
-        )
 
     return hydamo
 
@@ -812,7 +828,7 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
     )
 
 
-def test_mesh1d_add_branches_from_gdf(do_plot=False):
+def test_mesh1d_add_branches_from_gdf(do_plot):
     # Create full HyDAMO object (use from other test)
     hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
 
@@ -875,4 +891,37 @@ def test_mesh1d_add_branches_from_gdf_logs_missing_branchid(caplog):
         )
 
     assert "1 structures (['s_missing']) are not linked to a branch." in caplog.text
+    assert len(network._mesh1d.network1d_node_x) > 0
+
+
+def test_mesh1d_add_branches_from_gdf_logs_duplicate_structure_location(caplog):
+    # Two structures on the same branch at the same chainage, with non-string
+    # (float) ids: this used to crash with
+    # "TypeError: sequence item 0: expected str instance, float found" in the
+    # ", ".join(...)" used to build the warning message.
+    fmmodel = FMModel()
+    network = fmmodel.geometry.netfile.network
+
+    branches = gpd.GeoDataFrame(
+        {"code": ["branch_1"], "geometry": [LineString([(0.0, 0.0), (10.0, 0.0)])]}
+    )
+    structures = pd.DataFrame(
+        {
+            "branchid": ["branch_1", "branch_1", "branch_1"],
+            "chainage": [3.0, 3.0, 7.0],
+            "id": [1.0, 2.0, 3.0],
+        }
+    )
+
+    with caplog.at_level("WARNING", logger="hydrolib.dhydamo.geometry.mesh"):
+        mesh.mesh1d_add_branches_from_gdf(
+            network,
+            branches=branches,
+            branch_name_col="code",
+            node_distance=2,
+            max_dist_to_struc=None,
+            structures=structures,
+        )
+
+    assert "Structures 1.0, 2.0 have the same location." in caplog.text
     assert len(network._mesh1d.network1d_node_x) > 0

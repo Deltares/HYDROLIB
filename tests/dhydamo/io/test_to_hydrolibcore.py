@@ -1,6 +1,3 @@
-import sys
-
-sys.path.insert(0, r".")
 from pathlib import Path
 
 import geopandas as gpd
@@ -17,11 +14,11 @@ from hydrolib.core.dflowfm.structure.models import StructureModel
 
 # and from hydrolib-core
 from hydrolib.core.dimr.models import DIMR, FMComponent
-from shapely.geometry import Point
 
 # Importing relevant classes from Hydrolib-dhydamo
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
 from hydrolib.dhydamo.geometry import mesh
+from shapely.geometry import Point
 from tests.dhydamo.io import test_from_hydamo
 
 # path where the input data is located
@@ -143,7 +140,7 @@ def setup_model(hydamo_obj=None, full_test=False):
 
     # Add 2d network
     if full_test:
-        extent = gpd.read_file(data_path.joinpath("2D_extent.shp")).at[0, "geometry"]
+        extent = gpd.read_file(data_path.joinpath("2D_extent.shp")).loc[0, "geometry"]
         network = fm.geometry.netfile.network
         mesh.mesh2d_add_rectilinear(network, extent, dx=20, dy=20)
         mesh.mesh2d_clip(network, hydamo.branches.loc['W_2646_0'].geometry.buffer(20.))
@@ -210,8 +207,8 @@ def _add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False):
 
     return fm
 
-def test_add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False):
-    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test)
+def test_add_to_filestructure():
+    fm = _add_to_filestructure()
     assert hasattr(fm, "geometry")
     assert hasattr(fm.geometry, "inifieldfile")
     
@@ -257,8 +254,8 @@ def _write_model(drrmodel=None, hydamo_obj=None, full_test=False):
 
     return fm, output_path
 
-def test_write_model(drrmodel=None, hydamo_obj=None, full_test=False):
-    _, output_path = _write_model(drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test)
+def test_write_model():
+    _, output_path = _write_model()
     assert (output_path / "dflowfm" / "DFM.mdu").exists()
     assert (output_path / "dflowfm" / "crsdef.ini").exists()
     assert (output_path / "dflowfm" / "network.nc").exists()

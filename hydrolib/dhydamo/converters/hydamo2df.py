@@ -151,8 +151,7 @@ class CrossSectionsIO:
                 for lindex in lineidx
             ]
             # make a copy and drop the profiles corresponding to a structure
-            dp_branches = crosssections.copy(deep=True)
-            dp_branches.drop(profidx, axis=0, inplace=True)
+            dp_branches = crosssections.drop(profidx, axis=0)
 
             dp_structures = crosssections.copy(deep=True)
             dp_structures = dp_structures.loc[profidx, :]
