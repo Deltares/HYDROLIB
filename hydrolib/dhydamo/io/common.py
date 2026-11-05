@@ -15,6 +15,55 @@ from hydrolib.dhydamo.geometry import spatial
 logger = logging.getLogger(__name__)
 
 
+def _points_to_lines(
+    layer: gpd.GeoDataFrame, groupby_column: str, order_column: str | None, check_3d: bool
+) -> tuple[list, list]:
+    """Group 3D points into LineStrings, one per `groupby_column` value, ordered by `order_column`.
+
+    Returns the fields (first row of each group) and the line geometries.
+    Groups with fewer than two points are skipped with a warning.
+    """
+    if groupby_column not in layer.columns:
+        raise ValueError("Groupby column not found in feature list.")
+    if order_column is None or order_column not in layer.columns:
+        raise ValueError("Order column not found in feature list.")
+
+    geom_types = layer.geometry.geom_type.unique()
+    if len(geom_types) != 1 or geom_types[0] != "Point":
+        raise ValueError("Can only group Points to LineString")
+    if check_3d and np.isnan(layer.geometry.z.to_numpy()).any():
+        raise ValueError("All geometries need to have a Z coordinate")
+
+    geometries = []
+    fields = []
+    for groupname, group in layer.groupby(groupby_column, sort=False):
+        if len(group) < 2:
+            logger.warning(
+                'Ignoring %s "%s": contains less than two points.',
+                groupby_column,
+                groupname,
+            )
+            continue
+        group = group.sort_values(order_column)
+        geometries.append(LineString(group.geometry.tolist()))
+        fields.append(group.iloc[0, :])
+    return fields, geometries
+
+
+def _make_index_unique(gdf: gpd.GeoDataFrame, index_col: str) -> None:
+    """Suffix repeated `index_col` values in place (`_1`, `_2`, ...); the first occurrence keeps its id."""
+    duplicated = gdf.duplicated(subset=index_col, keep="first")
+    if not duplicated.any():
+        return
+    logger.warning(
+        "Index column '%s' contains duplicates (%s). Adding a suffix to make it unique.",
+        index_col,
+        list(gdf.loc[duplicated, index_col].unique()),
+    )
+    for dupe_id, group in gdf[duplicated].groupby(by=index_col, sort=False):
+        gdf.loc[group.index, index_col] = [f"{dupe_id}_{i+1}" for i in range(len(group))]
+
+
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
     # normal properties
     _metadata = ["required_columns", "geotype"] + gpd.GeoDataFrame._metadata
@@ -293,41 +342,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
 
-        # Get group by columns
         if groupby_column is not None:
-            # Check if the group by column is found
-            if groupby_column not in columns:
-                raise ValueError("Groupby column not found in feature list.")
-
-            if order_column is None or order_column not in columns:
-                raise ValueError("Order column not found in feature list.")
-
-            # Check if the geometry is as expected
-            geom_types = layer.geometry.geom_type.unique()
-            if len(geom_types) != 1 or geom_types[0] != "Point":
-                raise ValueError("Can only group Points to LineString")
-            if check_3d and np.isnan(layer.geometry.z.to_numpy()).any():
-                raise ValueError("All geometries need to have a Z coordinate")
-
-
-            # Group geometries to lines
-            geometries = []
-            fields = []
-            for groupname, group in layer.groupby(groupby_column, sort=False):
-                # Filter branches with too few points
-                if len(group) < 2:
-                    logger.warning(
-                        'Ignoring %s "%s": contains less than two points.',
-                        groupby_column,
-                        groupname,
-                    )
-                    continue
-
-                # Determine relative order of points in profile
-                group = group.sort_values(order_column)
-                geometries.append(LineString(group.geometry.tolist()))
-                fields.append(group.iloc[0, :]) 
-
+            fields, geometries = _points_to_lines(layer, groupby_column, order_column, check_3d)
         else:
             fields = layer
             geometries = layer.geometry
@@ -338,17 +354,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if column_mapping is not None:
             gdf = gdf.rename(columns=column_mapping)
 
-        # Enforce a unique index column
         if index_col is not None:
-            dupes = gdf[gdf.duplicated(subset=index_col, keep="first")].copy()
-            if len(dupes) > 0:
-                logger.warning(
-                    "Index column '%s' contains duplicates (%s). Adding a suffix to make it unique.",
-                    index_col,
-                    list(gdf[gdf[index_col].duplicated()].code.unique()),
-                )
-                for dupe_id, group in dupes.groupby(by=index_col, sort=False):
-                    gdf.loc[group.index, index_col] = [f"{dupe_id}_{i+1}" for i in range(len(group))]
+            _make_index_unique(gdf, index_col)
 
         # Add data to class GeoDataFrame
         self.set_data(

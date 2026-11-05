@@ -280,8 +280,9 @@ def test_load_from_gpkg_with_validation_strict_raises(
 
     _install_fake_validator(monkeypatch, _validator_factory)
 
+    hydamo = HyDAMO()
     with pytest.raises(HyDAMOValidationError):
-        HyDAMO().load_from_gpkg(
+        hydamo.load_from_gpkg(
             gpkg_file,
             hydamo_version="2.5",
             validation_mode="strict",
@@ -289,8 +290,9 @@ def test_load_from_gpkg_with_validation_strict_raises(
 
 
 def test_load_from_gpkg_raises_for_unsupported_version():
+    hydamo = HyDAMO()
     with pytest.raises(ValueError, match="Unsupported"):
-        HyDAMO().load_from_gpkg("irrelevant.gpkg", hydamo_version="9.9")
+        hydamo.load_from_gpkg("irrelevant.gpkg", hydamo_version="9.9")
 
 
 def test_load_from_gpkg_v22_postprocess_copies_soortregelmiddel(tmp_path: Path):

@@ -589,3 +589,12 @@ def test_create_laterals_excludes_nodata_and_keeps_negative_discharge(tmp_path, 
         qspec * hydamo.catchments.area.to_numpy() / (1000 * 86400),
         rtol=1e-6,
     )
+
+
+def test_make_index_unique_suffixes_duplicates_without_code_column():
+    from hydrolib.dhydamo.io.common import _make_index_unique
+
+    gdf = gpd.GeoDataFrame({"globalid": ["a", "a", "b", "a"]}, geometry=[Point(0, 0)] * 4)
+    _make_index_unique(gdf, "globalid")
+
+    assert gdf["globalid"].tolist() == ["a", "a_1", "b", "a_2"]

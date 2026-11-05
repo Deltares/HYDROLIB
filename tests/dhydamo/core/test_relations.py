@@ -127,24 +127,39 @@ def test_relation_methods_ignore_null_keys():
     assert relation.children_of(profile_lines, profiles).empty
 
 
-def test_relation_methods_require_source_and_target_keys():
-    relation = RelationsHyDAMO.PROFILE_LINE
-    hydamo = _profile_hydamo()
+@pytest.mark.parametrize(
+    ("method", "make_args", "missing_key"),
+    [
+        (
+            "parents_of",
+            lambda h: (pd.DataFrame(index=["p1"]), h.profile_line),
+            "profiellijnid",
+        ),
+        (
+            "parents_of",
+            lambda h: (h.profile.loc[["p1"]], h.profile_line.drop(columns="globalid")),
+            "globalid",
+        ),
+        (
+            "children_of",
+            lambda h: (pd.DataFrame(index=["l1"]), h.profile),
+            "globalid",
+        ),
+        (
+            "children_of",
+            lambda h: (h.profile_line.loc[["l1"]], h.profile.drop(columns="profiellijnid")),
+            "profiellijnid",
+        ),
+    ],
+    ids=["parents-missing-source-key", "parents-missing-target-key",
+         "children-missing-source-key", "children-missing-target-key"],
+)
+def test_relation_methods_require_source_and_target_keys(method, make_args, missing_key):
+    relation_method = getattr(RelationsHyDAMO.PROFILE_LINE, method)
+    source, target = make_args(_profile_hydamo())
 
-    with pytest.raises(KeyError, match="profiellijnid"):
-        relation.parents_of(pd.DataFrame(index=["p1"]), hydamo.profile_line)
-    with pytest.raises(KeyError, match="globalid"):
-        relation.parents_of(
-            hydamo.profile.loc[["p1"]],
-            hydamo.profile_line.drop(columns="globalid"),
-        )
-    with pytest.raises(KeyError, match="globalid"):
-        relation.children_of(pd.DataFrame(index=["l1"]), hydamo.profile)
-    with pytest.raises(KeyError, match="profiellijnid"):
-        relation.children_of(
-            hydamo.profile_line.loc[["l1"]],
-            hydamo.profile.drop(columns="profiellijnid"),
-        )
+    with pytest.raises(KeyError, match=missing_key):
+        relation_method(source, target)
 
 
 def test_follow_relation_dispatches_in_both_directions():

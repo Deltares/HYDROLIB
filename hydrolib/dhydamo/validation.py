@@ -90,33 +90,36 @@ def validate_hydamo_package(
             )
 
         _, _, result_summary = result
-
-        # hydamo_validation uses .error for unhandled exceptions and .errors for
-        # errors appended during rule processing — read both to capture all messages.
-        errors = []
-        for attr in ("error", "errors"):
-            val = getattr(result_summary, attr, None)
-            if val:
-                errors.extend([str(e) for e in val if e])
-
-        # When validation rules fail (success=False) but no exception-level error
-        # messages were raised, surface which layers failed so that validate_or_raise
-        # produces a useful message instead of "unknown error".
         success = bool(getattr(result_summary, "success", False))
-        if not success and not errors:
-            error_layers = getattr(result_summary, "error_layers", None) or []
-            missing_layers = getattr(result_summary, "missing_layers", None) or []
-            if error_layers:
-                errors.append(f"Layers with errors: {', '.join(error_layers)}")
-            if missing_layers:
-                errors.append(f"Missing layers: {', '.join(missing_layers)}")
-
         return HydamoValidationResult(
             success=success,
             status=getattr(result_summary, "status", None),
-            errors=errors,
+            errors=_summary_errors(result_summary, success),
             raw_result=result_summary,
         )
+
+
+def _summary_errors(result_summary: Any, success: bool) -> list[str]:
+    """Collect error messages from a hydamo_validation result summary."""
+    # hydamo_validation uses .error for unhandled exceptions and .errors for
+    # errors appended during rule processing — read both to capture all messages.
+    errors = []
+    for attr in ("error", "errors"):
+        val = getattr(result_summary, attr, None)
+        if val:
+            errors.extend([str(e) for e in val if e])
+
+    # When validation rules fail (success=False) but no exception-level error
+    # messages were raised, surface which layers failed so that validate_or_raise
+    # produces a useful message instead of "unknown error".
+    if not success and not errors:
+        error_layers = getattr(result_summary, "error_layers", None) or []
+        missing_layers = getattr(result_summary, "missing_layers", None) or []
+        if error_layers:
+            errors.append(f"Layers with errors: {', '.join(error_layers)}")
+        if missing_layers:
+            errors.append(f"Missing layers: {', '.join(missing_layers)}")
+    return errors
 
 
 def validate_or_raise(
