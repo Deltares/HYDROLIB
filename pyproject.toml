@@ -17,7 +17,7 @@ dependencies = [
   "xarray>=2024",
   "pydantic>=2,<3",
   # implicit dependency, specific version follows from hydrolib-core
-  "meshkernel",
+  "meshkernel>=8.4", # TODO temporary pin to force the issue
   # upper pin <2 because hydrolib-core will remove support for some quantities/blocks
   # temporary upper pin on <1.6 until fixing https://github.com/Deltares/HYDROLIB/issues/248
   "hydrolib-core>=1.5,<1.6",
