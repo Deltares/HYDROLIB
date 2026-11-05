@@ -444,7 +444,20 @@ class HyDAMO:
             for next_target_str, next_relation in coupled_to.items():
                 return self._recursive_drop_related(drop_list, target, drop_idx, next_target_str, **next_relation)
             
-    def create_laterals(self, qspec_file=None):            
+    def create_laterals(
+        self,
+        qspec_file=None,
+        *,
+        min_coverage_frac: float = 0.0,
+        coverage_weight: zonal.CoverageWeight = "fraction",
+    ):
+        """Create laterals at the catchments, with the mean specific discharge per catchment.
+
+        Args:
+            qspec_file (str, optional): raster of specific discharge (mm/d). Without it, the discharges are NaN.
+            min_coverage_frac (float, optional): smallest fraction of a pixel a catchment must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
+            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the catchment covers, "none" counts them fully. Defaults to "fraction".
+        """
         ## Specifieke afvoeren inlezen
         if qspec_file is not None:
             rr = DRRModel()
@@ -459,7 +472,9 @@ class HyDAMO:
                 gpd.GeoDataFrame(self.catchments),
                 qspec,
                 statistics=("mean",),
-                all_touched=True,
+                strategy="feature-sequential",
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
                 affine=affine,
                 raster_crs=raster_crs,
                 nodata=-2147483647,

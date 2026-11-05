@@ -900,6 +900,9 @@ def mesh2d_altitude_from_raster(
     stat: str = "mean",
     fill_option: FillOption | str = "fill_value",
     fill_value: float | None = None,
+    *,
+    min_coverage_frac: float = 0.0,
+    coverage_weight: zonal.CoverageWeight = "fraction",
 ) -> None:
     """Method to determine level of nodes
 
@@ -915,11 +918,16 @@ def mesh2d_altitude_from_raster(
         rasterpath (Path | str): Path to the raster file from which altitude values are read
         where (RasterStatPosition | str, optional): Whether to determine altitude at cell
             "face" centers or "node" locations. Defaults to "face".
-        stat (str, optional): Statistic to derive from the raster cells per face/node. Defaults to "mean".
+        stat (str, optional): exactextract statistic to derive from the raster cells per
+            face/node, such as "mean", "median" or "quantile(q=0.9)". Defaults to "mean".
         fill_option (FillOption | str, optional): How to fill locations without a raster value:
             "fill_value", "nearest", or "interpolate". Defaults to "fill_value".
         fill_value (float | None, optional): Value used when fill_option is "fill_value", or the
             fallback for values that cannot be interpolated. Defaults to None.
+        min_coverage_frac (float, optional): Smallest fraction of a raster cell a face or
+            node polygon must cover for the cell to count. Defaults to 0, every touched cell.
+        coverage_weight (str, optional): "fraction" counts raster cells by the fraction of
+            them the polygon covers, "none" counts them fully. Defaults to "fraction".
     """
 
     if isinstance(fill_option, str):
@@ -965,8 +973,16 @@ def mesh2d_altitude_from_raster(
         )
         facedata = spatial.get_voronoi_around_nodes(xy, facedata)
 
-    df = zonal.zonal_stats(facedata, rasterpath, statistics=(stat,), strategy="raster")
-    zvalues = df[stat].values
+    df = zonal.zonal_stats(
+        facedata,
+        rasterpath,
+        stat,
+        strategy="raster-sequential",
+        min_coverage_frac=min_coverage_frac,
+        coverage_weight=coverage_weight,
+    )
+    # By position: exactextract names e.g. "quantile(q=0.9)" "quantile_90".
+    zvalues = df.iloc[:, 0].to_numpy()
 
     isnan = np.isnan(zvalues)
     if isnan.any():

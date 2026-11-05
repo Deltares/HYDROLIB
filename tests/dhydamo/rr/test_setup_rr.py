@@ -60,7 +60,6 @@ def _setup_rr_model(hydamo=None):
         sewer_storage=sewer_storage,
         pump_capacity=pumpcapacity,
         meteo_areas=meteo_areas,
-        zonalstats_alltouched=True,
     )
 
     drrmodel.greenhouse.io.greenhouse_from_input(
@@ -69,11 +68,10 @@ def _setup_rr_model(hydamo=None):
         ahn_file,
         roof_storage,
         meteo_areas,
-        zonalstats_alltouched=True,
     )
 
     drrmodel.openwater.io.openwater_from_input(
-        hydamo.catchments, lu_file, meteo_areas, zonalstats_alltouched=True
+        hydamo.catchments, lu_file, meteo_areas
     )
 
     drrmodel.external_forcings.io.boundary_from_input(
@@ -117,11 +115,11 @@ def test_setup_rr_model():
     assert drrmodel.external_forcings.evap["ms_15.0"]["evap"].iloc[1] == pytest.approx(
         2.9, abs=1e-7
     )
-    # IDF seepage is float32-sourced; GDAL's zonal-stats mean and rasterstats'
-    # legacy mean disagree at float32 noise level (~3.6e-7 here), so this one
-    # uses a looser tolerance than the other, non-IDF, float64 fixtures above.
+    # Catchment 15.0 (55 x 45 m) touches a few 250 m seepage cells, weighted by
+    # its coverage of each; counting them fully gives -0.079156. IDF seepage is
+    # float32-sourced, hence the looser tolerance.
     assert drrmodel.external_forcings.seepage["sep_15.0"]["seepage"].iloc[1] == pytest.approx(
-        -0.079156, abs=1e-6
+        -0.033760, abs=1e-6
     )
 
 

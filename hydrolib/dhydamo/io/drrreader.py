@@ -63,8 +63,10 @@ class UnpavedIO:
         infiltration_capacity: StrictStr | Path | float,
         initial_gwd: StrictStr | Path | float,
         meteo_areas: ExtendedGeoDataFrame,
-        zonalstats_alltouched: bool = False,
-        greenhouse_areas: ExtendedGeoDataFrame = None
+        greenhouse_areas: ExtendedGeoDataFrame = None,
+        *,
+        min_coverage_frac: float = 0.0,
+        coverage_weight: zonal.CoverageWeight = "fraction",
     ):
         """Generate contents of an unpaved node from raster data
 
@@ -77,9 +79,9 @@ class UnpavedIO:
             infiltration_capacity (Union): numeric for spatially uniform infiltration capacity (mm/d), or raster for distributed values
             initial_gwd (Union): numeric for spatially uniform initial groundwater levels (m), or raster for distributed values
             meteo_areas (ExtendedGeoDataFrame): meteo areas, for each station a meteo time series is assigned
-            zonalstats_alltouched (bool, optional): method to carry out zonal statistics, see rasterstats docx. Defaults to False.
+            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
+            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
         """
-        all_touched = zonalstats_alltouched
         px_area, reference_crs = _raster_metadata(landuse)
 
         # required rasters
@@ -87,21 +89,27 @@ class UnpavedIO:
         lu_counts = zonal.zonal_category_counts(
             gpd.GeoDataFrame(catchments),
             landuse,
-            all_touched=all_touched,
+            min_coverage_frac=min_coverage_frac,
+            coverage_weight=coverage_weight,
+            strategy="feature-sequential",
         )
 
         soiltypes = zonal.zonal_stats(
             gpd.GeoDataFrame(catchments),
             soiltype,
             statistics=("mode",),
-            all_touched=all_touched,
+            min_coverage_frac=min_coverage_frac,
+            coverage_weight=coverage_weight,
+            strategy="feature-sequential",
         )
 
         stats_elev = zonal.zonal_stats(
             gpd.GeoDataFrame(catchments),
             surface_level,
             statistics=("median",),
-            all_touched=all_touched,
+            min_coverage_frac=min_coverage_frac,
+            coverage_weight=coverage_weight,
+            strategy="feature-sequential",
         )
 
         # optional rasters
@@ -110,7 +118,9 @@ class UnpavedIO:
                 gpd.GeoDataFrame(catchments),
                 surface_storage,
                 statistics=("mean",),
-                all_touched=True,
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                strategy="feature-sequential",
                 raster_crs=reference_crs,
             )
         elif isinstance(surface_storage, int):
@@ -120,7 +130,9 @@ class UnpavedIO:
                 gpd.GeoDataFrame(catchments),
                 infiltration_capacity,
                 statistics=("mean",),
-                all_touched=True,
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                strategy="feature-sequential",
                 raster_crs=reference_crs,
             )
         elif isinstance(infiltration_capacity, int):
@@ -130,7 +142,9 @@ class UnpavedIO:
                 gpd.GeoDataFrame(catchments),
                 initial_gwd,
                 statistics=("mean",),
-                all_touched=True,
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                strategy="feature-sequential",
                 raster_crs=reference_crs,
             )
         elif isinstance(initial_gwd, int):
@@ -278,8 +292,9 @@ class PavedIO:
         meteo_areas: ExtendedGeoDataFrame,
         overflows: ExtendedGeoDataFrame = None,
         sewer_areas: ExtendedGeoDataFrame = None,
-        zonalstats_alltouched: bool = False,
-        
+        *,
+        min_coverage_frac: float = 0.0,
+        coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
         """Generate contents of RR paved nodes
 
@@ -293,24 +308,28 @@ class PavedIO:
             meteo_areas (ExtendedGeoDataFrame): meteo areas, for each station a meteo time series is assigned
             overflows (ExtendedGeoDataFrame, optional): overflow locations. Defaults to None.
             sewer_areas (ExtendedGeoDataFrame, optional): sewer area locations. Defaults to None.
-            zonalstats_alltouched (bool, optional): method to carry out zonal statistis, see rasterstats docx. Defaults to False.onalstats_alltouched (bool, optional): method to. Defaults to False.
+            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
+            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
 
         Returns:
             _type_: _description_
         """
-        all_touched = zonalstats_alltouched
         px_area, reference_crs = _raster_metadata(landuse)
 
         lu_counts = zonal.zonal_category_counts(
             gpd.GeoDataFrame(catchments),
             landuse,
-            all_touched=all_touched,
+            min_coverage_frac=min_coverage_frac,
+            coverage_weight=coverage_weight,
+            strategy="feature-sequential",
         )
         stats_elev = zonal.zonal_stats(
             gpd.GeoDataFrame(catchments),
             surface_level,
             statistics=("median",),
-            all_touched=all_touched,
+            min_coverage_frac=min_coverage_frac,
+            coverage_weight=coverage_weight,
+            strategy="feature-sequential",
         )
 
         if isinstance(street_storage, (Path, str)):
@@ -318,7 +337,9 @@ class PavedIO:
                 gpd.GeoDataFrame(catchments),
                 street_storage,
                 statistics=("mean",),
-                all_touched=True,
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                strategy="feature-sequential",
                 raster_crs=reference_crs,
             )
         
@@ -327,7 +348,9 @@ class PavedIO:
                 gpd.GeoDataFrame(catchments),
                 sewer_storage,
                 statistics=("mean",),
-                all_touched=True,
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                strategy="feature-sequential",
                 raster_crs=reference_crs,
             )
         
@@ -337,7 +360,9 @@ class PavedIO:
                 gpd.GeoDataFrame(catchments),
                 pump_capacity,
                 statistics=("mean",),
-                all_touched=True,
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                strategy="feature-sequential",
                 raster_crs=reference_crs,
             )
         paved_columns = [
@@ -359,7 +384,9 @@ class PavedIO:
                     gpd.GeoDataFrame(sewer_areas),
                     street_storage,
                     statistics=("mean",),
-                    all_touched=True,
+                    min_coverage_frac=min_coverage_frac,
+                    coverage_weight=coverage_weight,
+                    strategy="feature-sequential",
                     raster_crs=reference_crs,
                 )
             if isinstance(sewer_storage, (Path, str)):
@@ -367,7 +394,9 @@ class PavedIO:
                     gpd.GeoDataFrame(sewer_areas),
                     sewer_storage,
                     statistics=("mean",),
-                    all_touched=True,
+                    min_coverage_frac=min_coverage_frac,
+                    coverage_weight=coverage_weight,
+                    strategy="feature-sequential",
                     raster_crs=reference_crs,
                 )
             if isinstance(pump_capacity, (Path, str)):
@@ -375,17 +404,25 @@ class PavedIO:
                     gpd.GeoDataFrame(sewer_areas),
                     pump_capacity,
                     statistics=("mean",),
-                    all_touched=True,
+                    min_coverage_frac=min_coverage_frac,
+                    coverage_weight=coverage_weight,
+                    strategy="feature-sequential",
                     raster_crs=reference_crs,
                 )
             stats_sa_elev = zonal.zonal_stats(
                 gpd.GeoDataFrame(sewer_areas),
                 surface_level,
                 statistics=("median",),
-                all_touched=True,
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                strategy="feature-sequential",
             )
             sewer_lu_counts = zonal.zonal_category_counts(
-                gpd.GeoDataFrame(sewer_areas), landuse, all_touched=all_touched
+                gpd.GeoDataFrame(sewer_areas),
+                landuse,
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                strategy="feature-sequential",
             )
 
             # find the paved area in the sewer areas
@@ -489,7 +526,9 @@ class PavedIO:
                                 geometry=[area_outside_sewer], crs=catchments.crs
                             ),
                             landuse,
-                            all_touched=all_touched,
+                            min_coverage_frac=min_coverage_frac,
+                            coverage_weight=coverage_weight,
+                            strategy="feature-sequential",
                         ).iloc[0]
                         pav_area = str(pixels.get(14, 0) * px_area)
                 else:
@@ -499,7 +538,9 @@ class PavedIO:
                             geometry=[cat.geometry], crs=catchments.crs
                         ),
                         landuse,
-                        all_touched=all_touched,
+                        min_coverage_frac=min_coverage_frac,
+                        coverage_weight=coverage_weight,
+                        strategy="feature-sequential",
                     ).iloc[0]
                     pav_area = str(pixels.get(14, 0) * px_area)
             else:
@@ -557,10 +598,12 @@ class GreenhouseIO:
         surface_level: Path | str,
         roof_storage: StrictStr | float,
         meteo_areas: ExtendedGeoDataFrame,
-        zonalstats_alltouched: bool = False,
         greenhouse_areas: ExtendedGeoDataFrame=None,
         greenhouse_laterals: ExtendedGeoDataFrame=None,
-        basin_storage_class: int=2    
+        basin_storage_class: int = 2,
+        *,
+        min_coverage_frac: float = 0.0,
+        coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
         """Generate contents of an RR greenhouse node
 
@@ -572,28 +615,34 @@ class GreenhouseIO:
             surface_level (str): filename of surface level raster
             roofstorage (Union): float for spatially uniform sewer storage (mm), or raster for distributed values
             meteo_areas (ExtendedGeoDataFrame): meteo areas, for each station a meteo time series is assigned
-            zonalstats_alltouched (bool, optional): method to carry out zonal statistis, see rasterstats docx. Defaults to False.onalstats_alltouched (bool, optional): method to. Defaults to False.
+            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
+            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
         """
-        all_touched = zonalstats_alltouched
         px_area, reference_crs = _raster_metadata(landuse)
 
         lu_counts = zonal.zonal_category_counts(
             gpd.GeoDataFrame(catchments),
             landuse,
-            all_touched=all_touched,
+            min_coverage_frac=min_coverage_frac,
+            coverage_weight=coverage_weight,
+            strategy="feature-sequential",
         )
         stats_elev = zonal.zonal_stats(
             gpd.GeoDataFrame(catchments),
             surface_level,
             statistics=("median",),
-            all_touched=all_touched,
+            min_coverage_frac=min_coverage_frac,
+            coverage_weight=coverage_weight,
+            strategy="feature-sequential",
         )
         if greenhouse_areas is not None:
             stats_elev_gh = zonal.zonal_stats(
                  gpd.GeoDataFrame(greenhouse_areas),
                  surface_level,
                  statistics=("median",),
-                 all_touched=all_touched,
+                 min_coverage_frac=min_coverage_frac,
+                 coverage_weight=coverage_weight,
+                 strategy="feature-sequential",
             )
             
         # optional rasters
@@ -602,7 +651,9 @@ class GreenhouseIO:
                  gpd.GeoDataFrame(catchments),
                  roof_storage,
                  statistics=("mean",),
-                 all_touched=True,
+                 min_coverage_frac=min_coverage_frac,
+                 coverage_weight=coverage_weight,
+                 strategy="feature-sequential",
                  raster_crs=reference_crs,
             )
             if greenhouse_areas is not None:
@@ -610,7 +661,9 @@ class GreenhouseIO:
                      gpd.GeoDataFrame(greenhouse_areas),
                      roof_storage,
                      statistics=("mean",),
-                     all_touched=True,
+                     min_coverage_frac=min_coverage_frac,
+                     coverage_weight=coverage_weight,
+                     strategy="feature-sequential",
                      raster_crs=reference_crs,
                 )
 
@@ -723,7 +776,9 @@ class OpenwaterIO:
         catchments: ExtendedGeoDataFrame,
         landuse: Path | str,
         meteo_areas: ExtendedGeoDataFrame,
-        zonalstats_alltouched: bool = False,
+        *,
+        min_coverage_frac: float = 0.0,
+        coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
         """Generate contents of an RR open water node.
 
@@ -731,18 +786,20 @@ class OpenwaterIO:
             catchments (ExtendedGeoDataFrame): catchment areas
             landuse (str): filename of landuse raster
             meteo_areas (ExtendedGeoDataFrame): meteo areas, for each station a meteo time series is assigned
-            zonalstats_alltouched (bool, optional): method to carry out zonal statistis, see rasterstats docx. Defaults to False.onalstats_alltouched (bool, optional): method to. Defaults to False.
+            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
+            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
 
         Returns:
             _type_: _description_
         """
-        all_touched = zonalstats_alltouched
         px_area, _ = _raster_metadata(landuse)
 
         lu_counts = zonal.zonal_category_counts(
             gpd.GeoDataFrame(catchments),
             landuse,
-            all_touched=all_touched,
+            min_coverage_frac=min_coverage_frac,
+            coverage_weight=coverage_weight,
+            strategy="feature-sequential",
         )
 
         for num, cat in enumerate(catchments.itertuples()):
@@ -770,13 +827,20 @@ class ExternalForcingsIO:
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def seepage_from_input(
-        self, catchments: ExtendedGeoDataFrame, seepage_folder: Path | str
+        self,
+        catchments: ExtendedGeoDataFrame,
+        seepage_folder: Path | str,
+        *,
+        min_coverage_frac: float = 0.0,
+        coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
         """Perform zonal statistics to derive seepage time series per catchment. Time steps are derived from the data
 
         Args:
             catchments (ExtendedGeoDataFrame): catchment areas
             seepage_folder (str): folder where the seepage rasters are stored
+            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
+            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
         """
         warnings.filterwarnings("ignore")
         file_list = sorted(os.listdir(seepage_folder))
@@ -797,7 +861,9 @@ class ExternalForcingsIO:
                     zones,
                     dataset.to_numpy(),
                     statistics=("mean",),
-                    all_touched=True,
+                    min_coverage_frac=min_coverage_frac,
+                    coverage_weight=coverage_weight,
+                    strategy="feature-sequential",
                     affine=affine,
                     raster_crs=dataset.attrs.get("crs"),
                     nodata=dataset.attrs.get("nodata", np.nan),
@@ -806,7 +872,12 @@ class ExternalForcingsIO:
             else:
                 time = self.external_forcings.drrmodel._time_from_filename(path)
                 stats = zonal.zonal_stats(
-                    zones, path, statistics=("mean",), all_touched=True, strategy="feature"
+                    zones,
+                    path,
+                    statistics=("mean",),
+                    min_coverage_frac=min_coverage_frac,
+                    coverage_weight=coverage_weight,
+                    strategy="feature-sequential",
                 )
             times.append(time)
             arr[ifile, :] = stats["mean"].to_numpy()
@@ -828,6 +899,9 @@ class ExternalForcingsIO:
         areas: ExtendedGeoDataFrame,
         precip_folder: Path | str | None = None,
         precip_file: Path | str | None = None,
+        *,
+        min_coverage_frac: float = 0.0,
+        coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
         """Create time series of precipitation for every meteo_area, based on zonal statistics from rasters.
 
@@ -835,6 +909,8 @@ class ExternalForcingsIO:
             areas (ExtendedGeoDataFrame): meteo areas for which time series are created
             precip_folder (str, optional): folder where precipitation rasters are stored. Only used if no precip_file is given. Defaults to None.
             precip_file (str, optional): existing meteo-file, which is used if available.
+            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
+            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
         """
         if precip_file is None:
             warnings.filterwarnings("ignore")
@@ -850,7 +926,12 @@ class ExternalForcingsIO:
                 path = os.path.join(precip_folder, file)
                 times.append(self.external_forcings.drrmodel._time_from_filename(path))
                 stats = zonal.zonal_stats(
-                    zones, path, statistics=("mean",), all_touched=True, strategy="feature"
+                    zones,
+                    path,
+                    statistics=("mean",),
+                    min_coverage_frac=min_coverage_frac,
+                    coverage_weight=coverage_weight,
+                    strategy="feature-sequential",
                 )
                 arr[ifile, :] = stats["mean"].to_numpy()
             result = pd.DataFrame(
@@ -867,6 +948,9 @@ class ExternalForcingsIO:
         areas: ExtendedGeoDataFrame,
         evap_folder: Path | str | None = None,
         evap_file: Path | str | None = None,
+        *,
+        min_coverage_frac: float = 0.0,
+        coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
         """Create time series of evaporation for every meteo_area, based on zonal statistics from rasters.
 
@@ -874,6 +958,8 @@ class ExternalForcingsIO:
             areas (ExtendedGeoDataFrame): meteo areas for which time series are created
             evap_folder (str, optional): folder where precipitation rasters are stored. Only used if no precip_file is given. Defaults to None.
             evap_file (str, optional): existing meteo-file, which is used if available.
+            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
+            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
         """
         if evap_file is None:
             warnings.filterwarnings("ignore")
@@ -892,7 +978,12 @@ class ExternalForcingsIO:
                 path = os.path.join(evap_folder, file)
                 times.append(self.external_forcings.drrmodel._time_from_filename(path))
                 stats = zonal.zonal_stats(
-                    zones, path, statistics=("mean",), all_touched=True, strategy="feature"
+                    zones,
+                    path,
+                    statistics=("mean",),
+                    min_coverage_frac=min_coverage_frac,
+                    coverage_weight=coverage_weight,
+                    strategy="feature-sequential",
                 )
                 arr[ifile, :] = stats["mean"].to_numpy()
             result = pd.DataFrame(

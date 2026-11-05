@@ -772,9 +772,9 @@ def _prepare_hydamo():
 @pytest.mark.parametrize(
     ("where", "fill_option", "fill_value", "outcome"),
     [
-        ("face", "interpolate", 10.0, 8737.658),
-        ("face", "fill_value", 10.0, 8737.658),
-        ("face", "nearest", None, 9125.056),
+        ("face", "interpolate", 10.0, 8737.646),
+        ("face", "fill_value", 10.0, 8737.646),
+        ("face", "nearest", None, 9125.028),
         ("node", "interpolate", 10.0, 6360.791),
         ("node", "fill_value", 10.0, 6349.224),
         ("node", "nearest", None, 6779.017),
