@@ -22,7 +22,6 @@ dependencies:
 - pip
 - pip:
   - -e ./
-  - meshkernel==8.3.0
   - pyzmq==27.2.0
   - matplotlib==3.11.2
   - nest-asyncio2==1.7.4
@@ -94,6 +93,7 @@ dependencies:
   - tornado==6.6
   - six==1.17.0
   - pyproj==3.8.0
+  - meshkernel==8.4.0
   - jedi==0.20.1
   - openpyxl==3.1.5
   - distlib==0.4.4
