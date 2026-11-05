@@ -984,13 +984,12 @@ if RR:
         sewer_storage=sewer_storage,
         pump_capacity=pumpcapacity,
         meteo_areas=meteo_areas,
-        zonalstats_alltouched=True,
     )
     drrmodel.greenhouse.io.greenhouse_from_input(
-        hydamo.catchments, lu_file, ahn_file, roof_storage, meteo_areas, zonalstats_alltouched=True
+        hydamo.catchments, lu_file, ahn_file, roof_storage, meteo_areas
     )
     drrmodel.openwater.io.openwater_from_input(
-        hydamo.catchments, lu_file, meteo_areas, zonalstats_alltouched=True
+        hydamo.catchments, lu_file, meteo_areas
     )
 ```
 
