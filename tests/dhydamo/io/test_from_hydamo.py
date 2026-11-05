@@ -3,15 +3,19 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import pytest
+import rasterio
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
+from rasterio.transform import from_origin
 from shapely.geometry import (
     LineString,
     MultiPolygon,
     Point,
     Polygon,
+    box,
 )
 from shapely.geometry.base import BaseGeometry
 
@@ -660,4 +664,44 @@ def test_write_laterals():
 
     assert np.isclose(
         np.round(np.mean(hydamo.external_forcings.lateral_nodes["LAT_01"]["value"])), 1
+    )
+
+
+@pytest.mark.parametrize("qspec", [2.0, -1.0])
+def test_create_laterals_excludes_nodata_and_keeps_negative_discharge(tmp_path, qspec):
+    hydamo, _ = _hydamo_object_from_gpkg()
+    xmin, ymin, xmax, ymax = hydamo.catchments.total_bounds
+    cell = 25.0
+    left, top = xmin - cell, ymax + cell
+    columns = int((xmax - xmin) // cell) + 2
+    rows = int((ymax - ymin) // cell) + 2
+    values = np.full((rows, columns), qspec, dtype=np.float32)
+    # A nodata strip through the catchments.
+    strip_column = columns // 2
+    values[:, strip_column] = -9999.0
+    path = tmp_path / "qspec.tif"
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        width=columns,
+        height=rows,
+        count=1,
+        dtype=values.dtype,
+        crs="EPSG:28992",
+        transform=from_origin(left, top, cell, cell),
+        nodata=-9999.0,
+    ) as dataset:
+        dataset.write(values, 1)
+    strip_x = left + strip_column * cell
+
+    hydamo.create_laterals(qspec_file=path)
+
+    # Uniform discharge, so every catchment gets it, whether it overlaps the
+    # nodata strip or not; negative discharge stays negative.
+    assert hydamo.catchments.intersects(box(strip_x, ymin, strip_x + cell, ymax)).any()
+    np.testing.assert_allclose(
+        hydamo.laterals["afvoer"].to_numpy(dtype=float),
+        qspec * hydamo.catchments.area.to_numpy() / (1000 * 86400),
+        rtol=1e-6,
     )

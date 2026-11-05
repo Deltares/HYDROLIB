@@ -6,7 +6,6 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import rasterio
 import shapely
 from pydantic.v1 import ConfigDict, validate_arguments
 from scipy.spatial import KDTree
@@ -21,7 +20,6 @@ from hydrolib.dhydamo.converters.hydamo2df import (
     StorageNodesIO,
     StructuresIO,
 )
-from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
@@ -458,26 +456,15 @@ class HyDAMO:
             min_coverage_frac (float, optional): smallest fraction of a pixel a catchment must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
             coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the catchment covers, "none" counts them fully. Defaults to "fraction".
         """
-        ## Specifieke afvoeren inlezen
+        ## Afvoer per gebied bepalen met zonal stats; nodata telt niet mee
         if qspec_file is not None:
-            rr = DRRModel()
-            qspec, affine = rr.read_raster(qspec_file, static=True)
-            fill_value_specifieke_afvoeren = 0
-            qspec = np.where(qspec<0, fill_value_specifieke_afvoeren, qspec)
-            with rasterio.open(qspec_file) as qspec_dataset:
-                raster_crs = qspec_dataset.crs
-
-            ## Afvoer per gebied bepalen met zonal stats
             afvoer_per_gebied = zonal.zonal_stats(
                 gpd.GeoDataFrame(self.catchments),
-                qspec,
+                qspec_file,
                 statistics=("mean",),
                 strategy="feature-sequential",
                 min_coverage_frac=min_coverage_frac,
                 coverage_weight=coverage_weight,
-                affine=affine,
-                raster_crs=raster_crs,
-                nodata=-2147483647,
             )
 
         self.laterals = self.catchments.copy()
