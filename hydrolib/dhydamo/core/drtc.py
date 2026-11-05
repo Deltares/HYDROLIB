@@ -269,9 +269,11 @@ class DRTCModel:
 
     @validate_arguments
     def check_timeseries(self, timeseries):
-        management_device = RelationsHyDAMO.MANAGEMENT_DEVICE
-        hydamo_controllers = self.hydamo.management[
-            ~self.hydamo.management[management_device.foreign_key].isna()
+        all_management = self.hydamo.management
+        # The resolver raises for rows referencing neither a pump nor a management device.
+        hydamo_controllers = all_management[
+            all_management[RelationsHyDAMO.MANAGEMENT_PUMP.foreign_key].notna()
+            | all_management[RelationsHyDAMO.MANAGEMENT_DEVICE.foreign_key].notna()
         ]
         for _, management in hydamo_controllers.iterrows():
             resolved = self._resolve_management_structure(management)
@@ -283,18 +285,6 @@ class DRTCModel:
                     "For %s a controller is defined in hydamo.management, but no timeseries is provided for it.",
                     structure_id,
                 )
-        management_pump = RelationsHyDAMO.MANAGEMENT_PUMP
-        hydamo_pump_management = self.hydamo.management.loc[
-            ~self.hydamo.management[management_pump.foreign_key].isna()
-        ]
-        for _, management in hydamo_pump_management.iterrows():
-            management_rows = management.to_frame().T
-            pumps = management_pump.parents_of(management_rows, self.hydamo.pumps)
-            if pumps.empty:
-                continue
-            pmp = pumps["code"].to_numpy()[0]
-            if pmp not in timeseries.columns:
-                logger.warning(f'For {pmp} a controller is defined in hydamo.management, but no timeseries is provided for it.')
 
     def _resolve_management_structure(
         self, management: pd.Series

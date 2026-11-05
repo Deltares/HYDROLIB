@@ -16,10 +16,19 @@ from hydrolib.dhydamo.io.damo_converters import (
     SUPPORTED_HYDAMO_VERSIONS,
     get_damo_converter,
 )
+from hydrolib.dhydamo import validation
 from hydrolib.dhydamo.validation import HyDAMOValidationError
 from shapely.geometry import LineString, Point
 
 DATA_PATH = Path("hydrolib/sample_data/data").resolve()
+
+
+def _install_fake_validator(monkeypatch: pytest.MonkeyPatch, validator_factory) -> None:
+    """Inject a fake hydamo_validation module; skip the schema scan, which needs the real package."""
+    monkeypatch.setitem(
+        sys.modules, "hydamo_validation", types.SimpleNamespace(validator=validator_factory)
+    )
+    monkeypatch.setattr(validation, "_schema_version_for_damo", lambda _module, _version: ("1.4", []))
 
 
 def _write_layer(gpkg_path: Path, layer_name: str, gdf: gpd.GeoDataFrame) -> None:
@@ -231,8 +240,7 @@ def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
 
         return _run
 
-    fake_module = types.SimpleNamespace(validator=_validator_factory)
-    monkeypatch.setitem(sys.modules, "hydamo_validation", fake_module)
+    _install_fake_validator(monkeypatch, _validator_factory)
 
     hydamo = HyDAMO().load_from_gpkg(
         gpkg_file,
@@ -270,8 +278,7 @@ def test_load_from_gpkg_with_validation_strict_raises(
 
         return _run
 
-    fake_module = types.SimpleNamespace(validator=_validator_factory)
-    monkeypatch.setitem(sys.modules, "hydamo_validation", fake_module)
+    _install_fake_validator(monkeypatch, _validator_factory)
 
     with pytest.raises(HyDAMOValidationError):
         HyDAMO().load_from_gpkg(
@@ -337,9 +344,7 @@ def test_load_from_gpkg_validate_true_promotes_mode_to_warn(
 
         return _run
 
-    monkeypatch.setitem(
-        sys.modules, "hydamo_validation", types.SimpleNamespace(validator=_validator_factory)
-    )
+    _install_fake_validator(monkeypatch, _validator_factory)
 
     # validate=True with default validation_mode="off" should promote to "warn"
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5", validate=True)
@@ -364,9 +369,7 @@ def test_load_from_gpkg_validation_warn_failure_does_not_raise(
 
         return _run
 
-    monkeypatch.setitem(
-        sys.modules, "hydamo_validation", types.SimpleNamespace(validator=_validator_factory)
-    )
+    _install_fake_validator(monkeypatch, _validator_factory)
 
     hydamo = HyDAMO().load_from_gpkg(
         gpkg_file, hydamo_version="2.5", validation_mode="warn"
@@ -393,9 +396,7 @@ def test_validate_gpkg_returns_result_and_stores_on_instance(
 
         return _run
 
-    monkeypatch.setitem(
-        sys.modules, "hydamo_validation", types.SimpleNamespace(validator=_validator_factory)
-    )
+    _install_fake_validator(monkeypatch, _validator_factory)
 
     hydamo = HyDAMO()
     result = hydamo.validate_gpkg(gpkg_file, hydamo_version="2.5")

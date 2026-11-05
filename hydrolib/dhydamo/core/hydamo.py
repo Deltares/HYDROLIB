@@ -28,10 +28,7 @@ from hydrolib.dhydamo.core.relations import (
 )
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
-from hydrolib.dhydamo.io.damo_converters import (
-    SUPPORTED_HYDAMO_VERSIONS,
-    get_damo_converter,
-)
+from hydrolib.dhydamo.io.damo_converters import get_damo_converter
 from hydrolib.dhydamo.validation import (
     HydamoValidationResult,
     ValidationMode,
@@ -333,11 +330,8 @@ class HyDAMO:
         HyDAMO
             This instance, to allow method chaining.
         """
-        if hydamo_version not in SUPPORTED_HYDAMO_VERSIONS:
-            supported = ", ".join(SUPPORTED_HYDAMO_VERSIONS)
-            raise ValueError(
-                f'Unsupported HyDAMO DAMO version "{hydamo_version}". Supported versions: {supported}.'
-            )
+        # Resolve the converter first so an unsupported version fails before validation runs.
+        converter = get_damo_converter(hydamo_version)
 
         effective_validation_mode: ValidationMode = validation_mode
         if validate and validation_mode == "off":
@@ -353,7 +347,6 @@ class HyDAMO:
             validation_rules_path=validation_rules_path,
         )
 
-        converter = get_damo_converter(hydamo_version)
         converter.load_into(self, gpkg_path, clip_layers=clip_layers, check_3d=check_3d)
         return self
 

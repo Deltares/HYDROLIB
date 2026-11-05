@@ -152,31 +152,26 @@ def _schema_version_for_damo(hv_module: Any, hydamo_version: str) -> tuple[str, 
 
     Raises ``ValueError`` when the installed package does not support the requested
     DAMO version (e.g. DAMO 2.5 requires schema 1.5 which ships with a future
-    hydamo-validation release).  Falls back to ``("1.4", [])`` when the module is a
-    test fake with no ``__file__`` attribute.
+    hydamo-validation release).
     """
-    try:
-        schema_dir = Path(hv_module.__file__).parent / "schemas" / "rules"
-        best_version: str | None = None
-        best_schema: dict | None = None
-        for schema_file in sorted(schema_dir.glob("rules_*.json")):
-            schema = json.loads(schema_file.read_text())
-            supported = schema.get("properties", {}).get("hydamo_version", {}).get("enum", [])
-            if hydamo_version in supported:
-                best_version = schema_file.stem.split("_")[1]
-                best_schema = schema
-        if best_version is not None and best_schema is not None:
-            valid_objects: list[str] = (
-                best_schema.get("$defs", {}).get("hydamo_objects", {}).get("enum", [])
-            )
-            return best_version, valid_objects
-        raise ValueError(
-            f"The installed hydamo-validation package does not support DAMO version "
-            f"'{hydamo_version}'. Upgrade hydamo-validation for DAMO {hydamo_version} support."
+    schema_dir = Path(hv_module.__file__).parent / "schemas" / "rules"
+    best_version: str | None = None
+    best_schema: dict | None = None
+    for schema_file in sorted(schema_dir.glob("rules_*.json")):
+        schema = json.loads(schema_file.read_text())
+        supported = schema.get("properties", {}).get("hydamo_version", {}).get("enum", [])
+        if hydamo_version in supported:
+            best_version = schema_file.stem.split("_")[1]
+            best_schema = schema
+    if best_version is not None and best_schema is not None:
+        valid_objects: list[str] = (
+            best_schema.get("$defs", {}).get("hydamo_objects", {}).get("enum", [])
         )
-    except (AttributeError, OSError):
-        # Fake module injected in tests — return safe fallbacks.
-        return "1.4", []
+        return best_version, valid_objects
+    raise ValueError(
+        f"The installed hydamo-validation package does not support DAMO version "
+        f"'{hydamo_version}'. Upgrade hydamo-validation for DAMO {hydamo_version} support."
+    )
 
 
 def _build_minimal_validation_rules(
