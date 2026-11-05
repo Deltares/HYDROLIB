@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import rasterio
 from pydantic.v1 import ConfigDict, StrictStr, validate_arguments
-from tqdm.auto import tqdm
 
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.io import idfreader
@@ -501,51 +500,40 @@ class PavedIO:
                         boundary_node=ov.code,
                     )
 
+        if sewer_areas is not None:
+            # Land use of the catchment parts outside the sewer areas, by
+            # catchment position. Catchments that overlap no sewer area use
+            # lu_counts.
+            sewer_union = sewer_areas.union_all()
+            geometries = catchments.geometry.reset_index(drop=True)
+            overlaps = geometries.intersects(sewer_union)
+            outside = geometries[overlaps].difference(sewer_union)
+            outside = outside[outside.area > 0]
+            outside_counts = pd.DataFrame()
+            if not outside.empty:
+                outside_counts = zonal.zonal_category_counts(
+                    outside,
+                    landuse,
+                    min_coverage_frac=min_coverage_frac,
+                    coverage_weight=coverage_weight,
+                    strategy="feature-sequential",
+                )
+
         for num, cat in enumerate(catchments.itertuples()):
             # if no rasterdata could be obtained for this catchment, skip it.
             if pd.isna(stats_elev.iloc[num]["median"]):
                 logger.warning(NO_RASTERDATA_WARNING, cat.code)
                 self.paved.add_paved(**dict.fromkeys(paved_columns, "0.0"))
                 continue
-            if sewer_areas is not None:
-                # part of the catchment that is also in a sewer area
-                if cat.geometry.intersects(sewer_areas.union_all()):
-                    # the part of the catchment OUTSIDE the sewer area
-                    area_outside_sewer = cat.geometry.difference(
-                        sewer_areas.union_all()
-                    )
-                    if area_outside_sewer.area == 0:
-                        logger.info(
-                            f"No paved area outside sewer area in catchments {cat.code}."
-                        )
-                        pav_area = 0.0
-                    else:
-                        # the paved ara in the catchment OUTSIDE the sewer area
-                        pixels = zonal.zonal_category_counts(
-                            gpd.GeoDataFrame(
-                                geometry=[area_outside_sewer], crs=catchments.crs
-                            ),
-                            landuse,
-                            min_coverage_frac=min_coverage_frac,
-                            coverage_weight=coverage_weight,
-                            strategy="feature-sequential",
-                        ).iloc[0]
-                        pav_area = str(pixels.get(14, 0) * px_area)
-                else:
-                    # all of the catchment is outside the sewer area
-                    pixels = zonal.zonal_category_counts(
-                        gpd.GeoDataFrame(
-                            geometry=[cat.geometry], crs=catchments.crs
-                        ),
-                        landuse,
-                        min_coverage_frac=min_coverage_frac,
-                        coverage_weight=coverage_weight,
-                        strategy="feature-sequential",
-                    ).iloc[0]
-                    pav_area = str(pixels.get(14, 0) * px_area)
-            else:
-                # there is no sewer area at all
+            if sewer_areas is None or not overlaps[num]:
                 pav_area = str(lu_counts.iloc[num].get(14, 0) * px_area)
+            elif num in outside_counts.index:
+                pav_area = str(outside_counts.loc[num].get(14, 0) * px_area)
+            else:
+                logger.info(
+                    f"No paved area outside sewer area in catchments {cat.code}."
+                )
+                pav_area = 0.0
 
             # find corresponding meteo-station
             tm = [
@@ -843,49 +831,43 @@ class ExternalForcingsIO:
             coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
         """
         warnings.filterwarnings("ignore")
-        file_list = sorted(os.listdir(seepage_folder))
-        file_list = [file for file in file_list if file.lower()]
+        rasters = []
         times = []
-        convert_units=False
-        arr = np.zeros((len(file_list), len(catchments.code)))
-        zones = gpd.GeoDataFrame(catchments)
-        for ifile, file in tqdm(
-            enumerate(file_list), total=len(file_list), desc="Reading seepage files"
-        ):
+        affine = raster_crs = nodata = None
+        for file in sorted(os.listdir(seepage_folder)):
             path = os.path.join(seepage_folder, file)
             if file.endswith('.idf'):
+                # Lazy: zonal_stats_per_raster reads it when its turn comes.
                 dataset = idfreader.open(path).squeeze()
-                affine = idfreader.affine_from_idf(dataset)
-                time = pd.Timestamp(dataset["time"].values)
-                stats = zonal.zonal_stats(
-                    zones,
-                    dataset.to_numpy(),
-                    statistics=("mean",),
-                    min_coverage_frac=min_coverage_frac,
-                    coverage_weight=coverage_weight,
-                    strategy="feature-sequential",
-                    affine=affine,
-                    raster_crs=dataset.attrs.get("crs"),
-                    nodata=dataset.attrs.get("nodata", np.nan),
-                )
-                convert_units=True
+                if affine is None:
+                    affine = idfreader.affine_from_idf(dataset)
+                    raster_crs = dataset.attrs.get("crs")
+                    nodata = dataset.attrs.get("nodata", np.nan)
+                elif idfreader.affine_from_idf(dataset) != affine:
+                    raise ValueError(f"IDF seepage file {file} differs in grid from the others.")
+                rasters.append(dataset)
+                times.append(pd.Timestamp(dataset["time"].values))
             else:
-                time = self.external_forcings.drrmodel._time_from_filename(path)
-                stats = zonal.zonal_stats(
-                    zones,
-                    path,
-                    statistics=("mean",),
-                    min_coverage_frac=min_coverage_frac,
-                    coverage_weight=coverage_weight,
-                    strategy="feature-sequential",
-                )
-            times.append(time)
-            arr[ifile, :] = stats["mean"].to_numpy()
-        result = pd.DataFrame(
-            arr, columns=["sep_" + str(cat) for cat in catchments.code]
+                rasters.append(path)
+                times.append(self.external_forcings.drrmodel._time_from_filename(path))
+        stats = zonal.zonal_stats_per_raster(
+            gpd.GeoDataFrame(catchments),
+            rasters,
+            "mean",
+            min_coverage_frac=min_coverage_frac,
+            coverage_weight=coverage_weight,
+            strategy="feature-sequential",
+            affine=affine,
+            raster_crs=raster_crs,
+            nodata=nodata,
+            progress=True,
         )
-        result.index = times
-        if convert_units:
+        result = pd.DataFrame(
+            stats.to_numpy().T,
+            index=times,
+            columns=["sep_" + str(cat) for cat in catchments.code],
+        )
+        if affine is not None:
             # if an NHI model (IDF files) is used, convert units from m3 to mm/d
             result = (result / (1e-3 * (affine[0] * -affine[4]))) / (
                     (times[2] - times[1]).total_seconds() / 86400.0
@@ -914,30 +896,24 @@ class ExternalForcingsIO:
         """
         if precip_file is None:
             warnings.filterwarnings("ignore")
-            file_list = sorted(os.listdir(precip_folder))
-            times = []
-            zones = gpd.GeoDataFrame(areas)
-            arr = np.zeros((len(file_list), len(areas.code)))
-            for ifile, file in tqdm(
-                enumerate(file_list),
-                total=len(file_list),
-                desc="Reading precipitation files",
-            ):
-                path = os.path.join(precip_folder, file)
-                times.append(self.external_forcings.drrmodel._time_from_filename(path))
-                stats = zonal.zonal_stats(
-                    zones,
-                    path,
-                    statistics=("mean",),
-                    min_coverage_frac=min_coverage_frac,
-                    coverage_weight=coverage_weight,
-                    strategy="feature-sequential",
-                )
-                arr[ifile, :] = stats["mean"].to_numpy()
-            result = pd.DataFrame(
-                arr, columns=["ms_" + str(area) for area in areas.code]
+            paths = [
+                os.path.join(precip_folder, file)
+                for file in sorted(os.listdir(precip_folder))
+            ]
+            stats = zonal.zonal_stats_per_raster(
+                gpd.GeoDataFrame(areas),
+                paths,
+                "mean",
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                strategy="feature-sequential",
+                progress=True,
             )
-            result.index = times
+            result = pd.DataFrame(
+                stats.to_numpy().T,
+                index=[self.external_forcings.drrmodel._time_from_filename(path) for path in paths],
+                columns=["ms_" + str(area) for area in areas.code],
+            )
             [self.external_forcings.add_precip(*prec) for prec in result.items()]
         else:
             self.external_forcings.precip = str(precip_file)
@@ -963,33 +939,27 @@ class ExternalForcingsIO:
         """
         if evap_file is None:
             warnings.filterwarnings("ignore")
-            file_list = sorted(os.listdir(evap_folder))
             # aggregated evap
             # areas['dissolve'] = 1
             # agg_areas = areas.iloc[0:len(areas),:].dissolve(by='dissolve',aggfunc='mean')
-            times = []
-            zones = gpd.GeoDataFrame(areas)
-            arr = np.zeros((len(file_list), len(areas)))
-            for ifile, file in tqdm(
-                enumerate(file_list),
-                total=len(file_list),
-                desc="Reading evaporation files",
-            ):
-                path = os.path.join(evap_folder, file)
-                times.append(self.external_forcings.drrmodel._time_from_filename(path))
-                stats = zonal.zonal_stats(
-                    zones,
-                    path,
-                    statistics=("mean",),
-                    min_coverage_frac=min_coverage_frac,
-                    coverage_weight=coverage_weight,
-                    strategy="feature-sequential",
-                )
-                arr[ifile, :] = stats["mean"].to_numpy()
-            result = pd.DataFrame(
-                arr, columns=["ms_" + str(area) for area in areas.code]
+            paths = [
+                os.path.join(evap_folder, file)
+                for file in sorted(os.listdir(evap_folder))
+            ]
+            stats = zonal.zonal_stats_per_raster(
+                gpd.GeoDataFrame(areas),
+                paths,
+                "mean",
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                strategy="feature-sequential",
+                progress=True,
             )
-            result.index = times
+            result = pd.DataFrame(
+                stats.to_numpy().T,
+                index=[self.external_forcings.drrmodel._time_from_filename(path) for path in paths],
+                columns=["ms_" + str(area) for area in areas.code],
+            )
             [self.external_forcings.add_evap(*evap) for evap in result.items()]
         else:
             self.external_forcings.evap = str(evap_file)

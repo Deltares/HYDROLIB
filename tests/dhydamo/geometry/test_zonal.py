@@ -4,7 +4,12 @@ import pandas as pd
 import pytest
 import rasterio
 from affine import Affine
-from hydrolib.dhydamo.geometry.zonal import zonal_category_counts, zonal_stats
+from hydrolib.dhydamo.geometry import zonal
+from hydrolib.dhydamo.geometry.zonal import (
+    zonal_category_counts,
+    zonal_stats,
+    zonal_stats_per_raster,
+)
 from shapely.geometry import box
 
 VALUES = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.int16)
@@ -324,6 +329,37 @@ def test_zonal_stats_rejects_empty_zones():
             strategy=FS,
             affine=TRANSFORM,
         )
+
+
+def test_zonal_stats_per_raster_matches_zonal_stats_in_raster_order(
+    raster_factory, monkeypatch
+):
+    # Three rasters over two calls.
+    monkeypatch.setattr(zonal, "_RASTERS_PER_CALL", 2)
+    rasters = [raster_factory(VALUES * factor) for factor in (1, 10, 100)]
+    zones = gpd.GeoDataFrame(
+        geometry=[PARTIAL_ZONE, box(0, 0, 3, 3)], index=[42, 7], crs=CRS
+    )
+
+    result = zonal_stats_per_raster(zones, rasters, "mean", strategy=FS)
+
+    expected = pd.concat(
+        [zonal_stats(zones, raster, "mean", strategy=FS)["mean"] for raster in rasters],
+        axis=1,
+        keys=[0, 1, 2],
+    )
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_zonal_stats_per_raster_reads_numpy_and_lazy_arrays(full_zone):
+    dask_array = pytest.importorskip("dask.array")
+    rasters = [VALUES, dask_array.from_array(VALUES * 10)]
+
+    result = zonal_stats_per_raster(
+        full_zone, rasters, "mean", strategy=FS, affine=TRANSFORM
+    )
+
+    assert result.loc[0].tolist() == [5.0, 50.0]
 
 
 def test_zonal_category_counts_per_integer_class(raster_factory):

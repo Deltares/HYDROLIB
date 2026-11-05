@@ -112,6 +112,10 @@ class _PlainRasterioSource(RasterioRasterSource):
 # and 7-10% faster than its osgeo reader. Benchmarks swap it out to compare.
 _RASTERIO_SOURCE = _PlainRasterioSource
 
+# Rasters per exactextract call in zonal_stats_per_raster: each is open during
+# the call, so this stays well below open-file limits.
+_RASTERS_PER_CALL = 100
+
 
 def zonal_stats(
     zones: gpd.GeoDataFrame | gpd.GeoSeries,
@@ -179,7 +183,7 @@ def zonal_stats(
     statistics = [statistics] if isinstance(statistics, str) else list(statistics)
     result = _extract(
         zones,
-        raster,
+        [raster],
         statistics,
         strategy=strategy,
         min_coverage_frac=min_coverage_frac,
@@ -225,7 +229,7 @@ def zonal_category_counts(
     """
     result = _extract(
         zones,
-        raster,
+        [raster],
         ["unique", "frac", "count"],
         strategy=strategy,
         min_coverage_frac=min_coverage_frac,
@@ -253,9 +257,76 @@ def zonal_category_counts(
     return counts.round() if coverage_weight == "none" else counts
 
 
+def zonal_stats_per_raster(
+    zones: gpd.GeoDataFrame | gpd.GeoSeries,
+    rasters: list,
+    statistic: str,
+    *,
+    strategy: Strategy,
+    min_coverage_frac: float = 0.0,
+    coverage_weight: CoverageWeight = "fraction",
+    affine=None,
+    raster_crs=None,
+    nodata: float | None = None,
+    max_cells_in_memory: int = 30_000_000,
+    progress=False,
+) -> pd.DataFrame:
+    """Calculate one scalar raster statistic for every zone, in each raster.
+
+    Faster than calling :func:`zonal_stats` per raster, as for a time series of
+    rasters: exactextract handles up to ``_RASTERS_PER_CALL`` rasters at once.
+
+    Parameters
+    ----------
+    rasters : list of pathlib.Path, str, rasterio dataset, or array
+        Raster files, open rasterio datasets, or two-dimensional arrays that
+        share ``affine`` and ``nodata``. Lazy arrays, such as xarray's, are
+        read only when their turn comes, so the list may hold more than fits in
+        memory. Only band 1 of a file is used.
+    statistic : str
+        One scalar exactextract statistic, such as ``"mean"``.
+
+    Other parameters are those of :func:`zonal_stats`.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One float column per raster, numbered by position in ``rasters``, and
+        aligned to ``zones.index``.
+    """
+    rasters = list(rasters)
+    results = []
+    with ExitStack() as stack:
+        if progress is True:
+            progress = _progress_bar(stack)
+        for start in range(0, len(rasters), _RASTERS_PER_CALL):
+            chunk = rasters[start : start + _RASTERS_PER_CALL]
+            chunk_progress = False
+            if progress:
+                chunk_progress = _rescale_progress(
+                    progress, start, len(chunk), len(rasters)
+                )
+            result = _extract(
+                zones,
+                chunk,
+                [statistic],
+                strategy=strategy,
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                affine=affine,
+                raster_crs=raster_crs,
+                nodata=nodata,
+                max_cells_in_memory=max_cells_in_memory,
+                progress=chunk_progress,
+            )
+            results.append(result)
+    result = pd.concat(results, axis=1).set_axis(range(len(rasters)), axis=1)
+    return result.apply(pd.to_numeric, errors="coerce").astype(np.float64)
+
+
 def _extract(
     zones,
-    raster,
+    rasters,
     statistics,
     *,
     strategy,
@@ -267,7 +338,8 @@ def _extract(
     max_cells_in_memory,
     progress,
 ):
-    """Run exactextract and return its results indexed like ``zones``."""
+    """Run exactextract on a list of rasters and return its results indexed like
+    ``zones``: the columns of each raster in turn."""
     if zones.empty:
         raise ValueError("zones must contain at least one geometry.")
     if not 0 <= min_coverage_frac <= 1:
@@ -286,12 +358,16 @@ def _extract(
         ops.append(f"{stat[:-1]},{coverage})" if stat.endswith(")") else f"{stat}({coverage})")
 
     with ExitStack() as stack:
-        source, own_crs = _raster_source(raster, affine, nodata, stack)
-        _check_crs(zones.crs, own_crs or raster_crs)
+        sources = []
+        for position, raster in enumerate(rasters):
+            source, own_crs = _raster_source(raster, affine, nodata, stack)
+            _check_crs(zones.crs, own_crs or raster_crs)
+            source.set_name(f"raster{position}")
+            sources.append(source)
         if progress is True:
             progress = _progress_bar(stack)
         result = exact_extract(
-            source,
+            sources,
             _ZoneSource(zones.geometry.to_numpy()),
             ops,
             include_cols=[_ZONE_ID],
@@ -315,13 +391,23 @@ def _progress_bar(stack):
     return update
 
 
+def _rescale_progress(progress, start, size, total):
+    """Report progress over rasters ``start`` to ``start + size`` of ``total``."""
+
+    def update(fraction, message):
+        progress((start + fraction * size) / total, message)
+
+    return update
+
+
 def _raster_source(raster, affine, nodata, stack):
     """Return an exactextract source for ``raster`` and the raster's own CRS.
 
     Files are opened in ``stack``, which also scopes ``GDAL_NUM_THREADS`` for
     every read.
     """
-    if isinstance(raster, np.ndarray):
+    if not isinstance(raster, (str, os.PathLike, DatasetReader)):
+        raster = np.asarray(raster)  # reads a lazy array, such as xarray's
         if affine is None or affine.b or affine.d or affine.e >= 0:
             raise ValueError("An array raster needs a north-up affine transform.")
         rows, columns = raster.shape
