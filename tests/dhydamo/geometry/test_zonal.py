@@ -1,11 +1,15 @@
+import os
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pytest
 import rasterio
 from affine import Affine
+from exactextract import exact_extract
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.geometry.zonal import (
+    ZonalCache,
     zonal_category_counts,
     zonal_stats,
     zonal_stats_per_raster,
@@ -434,3 +438,112 @@ def test_zonal_functions_accept_a_geoseries():
 
     assert stats.to_dict("index") == {5: {"mean": 5.0}}
     assert counts.loc[5].sum() == 9.0
+
+
+@pytest.fixture
+def extract_calls(monkeypatch):
+    """Count the exactextract runs, to tell cache hits from misses."""
+    calls = []
+
+    def counting_exact_extract(*args, **kwargs):
+        calls.append(None)
+        return exact_extract(*args, **kwargs)
+
+    monkeypatch.setattr(zonal, "exact_extract", counting_exact_extract)
+    return calls
+
+
+def test_zonal_cache_reuses_an_identical_call(raster_factory, extract_calls):
+    cache = ZonalCache()
+    path = raster_factory(VALUES)
+    zones = gpd.GeoDataFrame(geometry=[PARTIAL_ZONE, box(0, 0, 3, 3)], crs=CRS)
+
+    first = cache.zonal_stats(zones, path, "mean", strategy=FS)
+    # The same call, with a str path, an explicit default, a copy of the zones,
+    # and arguments that do not change the result.
+    second = cache.zonal_stats(
+        zones.copy(),
+        str(path),
+        ["mean"],
+        strategy=RS,
+        min_coverage_frac=0.0,
+        max_cells_in_memory=1000,
+    )
+
+    assert len(extract_calls) == 1
+    pd.testing.assert_frame_equal(first, second)
+    pd.testing.assert_frame_equal(first, zonal_stats(zones, path, "mean", strategy=FS))
+
+
+@pytest.mark.parametrize(
+    ("zones_change", "kwargs"),
+    [
+        (lambda zones: zones.set_geometry([box(0, 0, 2, 3)]), {}),
+        (lambda zones: zones.set_axis([1]), {}),
+        (lambda zones: zones.set_crs("EPSG:28992", allow_override=True), {}),
+        (lambda zones: zones, {"min_coverage_frac": 0.5}),
+        (lambda zones: zones, {"coverage_weight": "none"}),
+        (lambda zones: zones, {"statistics": "median"}),
+    ],
+)
+def test_zonal_cache_misses_on_any_change_to_the_result(
+    raster_factory, extract_calls, zones_change, kwargs
+):
+    cache = ZonalCache()
+    path = raster_factory(VALUES, crs=None)
+    zones = gpd.GeoDataFrame(geometry=[box(0, 0, 3, 3)], crs=CRS)
+
+    cache.zonal_stats(zones, path, "mean", strategy=FS)
+    cache.zonal_stats(
+        zones_change(zones), path, **{"statistics": "mean", **kwargs}, strategy=FS
+    )
+
+    assert len(extract_calls) == 2
+    assert len(cache) == 2
+
+
+def test_zonal_cache_misses_when_the_raster_file_is_rewritten(
+    raster_factory, full_zone
+):
+    cache = ZonalCache()
+    path = raster_factory(VALUES)
+    before = cache.zonal_stats(full_zone, path, "mean", strategy=FS)
+
+    with rasterio.open(path, "r+") as dataset:
+        dataset.write(VALUES * 10, 1)
+    status = path.stat()
+    os.utime(path, ns=(status.st_atime_ns, status.st_mtime_ns + 1_000_000_000))
+    after = cache.zonal_stats(full_zone, path, "mean", strategy=FS)
+
+    assert (before["mean"].item(), after["mean"].item()) == (5.0, 50.0)
+
+
+def test_zonal_cache_returns_copies(raster_factory, full_zone):
+    cache = ZonalCache()
+    path = raster_factory(VALUES)
+
+    counts = cache.zonal_category_counts(full_zone, path, strategy=FS)
+    counts.loc[0, 1] = 99.0
+
+    assert cache.zonal_category_counts(full_zone, path, strategy=FS).loc[0, 1] == 1.0
+
+
+def test_zonal_cache_does_not_cache_arrays(extract_calls, full_zone):
+    cache = ZonalCache()
+
+    for _ in range(2):
+        cache.zonal_stats(full_zone, VALUES, "mean", strategy=FS, affine=TRANSFORM)
+
+    assert len(extract_calls) == 2
+    assert len(cache) == 0
+
+
+def test_zonal_cache_clear(raster_factory, extract_calls, full_zone):
+    cache = ZonalCache()
+    path = raster_factory(VALUES)
+
+    cache.zonal_stats(full_zone, path, "mean", strategy=FS)
+    cache.clear()
+    cache.zonal_stats(full_zone, path, "mean", strategy=FS)
+
+    assert len(extract_calls) == 2

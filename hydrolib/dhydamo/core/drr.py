@@ -6,6 +6,7 @@ import pandas as pd
 import rasterio
 from pydantic.v1 import ConfigDict, validate_arguments
 
+from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.io import drrreader
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,9 @@ class DRRModel:
     def __init__(self):
         """Initialize RR instances and arrays"""
         self.d3b_parameters = {}
+
+        # Land-use counts and surface levels shared by the RR node types.
+        self.zonal_cache = zonal.ZonalCache()
 
         self.unpaved = Unpaved(self)
 

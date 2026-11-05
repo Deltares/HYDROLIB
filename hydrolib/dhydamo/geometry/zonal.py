@@ -18,6 +18,9 @@ Raster files are read through rasterio. exactextract reads windows of at most
 ``max_cells_in_memory`` cells, so rasters may be larger than memory.
 """
 
+import hashlib
+import inspect
+import logging
 import os
 from contextlib import ExitStack
 from pathlib import Path
@@ -40,6 +43,8 @@ Strategy = Literal["feature-sequential", "raster-sequential"]
 CoverageWeight = Literal["fraction", "none"]
 
 _ZONE_ID = "_zonal_id"
+
+logger = logging.getLogger(__name__)
 
 
 class _Zone(Feature):
@@ -324,6 +329,90 @@ def zonal_stats_per_raster(
     return result.apply(pd.to_numeric, errors="coerce").astype(np.float64)
 
 
+class ZonalCache:
+    """Reuses the results of identical :func:`zonal_stats` and
+    :func:`zonal_category_counts` calls on raster files.
+
+    A result is reused only when the zones (index, CRS and geometries), the
+    raster file (path, size and modification time), and every argument that
+    affects the result are the same. Arrays and open datasets are never cached.
+    Results are copied in and out, so changing a returned result does not
+    change the cache. Entries stay until :meth:`clear`.
+    """
+
+    # Arguments that do not affect the result.
+    _NOT_IN_KEY = frozenset(
+        {"zones", "raster", "strategy", "max_cells_in_memory", "progress"}
+    )
+
+    def __init__(self):
+        self._results = {}
+
+    def __len__(self):
+        return len(self._results)
+
+    def clear(self):
+        """Remove all cached results."""
+        self._results.clear()
+
+    def zonal_stats(self, zones, raster, statistics, **kwargs) -> pd.DataFrame:
+        """:func:`zonal_stats`, reusing an identical earlier result."""
+        if isinstance(statistics, str):
+            statistics = [statistics]
+        return self._get(
+            zonal_stats, zones, raster, statistics=tuple(statistics), **kwargs
+        )
+
+    def zonal_category_counts(self, zones, raster, **kwargs) -> pd.DataFrame:
+        """:func:`zonal_category_counts`, reusing an identical earlier result."""
+        return self._get(zonal_category_counts, zones, raster, **kwargs)
+
+    def _get(self, function, zones, raster, **kwargs):
+        if not isinstance(raster, (str, os.PathLike)):
+            return function(zones, raster, **kwargs)
+        try:
+            path = Path(raster).resolve()
+            status = path.stat()
+        except OSError:  # not a local file, such as a /vsicurl/ URL
+            return function(zones, raster, **kwargs)
+
+        arguments = inspect.signature(function).bind(zones, raster, **kwargs)
+        arguments.apply_defaults()
+        key = (
+            function.__name__,
+            str(path),
+            status.st_size,
+            status.st_mtime_ns,
+            _zones_key(zones),
+            *(
+                (name, _crs_key(value) if name == "raster_crs" else value)
+                for name, value in arguments.arguments.items()
+                if name not in self._NOT_IN_KEY
+            ),
+        )
+        if key in self._results:
+            logger.debug("Reusing %s of %s.", function.__name__, path.name)
+        else:
+            self._results[key] = function(zones, raster, **kwargs)
+        return self._results[key].copy()
+
+
+def _zones_key(zones):
+    """Return a key that changes with the index, CRS or any geometry of zones."""
+    digest = hashlib.blake2b(digest_size=16)
+    for wkb in shapely.to_wkb(zones.geometry.to_numpy()):
+        wkb = wkb or b""  # missing geometry
+        digest.update(len(wkb).to_bytes(8, "little"))
+        digest.update(wkb)
+    digest.update(str(zones.index.dtype).encode())
+    digest.update(pd.util.hash_pandas_object(zones.index).to_numpy().tobytes())
+    return len(zones), digest.hexdigest(), _crs_key(zones.crs)
+
+
+def _crs_key(crs):
+    return None if crs is None else rasterio.crs.CRS.from_user_input(crs).to_wkt()
+
+
 def _extract(
     zones,
     rasters,
@@ -343,19 +432,24 @@ def _extract(
     if zones.empty:
         raise ValueError("zones must contain at least one geometry.")
     if not 0 <= min_coverage_frac <= 1:
-        raise ValueError(f"min_coverage_frac must be from 0 to 1, not {min_coverage_frac}.")
+        raise ValueError(
+            f"min_coverage_frac must be from 0 to 1, not {min_coverage_frac}."
+        )
     if coverage_weight not in ("fraction", "none"):
         raise ValueError(
             f"coverage_weight must be 'fraction' or 'none', not {coverage_weight!r}."
         )
-    coverage = f"min_coverage_frac={min_coverage_frac},coverage_weight={coverage_weight}"
+    coverage = f"{min_coverage_frac=!s},{coverage_weight=!s}"
     ops = []
     for stat in statistics:
         if "min_coverage_frac" in stat or "coverage_weight" in stat:
             raise ValueError(
                 f"Pass min_coverage_frac and coverage_weight as keywords, not in {stat!r}."
             )
-        ops.append(f"{stat[:-1]},{coverage})" if stat.endswith(")") else f"{stat}({coverage})")
+        if stat.endswith(")"):  # has arguments, such as quantile(q=0.9)
+            ops.append(f"{stat[:-1]},{coverage})")
+        else:
+            ops.append(f"{stat}({coverage})")
 
     with ExitStack() as stack:
         sources = []

@@ -85,7 +85,7 @@ class UnpavedIO:
 
         # required rasters
         warnings.filterwarnings("ignore")
-        lu_counts = zonal.zonal_category_counts(
+        lu_counts = self.unpaved.drrmodel.zonal_cache.zonal_category_counts(
             gpd.GeoDataFrame(catchments),
             landuse,
             min_coverage_frac=min_coverage_frac,
@@ -102,7 +102,7 @@ class UnpavedIO:
             strategy="feature-sequential",
         )
 
-        stats_elev = zonal.zonal_stats(
+        stats_elev = self.unpaved.drrmodel.zonal_cache.zonal_stats(
             gpd.GeoDataFrame(catchments),
             surface_level,
             statistics=("median",),
@@ -315,14 +315,14 @@ class PavedIO:
         """
         px_area, reference_crs = _raster_metadata(landuse)
 
-        lu_counts = zonal.zonal_category_counts(
+        lu_counts = self.paved.drrmodel.zonal_cache.zonal_category_counts(
             gpd.GeoDataFrame(catchments),
             landuse,
             min_coverage_frac=min_coverage_frac,
             coverage_weight=coverage_weight,
             strategy="feature-sequential",
         )
-        stats_elev = zonal.zonal_stats(
+        stats_elev = self.paved.drrmodel.zonal_cache.zonal_stats(
             gpd.GeoDataFrame(catchments),
             surface_level,
             statistics=("median",),
@@ -608,14 +608,14 @@ class GreenhouseIO:
         """
         px_area, reference_crs = _raster_metadata(landuse)
 
-        lu_counts = zonal.zonal_category_counts(
+        lu_counts = self.greenhouse.drrmodel.zonal_cache.zonal_category_counts(
             gpd.GeoDataFrame(catchments),
             landuse,
             min_coverage_frac=min_coverage_frac,
             coverage_weight=coverage_weight,
             strategy="feature-sequential",
         )
-        stats_elev = zonal.zonal_stats(
+        stats_elev = self.greenhouse.drrmodel.zonal_cache.zonal_stats(
             gpd.GeoDataFrame(catchments),
             surface_level,
             statistics=("median",),
@@ -782,7 +782,7 @@ class OpenwaterIO:
         """
         px_area, _ = _raster_metadata(landuse)
 
-        lu_counts = zonal.zonal_category_counts(
+        lu_counts = self.openwater.drrmodel.zonal_cache.zonal_category_counts(
             gpd.GeoDataFrame(catchments),
             landuse,
             min_coverage_frac=min_coverage_frac,
