@@ -257,13 +257,11 @@ def test_zonal_stats_preserves_shuffled_zone_order_and_index(strategy):
 
 
 def test_zonal_stats_rejects_mismatched_crs(raster_factory, full_zone):
+    zones = full_zone.to_crs("EPSG:4326")
+    raster = raster_factory(VALUES)
+
     with pytest.raises(ValueError, match="differs from the raster CRS"):
-        zonal_stats(
-            full_zone.to_crs("EPSG:4326"),
-            raster_factory(VALUES),
-            "mean",
-            strategy=FS,
-        )
+        zonal_stats(zones, raster, "mean", strategy=FS)
 
 
 def test_zonal_stats_checks_raster_crs_of_a_raster_without_crs(
@@ -291,6 +289,8 @@ def test_zonal_stats_checks_raster_crs_of_a_raster_without_crs(
 
 
 def test_zonal_stats_rejects_mismatched_raster_crs_of_an_array(full_zone):
+    raster_crs = rasterio.crs.CRS.from_epsg(4326)
+
     with pytest.raises(ValueError, match="differs from the raster CRS"):
         zonal_stats(
             full_zone,
@@ -298,7 +298,7 @@ def test_zonal_stats_rejects_mismatched_raster_crs_of_an_array(full_zone):
             "mean",
             strategy=FS,
             affine=TRANSFORM,
-            raster_crs=rasterio.crs.CRS.from_epsg(4326),
+            raster_crs=raster_crs,
         )
 
 
@@ -325,14 +325,10 @@ def test_zonal_stats_rejects_array_without_north_up_transform(full_zone, affine)
 
 
 def test_zonal_stats_rejects_empty_zones():
+    zones = gpd.GeoDataFrame(geometry=[], crs=CRS)
+
     with pytest.raises(ValueError, match="zones must contain at least one geometry"):
-        zonal_stats(
-            gpd.GeoDataFrame(geometry=[], crs=CRS),
-            VALUES,
-            "mean",
-            strategy=FS,
-            affine=TRANSFORM,
-        )
+        zonal_stats(zones, VALUES, "mean", strategy=FS, affine=TRANSFORM)
 
 
 def test_zonal_stats_per_raster_matches_zonal_stats_in_raster_order(
