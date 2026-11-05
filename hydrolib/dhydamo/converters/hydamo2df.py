@@ -1165,8 +1165,8 @@ class StructuresIO:
                         logger.warning("No management found for %s", pump.code)
                         continue
 
-                    startlevelsuctionside = [pump_control["bovengrens"]]
-                    stoplevelsuctionside = [pump_control["ondergrens"]]
+                    startlevelsuctionside = [pump_control["bovengrens"].iloc[0]]
+                    stoplevelsuctionside = [pump_control["ondergrens"].iloc[0]]
 
                     pumpid = f'{pumpstation.code}_{ipump+1}'
                     cmp_list.append(pumpid)
@@ -1195,9 +1195,10 @@ class StructuresIO:
                         "Skipping %s because there is no associated management.",
                         pumpstation.code,
                     )
+                    continue
 
-                startlevelsuctionside = [pump_control["bovengrens"]]
-                stoplevelsuctionside = [pump_control["ondergrens"]]
+                startlevelsuctionside = [pump_control["bovengrens"].iloc[0]]
+                stoplevelsuctionside = [pump_control["ondergrens"].iloc[0]]
 
 
                 # the pumpstation has only one pump
