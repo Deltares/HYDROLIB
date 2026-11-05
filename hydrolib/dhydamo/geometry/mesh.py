@@ -20,7 +20,7 @@ from shapely.geometry import (
 
 from hydrolib.core.dflowfm.net.models import Branch, Mesh2d, Network
 from hydrolib.core.dflowfm.net.reader import UgridReader
-from hydrolib.dhydamo.geometry import common, rasterstats, spatial
+from hydrolib.dhydamo.geometry import common, spatial, zonal
 from hydrolib.dhydamo.geometry.models import GeometryList
 
 logger = logging.getLogger(__name__)
@@ -900,6 +900,9 @@ def mesh2d_altitude_from_raster(
     stat: str = "mean",
     fill_option: FillOption | str = "fill_value",
     fill_value: float | None = None,
+    *,
+    min_coverage_frac: float = 0.0,
+    coverage_weight: zonal.CoverageWeight = "fraction",
 ) -> None:
     """Method to determine level of nodes
 
@@ -915,11 +918,16 @@ def mesh2d_altitude_from_raster(
         rasterpath (Path | str): Path to the raster file from which altitude values are read
         where (RasterStatPosition | str, optional): Whether to determine altitude at cell
             "face" centers or "node" locations. Defaults to "face".
-        stat (str, optional): Statistic to derive from the raster cells per face/node. Defaults to "mean".
+        stat (str, optional): exactextract statistic to derive from the raster cells per
+            face/node, such as "mean", "median" or "quantile(q=0.9)". Defaults to "mean".
         fill_option (FillOption | str, optional): How to fill locations without a raster value:
             "fill_value", "nearest", or "interpolate". Defaults to "fill_value".
         fill_value (float | None, optional): Value used when fill_option is "fill_value", or the
             fallback for values that cannot be interpolated. Defaults to None.
+        min_coverage_frac (float, optional): Smallest fraction of a raster cell a face or
+            node polygon must cover for the cell to count. Defaults to 0, every touched cell.
+        coverage_weight (str, optional): "fraction" counts raster cells by the fraction of
+            them the polygon covers, "none" counts them fully. Defaults to "fraction".
     """
 
     if isinstance(fill_option, str):
@@ -946,32 +954,35 @@ def mesh2d_altitude_from_raster(
 
     # Create cells as polygons
     xy_facenodes = np.stack([mesh2d_output.node_x, mesh2d_output.node_y], axis=1)
-    cells = network._mesh2d.mesh2d_face_nodes
-    nodatavalue = np.iinfo(cells.dtype).min
-    indices = cells != nodatavalue
-    indices = cells != -2147483648
-    cells = [xy_facenodes[cell[index]] for cell, index in zip(cells, indices)]
-    facedata = gpd.GeoDataFrame(geometry=[Polygon(cell) for cell in cells])
+    # Use raw MeshKernel connectivity instead of mesh2d_face_nodes, whose
+    # fixed-width rows contain padding for triangles and other shorter faces.
+    # nodes_per_face marks each face boundary in the flattened coordinates.
+    face_node_counts = mesh2d_output.nodes_per_face
+    face_coords = xy_facenodes[mesh2d_output.face_nodes]
+    # Shapely's ``indices`` groups coordinates into rings. Repeat each face ID
+    # by its node count so every coordinate is assigned to the correct face.
+    face_ids = np.arange(len(face_node_counts))
+    face_idx = np.repeat(face_ids, face_node_counts)
+    facedata = gpd.GeoDataFrame(
+        geometry=shapely.polygons(shapely.linearrings(face_coords, indices=face_idx))
+    )
 
-    if where == RasterStatPosition.FACE:
-        # Get raster statistics
-        facedata.index = np.arange(len(xy), dtype=np.uint32) + 1
-        facedata["crds"] = [cell for cell in cells]
-
-        df = rasterstats.raster_stats_fine_cells(rasterpath, facedata, stats=[stat])
-        # Get z values
-        zvalues = df[stat].values
-
-    elif where == RasterStatPosition.NODE:
+    if where == RasterStatPosition.NODE:
         logger.info(
             "Generating voronoi polygons around cell centers for determining raster statistics."
         )
-
         facedata = spatial.get_voronoi_around_nodes(xy, facedata)
-        # Get raster statistics
-        df = rasterstats.raster_stats_fine_cells(rasterpath, facedata, stats=[stat])
-        # Get z values
-        zvalues = df[stat].values
+
+    df = zonal.zonal_stats(
+        facedata,
+        rasterpath,
+        stat,
+        strategy="raster-sequential",
+        min_coverage_frac=min_coverage_frac,
+        coverage_weight=coverage_weight,
+    )
+    # By position: exactextract names e.g. "quantile(q=0.9)" "quantile_90".
+    zvalues = df.iloc[:, 0].to_numpy()
 
     isnan = np.isnan(zvalues)
     if isnan.any():

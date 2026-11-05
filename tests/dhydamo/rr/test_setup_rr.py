@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 from shapely.geometry import Point, Polygon, box
@@ -59,7 +60,6 @@ def _setup_rr_model(hydamo=None):
         sewer_storage=sewer_storage,
         pump_capacity=pumpcapacity,
         meteo_areas=meteo_areas,
-        zonalstats_alltouched=True,
     )
 
     drrmodel.greenhouse.io.greenhouse_from_input(
@@ -68,11 +68,10 @@ def _setup_rr_model(hydamo=None):
         ahn_file,
         roof_storage,
         meteo_areas,
-        zonalstats_alltouched=True,
     )
 
     drrmodel.openwater.io.openwater_from_input(
-        hydamo.catchments, lu_file, meteo_areas, zonalstats_alltouched=True
+        hydamo.catchments, lu_file, meteo_areas
     )
 
     drrmodel.external_forcings.io.boundary_from_input(
@@ -103,6 +102,25 @@ def test_setup_rr_model():
     assert len(drrmodel.external_forcings.precip) == 121
     assert len(drrmodel.external_forcings.evap) == 121
     assert len(drrmodel.external_forcings.seepage) == 121
+
+    assert drrmodel.unpaved.unp_nodes["15.0"]["ga"] == "1375"
+    assert drrmodel.unpaved.unp_nodes["15.0"]["lv"] == "16.93"
+    assert drrmodel.paved.pav_nodes["15.0"]["lv"] == "16.93"
+    assert drrmodel.greenhouse.gh_nodes["15.0"]["sl"] == "16.93"
+    assert drrmodel.openwater.ow_nodes["15.0"]["ar"] == "900.0"
+
+    assert drrmodel.external_forcings.precip["ms_15.0"]["precip"].iloc[2] == pytest.approx(
+        0.08, abs=1e-7
+    )
+    assert drrmodel.external_forcings.evap["ms_15.0"]["evap"].iloc[1] == pytest.approx(
+        2.9, abs=1e-7
+    )
+    # Catchment 15.0 (55 x 45 m) touches a few 250 m seepage cells, weighted by
+    # its coverage of each; counting them fully gives -0.079156. IDF seepage is
+    # float32-sourced, hence the looser tolerance.
+    assert drrmodel.external_forcings.seepage["sep_15.0"]["seepage"].iloc[1] == pytest.approx(
+        -0.033760, abs=1e-6
+    )
 
 
 def test_boundary_from_input_drops_zero_area_catchments_without_crash():

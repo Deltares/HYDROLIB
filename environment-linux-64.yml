@@ -87,6 +87,7 @@ dependencies:
   - fonttools==4.68.0
   - charset-normalizer==3.5.2
   - strenum==0.4.15
+  - exactextract==0.3.0
   - cloudpickle==3.1.2
   - pyyaml==6.0.3
   - pydantic-core==2.50.1
