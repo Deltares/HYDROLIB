@@ -2246,7 +2246,9 @@ class Structures:
             ],
         ):
             if any(df) and add:
-                df = df.copy()
+                # Skip columns that are empty for this structure type, so they don't
+                # affect the dtype of the combined column (pandas FutureWarning).
+                df = df.dropna(axis=1, how="all").copy()
                 df.insert(loc=0, column="structype", value=descr, allow_duplicates=True)
                 dfs.append(df)
 
