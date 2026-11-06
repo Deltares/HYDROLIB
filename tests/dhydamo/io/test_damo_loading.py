@@ -135,6 +135,7 @@ def test_load_from_gpkg_uses_versioned_converter_for_damo_22():
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.2")
 
     assert hydamo.source_damo_version == "2.2"
+    assert hydamo.validation_result is None
     assert len(hydamo.branches) == 61
     assert len(hydamo.management_device) == 32
     assert len(hydamo.pumps) == 3
@@ -242,7 +243,6 @@ def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
     hydamo = HyDAMO().load_from_gpkg(
         gpkg_file,
         hydamo_version="2.5",
-        validate=True,
         validation_mode="warn",
     )
 
@@ -322,28 +322,6 @@ def test_load_from_gpkg_v22_postprocess_copies_soortregelmiddel(tmp_path: Path):
 
     assert "soortafsluitmiddel" in hydamo.management_device.columns
     assert hydamo.management_device.loc[0, "soortafsluitmiddel"] == "schuif"
-
-
-def test_load_from_gpkg_validate_true_promotes_mode_to_warn(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    gpkg_file = _make_minimal_25_gpkg(tmp_path)
-
-    def _validator_factory(**kwargs):
-        def _run(directory, raise_error=False):
-            return None, None, types.SimpleNamespace(
-                success=True, status="finished", error=[]
-            )
-
-        return _run
-
-    _install_fake_validator(monkeypatch, _validator_factory)
-
-    # validate=True with default validation_mode="off" should promote to "warn"
-    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5", validate=True)
-
-    assert hydamo.validation_result is not None
-    assert hydamo.validation_result.success is True
 
 
 def test_load_from_gpkg_validation_warn_failure_does_not_raise(

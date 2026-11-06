@@ -329,7 +329,6 @@ class HyDAMO:
         hydamo_version: str = "2.2",
         clip_layers: dict | None = None,
         check_3d: bool = True,
-        validate: bool = False,
         validation_mode: ValidationMode = "off",
         validation_coverages: dict | None = None,
         validation_rules_path: Path | str | None = None,
@@ -353,10 +352,6 @@ class HyDAMO:
             Whether to require Z coordinates on profile points when grouping
             them into lines. Other layers are not checked for Z coordinates.
             Pass ``False`` to allow 2D profile points. Default is ``True``.
-        validate : bool
-            Shorthand for ``validation_mode="warn"`` when ``True`` and
-            ``validation_mode`` is ``"off"``. An explicit ``"strict"`` mode
-            remains strict.
         validation_mode : str
             ``"off"`` skips validation (default). ``"warn"`` validates and
             continues after a reported failure; diagnostic warnings and errors
@@ -417,16 +412,12 @@ class HyDAMO:
         # Resolve the converter first so an unsupported version fails before validation runs.
         converter = get_damo_converter(hydamo_version)
 
-        effective_validation_mode: ValidationMode = validation_mode
-        if validate and validation_mode == "off":
-            effective_validation_mode = "warn"
-
         self.validation_result = None
         self.source_damo_version = hydamo_version
         self.validation_result = validate_or_raise(
             gpkg_path=gpkg_path,
             hydamo_version=hydamo_version,
-            validation_mode=effective_validation_mode,
+            validation_mode=validation_mode,
             coverages=validation_coverages,
             validation_rules_path=validation_rules_path,
         )
