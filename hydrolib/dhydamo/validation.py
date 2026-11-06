@@ -153,9 +153,9 @@ def _schema_version_for_damo(hv_module: Any, hydamo_version: str) -> tuple[str, 
     schema version that declares *hydamo_version* as a supported value, and also
     returns the ``hydamo_objects`` enum so callers can filter out non-standard layers.
 
-    Raises ``ValueError`` when the installed package does not support the requested
-    DAMO version (e.g. DAMO 2.5 requires schema 1.5 which ships with a future
-    hydamo-validation release).
+    DAMO version support depends on the schemas shipped with the installed
+    hydamo-validation package. Raises ``ValueError`` with upgrade guidance when
+    none of those schemas supports the requested version.
     """
     schema_dir = Path(hv_module.__file__).parent / "schemas" / "rules"
     best_version: str | None = None

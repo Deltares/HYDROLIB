@@ -79,8 +79,9 @@ class BaseDamoConverter(ABC):
             ``(geometry, cliptype)`` tuple. Layers absent from the dict are
             loaded without clipping.
         check_3d : bool
-            Passed to ``read_gpkg_layer`` on geo layers. Set ``False`` for
-            flat (2D-only) GeoPackages. Default is ``True``.
+            Whether to require Z coordinates on profile points when grouping
+            them into lines. Other layers are not checked for Z coordinates.
+            Pass ``False`` to allow 2D profile points. Default is ``True``.
         """
         gpkg_path = Path(gpkg_path)
         available_layers = {

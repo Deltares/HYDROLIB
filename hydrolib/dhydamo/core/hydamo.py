@@ -313,9 +313,9 @@ class HyDAMO:
             ``{"branches": (gpd.read_file(extent).union_all(), "clip")}``.
             Layers absent from the dict are loaded without clipping.
         check_3d : bool
-            Whether to require Z coordinates on all geometries. Pass
-            ``False`` when loading a flat (2D-only) GeoPackage. Default is
-            ``True``.
+            Whether to require Z coordinates on profile points when grouping
+            them into lines. Other layers are not checked for Z coordinates.
+            Pass ``False`` to allow 2D profile points. Default is ``True``.
         validate : bool
             Shorthand for ``validation_mode="warn"`` when ``True``.
         validation_mode : str
