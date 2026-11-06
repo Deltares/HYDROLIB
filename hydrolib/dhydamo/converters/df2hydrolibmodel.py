@@ -1,8 +1,10 @@
 import logging
 from pathlib import Path
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
+import shapely
 
 from pydantic import Field
 
@@ -42,6 +44,7 @@ from hydrolib.core.dflowfm.xyz.models import XYZModel, XYZPoint
 
 from hydrolib.dhydamo.geometry import common
 from hydrolib.dhydamo.geometry.spatial import (
+    _line_parts,
     points_to_branch_values,
     polygons_to_branch_values,
     rasterize_polygons,
@@ -397,7 +400,8 @@ class Df2HydrolibModel:
             ("waterdepth", self.hydamo.external_forcings.initial_waterdepth_polygons, "initialwaterdepth.ini"),
         ]
         for quantity, gdf, filename in initial:
-            if gdf.empty:
+            # uniform 1D values are written per branch by spatial_fields_to_dhydro
+            if gdf.empty or (gdf["locationtype"] == "1d").all():
                 continue
             if gdf.geometry.notnull().any() or len(gdf) > 1:
                 raise ValueError(
@@ -428,8 +432,8 @@ class Df2HydrolibModel:
         get one .pol file and one block per distinct value. Only the references are created here;
         the data files themselves are written by write_spatial_fields().
         """
-        # (quantity, filename, branch ids) of the branch fields, to check for level and depth on the same branch
-        branch_fields = []
+        # footprints of the initial water level and depth fields, to check where both apply
+        level_depth_fields = []
         for sf in self.hydamo.external_forcings.spatial_fields:
             gdf, column = sf["gdf"], sf["column"]
 
@@ -450,7 +454,15 @@ class Df2HydrolibModel:
                     blocks.append((filename, "polygon", value))
 
             elif sf["filetype"] == "branch":
-                if gdf.geom_type.isin(["Polygon", "MultiPolygon"]).all():
+                if sf.get("uniform") is not None:
+                    branches = self.hydamo.branches
+                    if branches is None or branches.empty:
+                        raise ValueError(f"A uniform initial {sf['quantity']} for 1D requires the branches.")
+                    branch_values = {
+                        branch_id: ([0.0, line.length], [sf["uniform"]] * 2)
+                        for branch_id, line in zip(branches.index, branches.geometry)
+                    }
+                elif gdf.geom_type.isin(["Polygon", "MultiPolygon"]).all():
                     branch_values = polygons_to_branch_values(self.hydamo.branches, gdf, column)
                 else:
                     branch_values = points_to_branch_values(
@@ -465,8 +477,6 @@ class Df2HydrolibModel:
                     "nodata": sf["nodata"],
                 }
                 blocks.append((sf["filename"], "1dField", None))
-                if sf["kind"] == "initial":
-                    branch_fields.append((sf["quantity"], sf["filename"], set(branch_values)))
 
             elif sf["filetype"] == "raster":
                 array, transform = rasterize_polygons(
@@ -519,27 +529,152 @@ class Df2HydrolibModel:
                     self._clear_comments(field)
                     self.parameterfields.append(field)
 
-        self._check_level_and_depth_on_branches(branch_fields)
+            footprint = self._level_depth_footprint(sf, self.spatial_data.get(sf["filename"]))
+            if footprint is not None:
+                level_depth_fields.append(footprint)
+
+        self._check_level_and_depth(level_depth_fields, self.hydamo.branches)
+        self._check_uniform_depth(level_depth_fields)
 
     @staticmethod
-    def _check_level_and_depth_on_branches(branch_fields: list[tuple[str, str, set]]) -> None:
-        """Warn for branches that get both a water level and a water depth from branch fields.
+    def _level_or_depth(quantity: str) -> str | None:
+        """'waterlevel' or 'waterdepth' for the (old and new) names of these quantities, otherwise None."""
+        kind = quantity.lower().replace("initial", "")
+        return kind if kind in ("waterlevel", "waterdepth") else None
 
-        A 1dField file cannot leave part of a branch empty: beyond the given chainages the value is kept
-        constant up to the branch ends. A branch in both a water level and a water depth field therefore
-        gets the quantity of the last of these fields over its whole length.
+    def _level_depth_footprint(self, sf: dict, data: dict | None) -> dict | None:
+        """Where an initial water level or depth field gives values on the 1D network.
+
+        - 'branch': the whole branches in the 1dField file (values are kept constant beyond the first and
+          last chainage);
+        - 'polygon' and 'raster': the polygons;
+        - 'sample': the convex hull of the points, which triangulation fills (tested with D-HYDRO 2026.02).
+
+        Returns None for other quantities, parameter fields and 2D-only fields.
         """
-        for i, (quantity_i, file_i, branches_i) in enumerate(branch_fields):
-            for quantity_j, file_j, branches_j in branch_fields[i + 1:]:
-                kinds = {q.lower().replace("initial", "") for q in (quantity_i, quantity_j)}
-                if kinds != {"waterlevel", "waterdepth"}:
+        kind = self._level_or_depth(sf["quantity"])
+        if sf["kind"] != "initial" or kind is None:
+            return None
+        if sf["filetype"] != "branch" and sf["locationtype"] not in ("1d", "all"):
+            return None
+        footprint = {
+            "kind": kind,
+            "quantity": sf["quantity"],
+            "filename": sf["filename"],
+            "filetype": sf["filetype"],
+            # a uniform value (set_initial_waterlevel/-depth) is a background that later fields override on purpose
+            "background": sf.get("uniform") is not None,
+        }
+        if sf["filetype"] == "branch":
+            footprint["branches"] = set(data["branches"]) if data else set()
+            footprint["area"] = None
+        elif sf["filetype"] == "sample":
+            footprint["branches"] = None
+            footprint["area"] = shapely.MultiPoint(list(zip(data["x"], data["y"]))).convex_hull
+        else:
+            footprint["branches"] = None
+            footprint["area"] = shapely.union_all(sf["gdf"].geometry.to_numpy())
+        return footprint
+
+    @staticmethod
+    def _covered_parts(footprint: dict, branches: gpd.GeoDataFrame) -> dict[str, list[tuple[float, float]]]:
+        """Parts of the branches covered by a footprint, as {branch id: [(start chainage, end chainage), ...]}.
+
+        Chainage intervals are compared instead of line geometries, which is robust to rounding in intersections.
+        """
+        if footprint["branches"] is not None:
+            selected = branches.loc[branches.index.isin(list(footprint["branches"]))]
+            return {branch_id: [(0.0, line.length)] for branch_id, line in zip(selected.index, selected.geometry)}
+        candidates = branches.iloc[branches.sindex.query(footprint["area"], predicate="intersects")]
+        covered = {}
+        for branch_id, line in zip(candidates.index, candidates.geometry):
+            intervals = []
+            for part in _line_parts(line.intersection(footprint["area"])):
+                chainages = [line.project(shapely.Point(c)) for c in part.coords]
+                intervals.append((min(chainages), max(chainages)))
+            if intervals:
+                covered[branch_id] = intervals
+        return covered
+
+    @staticmethod
+    def _overlap_length(intervals_i: list[tuple[float, float]], intervals_j: list[tuple[float, float]]) -> float:
+        """Total length of the overlap between two lists of chainage intervals."""
+        return sum(
+            max(0.0, min(b_i, b_j) - max(a_i, a_j)) for a_i, b_i in intervals_i for a_j, b_j in intervals_j
+        )
+
+    @classmethod
+    def _check_level_and_depth(cls, fields: list[dict], branches: gpd.GeoDataFrame, tolerance: float = 0.01) -> None:
+        """Warn where a water level field and a water depth field both give values on the same part of a branch.
+
+        D-Flow FM applies the fields in order, and the last field wins, also between water level and water
+        depth (tested with D-HYDRO 2026.02). The footprints are larger than the input geometries suggest:
+        triangulation fills the convex hull of the samples, and a 1dField file fills whole branches. Overlap
+        only at junctions (shorter than `tolerance`) is ignored.
+
+        Also warns for a water depth from polygons, samples or rasters after a water level from polygons, samples
+        or rasters. In DIMR tests (2026.02) such a water depth field removed those water levels everywhere, also
+        outside its own area. Water levels per branch (1dField) were kept, and a water depth per branch removed
+        nothing. Rasters were not tested and are treated like samples.
+        """
+        has_branches = branches is not None and not branches.empty and "geometry" in branches
+        parts = [cls._covered_parts(f, branches) if has_branches else None for f in fields]
+
+        for i, field_i in enumerate(fields):
+            for j in range(i + 1, len(fields)):
+                field_j = fields[j]
+                if field_i["kind"] == field_j["kind"] or field_i["background"] or field_j["background"]:
                     continue
-                shared = sorted(branches_i & branches_j)
-                if shared:
-                    logger.warning(
-                        f"{len(shared)} branch(es) get both a {quantity_i} ({file_i}) and a {quantity_j} ({file_j}). "
-                        f"On these branches the {quantity_j} applies over the whole branch, as it is added last: {shared[:10]}"
+
+                notes = []
+                if "sample" in (field_i["filetype"], field_j["filetype"]):
+                    notes.append("samples with triangulation fill the convex hull of the points")
+                if "branch" in (field_i["filetype"], field_j["filetype"]):
+                    notes.append("a 1dField file fills the whole branch")
+                note = f" Note: {'; '.join(notes)}." if notes else ""
+                header = (
+                    f"get both a {field_i['quantity']} ({field_i['filename']}) and a {field_j['quantity']} "
+                    f"({field_j['filename']}). There the {field_j['quantity']} applies, as it is added last."
+                )
+
+                if parts[i] is not None:
+                    shared = sorted(
+                        branch_id
+                        for branch_id in parts[i].keys() & parts[j].keys()
+                        if cls._overlap_length(parts[i][branch_id], parts[j][branch_id]) > tolerance
                     )
+                    if shared:
+                        logger.warning(f"{len(shared)} branch(es) {header}{note} Branches: {shared[:10]}")
+                elif field_i["area"] is not None and field_j["area"] is not None:
+                    # no network to check against: compare the areas
+                    if field_i["area"].intersection(field_j["area"]).area > 0.0:
+                        logger.warning(f"The areas of the 1D fields {header}{note}")
+
+        for j, field in enumerate(fields):
+            if field["kind"] != "waterdepth" or field["filetype"] == "branch":
+                continue
+            earlier = [f["filename"] for f in fields[:j] if f["kind"] == "waterlevel" and f["filetype"] != "branch"]
+            if earlier:
+                logger.warning(
+                    f"The {field['quantity']} field {field['filename']} ({field['filetype']}) is added after water level "
+                    f"field(s) {earlier}. In tests with D-HYDRO 2026.02, a water depth from polygons or samples removed "
+                    "earlier water levels from polygons or samples everywhere, also outside its own area. Add water "
+                    "depth fields before water level fields, or write the water levels per branch."
+                )
+
+    def _check_uniform_depth(self, fields: list[dict]) -> None:
+        """Warn when a uniform water depth is combined with spatial water levels: the depth overrides them.
+
+        Only for a uniform depth for 2D or 'all' ([Global] value); a uniform 1D depth is written per branch and
+        behaves like any other field.
+        """
+        uniform_depth = self.hydamo.external_forcings.initial_waterdepth_polygons
+        levels = [f["filename"] for f in fields if f["kind"] == "waterlevel" and not f["background"]]
+        if not uniform_depth.empty and (uniform_depth["locationtype"] != "1d").any() and levels:
+            logger.warning(
+                f"A uniform initial water depth is combined with spatial water level field(s) {levels}. "
+                "In D-HYDRO 2026.02 the uniform water depth overrides these water levels, whatever the order."
+            )
 
     def write_spatial_fields(self, output_dir: Path | str) -> None:
         """Write the data files of the spatial fields (1dField files, polygon files, rasters and samples).
@@ -622,3 +757,109 @@ class Df2HydrolibModel:
         inifieldmodel = IniFieldModel(initial=self.inifields, parameter=self.parameterfields)
         fm.geometry.inifieldfile = inifieldmodel
         return inifieldmodel
+
+    def initial_conditions_at_nodes(self, network, output_file: Path | str = None, crs=None) -> gpd.GeoDataFrame:
+        """Initial water level or depth at the 1D computational nodes, as D-Flow FM applies the initial fields.
+
+        Useful to check the initial conditions, e.g. in a GIS, since the D-HYDRO GUI hardly shows them. The
+        fields are applied in their order, following the behaviour found in tests with D-HYDRO 2026.02:
+        - values per branch (1dField) are interpolated along the branch and kept constant beyond the first and
+          last chainage; uniform values apply everywhere;
+        - samples are interpolated linearly in triangles (inside their convex hull), polygon files apply inside
+          the polygons; rasters are not evaluated;
+        - where fields overlap the last one applies, also between water level and water depth;
+        - a water depth from polygons or samples removes earlier water levels from polygons or samples;
+        - a uniform water depth overrides spatial water levels.
+        Nodes without a value keep the default water level of the MDU (WaterLevIni), shown as missing here.
+
+        Args:
+            network (Network): the network with the 1D mesh, e.g. fm.geometry.netfile.network
+            output_file (Path | str, optional): shapefile (.shp) or GeoPackage (.gpkg) to write. Defaults to None.
+            crs (optional): coordinate reference system. Defaults to the crs of the HyDAMO branches, or
+                EPSG:28992 (as written to the model by DIMRWriter.add_crs) if they have none.
+
+        Returns:
+            gpd.GeoDataFrame: one point per node with branchid, chainage, quantity ('waterlevel' or 'waterdepth'),
+                value and source (data file of the field that sets the value)
+        """
+        from scipy.interpolate import LinearNDInterpolator
+
+        mesh1d = network._mesh1d
+        x, y = np.asarray(mesh1d.mesh1d_node_x, dtype=float), np.asarray(mesh1d.mesh1d_node_y, dtype=float)
+        branch_names = np.asarray(mesh1d.network1d_branch_id, dtype=object)
+        branchid = branch_names[np.asarray(mesh1d.mesh1d_node_branch_id, dtype=int)]
+        chainage = np.asarray(mesh1d.mesh1d_node_branch_offset, dtype=float)
+        n = len(x)
+        points = gpd.points_from_xy(x, y)
+
+        quantity = np.full(n, None, dtype=object)
+        value = np.full(n, np.nan)
+        source = np.full(n, None, dtype=object)
+        source_type = np.full(n, None, dtype=object)
+        uniform_depth = None
+
+        uniform_fields = iter(self.onedfieldmodels)
+        for inifield in self.inifields:
+            filename = inifield.datafile.filepath.name if inifield.datafile and inifield.datafile.filepath else None
+            kind = self._level_or_depth(inifield.quantity)
+            data = self.spatial_data.get(filename)
+            if data is None and inifield.datafiletype == "1dField":
+                onedfield = next(uniform_fields)
+                if kind is None or str(inifield.locationtype).lower() == "2d":
+                    continue
+                values, filetype = np.full(n, float(onedfield.value)), "uniform"
+                if kind == "waterdepth":
+                    uniform_depth = (float(onedfield.value), filename)
+            elif kind is None or data is None:
+                continue
+            elif data["filetype"] == "branch":
+                values, filetype = np.full(n, np.nan), "branch"
+                for bid, (branch_chainage, branch_values) in data["branches"].items():
+                    on_branch = branchid == bid
+                    values[on_branch] = np.interp(chainage[on_branch], branch_chainage, branch_values)
+            elif data["filetype"] == "sample":
+                values, filetype = np.full(n, np.nan), "sample"
+                if len(data["x"]) >= 3:
+                    interpolator = LinearNDInterpolator(np.c_[data["x"], data["y"]], data["z"])
+                    values = interpolator(np.c_[x, y])
+            elif data["filetype"] == "polygon":
+                values, filetype = np.full(n, np.nan), "polygon"
+                inside = gpd.GeoSeries(points).intersects(shapely.union_all(data["polygons"]))
+                values[inside.to_numpy()] = float(inifield.value)
+            else:
+                logger.warning(f"Raster field {filename} is not evaluated at the nodes.")
+                continue
+
+            if kind == "waterdepth" and filetype in ("polygon", "sample"):
+                removed = (quantity == "waterlevel") & np.isin(source_type, ["polygon", "sample"])
+                quantity[removed], value[removed], source[removed], source_type[removed] = None, np.nan, None, None
+            has_value = ~np.isnan(values)
+            quantity[has_value], value[has_value] = kind, values[has_value]
+            source[has_value], source_type[has_value] = filename, filetype
+
+        if uniform_depth is not None:
+            spatial_level = quantity == "waterlevel"
+            quantity[spatial_level], value[spatial_level], source[spatial_level] = "waterdepth", uniform_depth[0], uniform_depth[1]
+
+        if crs is None and getattr(self.hydamo, "branches", None) is not None:
+            crs = self.hydamo.branches.crs
+        if crs is None:
+            # the projection that DIMRWriter.add_crs writes to the model
+            crs = "EPSG:28992"
+        nodes = gpd.GeoDataFrame(
+            {
+                "node_id": np.asarray(mesh1d.mesh1d_node_id, dtype=object),
+                "branchid": branchid,
+                "chainage": chainage,
+                "quantity": quantity,
+                "value": value,
+                "source": source,
+            },
+            geometry=points,
+            crs=crs,
+        )
+        if (nodes["quantity"].isna()).any():
+            logger.info(f"{nodes['quantity'].isna().sum()} 1D nodes get no initial value and keep WaterLevIni.")
+        if output_file is not None:
+            nodes.to_file(output_file)
+        return nodes

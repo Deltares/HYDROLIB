@@ -782,8 +782,14 @@ def test_correct_values_from_modelrun():
     df_cor = hydamo.external_forcings.correct_values_from_modelrun(df, selection, value_column='waterdiepte')
     
     assert not df_cor.empty
-    assert len(df_cor) == len(df)
-    assert len(df_cor[df_cor['value']==0]) == 31
+    # the model points come first; 31 of them are corrected
+    original = df_cor.iloc[:len(df)]
+    assert len(original[original['value']==0]) == 31
+    # two points are added at each crossing of a polygon boundary with a branch; at least one of each pair is
+    # inside a polygon (both where two corrected polygons share a boundary)
+    added = df_cor.iloc[len(df):]
+    assert len(added) == 20
+    assert (added['value'].to_numpy().reshape(-1, 2) == 0).any(axis=1).all()
 
 def test_write_laterals():
     # Get full hydamo object

@@ -1520,6 +1520,10 @@ class ExternalForcings:
         """
         Method to set a uniform initial water level. For spatially varying water levels
         (polygons from a shapefile or values from a model result), use set_spatial_field.
+
+        For 1D (locationtype '1d'), the value is written per branch for all branches, as a spatial field at the
+        position of this call: fields added after it override it where they apply, fields added before it are
+        overridden. Calling it again replaces the earlier uniform water level.
         """
 
         if isinstance(initial_values, (int, float)):
@@ -1527,6 +1531,8 @@ class ExternalForcings:
                 {"waterlevel": [float(initial_values)], "geometry": [None], "locationtype": [locationtype]},
                 index=["global"],
             )
+            if locationtype == "1d":
+                self._set_uniform_field("waterlevel", float(initial_values))
         else:
 
             if initial_values[name_column].isnull().any():
@@ -1554,6 +1560,11 @@ class ExternalForcings:
            """
            Method to set a uniform initial water depth. For spatially varying water depths
            (polygons from a shapefile or values from a model result), use set_spatial_field.
+
+           For 1D (locationtype '1d'), the value is written per branch for all branches, as a spatial field at the
+           position of this call: fields added after it override it where they apply, fields added before it are
+           overridden. Calling it again replaces the earlier uniform water depth. (A uniform water depth for 2D or
+           'all' is written as a [Global] value; D-HYDRO 2026.02 then lets it override spatial water levels.)
            """
    
            if isinstance(initial_values, (int, float)):
@@ -1561,6 +1572,8 @@ class ExternalForcings:
                    {"waterdepth": [float(initial_values)], "geometry": [None], "locationtype": [locationtype]},
                    index=["global"],
                )
+               if locationtype == "1d":
+                   self._set_uniform_field("waterdepth", float(initial_values))
            else:   
                if initial_values[name_column].isnull().any():
                    raise ValueError(f"Column {name_column} not filled for all of the initial water depth polygons. Please provide valid values.")
@@ -1571,17 +1584,58 @@ class ExternalForcings:
                self.initial_waterdepth_polygons['locationtype'] = locationtype
                self.initial_waterdepth_polygons.index = initial_values[name_column]    
 
-    def correct_values_from_modelrun(self, model_values: gpd.GeoDataFrame, correction_polygons: gpd.GeoDataFrame, value_column: str) -> gpd.GeoDataFrame:
+    def _set_uniform_field(self, quantity: str, value: float) -> None:
+        """Add a uniform 1D value as a spatial field per branch over all branches, replacing an earlier one.
+
+        The values per branch are derived from the branches when the model is converted.
+        """
+        self.spatial_fields = [
+            sf for sf in self.spatial_fields if not (sf.get("uniform") is not None and sf["quantity"] == quantity)
+        ]
+        self.spatial_fields.append(
+            {
+                "gdf": None,
+                "column": None,
+                "uniform": value,
+                "quantity": quantity,
+                "kind": "initial",
+                "filetype": "branch",
+                "cellsize": None,
+                "filename": f"initial{quantity}.ini",
+                "locationtype": "1d",
+                "interpolationmethod": None,
+                "averagingtype": None,
+                "operand": "O",
+                "nodata": -999.0,
+                "max_snap_distance": None,
+            }
+        )
+
+    def correct_values_from_modelrun(
+        self,
+        model_values: gpd.GeoDataFrame,
+        correction_polygons: gpd.GeoDataFrame,
+        value_column: str,
+        boundary_step: float | None = 0.01,
+    ) -> gpd.GeoDataFrame:
         """
         Replace values from a model result by the values of correction polygons, for all points within these polygons.
+
+        If the points have the columns 'branchid' and 'chainage' (as from read_values_from_modelrun) and the HyDAMO
+        branches are available, two points are added where a polygon boundary crosses a branch, boundary_step apart:
+        the point inside gets the polygon value, the point outside the model value interpolated along the branch.
+        The value then changes at the polygon boundary instead of gradually between the nearest model points.
 
         Args:
             model_values (gpd.GeoDataFrame): points with a column 'value', e.g. from read_values_from_modelrun
             correction_polygons (gpd.GeoDataFrame): polygons with the corrected values
             value_column (str): column in correction_polygons with the corrected values
+            boundary_step (float | None, optional): distance between the two points at a polygon boundary. None: no
+                points are added. Defaults to 0.01.
 
         Returns:
-            gpd.GeoDataFrame: copy of model_values with corrected values. Where polygons overlap, the last polygon is used.
+            gpd.GeoDataFrame: copy of model_values with corrected values (and the points at the polygon boundaries).
+                Where polygons overlap, the last polygon is used.
         """
         model_values_corrected = model_values.copy(deep=True)
         if model_values_corrected.crs is None and correction_polygons.crs is not None:
@@ -1597,7 +1651,64 @@ class ExternalForcings:
         joined = joined[~joined.index.duplicated(keep="last")]
 
         model_values_corrected.loc[joined.index, 'value'] = joined[value_column]
-        return model_values_corrected
+
+        branches = getattr(self.hydamo, "branches", None)
+        if boundary_step is None or not {"branchid", "chainage"} <= set(model_values.columns):
+            return model_values_corrected
+        if branches is None or branches.empty:
+            logger.info("No branches available: no points are added at the boundaries of the correction polygons.")
+            return model_values_corrected
+
+        boundary_points = self._points_at_polygon_boundaries(
+            model_values, gpd.GeoDataFrame(correction_polygons[[value_column, "geometry"]]).reset_index(drop=True),
+            value_column, branches, boundary_step,
+        )
+        if boundary_points.empty:
+            return model_values_corrected
+        logger.info(f"{len(boundary_points)} points added at the boundaries of the correction polygons.")
+        combined = pd.concat([model_values_corrected, boundary_points], ignore_index=True)
+        return gpd.GeoDataFrame(combined, geometry="geometry", crs=model_values_corrected.crs)
+
+    @staticmethod
+    def _points_at_polygon_boundaries(
+        model_values: gpd.GeoDataFrame, polygons: gpd.GeoDataFrame, value_column: str, branches: gpd.GeoDataFrame, step: float
+    ) -> gpd.GeoDataFrame:
+        """Two points per crossing of a polygon boundary with a branch, step apart, with the value on each side."""
+        rows = []
+        for branch_id, original in model_values.groupby("branchid"):
+            if branch_id not in branches.index:
+                continue
+            line = branches.geometry.loc[branch_id]
+            candidates = polygons.iloc[polygons.sindex.query(line, predicate="intersects")]
+            if candidates.empty:
+                continue
+            original = original.sort_values("chainage")
+
+            # chainages where the branch crosses a polygon boundary
+            crossings = set()
+            for boundary in candidates.geometry.boundary:
+                intersection = line.intersection(boundary)
+                parts = getattr(intersection, "geoms", [intersection])
+                for geom in parts:
+                    if not geom.is_empty:
+                        crossings.update(line.project(Point(c)) for c in geom.coords)
+
+            for crossing in sorted(crossings):
+                for chainage in (crossing - 0.5 * step, crossing + 0.5 * step):
+                    if not 0.0 <= chainage <= line.length:
+                        continue
+                    point = line.interpolate(chainage)
+                    inside = candidates[candidates.geometry.intersects(point)]
+                    if len(inside):
+                        value = float(inside[value_column].iloc[-1])
+                    else:
+                        value = float(np.interp(chainage, original["chainage"], original["value"]))
+                    rows.append(
+                        {"x": point.x, "y": point.y, "value": value, "branchid": branch_id, "chainage": chainage, "geometry": point}
+                    )
+        if not rows:
+            return gpd.GeoDataFrame(columns=["x", "y", "value", "branchid", "chainage", "geometry"], geometry="geometry")
+        return gpd.GeoDataFrame(rows, geometry="geometry", crs=model_values.crs)
 
 
     def read_values_from_modelrun(
@@ -1776,27 +1887,30 @@ class ExternalForcings:
         """
         Add a spatially varying field to the initial fields file (initialFields.ini).
 
-        Four file types are supported:
+        By default, values are written per branch and chainage in a 1dField file (filetype 'branch'), for
+        polygons and points. D-Flow FM interpolates them linearly along each branch only, and keeps them
+        constant beyond the first and last chainage of a branch. For polygons, each part of a branch inside a
+        polygon gets the polygon value, with a step at the polygon boundary. For points, the columns 'branchid'
+        and 'chainage' are used if present (e.g. from read_values_from_modelrun); otherwise points are snapped to
+        the nearest branch within max_snap_distance. In DIMR tests (D-HYDRO 2026.02) this gave the most reliable
+        result for polygons, for model results on the same network and on a changed 1D grid, and for combining
+        water level and water depth.
 
-        - 'branch': values per branch and chainage in a 1dField file. Values are interpolated linearly
-          along each branch only, and kept constant beyond the first and last chainage of a branch.
-          For polygons, each part of a branch inside a polygon gets the polygon value, with a step at the
-          polygon boundary. For points, the columns 'branchid' and 'chainage' are used if present (e.g. from
-          read_values_from_modelrun on the same network); otherwise points are snapped to the nearest branch
-          within max_snap_distance. Default for polygons; independent of the 1D computational grid.
-        - 'sample': points are written as samples (.xyz) with triangulation. Default for points: values
-          from a model result on the same network are reproduced exactly at the nodes.
-        - 'polygon': polygons are written as .pol files with interpolationMethod=constant. Polygons with
-          the same value share one file and one block.
-        - 'raster': polygons are rasterized to a GeoTIFF (.tif) or ArcInfo grid (.asc). Requires a cellsize.
-          Note that D-Flow FM (2026.02) uses the nodata value as data.
+        Advanced: the other file types are kept for special cases (e.g. 2D, or if a future D-Flow FM version
+        does not accept 1dField files), but are not recommended for 1D:
+        - 'sample': points as samples (.xyz) with triangulation, which fills the convex hull of the points, so
+          values spread to other branches.
+        - 'polygon': .pol files with interpolationMethod=constant, one file and block per distinct value.
+        - 'raster': polygons rasterized to a GeoTIFF (.tif) or ArcInfo grid (.asc), requires a cellsize. D-Flow FM
+          (2026.02) uses the nodata value as data.
 
         Tested with D-HYDRO 2026.02 on 1D nodes: interpolationMethod=averaging assigns no values, so it is
         refused for locationtype '1d'; triangulation fills the convex hull of the samples; nodes that get no
         value from any field keep the default water level (WaterLevIni in the MDU), which leaves them dry when it
         is below the bed level, so cover all nodes. Fields are applied in the order they are added (the last
-        one wins), after the uniform values of set_initial_waterlevel/-depth. A uniform water depth overrides
-        spatial water levels, and a water depth field removes water levels set before it: add water depth
+        one wins). A uniform 1D value from set_initial_waterlevel/-depth is a field per branch over all branches, at
+        the position of that call, so use it first as a background. A water depth from polygons or samples removes earlier water levels from polygons
+        or samples everywhere, also outside its own area; water levels per branch are kept. Add water depth
         fields before water level fields.
 
         The data files are written by Df2HydrolibModel.write_initial_fields().
@@ -1807,8 +1921,7 @@ class ExternalForcings:
             quantity (str, optional): D-Flow FM quantity, e.g. 'waterlevel' or 'waterdepth'. For velocities, use
                 set_initial_velocity. Defaults to "waterlevel".
             kind (str, optional): 'initial' ([Initial] block) or 'parameter' ([Parameter] block). Defaults to "initial".
-            filetype (str, optional): 'branch', 'sample', 'polygon' or 'raster'. Defaults to 'branch' for polygons
-                and 'sample' for points.
+            filetype (str, optional): 'branch' (default), or the advanced types 'sample', 'polygon' or 'raster'.
             cellsize (float, optional): raster cell size, required for filetype 'raster'.
             filename (str, optional): name of the data file, relative to the fm-folder. Without an extension, the
                 extension of the file type is added (.ini, .xyz, .pol or .tif). For 'polygon', a number is added per
@@ -1840,7 +1953,7 @@ class ExternalForcings:
             if filetype not in ("branch", "polygon", "raster"):
                 raise ValueError(f"For polygons, filetype should be 'branch', 'polygon' or 'raster', not '{filetype}'.")
         elif geomtypes <= {"Point"}:
-            filetype = "sample" if filetype is None else filetype
+            filetype = "branch" if filetype is None else filetype
             if filetype not in ("sample", "branch"):
                 raise ValueError(f"For points, filetype should be 'sample' or 'branch', not '{filetype}'.")
         else:
