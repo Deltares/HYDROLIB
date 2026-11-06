@@ -9,6 +9,7 @@ import pandas as pd
 import rasterio
 from pydantic.v1 import ConfigDict, StrictStr, validate_arguments
 
+from hydrolib.dhydamo.core.relations import RelationsRR
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.io import idfreader
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
@@ -441,7 +442,9 @@ class PavedIO:
 
                 elev = stats_sa_elev.iloc[isew]["median"]
                 # find overflows related to this sewer area
-                ovf = overflows[overflows.codegerelateerdobject == sew.code]
+                overflow_sa = RelationsRR.OVERFLOW_SEWER_AREA
+                sewer_id = getattr(sew, overflow_sa.parent_key)
+                ovf = overflows[overflows[overflow_sa.foreign_key] == sewer_id]
                 for ov in ovf.itertuples():
                     # find corresponding meteo-station
                     tm = [
@@ -691,7 +694,12 @@ class GreenhouseIO:
                     basin_storage_class_val = f"{gh.basin_storage_class:g}"
                 else:
                     basin_storage_class_val = f'{basin_storage_class:g}'
-                latcode = greenhouse_laterals[greenhouse_laterals.codegerelateerdobject == gh.code].code.to_numpy()[0]
+                gh_area = RelationsRR.GREENHOUSE_LATERAL_AREA
+                area_id = getattr(gh, gh_area.parent_key)
+                related_laterals = greenhouse_laterals[
+                    greenhouse_laterals[gh_area.foreign_key] == area_id
+                ]
+                latcode = related_laterals.code.to_numpy()[0]
                 self.greenhouse.add_greenhouse(
                     id=str(gh.code),
                     area=gh.geometry.area,
@@ -1024,8 +1032,13 @@ class ExternalForcingsIO:
             # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
             catchments.drop(drop_idx, inplace=True)  # noqa: PD002
 
+        catchment_lat = RelationsRR.CATCHMENT_LATERAL
         for cat in catchments.itertuples():
-            if boundary_nodes[boundary_nodes["globalid"] == cat.lateraleknoopid].empty:
+            lateral_id = getattr(cat, catchment_lat.foreign_key)
+            lat = boundary_nodes[
+                boundary_nodes[catchment_lat.parent_key] == lateral_id
+            ]
+            if lat.empty:
                 logger.warning(
                     f"{cat.code} not connected to a boundary node. Skipping."
                 )
@@ -1033,16 +1046,8 @@ class ExternalForcingsIO:
                 continue
             self.external_forcings.add_boundary_node(
                 id=f"lat_{cat.code}",
-                px=str(
-                    boundary_nodes[
-                        boundary_nodes["globalid"] == cat.lateraleknoopid
-                    ]["geometry"].x.iloc[0]
-                ).strip(),
-                py=str(
-                    boundary_nodes[
-                        boundary_nodes["globalid"] == cat.lateraleknoopid
-                    ]["geometry"].y.iloc[0]
-                ).strip(),
+                px=str(lat.geometry.x.iloc[0]).strip(),
+                py=str(lat.geometry.y.iloc[0]).strip(),
             )
         if overflows is not None:
             logger.info("Adding overflows to the boundary nodes.")
