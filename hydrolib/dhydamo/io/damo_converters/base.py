@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import geopandas as gpd
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -129,57 +128,6 @@ class BaseDamoConverter(ABC):
         Override in subclasses to rename, copy, or derive columns on any
         ``HyDAMO`` attribute that requires post-load normalisation.
         """
-
-    @staticmethod
-    def _rename_column(df: pd.DataFrame, source: str, target: str) -> pd.DataFrame:
-        """Return *df* with column *source* renamed to *target*.
-
-        No-ops silently if *source* is absent or *target* already exists.
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            Input DataFrame.
-        source : str
-            Existing column name.
-        target : str
-            Desired column name.
-
-        Returns
-        -------
-        pd.DataFrame
-            DataFrame with the column renamed, or the original if no-op.
-        """
-        if source in df.columns and target not in df.columns:
-            return df.rename(columns={source: target})
-        return df
-
-    @staticmethod
-    def _copy_column(df: pd.DataFrame, source: str, target: str) -> pd.DataFrame:
-        """Add column *target* to *df* as a copy of *source*, in-place.
-
-        No-ops silently if *source* is absent or *target* already exists.
-        Mutates *df* directly to preserve the original subclass type
-        (e.g. ``ExtendedDataFrame``).
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            Input DataFrame.
-        source : str
-            Column to copy from.
-        target : str
-            New column name to copy into.
-
-        Returns
-        -------
-        pd.DataFrame
-            The same *df* object with the new column added, or unchanged if
-            no-op.
-        """
-        if source in df.columns and target not in df.columns:
-            df[target] = df[source]
-        return df
 
 
 def replace_layer_specs(

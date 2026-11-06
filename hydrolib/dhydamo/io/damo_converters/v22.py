@@ -50,10 +50,13 @@ class Damo22Converter(BaseDamoConverter):
     )
 
     def postprocess(self, hydamo) -> None:
-        if not hydamo.management_device.empty:
-            hydamo.management_device = self._copy_column(
-                hydamo.management_device, "soortregelmiddel", "soortafsluitmiddel"
-            )
+        device = hydamo.management_device
+        if (
+            not device.empty
+            and "soortregelmiddel" in device.columns
+            and "soortafsluitmiddel" not in device.columns
+        ):
+            device["soortafsluitmiddel"] = device["soortregelmiddel"]
         if not hydamo.profile.empty and "profiellijnid" in hydamo.profile.columns:
             # After groupby, each row represents a profile line. Replace the
             # per-point code with the profile line's own ID.
