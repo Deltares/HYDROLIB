@@ -230,8 +230,9 @@ def build_cascade_plan(
     return planned
 
 
-@dataclass(frozen=True, slots=True)
 class RelationsHyDAMO:
+    """Namespace for shared HyDAMO relation definitions."""
+
     PROFILE_LINE = Relation(
         name="profile_line",
         child_table="profile",
@@ -338,8 +339,9 @@ class RelationsHyDAMO:
     )
 
 
-@dataclass(frozen=True, slots=True)
 class RelationsRR:
+    """Namespace for shared rainfall-runoff relation definitions."""
+
     CATCHMENT_LATERAL = Relation(
         name="catchment_lateral",
         child_table="catchments",
@@ -365,8 +367,9 @@ class RelationsRR:
 CascadePaths: TypeAlias = tuple[tuple[Relation, ...], ...]
 
 
-@dataclass(frozen=True, slots=True)
 class CascadeRelations:
+    """Namespace for bounded cascade-deletion paths by source table."""
+
     PROFILE: ClassVar[CascadePaths] = (
         (RelationsHyDAMO.PROFILE_ROUGHNESS,),
         (RelationsHyDAMO.PROFILE_LINE, RelationsHyDAMO.PROFILE_LINE_GROUP),
