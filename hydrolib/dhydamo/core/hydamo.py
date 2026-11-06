@@ -276,7 +276,40 @@ class HyDAMO:
         validation_coverages: dict | None = None,
         validation_rules_path: Path | str | None = None,
     ) -> HydamoValidationResult:
-        """Validate a HyDAMO package using hydamo_validation."""
+        """Validate a GeoPackage without loading its layers.
+
+        Requires Python 3.12 and the optional dependency installed with
+        ``pip install "hydrolib[validation]"``.
+
+        Parameters
+        ----------
+        gpkg_path : str or Path
+            Path to the GeoPackage file.
+        hydamo_version : str
+            DAMO version to validate against. Default is ``"2.2"``. This
+            selects the requested version; it does not detect the source version.
+        validation_coverages : dict, optional
+            Coverage dict forwarded to the validator.
+        validation_rules_path : str or Path, optional
+            Path to a validation-rules JSON file for the requested DAMO version.
+            If omitted, generated rules check ID presence on recognized layers
+            with an ID column. Supply custom rules for more comprehensive checks.
+
+        Returns
+        -------
+        HydamoValidationResult
+            Also stored as ``self.validation_result``. Inspect ``success``,
+            ``status``, and ``errors`` to handle validation failures. A reported
+            failure is returned rather than raised as ``HyDAMOValidationError``.
+
+        Raises
+        ------
+        ImportError
+            If the optional validation dependency is unavailable.
+        ValueError
+            If generated rules are requested for a version unsupported by the
+            installed validator's schemas.
+        """
         result = validate_or_raise(
             gpkg_path=gpkg_path,
             hydamo_version=hydamo_version,
@@ -306,7 +339,9 @@ class HyDAMO:
         gpkg_path : str or Path
             Path to the GeoPackage file.
         hydamo_version : str
-            DAMO schema version string, e.g. ``"2.2"`` or ``"2.5"``.
+            DAMO schema version string: ``"2.2"``, ``"2.3"``, ``"2.4"``, or
+            ``"2.5"``. Selects the converter; it does not detect or verify the
+            source schema version. Default is ``"2.2"``.
         clip_layers : dict, optional
             Per-layer spatial clip. Maps ``target_attr`` name to a
             ``(geometry, cliptype)`` tuple, e.g.
@@ -317,18 +352,64 @@ class HyDAMO:
             them into lines. Other layers are not checked for Z coordinates.
             Pass ``False`` to allow 2D profile points. Default is ``True``.
         validate : bool
-            Shorthand for ``validation_mode="warn"`` when ``True``.
+            Shorthand for ``validation_mode="warn"`` when ``True`` and
+            ``validation_mode`` is ``"off"``. An explicit ``"strict"`` mode
+            remains strict.
         validation_mode : str
-            ``"off"``, ``"warn"``, or ``"strict"``.
+            ``"off"`` skips validation (default). ``"warn"`` validates and
+            continues after a reported failure; inspect ``validation_result``
+            because this mode currently does not emit a warning itself.
+            ``"strict"`` raises ``HyDAMOValidationError`` on a reported failure
+            before loading layers. Validation setup errors can raise in either
+            enabled mode.
         validation_coverages : dict, optional
             Coverage dict forwarded to the validator.
         validation_rules_path : str or Path, optional
-            Path to a custom validation-rules JSON file.
+            Path to a custom validation-rules JSON file for the source DAMO
+            version. If omitted, generated rules check ID presence on recognized
+            layers with an ID column. Strict mode changes failure handling,
+            not the rules or their coverage.
 
         Returns
         -------
         HyDAMO
             This instance, to allow method chaining.
+
+        Raises
+        ------
+        HyDAMOValidationError
+            If validation reports failure in ``"strict"`` mode.
+        ImportError
+            If validation is enabled and its optional dependency is unavailable.
+        ValueError
+            If the converter version is unsupported, or generated validation
+            rules require a version unsupported by the installed validator.
+
+        Notes
+        -----
+        Validation requires Python 3.12 and ``pip install "hydrolib[validation]"``.
+        After enabled validation returns normally, ``self.validation_result``
+        contains ``success``, ``status``, and ``errors``. It is ``None`` when
+        validation is off. Use ``validate_gpkg()`` to inspect validation failures
+        without loading data. Comprehensive schema, type, and relation checks
+        require appropriate custom rules; selecting a converter or using strict
+        mode alone does not establish that the input is valid DAMO data.
+
+        Examples
+        --------
+        Given a rules file for DAMO 2.2, load and inspect reported failures:
+
+        >>> hydamo = HyDAMO().load_from_gpkg(
+        ...     "model.gpkg",
+        ...     hydamo_version="2.2",
+        ...     validation_mode="warn",
+        ...     validation_rules_path="validationrules.json",
+        ... )
+        >>> result = hydamo.validation_result
+        >>> print(result.success, result.status, result.errors)
+
+        Use ``validation_mode="strict"`` to raise ``HyDAMOValidationError``
+        instead of loading after a reported validation failure.
         """
         # Resolve the converter first so an unsupported version fails before validation runs.
         converter = get_damo_converter(hydamo_version)
