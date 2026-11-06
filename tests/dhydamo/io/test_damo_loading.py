@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
 import types
 from pathlib import Path
@@ -9,6 +10,7 @@ import geopandas as gpd
 import pandas as pd
 import pytest
 from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.dhydamo import validation
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.core.relations import RelationsHyDAMO
@@ -16,7 +18,6 @@ from hydrolib.dhydamo.io.damo_converters import (
     SUPPORTED_HYDAMO_VERSIONS,
     get_damo_converter,
 )
-from hydrolib.dhydamo import validation
 from hydrolib.dhydamo.validation import HyDAMOValidationError
 from shapely.geometry import LineString, Point
 
@@ -158,20 +159,20 @@ def test_load_from_gpkg_maps_damo_25_to_canonical_internal_structure(tmp_path: P
 
     assert hydamo.source_damo_version == "2.5"
     assert "categorieoppwaterlichaam" in hydamo.branches.columns
-    assert hydamo.branches.at["H1", "categorieoppwaterlichaam"] == "primair"
+    assert hydamo.branches.loc["H1", "categorieoppwaterlichaam"] == "primair"
 
     assert "soortafsluitmiddel" in hydamo.management_device.columns
-    assert hydamo.management_device.at[0, "soortafsluitmiddel"] == "schuif"
+    assert hydamo.management_device.loc[0, "soortafsluitmiddel"] == "schuif"
     assert "soortregelbaarheid" in hydamo.management_device.columns
-    assert hydamo.management_device.at[0, "soortregelbaarheid"] == "Regelbaar - lokaal automatisch - elektronisch"
+    assert hydamo.management_device.loc[0, "soortregelbaarheid"] == "Regelbaar - lokaal automatisch - elektronisch"
 
     assert "regelmiddelid" in hydamo.management.columns
     assert "stuurvariabele" in hydamo.management.columns
-    assert hydamo.management.at["CTRL1", "regelmiddelid"] == "afsluit-guid"
-    assert hydamo.management.at["CTRL1", "stuurvariabele"] == "hoogte opening"
+    assert hydamo.management.loc["CTRL1", "regelmiddelid"] == "afsluit-guid"
+    assert hydamo.management.loc["CTRL1", "stuurvariabele"] == "hoogte opening"
 
     assert "regelmiddelid" in hydamo.opening.columns
-    assert hydamo.opening.at[0, "regelmiddelid"] == "afsluit-guid"
+    assert hydamo.opening.loc[0, "regelmiddelid"] == "afsluit-guid"
 
 
 def test_damo_25_relations_resolve_expected_rows(tmp_path: Path):
@@ -217,15 +218,10 @@ def test_drtc_resolves_canonical_damo_25_management_links(tmp_path: Path):
 
 
 def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
     captured: dict[str, object] = {}
-
-    class _ResultSummary:
-        success = True
-        status = "finished"
-        error = []
 
     def _validator_factory(**kwargs):
         captured["factory_kwargs"] = kwargs
@@ -236,7 +232,9 @@ def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
             captured["dataset_files"] = sorted(
                 p.name for p in (Path(directory) / "datasets").iterdir()
             )
-            return None, None, _ResultSummary()
+            return None, None, types.SimpleNamespace(
+                success=True, status="finished", error=[]
+            )
 
         return _run
 
@@ -251,6 +249,9 @@ def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
 
     assert hydamo.validation_result is not None
     assert hydamo.validation_result.success is True
+    assert not any(
+        record.name == "hydrolib.dhydamo.validation" for record in caplog.records
+    )
     assert captured["factory_kwargs"] == {
         "output_types": [],
         "coverages": {},
@@ -267,14 +268,11 @@ def test_load_from_gpkg_with_validation_strict_raises(
 ):
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
 
-    class _ResultSummary:
-        success = False
-        status = "failed"
-        error = ["bad data"]
-
     def _validator_factory(**kwargs):
         def _run(directory, raise_error=False):
-            return None, None, _ResultSummary()
+            return None, None, types.SimpleNamespace(
+                success=False, status="failed", error=["bad data"]
+            )
 
         return _run
 
@@ -327,7 +325,7 @@ def test_load_from_gpkg_v22_postprocess_copies_soortregelmiddel(tmp_path: Path):
     hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.2")
 
     assert "soortafsluitmiddel" in hydamo.management_device.columns
-    assert hydamo.management_device.at[0, "soortafsluitmiddel"] == "schuif"
+    assert hydamo.management_device.loc[0, "soortafsluitmiddel"] == "schuif"
 
 
 def test_load_from_gpkg_validate_true_promotes_mode_to_warn(
@@ -335,14 +333,11 @@ def test_load_from_gpkg_validate_true_promotes_mode_to_warn(
 ):
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
 
-    class _ResultSummary:
-        success = True
-        status = "finished"
-        error = []
-
     def _validator_factory(**kwargs):
         def _run(directory, raise_error=False):
-            return None, None, _ResultSummary()
+            return None, None, types.SimpleNamespace(
+                success=True, status="finished", error=[]
+            )
 
         return _run
 
@@ -355,19 +350,16 @@ def test_load_from_gpkg_validate_true_promotes_mode_to_warn(
     assert hydamo.validation_result.success is True
 
 
-def test_load_from_gpkg_validation_warn_failure_does_not_raise(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_load_from_gpkg_validation_warn_logs_failure_and_continues(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
 
-    class _ResultSummary:
-        success = False
-        status = "failed"
-        error = ["bad data"]
-
     def _validator_factory(**kwargs):
         def _run(directory, raise_error=False):
-            return None, None, _ResultSummary()
+            return None, None, types.SimpleNamespace(
+                success=False, status="failed", error=["bad data"]
+            )
 
         return _run
 
@@ -380,6 +372,14 @@ def test_load_from_gpkg_validation_warn_failure_does_not_raise(
     assert hydamo.validation_result is not None
     assert hydamo.validation_result.success is False
     assert hydamo.validation_result.errors == ["bad data"]
+    assert not hydamo.branches.empty
+    assert caplog.record_tuples.count(
+        (
+            "hydrolib.dhydamo.validation",
+            logging.WARNING,
+            "HyDAMO validation failed for DAMO 2.5: bad data",
+        )
+    ) == 1
 
 
 def test_validate_gpkg_returns_result_and_stores_on_instance(
@@ -387,14 +387,11 @@ def test_validate_gpkg_returns_result_and_stores_on_instance(
 ):
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
 
-    class _ResultSummary:
-        success = True
-        status = "finished"
-        error = []
-
     def _validator_factory(**kwargs):
         def _run(directory, raise_error=False):
-            return None, None, _ResultSummary()
+            return None, None, types.SimpleNamespace(
+                success=True, status="finished", error=[]
+            )
 
         return _run
 
