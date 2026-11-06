@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import sys
 import types
 from pathlib import Path
@@ -218,7 +217,7 @@ def test_drtc_resolves_canonical_damo_25_management_links(tmp_path: Path):
 
 
 def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
     captured: dict[str, object] = {}
@@ -249,9 +248,6 @@ def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
 
     assert hydamo.validation_result is not None
     assert hydamo.validation_result.success is True
-    assert not any(
-        record.name == "hydrolib.dhydamo.validation" for record in caplog.records
-    )
     assert captured["factory_kwargs"] == {
         "output_types": [],
         "coverages": {},
@@ -350,8 +346,8 @@ def test_load_from_gpkg_validate_true_promotes_mode_to_warn(
     assert hydamo.validation_result.success is True
 
 
-def test_load_from_gpkg_validation_warn_logs_failure_and_continues(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+def test_load_from_gpkg_validation_warn_failure_does_not_raise(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
 
@@ -373,13 +369,6 @@ def test_load_from_gpkg_validation_warn_logs_failure_and_continues(
     assert hydamo.validation_result.success is False
     assert hydamo.validation_result.errors == ["bad data"]
     assert not hydamo.branches.empty
-    assert caplog.record_tuples.count(
-        (
-            "hydrolib.dhydamo.validation",
-            logging.WARNING,
-            "HyDAMO validation failed for DAMO 2.5: bad data",
-        )
-    ) == 1
 
 
 def test_validate_gpkg_returns_result_and_stores_on_instance(

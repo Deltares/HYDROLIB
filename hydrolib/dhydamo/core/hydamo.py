@@ -301,6 +301,8 @@ class HyDAMO:
             Also stored as ``self.validation_result``. Inspect ``success``,
             ``status``, and ``errors`` to handle validation failures. A reported
             failure is returned rather than raised as ``HyDAMOValidationError``.
+            Diagnostic warnings and errors are logged by the
+            ``hydamo_validation.validator`` logger.
 
         Raises
         ------
@@ -357,8 +359,9 @@ class HyDAMO:
             remains strict.
         validation_mode : str
             ``"off"`` skips validation (default). ``"warn"`` validates and
-            continues after a reported failure; inspect ``validation_result``
-            because this mode currently does not emit a warning itself.
+            continues after a reported failure; diagnostic warnings and errors
+            are logged by the ``hydamo_validation.validator`` logger. Inspect
+            ``validation_result`` for the full result.
             ``"strict"`` raises ``HyDAMOValidationError`` on a reported failure
             before loading layers. Validation setup errors can raise in either
             enabled mode.
