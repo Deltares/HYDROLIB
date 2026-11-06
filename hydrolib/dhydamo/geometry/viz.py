@@ -14,19 +14,23 @@ from matplotlib.figure import Figure
 
 # --- helper for point layers ---
 def point_layer(m, gdf, name, color, symbol, size=14, use_centroid=False):
-    fg = folium.FeatureGroup(name=name)
-    for _, row in gdf.geometry.set_crs(28992).to_crs(4326).items():
-        pt = row.centroid if use_centroid else row
-        folium.Marker(
-            location=[pt.y, pt.x],
+    # One GeoJson layer with a shared marker template instead of a folium.Marker per point, keeps the HTML small.
+    geoms = gdf.geometry.set_crs(28992)
+    if use_centroid:
+        geoms = geoms.centroid
+    pts = shapely.set_precision(geoms.to_crs(4326).values, 1e-6, mode="pointwise")
+    folium.GeoJson(
+        gpd.GeoDataFrame(geometry=pts, crs=4326),
+        name=name,
+        marker=folium.Marker(
             icon=folium.DivIcon(
                 html=f'<span style="font-size:{size}px;color:{color};line-height:1;">{symbol}</span>',
                 icon_size=(size, size),
                 icon_anchor=(size // 2, size // 2),
-            ),
-            tooltip=name,
-        ).add_to(fg)
-    fg.add_to(m)
+            )
+        ),
+        tooltip=name,
+    ).add_to(m)
 
 class TitleControl(MacroElement):
     def __init__(self, title):
@@ -64,10 +68,11 @@ def plot_network(
     for d in [mesh1d_kwargs, mesh2d_kwargs, links1d2d_kwargs]:
         if "lw" in d and "weight" not in d:
             d["weight"] = d.pop("lw")
-    if background:        
-        m = folium.Map(tiles="OpenStreetMap")
+    # prefer_canvas: draw vectors on a canvas instead of one SVG element per edge, much faster for large meshes
+    if background:
+        m = folium.Map(tiles="OpenStreetMap", prefer_canvas=True)
     else:
-        m = folium.Map(location=[0, 0], zoom_start=5, tiles=None)
+        m = folium.Map(location=[0, 0], zoom_start=5, tiles=None, prefer_canvas=True)
     all_bounds = []
     nodes1d = faces2d = None
 
@@ -79,12 +84,15 @@ def plot_network(
         )
 
     def add_lines(geoms, name, color, weight):
-        gdf = gpd.GeoDataFrame(geometry=geoms, crs=crs).to_crs(4326)
+        # One MultiLineString instead of a feature per edge, with coordinates rounded to 1e-6 degrees (~0.1 m).
+        # This keeps the HTML small enough to render a 2D mesh in a notebook.
+        lines = gpd.GeoSeries(geoms, crs=crs).to_crs(4326)
+        merged = shapely.set_precision(shapely.multilinestrings(lines.values), 1e-6, mode="pointwise")
         folium.GeoJson(
-            gdf, name=name,
+            gpd.GeoDataFrame(geometry=[merged], crs=4326), name=name,
             style_function=lambda _, c=color, w=weight: {"color": c, "weight": w},
         ).add_to(m)
-        all_bounds.append(gdf.total_bounds)
+        all_bounds.append(lines.total_bounds)
 
     if not network._mesh1d.is_empty():
         nodes1d = np.stack([network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1)
@@ -119,13 +127,6 @@ def plot_network(
 
         vmin = face_z_kwargs["vmin"] if face_z_kwargs["vmin"] is not None else float(face_z.min())
         vmax = face_z_kwargs["vmax"] if face_z_kwargs["vmax"] is not None else float(face_z.max())
-
-        norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
-        cmap = plt.get_cmap(face_z_kwargs["cmap"])
-        hex_colors = [mcolors.to_hex(c) for c in cmap(norm(face_z))]
-
-        pts = shapely.points(np.stack([face_x, face_y], axis=1))
-        gdf_z = gpd.GeoDataFrame({"color": hex_colors}, geometry=pts, crs=crs).to_crs(4326)
 
         # reproject face points
         pts = shapely.points(np.stack([face_x, face_y], axis=1))

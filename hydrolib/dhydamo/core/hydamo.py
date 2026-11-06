@@ -3,6 +3,7 @@ import numbers
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dask.dot import name
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -11,7 +12,9 @@ from pydantic.v1 import ConfigDict, validate_arguments
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from tqdm.auto import tqdm
+from netCDF4 import Dataset, chartostring
 
+from hydrolib.dhydamo.io.netcdfreader import time_index
 from hydrolib import dhydamo
 from hydrolib.dhydamo.converters.hydamo2df import (
     CrossSectionsIO,
@@ -20,6 +23,7 @@ from hydrolib.dhydamo.converters.hydamo2df import (
     StorageNodesIO,
     StructuresIO,
 )
+from hydrolib.dhydamo.geometry import common
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
@@ -1142,10 +1146,9 @@ class CrossSections:
             bottomlevel = 0.0
 
         if not closed:
-            levels = f"{bottomlevel} 100"
-            flowwidths = (
-                f"{bottomwidth:.2f} {bottomwidth + 2.*((100.0-bottomlevel)*slope):.2f}"
-            )
+            dh = (maximumflowwidth - bottomwidth) / (2.0 * slope)   # hoogte tot insteekhoogte
+            levels = f"{bottomlevel} {bottomlevel + dh:.3f}"
+            flowwidths = f"{bottomwidth:.2f} {maximumflowwidth:.2f}"
         else:
             levels = f"0 {((maximumflowwidth - bottomwidth)/2.0) / slope:.2f}"
             flowwidths = f"{bottomwidth:.2f} {maximumflowwidth:.2f}"
@@ -1518,6 +1521,7 @@ class ExternalForcings:
             columns=["waterdepth", "geometry", "locationtype"]
         )
         self.missing = None
+        self.spatial_fields = []
 
         self.boundary_nodes = {}
         self.lateral_nodes = {}
@@ -1525,34 +1529,35 @@ class ExternalForcings:
 
         self.convert = ExternalForcingsIO(self)
 
-    def set_initial_waterlevel(self, level, polygon=None, name=None, locationtype="1d"):
-        """
-        Method to set initial water level. A polygon can be given to
-        limit the initial water level to a certain extent.
 
+    def set_initial_waterlevel(self, initial_values: float | gpd.GeoDataFrame, locationtype : str="1d", name_column: str=None, value_column: str=None) -> None:
         """
-        # Get name is not given as input
-        if name is None:
-            name = f"wlevpoly{len(self.initial_waterlevel_polygons) + 1:04d}"
+        Method to set a uniform initial water level. For spatially varying water levels
+        (polygons from a shapefile or values from a model result), use set_spatial_field.
 
-        # Add to geodataframe
-        if polygon is None:
-            new_df = pd.DataFrame(
-                {
-                    "waterlevel": level,
-                    "geometry": polygon,
-                    "locationtype": locationtype,
-                },
-                index=[name],
+        For 1D (locationtype '1d'), the value is written per branch for all branches, as a spatial field at the
+        position of this call: fields added after it override it where they apply, fields added before it are
+        overridden. Calling it again replaces the earlier uniform water level.
+        """
+
+        if isinstance(initial_values, (int, float)):
+            self.initial_waterlevel_polygons = gpd.GeoDataFrame(
+                {"waterlevel": [float(initial_values)], "geometry": [None], "locationtype": [locationtype]},
+                index=["global"],
             )
-            self.initial_waterlevel_polygons = new_df
+            if locationtype == "1d":
+                self._set_uniform_field("waterlevel", float(initial_values))
         else:
-            self.initial_waterlevel_polygons.loc[name] = {
-                "waterlevel": level,
-                "geometry": polygon,
-                "locationtype": locationtype,
-            }
 
+            if initial_values[name_column].isnull().any():
+                raise ValueError(f"Column {name_column} not filled for all of the initial water level polygons. Please provide valid values.")
+            if initial_values[value_column].isnull().any():
+                raise ValueError(f"Column {value_column} not filled for all of the initial water level polygons. Please provide valid values.")
+            self.initial_waterlevel_polygons['waterlevel'] = initial_values[value_column]
+            self.initial_waterlevel_polygons['geometry'] = initial_values['geometry']
+            self.initial_waterlevel_polygons['locationtype'] = locationtype
+            self.initial_waterlevel_polygons.index = initial_values[name_column]     
+                            
     def set_missing_waterlevel(self, missing):
         """
         Method to set the missing value for the water level.
@@ -1565,37 +1570,486 @@ class ExternalForcings:
         """
         self.mdu_parameters["WaterLevIni"] = missing
 
-    def set_initial_waterdepth(self, depth, polygon=None, name=None, locationtype="1d"):
-        """
-        Method to set the initial water depth in the 1d model. The water depth is
-        set by determining the water level at the locations of the cross sections.
+    def set_initial_waterdepth(self, initial_values: float | gpd.GeoDataFrame, locationtype : str="1d", name_column: str=None, value_column: str=None) -> None:
+           """
+           Method to set a uniform initial water depth. For spatially varying water depths
+           (polygons from a shapefile or values from a model result), use set_spatial_field.
 
-        Parameters
-        ----------
-        depth : float
-            Water depth
+           For 1D (locationtype '1d'), the value is written per branch for all branches, as a spatial field at the
+           position of this call: fields added after it override it where they apply, fields added before it are
+           overridden. Calling it again replaces the earlier uniform water depth. (A uniform water depth for 2D or
+           'all' is written as a [Global] value; D-HYDRO 2026.02 then lets it override spatial water levels.)
+           """
+   
+           if isinstance(initial_values, (int, float)):
+               self.initial_waterdepth_polygons = gpd.GeoDataFrame(
+                   {"waterdepth": [float(initial_values)], "geometry": [None], "locationtype": [locationtype]},
+                   index=["global"],
+               )
+               if locationtype == "1d":
+                   self._set_uniform_field("waterdepth", float(initial_values))
+           else:   
+               if initial_values[name_column].isnull().any():
+                   raise ValueError(f"Column {name_column} not filled for all of the initial water depth polygons. Please provide valid values.")
+               if initial_values[value_column].isnull().any():
+                   raise ValueError(f"Column {value_column} not filled for all of the initial water depth polygons. Please provide valid values.")
+               self.initial_waterdepth_polygons['waterdepth'] = initial_values[value_column]
+               self.initial_waterdepth_polygons['geometry'] = initial_values['geometry']
+               self.initial_waterdepth_polygons['locationtype'] = locationtype
+               self.initial_waterdepth_polygons.index = initial_values[name_column]    
+
+    def _set_uniform_field(self, quantity: str, value: float) -> None:
+        """Add a uniform 1D value as a spatial field per branch over all branches, replacing an earlier one.
+
+        The values per branch are derived from the branches when the model is converted.
         """
-        # Get name is not given as input
-        if name is None:
-            name = f"wlevpoly{len(self.initial_waterdepth_polygons) + 1:04d}"
-        # Add to geodataframe
-        if polygon is None:
-            new_df = pd.DataFrame(
-                {
-                    "waterdepth": depth,
-                    "geometry": polygon,
-                    "locationtype": locationtype,
-                },
-                index=[name],
+        self.spatial_fields = [
+            sf for sf in self.spatial_fields if not (sf.get("uniform") is not None and sf["quantity"] == quantity)
+        ]
+        self.spatial_fields.append(
+            {
+                "gdf": None,
+                "column": None,
+                "uniform": value,
+                "quantity": quantity,
+                "kind": "initial",
+                "filetype": "branch",
+                "cellsize": None,
+                "filename": f"initial{quantity}.ini",
+                "locationtype": "1d",
+                "interpolationmethod": None,
+                "averagingtype": None,
+                "operand": "O",
+                "nodata": -999.0,
+                "max_snap_distance": None,
+            }
+        )
+
+    def correct_values_from_modelrun(
+        self,
+        model_values: gpd.GeoDataFrame,
+        correction_polygons: gpd.GeoDataFrame,
+        value_column: str,
+        boundary_step: float | None = 0.01,
+    ) -> gpd.GeoDataFrame:
+        """
+        Replace values from a model result by the values of correction polygons, for all points within these polygons.
+
+        If the points have the columns 'branchid' and 'chainage' (as from read_values_from_modelrun) and the HyDAMO
+        branches are available, two points are added where a polygon boundary crosses a branch, boundary_step apart:
+        the point inside gets the polygon value, the point outside the model value interpolated along the branch.
+        The value then changes at the polygon boundary instead of gradually between the nearest model points.
+
+        Args:
+            model_values (gpd.GeoDataFrame): points with a column 'value', e.g. from read_values_from_modelrun
+            correction_polygons (gpd.GeoDataFrame): polygons with the corrected values
+            value_column (str): column in correction_polygons with the corrected values
+            boundary_step (float | None, optional): distance between the two points at a polygon boundary. None: no
+                points are added. Defaults to 0.01.
+
+        Returns:
+            gpd.GeoDataFrame: copy of model_values with corrected values (and the points at the polygon boundaries).
+                Where polygons overlap, the last polygon is used.
+        """
+        model_values_corrected = model_values.copy(deep=True)
+        if model_values_corrected.crs is None and correction_polygons.crs is not None:
+            model_values_corrected = model_values_corrected.set_crs(correction_polygons.crs)
+
+        # use a plain GeoDataFrame, an ExtendedGeoDataFrame loses the value column in the spatial join
+        joined = gpd.sjoin(
+            model_values_corrected[["geometry"]],
+            gpd.GeoDataFrame(correction_polygons[[value_column, "geometry"]]),
+            how="inner",
+            predicate="intersects",
+        )
+        joined = joined[~joined.index.duplicated(keep="last")]
+
+        model_values_corrected.loc[joined.index, 'value'] = joined[value_column]
+
+        branches = getattr(self.hydamo, "branches", None)
+        if boundary_step is None or not {"branchid", "chainage"} <= set(model_values.columns):
+            return model_values_corrected
+        if branches is None or branches.empty:
+            logger.info("No branches available: no points are added at the boundaries of the correction polygons.")
+            return model_values_corrected
+
+        boundary_points = self._points_at_polygon_boundaries(
+            model_values, gpd.GeoDataFrame(correction_polygons[[value_column, "geometry"]]).reset_index(drop=True),
+            value_column, branches, boundary_step,
+        )
+        if boundary_points.empty:
+            return model_values_corrected
+        logger.info(f"{len(boundary_points)} points added at the boundaries of the correction polygons.")
+        combined = pd.concat([model_values_corrected, boundary_points], ignore_index=True)
+        return gpd.GeoDataFrame(combined, geometry="geometry", crs=model_values_corrected.crs)
+
+    @staticmethod
+    def _points_at_polygon_boundaries(
+        model_values: gpd.GeoDataFrame, polygons: gpd.GeoDataFrame, value_column: str, branches: gpd.GeoDataFrame, step: float
+    ) -> gpd.GeoDataFrame:
+        """Two points per crossing of a polygon boundary with a branch, step apart, with the value on each side."""
+        rows = []
+        for branch_id, original in model_values.groupby("branchid"):
+            if branch_id not in branches.index:
+                continue
+            line = branches.geometry.loc[branch_id]
+            candidates = polygons.iloc[polygons.sindex.query(line, predicate="intersects")]
+            if candidates.empty:
+                continue
+            original = original.sort_values("chainage")
+
+            # chainages where the branch crosses a polygon boundary
+            crossings = set()
+            for boundary in candidates.geometry.boundary:
+                intersection = line.intersection(boundary)
+                parts = getattr(intersection, "geoms", [intersection])
+                for geom in parts:
+                    if not geom.is_empty:
+                        crossings.update(line.project(Point(c)) for c in geom.coords)
+
+            for crossing in sorted(crossings):
+                for chainage in (crossing - 0.5 * step, crossing + 0.5 * step):
+                    if not 0.0 <= chainage <= line.length:
+                        continue
+                    point = line.interpolate(chainage)
+                    inside = candidates[candidates.geometry.intersects(point)]
+                    if len(inside):
+                        value = float(inside[value_column].iloc[-1])
+                    else:
+                        value = float(np.interp(chainage, original["chainage"], original["value"]))
+                    rows.append(
+                        {"x": point.x, "y": point.y, "value": value, "branchid": branch_id, "chainage": chainage, "geometry": point}
+                    )
+        if not rows:
+            return gpd.GeoDataFrame(columns=["x", "y", "value", "branchid", "chainage", "geometry"], geometry="geometry")
+        return gpd.GeoDataFrame(rows, geometry="geometry", crs=model_values.crs)
+
+
+    def read_values_from_modelrun(
+        self,
+        netcdf_path: str | Path,
+        netcdf_field: str,
+        netcdf_index: int = None,
+        crs=None,
+        time: datetime | pd.Timestamp | str = None,
+    ) -> gpd.GeoDataFrame:
+        """
+        Read the values of a 1D variable from a model result (map- or fou-file).
+
+        Variables on the 1D nodes (e.g. 'mesh1d_s1', 'mesh1d_waterdepth') are returned at the node locations,
+        variables on the 1D edges/flow links (e.g. 'mesh1d_u1') at the edge locations.
+
+        Args:
+            netcdf_path (str | Path): path to the netcdf file
+            netcdf_field (str): variable to read, e.g. 'mesh1d_s1' (map) or 'mesh1d_fourier001_max' (fou)
+            netcdf_index (int, optional): time index, e.g. 0 for the first time step. If neither netcdf_index
+                nor time is given, the last time step is used. Defaults to None.
+            crs (optional): coordinate reference system of the model. Defaults to None.
+            time (datetime | pd.Timestamp | str, optional): time for which the values are read, e.g.
+                "2016-06-02 12:00"; the nearest time step is used. Defaults to None.
+
+        If 'mesh1d_s1' is requested but the file only contains the water depth, the water level is computed
+        as bed level + water depth.
+
+        Missing values (dry nodes or links in a map-file) are replaced by the bed level for water levels,
+        and by 0 for water depths, velocities and discharges; for other variables they are left out.
+
+        If the file contains the 1D network topology, the columns 'branchid' and 'chainage' are added, so the
+        values can be written per branch with set_spatial_field(..., filetype="branch"). For edge variables,
+        the column 'direction' (angle of the link in radians) is added, as used by set_initial_velocity.
+
+        Returns:
+            gpd.GeoDataFrame: points with columns x, y and value (and branchid, chainage and direction, if available)
+        """
+        logging.info(f"Reading {netcdf_field} from {netcdf_path} ...")
+        with Dataset(netcdf_path, "r") as results:  # Open file in read mode
+            from_depth = (
+                netcdf_field == "mesh1d_s1"
+                and netcdf_field not in results.variables
+                and {"mesh1d_waterdepth", "mesh1d_flowelem_bl"} <= set(results.variables)
+            )
+            if from_depth:
+                logging.info("mesh1d_s1 is not in the file; the water level is computed as bed level + water depth.")
+                variable = results["mesh1d_waterdepth"]
+            elif netcdf_field in results.variables:
+                variable = results[netcdf_field]
+            else:
+                raise KeyError(f"{netcdf_field} not found in {netcdf_path}.")
+
+            if time is not None:
+                if netcdf_index is not None:
+                    raise ValueError("Provide either netcdf_index or time, not both.")
+                if "time" not in variable.dimensions:
+                    raise ValueError(f"{netcdf_field} in {netcdf_path} has no time dimension.")
+                netcdf_index = time_index(results, time)
+            if netcdf_index is None and "time" in variable.dimensions:
+                n_time = results.dimensions["time"].size
+                if n_time != 1:
+                    logging.info(f"No time given; the last of the {n_time} time steps in {netcdf_path} is used.")
+                netcdf_index = -1
+            if netcdf_index is None:
+                value = np.ma.masked_invalid(variable[:])
+            else:
+                value = np.ma.masked_invalid(variable[netcdf_index, :])
+            if from_depth:
+                # dry nodes (missing depth) get the bed level
+                bed_level = np.ma.filled(results["mesh1d_flowelem_bl"][:], np.nan)
+                value = np.ma.masked_invalid(bed_level + np.ma.filled(value, 0.0))
+
+            # location of the variable: 1D nodes or 1D edges (flow links)
+            location = "edge" if variable.dimensions[-1] == "mesh1d_nEdges" else "node"
+            x = np.array(results[f"mesh1d_{location}_x"][:])
+            y = np.array(results[f"mesh1d_{location}_y"][:])
+            if value.ndim != 1 or len(x) != len(value):
+                raise ValueError(f'For {netcdf_field} in {netcdf_path}, length of coordinates and values are not equal.')
+
+            topology = {}
+            if all(v in results.variables for v in (f"mesh1d_{location}_branch", f"mesh1d_{location}_offset", "network1d_branch_id")):
+                branch_ids = np.array([b.strip() for b in chartostring(results["network1d_branch_id"][:])], dtype=object)
+                branch_index = np.array(results[f"mesh1d_{location}_branch"][:]).astype(int)
+                branch_index -= int(getattr(results[f"mesh1d_{location}_branch"], "start_index", 0))
+                topology = {"branchid": branch_ids[branch_index], "chainage": np.array(results[f"mesh1d_{location}_offset"][:])}
+            if location == "edge" and "mesh1d_edge_nodes" in results.variables:
+                # direction of the link (from its first to its second node), to decompose velocities in x and y
+                edge_nodes = np.array(results["mesh1d_edge_nodes"][:]).astype(int)
+                edge_nodes -= int(getattr(results["mesh1d_edge_nodes"], "start_index", 0))
+                node_x, node_y = np.array(results["mesh1d_node_x"][:]), np.array(results["mesh1d_node_y"][:])
+                topology["direction"] = np.arctan2(
+                    node_y[edge_nodes[:, 1]] - node_y[edge_nodes[:, 0]], node_x[edge_nodes[:, 1]] - node_x[edge_nodes[:, 0]]
+                )
+
+            missing = np.ma.getmaskarray(value)
+            if missing.any():
+                name = netcdf_field.lower()
+                if "depth" in name or location == "edge" or "velocity" in name:
+                    fill, label = np.zeros(len(value)), "0"
+                elif "s1" in netcdf_field or "waterlevel" in name:
+                    fill = np.ma.filled(results["mesh1d_flowelem_bl"][:], np.nan) if "mesh1d_flowelem_bl" in results.variables else None
+                    label = "the bed level"
+                else:
+                    fill = None
+                if fill is not None:
+                    logging.info(f"{missing.sum()} {location}s without a value (dry) in {netcdf_field}, set to {label}.")
+                    value = np.where(missing, fill, np.ma.filled(value, np.nan))
+                    missing = np.isnan(value)
+                else:
+                    value = np.ma.filled(value, np.nan)
+                if missing.any():
+                    logging.warning(f"{missing.sum()} {location}s without a value in {netcdf_field} are left out.")
+                    x, y, value = x[~missing], y[~missing], value[~missing]
+                    topology = {key: values[~missing] for key, values in topology.items()}
+            else:
+                value = np.ma.filled(value, np.nan)
+
+        return gpd.GeoDataFrame(
+            {"x": x, "y": y, "value": value, **topology},
+            geometry=gpd.points_from_xy(x, y),
+            crs=crs,
+        )
+
+    def set_initial_velocity(self, velocities: gpd.GeoDataFrame, column: str = "value", filename: str = "initial_velocity") -> None:
+        """
+        Set the initial velocity on the 1D flow links from a model result, e.g. 'mesh1d_u1' read with
+        read_values_from_modelrun.
+
+        D-Flow FM (2026.02) does not accept 'initialvelocity' in the initial fields file, only the components
+        'initialvelocityx' and 'initialvelocityy'. The velocity along each link is therefore decomposed with
+        the link direction and written as two sample files (triangulation). Tested with DIMR: on links that
+        are in both models, the initial velocity equals the velocity of the model result within 1 cm/s.
+        The effect of an initial velocity is short: the flow adapts within the first minutes.
+
+        Args:
+            velocities (gpd.GeoDataFrame): points at the link locations with the velocity and the column
+                'direction' (angle of the link in radians), as returned by read_values_from_modelrun.
+            column (str, optional): column with the velocity along the link. Defaults to "value".
+            filename (str, optional): base name of the sample files; '_x.xyz' and '_y.xyz' are added.
+                Defaults to "initial_velocity".
+        """
+        if "direction" not in velocities.columns:
+            raise ValueError(
+                "The column 'direction' (angle of the link) is required. Read the velocity with "
+                "read_values_from_modelrun from a file with 'mesh1d_edge_nodes'."
+            )
+        speed = velocities[column].astype(float).to_numpy()
+        angle = velocities["direction"].astype(float).to_numpy()
+        for component, values in (("x", speed * np.cos(angle)), ("y", speed * np.sin(angle))):
+            self.set_spatial_field(
+                velocities.assign(_component=values)[["_component", "geometry"]],
+                "_component",
+                quantity=f"initialvelocity{component}",
+                filetype="sample",
+                filename=f"{filename}_{component}.xyz",
+                interpolationmethod="triangulation",
             )
 
-            self.initial_waterdepth_polygons = new_df
+    def set_spatial_field(
+        self,
+        gdf: gpd.GeoDataFrame,
+        column: str = None,
+        quantity: str = "waterlevel",
+        kind: str = "initial",
+        filetype: str = None,
+        cellsize: float = None,
+        filename: str = None,
+        locationtype: str = "1d",
+        interpolationmethod: str = None,
+        averagingtype: str = "nearestNb",
+        operand: str = "O",
+        nodata: float = -999.0,
+        max_snap_distance: float = 5.0,
+    ) -> None:
+        """
+        Add a spatially varying field to the initial fields file (initialFields.ini).
+
+        By default, values are written per branch and chainage in a 1dField file (filetype 'branch'), for
+        polygons and points. D-Flow FM interpolates them linearly along each branch only, and keeps them
+        constant beyond the first and last chainage of a branch. For polygons, each part of a branch inside a
+        polygon gets the polygon value, with a step at the polygon boundary. For points, the columns 'branchid'
+        and 'chainage' are used if present (e.g. from read_values_from_modelrun); otherwise points are snapped to
+        the nearest branch within max_snap_distance. In DIMR tests (D-HYDRO 2026.02) this gave the most reliable
+        result for polygons, for model results on the same network and on a changed 1D grid, and for combining
+        water level and water depth.
+
+        Advanced: the other file types are kept for special cases (e.g. 2D, or if a future D-Flow FM version
+        does not accept 1dField files), but are not recommended for 1D:
+        - 'sample': points as samples (.xyz) with triangulation, which fills the convex hull of the points, so
+          values spread to other branches.
+        - 'polygon': .pol files with interpolationMethod=constant, one file and block per distinct value.
+        - 'raster': polygons rasterized to a GeoTIFF (.tif) or ArcInfo grid (.asc), requires a cellsize. D-Flow FM
+          (2026.02) uses the nodata value as data.
+
+        Tested with D-HYDRO 2026.02 on 1D nodes: interpolationMethod=averaging assigns no values, so it is
+        refused for locationtype '1d'; triangulation fills the convex hull of the samples; nodes that get no
+        value from any field keep the default water level (WaterLevIni in the MDU), which leaves them dry when it
+        is below the bed level, so cover all nodes. Fields are applied in the order they are added (the last
+        one wins). A uniform 1D value from set_initial_waterlevel/-depth is a field per branch over all branches, at
+        the position of that call, so use it first as a background. A water depth from polygons or samples removes earlier water levels from polygons
+        or samples everywhere, also outside its own area; water levels per branch are kept. Add water depth
+        fields before water level fields.
+
+        The data files are written by Df2HydrolibModel.write_initial_fields().
+
+        Args:
+            gdf (gpd.GeoDataFrame): polygons or points with values
+            column (str, optional): column with values. For points, None means the Z-coordinate is used.
+            quantity (str, optional): D-Flow FM quantity, e.g. 'waterlevel' or 'waterdepth'. For velocities, use
+                set_initial_velocity. Defaults to "waterlevel".
+            kind (str, optional): 'initial' ([Initial] block) or 'parameter' ([Parameter] block). Defaults to "initial".
+            filetype (str, optional): 'branch' (default), or the advanced types 'sample', 'polygon' or 'raster'.
+            cellsize (float, optional): raster cell size, required for filetype 'raster'.
+            filename (str, optional): name of the data file, relative to the fm-folder. Without an extension, the
+                extension of the file type is added (.ini, .xyz, .pol or .tif). For 'polygon', a number is added per
+                distinct value. Defaults to '<quantity>_<nr>' with that extension.
+            locationtype (str, optional): '1d', '2d' or 'all'. Defaults to "1d".
+            interpolationmethod (str, optional): 'constant' (polygon), 'triangulation' or 'averaging'. Not used for
+                'branch'. Defaults to 'triangulation' for samples, 'constant' for polygon files, and 'averaging'
+                for rasters (2D) or 'triangulation' (1D).
+            averagingtype (str, optional): averaging type, if interpolationmethod is 'averaging'. Defaults to "nearestNb".
+            operand (str, optional): how the field is combined with previous fields. Defaults to "O" (override).
+            nodata (float, optional): nodata value for rasters, and the [Global] value of 1dField files (branch), which
+                D-Flow FM treats as no value. Defaults to -999.0.
+            max_snap_distance (float, optional): maximum distance to snap points to a branch for filetype 'branch'.
+                Defaults to 5.0.
+        """
+        if kind not in ("initial", "parameter"):
+            raise ValueError(f"kind should be 'initial' or 'parameter', not '{kind}'.")
+        if gdf.empty:
+            raise ValueError("The provided GeoDataFrame is empty.")
+        if quantity.lower() == "initialvelocity":
+            raise ValueError(
+                "D-Flow FM (2026.02) does not support 'initialvelocity' in the initial fields file. "
+                "Use set_initial_velocity, which writes the x and y components."
+            )
+
+        geomtypes = set(gdf.geom_type)
+        if geomtypes <= {"Polygon", "MultiPolygon"}:
+            filetype = "branch" if filetype is None else filetype
+            if filetype not in ("branch", "polygon", "raster"):
+                raise ValueError(f"For polygons, filetype should be 'branch', 'polygon' or 'raster', not '{filetype}'.")
+        elif geomtypes <= {"Point"}:
+            filetype = "branch" if filetype is None else filetype
+            if filetype not in ("sample", "branch"):
+                raise ValueError(f"For points, filetype should be 'sample' or 'branch', not '{filetype}'.")
         else:
-            self.initial_waterdepth_polygons.loc[name] = {
-                "waterdepth": depth,
-                "geometry": polygon,
+            raise ValueError(
+                f"Only (multi)polygons or points are supported, found: {geomtypes}."
+            )
+
+        if filetype == "branch" and locationtype != "1d":
+            raise ValueError("Filetype 'branch' is only available for locationtype '1d'.")
+        if filetype == "raster" and cellsize is None:
+            raise ValueError("A cellsize is required to rasterize polygons.")
+
+        if filetype == "branch":
+            interpolationmethod = None
+        elif interpolationmethod is None:
+            if filetype == "polygon":
+                interpolationmethod = "constant"
+            elif filetype == "raster" and locationtype != "1d":
+                interpolationmethod = "averaging"
+            else:
+                interpolationmethod = "triangulation"
+        if filetype == "polygon" and interpolationmethod != "constant":
+            raise ValueError("Polygon files only support interpolationmethod 'constant'.")
+        if interpolationmethod == "averaging" and locationtype == "1d":
+            raise ValueError(
+                "interpolationmethod 'averaging' assigns no values to 1D nodes (D-HYDRO 2026.02). "
+                "Use filetype 'branch' or 'polygon' for polygons, or 'triangulation' for samples."
+            )
+        if filetype == "raster" and locationtype in ("1d", "all"):
+            logger.warning(
+                "D-Flow FM uses the raster nodata value as data, which affects 1D nodes near polygon edges. "
+                "Consider filetype 'branch' for 1D."
+            )
+        if filetype == "polygon" and any(
+            len(p.interiors) > 0 for geom in gdf.geometry for p in common.as_polygon_list(geom)
+        ):
+            logger.warning("Polygon files do not support holes; interiors of the polygons are ignored.")
+
+        if column is None:
+            if "Point" not in geomtypes or not gdf.has_z.all():
+                raise ValueError(
+                    "Provide a value column, or use points with a Z-coordinate."
+                )
+            gdf = gdf.assign(_z=gdf.geometry.z)
+            column = "_z"
+
+        if gdf[column].isnull().any():
+            raise ValueError(
+                f"Column {column} not filled for all features. Please provide valid values."
+            )
+
+        ext = {"branch": ".ini", "polygon": ".pol", "raster": ".tif", "sample": ".xyz"}[filetype]
+        if filename is None:
+            filename = f"{quantity}_{len(self.spatial_fields):02d}{ext}"
+        elif Path(filename).suffix == "":
+            # without an extension, the extension follows the file type
+            filename = f"{filename}{ext}"
+        if filename in [sf["filename"] for sf in self.spatial_fields]:
+            raise ValueError(f"Filename {filename} is already used for another spatial field.")
+
+        columns = [column, "geometry"]
+        if filetype == "branch" and {"branchid", "chainage"} <= set(gdf.columns):
+            columns = ["branchid", "chainage"] + columns
+
+        self.spatial_fields.append(
+            {
+                "gdf": gpd.GeoDataFrame(gdf[columns].copy()),
+                "column": column,
+                "quantity": quantity,
+                "kind": kind,
+                "filetype": filetype,
+                "cellsize": cellsize,
+                "filename": filename,
                 "locationtype": locationtype,
+                "interpolationmethod": interpolationmethod,
+                "averagingtype": averagingtype,
+                "operand": operand,
+                "nodata": nodata,
+                "max_snap_distance": max_snap_distance,
             }
+        )
+
 
     def add_rainfall_2D(self, fName, bctype="rainfall"):
         """

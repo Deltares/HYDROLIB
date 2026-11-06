@@ -6,9 +6,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
 from shapely.geometry import Point
+from tests.dhydamo.io.test_to_hydrolibcore import output_path as model_path
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
 
 
@@ -582,3 +584,85 @@ def test_complex_controller_wrong(caplog):
     assert check_msg2 in caplog.messages
     assert check_msg3 in caplog.messages
     assert check_msg4 in caplog.messages
+
+
+def test_state_from_file(tmp_path, caplog):
+    state_path = Path("hydrolib/sample_data/data/rtc_state").resolve()
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
+        rtcd.set_state_from_file(state_path)
+        rtcd.write_xml_v1()
+
+    state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
+    exported = DRTCModel._read_state_leaves(state_path / "state_export.xml")
+    valid_ids = rtcd._dataconfig_ids()
+
+    # all exported items that are part of this RTC model are copied, the others are skipped
+    copied = {key: value for key, value in exported.items() if key in valid_ids}
+    assert len(copied) > 0
+    assert all(state[key] == value for key, value in copied.items())
+    assert all(key in valid_ids for key in state)
+    assert any("not part of this RTC model and are skipped" in msg for msg in caplog.messages)
+    # the state is valid for the end of the earlier run, which differs from the start of this model
+    assert any("The RTC state is valid for 2016-06-03" in msg for msg in caplog.messages)
+
+
+def test_set_initial_state(tmp_path, caplog):
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    structure_id = next(iter(rtcd.pid_controllers))
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
+        rtcd.set_initial_state({structure_id: 12.34, "not_a_structure": 1.0})
+        rtcd.write_xml_v1()
+
+    state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
+    steering_variable = rtcd.pid_controllers[structure_id]["steering_variable"]
+    assert state[f"[Output]{structure_id}/{steering_variable}"] == "12.34"
+    assert any("no controlled structure not_a_structure" in msg for msg in caplog.messages)
+
+
+def test_initial_pid_setting_from_structure(tmp_path):
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    rtcd.write_xml_v1()
+    state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
+
+    for structure_id, controller in rtcd.pid_controllers.items():
+        leaf_id = f"[Output]{structure_id}/{controller['steering_variable']}"
+        if leaf_id not in state:
+            continue  # replaced by a complex controller
+        setting = rtcd._structure_setting(structure_id, controller["steering_variable"])
+        lower, upper = float(controller["lower_bound"]), float(controller["upper_bound"])
+        expected = upper if setting is None else min(max(setting, lower), upper)
+        assert float(state[leaf_id]) == expected
+
+
+def test_state_from_modelrun(tmp_path, caplog):
+    from netCDF4 import Dataset, chartostring
+
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    his_path = Path("tests/reference_model/dflowfm/output/DFM_his.nc")
+    with caplog.at_level(logging.INFO):
+        values = rtcd.set_state_from_modelrun(his_path, time="2016-06-02 12:00")
+    assert values
+    assert rtcd.initial_state == values
+
+    # compare one weir with the his-file at the same time step
+    with Dataset(his_path) as his:
+        index = int(np.argmin(np.abs(his["time"][:] - 36 * 3600)))
+        names = [n.strip() for n in chartostring(his["weirgen_name"][:])]
+        weir = next(sid for sid in values if sid in names)
+        assert values[weir] == float(his["weirgen_crest_level"][index, names.index(weir)])
+
+    rtcd.write_xml_v1()
+    state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
+    controller = {**rtcd.time_controllers, **rtcd.interval_controllers, **rtcd.pid_controllers}[weir]
+    assert float(state[f"[Output]{weir}/{controller['steering_variable']}"]) == values[weir]
+
+
+def test_state_from_modelrun_time_options():
+    rtcd = _setup_rtc_model(output_path=model_path)
+    his_path = Path("tests/reference_model/dflowfm/output/DFM_his.nc")
+    # without a time, the last time step is used
+    last = rtcd.set_state_from_modelrun(his_path)
+    assert last == rtcd.set_state_from_modelrun(his_path, netcdf_index=-1)
+    with pytest.raises(ValueError):
+        rtcd.set_state_from_modelrun(his_path, time="2016-06-02", netcdf_index=-1)
