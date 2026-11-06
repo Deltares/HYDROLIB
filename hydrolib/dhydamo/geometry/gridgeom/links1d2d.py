@@ -143,7 +143,7 @@ class Links1d2d:
             )
 
         # Drop the cells without intersection
-        cells.dropna(subset=["branch_offset"], inplace=True)
+        cells = cells.dropna(subset=["branch_offset"])
         faces2d = np.c_[cells.x, cells.y]
 
         # Get nearest 1d nodes
@@ -173,7 +173,7 @@ class Links1d2d:
                 ].copy()
                 if selectie.intersects(link.geometry).sum() > 1:
                     todrop.append(link.Index)
-            links.drop(todrop, inplace=True)
+            links = links.drop(todrop)
 
             # Re-assign
             del self.nodes1d[:]

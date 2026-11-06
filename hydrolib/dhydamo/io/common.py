@@ -61,7 +61,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         Empty the dataframe
         """
         if not self.empty:
-            self.drop(self.index, inplace=True)
+            # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
+            self.drop(self.index, inplace=True)  # noqa: PD002
             
     def read_shp(
         self,
@@ -85,9 +86,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         # Only keep required columns
         if filter_cols:
             logger.info("Filtering required column keys")
-            gdf.drop(
-                columns=gdf.columns[~gdf.columns.isin(self.required_columns)],
-                inplace=True,
+            gdf = gdf.drop(
+                columns=gdf.columns[~gdf.columns.isin(self.required_columns)]
             )
 
         # filter out rows on key/value pairs if required
@@ -98,7 +98,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # Drop features without geometry
         total_features = len(gdf)
-        gdf.drop(gdf.index[gdf.geometry.isna()], inplace=True)  # temporary fix
+        gdf = gdf.drop(gdf.index[gdf.geometry.isna()])  # temporary fix
         missing_features = len(gdf.index[gdf.geometry.isna()])
         logger.debug(
             f"{missing_features} out of {total_features} do not have a geometry"
@@ -106,7 +106,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         # Rename columns:
         if column_mapping is not None:
-            gdf.rename(columns=column_mapping, inplace=True)
+            gdf = gdf.rename(columns=column_mapping)
 
         # Check number of entries
         if gdf.empty:
@@ -141,7 +141,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         # Copy content
         for col, values in gdf.items():
             if str(values.dtype) == "geometry":
-                self.set_geometry(values.to_numpy(), inplace=True)
+                # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
+                self.set_geometry(values.to_numpy(), inplace=True)  # noqa: PD002
             else:
                 self[col] = values.to_numpy()
 
@@ -298,7 +299,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         gdf = gpd.GeoDataFrame(fields, columns=columns, geometry=geometries)
 
         if column_mapping is not None:
-            gdf.rename(columns=column_mapping, inplace=True)
+            gdf = gdf.rename(columns=column_mapping)
 
         # Enforce a unique index column
         if index_col is not None:
@@ -378,7 +379,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         Check if reprojection is required
         """
         if crs_out != self.crs:
-            self.to_crs(crs_out, inplace=True)
+            # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
+            self.to_crs(crs_out, inplace=True)  # noqa: PD002
         else:
             logger.info("OSM data has same projection as projected crs in ini-file")
 
@@ -449,7 +451,8 @@ class ExtendedDataFrame(pd.DataFrame):
         """
         if not self.empty:
             self.iloc[:, 0] = np.nan
-            self.dropna(inplace=True)
+            # inplace: returning a copy of an ExtendedDataFrame gives a plain DataFrame
+            self.dropna(inplace=True)  # noqa: PD002
 
     def set_data(self, df, index_col):
         if not self.empty:
@@ -540,11 +543,11 @@ class ExtendedDataFrame(pd.DataFrame):
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
         if 'geometry' in layer.columns:
-            layer.drop("geometry", axis=1, inplace=True)
+            layer = layer.drop("geometry", axis=1)
 
         df = layer
         if column_mapping is not None:
-            df.rename(columns=column_mapping, inplace=True)
+            df = df.rename(columns=column_mapping)
 
         # Add data to class GeoDataFrame
         self.set_data(df, index_col=index_col)

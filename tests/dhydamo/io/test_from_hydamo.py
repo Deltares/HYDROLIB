@@ -3,21 +3,22 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import pytest
+import rasterio
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
+from rasterio.transform import from_origin
 from shapely.geometry import (
     LineString,
     MultiPolygon,
     Point,
     Polygon,
+    box,
 )
 from shapely.geometry.base import BaseGeometry
-import pytest
 from netCDF4 import Dataset
-from hydrolib.dhydamo.core import hydamo
-from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 hydamo_data_path = (
     Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"
@@ -232,7 +233,7 @@ def _hydamo_object_from_gpkg():
 
     hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name="profiellijn")
     hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name="profielgroep")
-    hydamo.profile.drop("code", axis=1, inplace=True)
+    hydamo.profile.drop("code", axis=1, inplace=True)  # noqa: PD002
     hydamo.profile["code"] = hydamo.profile["profiellijnid"]
     len_profile_before = len(hydamo.profile)
     hydamo.snap_to_branch_and_drop(hydamo.profile, hydamo.branches, snap_method="intersecting", drop_related=True)
@@ -352,8 +353,8 @@ def _convert_structures(hydamo_obj=None):
 
     return hydamo_obj
 
-def test_convert_structures(hydamo_obj=None):
-    hydamo = _convert_structures(hydamo_obj=hydamo_obj)
+def test_convert_structures():
+    hydamo = _convert_structures()
     # one weir is converted to an orifice, one tol a universal weir. w weirs have in total 4 extra openings, so fictional weirs are added.
     assert hydamo.structures.rweirs_df.shape[0] == hydamo.weirs.shape[0] - 2 + 4
     assert len(hydamo.structures.compounds_df)==2
@@ -402,11 +403,9 @@ def test_convert_crosssections():
     assert len(hydamo.crosssections.crosssection_loc) == 349
 
     # check whether the bridge profile in in the crosssection definitions
-    assert (
-        hydamo.structures.bridges_df.csdefid.to_numpy()[0]
-        in hydamo.crosssections.crosssection_def.keys()
-    )
-    assert "default" in hydamo.crosssections.crosssection_def.keys()
+    bridge_profile = hydamo.structures.bridges_df.csdefid.to_numpy()[0]
+    assert bridge_profile  in hydamo.crosssections.crosssection_def
+    assert "default" in hydamo.crosssections.crosssection_def
 
 
 def _add_structures_manually():
@@ -600,7 +599,7 @@ def test_convert_boundaries():
     hydamo.external_forcings.convert.boundaries(
         hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network
     )
-    assert [i == "RVM_02" for i in hydamo.external_forcings.boundary_nodes.keys()][0]
+    assert next(i == "RVM_02" for i in hydamo.external_forcings.boundary_nodes)
     assert len(hydamo.external_forcings.boundary_nodes.keys()) == 1
 
 
@@ -881,3 +880,43 @@ def test_set_initial_velocity():
     # D-Flow FM does not accept 'initialvelocity' itself
     with pytest.raises(ValueError):
         hydamo.external_forcings.set_spatial_field(u, 'value', quantity='initialvelocity')
+
+
+@pytest.mark.parametrize("qspec", [2.0, -1.0])
+def test_create_laterals_excludes_nodata_and_keeps_negative_discharge(tmp_path, qspec):
+    hydamo, _ = _hydamo_object_from_gpkg()
+    xmin, ymin, xmax, ymax = hydamo.catchments.total_bounds
+    cell = 25.0
+    left, top = xmin - cell, ymax + cell
+    columns = int((xmax - xmin) // cell) + 2
+    rows = int((ymax - ymin) // cell) + 2
+    values = np.full((rows, columns), qspec, dtype=np.float32)
+    # A nodata strip through the catchments.
+    strip_column = columns // 2
+    values[:, strip_column] = -9999.0
+    path = tmp_path / "qspec.tif"
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        width=columns,
+        height=rows,
+        count=1,
+        dtype=values.dtype,
+        crs="EPSG:28992",
+        transform=from_origin(left, top, cell, cell),
+        nodata=-9999.0,
+    ) as dataset:
+        dataset.write(values, 1)
+    strip_x = left + strip_column * cell
+
+    hydamo.create_laterals(qspec_file=path)
+
+    # Uniform discharge, so every catchment gets it, whether it overlaps the
+    # nodata strip or not; negative discharge stays negative.
+    assert hydamo.catchments.intersects(box(strip_x, ymin, strip_x + cell, ymax)).any()
+    np.testing.assert_allclose(
+        hydamo.laterals["afvoer"].to_numpy(dtype=float),
+        qspec * hydamo.catchments.area.to_numpy() / (1000 * 86400),
+        rtol=1e-6,
+    )

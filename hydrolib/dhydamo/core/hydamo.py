@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 import shapely
 from pydantic.v1 import ConfigDict, validate_arguments
-from rasterstats import zonal_stats
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from tqdm.auto import tqdm
@@ -24,8 +23,8 @@ from hydrolib.dhydamo.converters.hydamo2df import (
     StorageNodesIO,
     StructuresIO,
 )
-from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.geometry import common
+from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
@@ -429,7 +428,8 @@ class HyDAMO:
 
         # Drop the relevant rows with the list of labels
         for source, drop_idx in drop_list:
-            source.drop(labels=drop_idx, inplace=True)
+            # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
+            source.drop(labels=drop_idx, inplace=True)  # noqa: PD002
 
     def _recursive_drop_related(self, drop_list, source, drop_idx, target_str, via, on, coupled_to):
         target = getattr(self, target_str)
@@ -446,23 +446,37 @@ class HyDAMO:
             for next_target_str, next_relation in coupled_to.items():
                 return self._recursive_drop_related(drop_list, target, drop_idx, next_target_str, **next_relation)
             
-    def create_laterals(self, qspec_file=None):            
-        ## Specifieke afvoeren inlezen
-        if qspec_file is not None:
-            rr = DRRModel()
-            qspec, affine = rr.read_raster(qspec_file, static=True)
-            fill_value_specifieke_afvoeren = 0
-            qspec = np.where(qspec<0, fill_value_specifieke_afvoeren, qspec)
+    def create_laterals(
+        self,
+        qspec_file=None,
+        *,
+        min_coverage_frac: float = 0.0,
+        coverage_weight: zonal.CoverageWeight = "fraction",
+    ):
+        """Create laterals at the catchments, with the mean specific discharge per catchment.
 
-            ## Afvoer per gebied bepalen met zonal stats
-            afvoer_per_gebied = zonal_stats(self.catchments, qspec, affine=affine, stats="mean", all_touched=True, nodata=-2147483647)   
-        
+        Args:
+            qspec_file (str, optional): raster of specific discharge (mm/d). Without it, the discharges are NaN.
+            min_coverage_frac (float, optional): smallest fraction of a pixel a catchment must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
+            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the catchment covers, "none" counts them fully. Defaults to "fraction".
+        """
+        ## Afvoer per gebied bepalen met zonal stats; nodata telt niet mee
+        if qspec_file is not None:
+            afvoer_per_gebied = zonal.zonal_stats(
+                gpd.GeoDataFrame(self.catchments),
+                qspec_file,
+                statistics=("mean",),
+                strategy="feature-sequential",
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+            )
+
         self.laterals = self.catchments.copy()
 
         for num, cat in enumerate(self.catchments.itertuples()):
             ## Koppelen van afvoeren met afwateringsgebieden
             if qspec_file is not None:
-                q = afvoer_per_gebied[num]['mean'] # mm/d
+                q = afvoer_per_gebied.iloc[num]["mean"] # mm/d
             else:
                 q = np.nan
 
@@ -2652,13 +2666,13 @@ class ObservationPoints:
         find_nearest_branch(
             self.hydamo.branches, obs1d, method="overal", maxdist=snap_distance
         )
-        obs1d.rename(
-            columns={"branch_id": "branchid", "branch_offset": "chainage"}, inplace=True
+        obs1d = obs1d.rename(
+            columns={"branch_id": "branchid", "branch_offset": "chainage"}
         )
 
         obs = pd.concat([obs1d, obs2d], sort=True) if locationTypes is not None else obs1d
 
-        obs.dropna(how="all", axis=1, inplace=True)
+        obs = obs.dropna(how="all", axis=1)
 
         # Add to dataframe
         if self.observation_points.empty:

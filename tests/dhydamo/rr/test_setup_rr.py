@@ -1,25 +1,25 @@
 from pathlib import Path
 
-from shapely.geometry import Point, Polygon, box
-
+import pytest
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
+from shapely.geometry import Point, Polygon, box
 from tests.dhydamo.io import test_from_hydamo
 
 
 def _setup_rr_model(hydamo=None):
-    hydamo_data_path = Path("hydrolib/sample_data/data").resolve()
-    assert hydamo_data_path.exists()
-
+    data_path = Path("hydrolib/sample_data/data").resolve()
+    assert data_path.exists()
+    
     drrmodel = DRRModel()
 
     if hydamo is None:
         hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
 
     # all data and settings to create the RR-model
-    lu_file = hydamo_data_path / "rasters" / "sobek_landuse2.tif"
-    ahn_file = hydamo_data_path / "rasters" / "AHN_2m_clipped_filled.tif"
-    soil_file = hydamo_data_path / "rasters" / "sobek_soil.tif"
+    lu_file = data_path / "rasters" / "sobek_landuse2.tif"
+    ahn_file = data_path / "rasters" / "AHN_2m_clipped_filled.tif"
+    soil_file = data_path / "rasters" / "sobek_soil.tif"
     surface_storage = 10.0
     infiltration_capacity = 100.0
     initial_gwd = 1.2  # water level depth below surface
@@ -30,7 +30,7 @@ def _setup_rr_model(hydamo=None):
     layer_resistances = [30, 200, 10000]
     street_storage = 10.0
     sewer_storage = 10.0
-    pumpcapacity = hydamo_data_path / "rasters/pumpcap.tif"
+    pumpcapacity = data_path / "rasters/pumpcap.tif"
     roof_storage = 10.0
     meteo_areas = hydamo.catchments
 
@@ -60,7 +60,6 @@ def _setup_rr_model(hydamo=None):
         sewer_storage=sewer_storage,
         pump_capacity=pumpcapacity,
         meteo_areas=meteo_areas,
-        zonalstats_alltouched=True,
     )
 
     drrmodel.greenhouse.io.greenhouse_from_input(
@@ -69,20 +68,19 @@ def _setup_rr_model(hydamo=None):
         ahn_file,
         roof_storage,
         meteo_areas,
-        zonalstats_alltouched=True,
     )
 
     drrmodel.openwater.io.openwater_from_input(
-        hydamo.catchments, lu_file, meteo_areas, zonalstats_alltouched=True
+        hydamo.catchments, lu_file, meteo_areas
     )
 
     drrmodel.external_forcings.io.boundary_from_input(
         hydamo.laterals, hydamo.catchments, drrmodel
     )
 
-    seepage_folder = hydamo_data_path / "rasters" / "seepage"
-    precip_folder = hydamo_data_path /  "rasters" / "precipitation"
-    evap_folder = hydamo_data_path / "rasters" / "evaporation"
+    seepage_folder = data_path / "rasters" / "seepage"
+    precip_folder = data_path /  "rasters" / "precipitation"
+    evap_folder = data_path / "rasters" / "evaporation"
     drrmodel.external_forcings.io.seepage_from_input(hydamo.catchments, seepage_folder)
     drrmodel.external_forcings.io.precip_from_input(
         meteo_areas, precip_folder=precip_folder, precip_file=None
@@ -94,8 +92,8 @@ def _setup_rr_model(hydamo=None):
     return drrmodel
 
 
-def test_setup_rr_model(hydamo=None):
-    drrmodel = _setup_rr_model(hydamo=hydamo)
+def test_setup_rr_model():
+    drrmodel = _setup_rr_model()
     assert len([i[1]['ga'] for i in drrmodel.unpaved.unp_nodes.items() if float(i[1]['ga']) > 0.0]) == 121
     assert len([i[1]['ar'] for i in drrmodel.paved.pav_nodes.items() if float(i[1]['ar']) > 0.0]) == 101
     assert len([i[1]['ar'] for i in drrmodel.greenhouse.gh_nodes.items() if float(i[1]['ar']) > 0.0]) == 1
@@ -104,6 +102,25 @@ def test_setup_rr_model(hydamo=None):
     assert len(drrmodel.external_forcings.precip) == 121
     assert len(drrmodel.external_forcings.evap) == 121
     assert len(drrmodel.external_forcings.seepage) == 121
+
+    assert drrmodel.unpaved.unp_nodes["15.0"]["ga"] == "1375"
+    assert drrmodel.unpaved.unp_nodes["15.0"]["lv"] == "16.93"
+    assert drrmodel.paved.pav_nodes["15.0"]["lv"] == "16.93"
+    assert drrmodel.greenhouse.gh_nodes["15.0"]["sl"] == "16.93"
+    assert drrmodel.openwater.ow_nodes["15.0"]["ar"] == "900.0"
+
+    assert drrmodel.external_forcings.precip["ms_15.0"]["precip"].iloc[2] == pytest.approx(
+        0.08, abs=1e-7
+    )
+    assert drrmodel.external_forcings.evap["ms_15.0"]["evap"].iloc[1] == pytest.approx(
+        2.9, abs=1e-7
+    )
+    # Catchment 15.0 (55 x 45 m) touches a few 250 m seepage cells, weighted by
+    # its coverage of each; counting them fully gives -0.079156. IDF seepage is
+    # float32-sourced, hence the looser tolerance.
+    assert drrmodel.external_forcings.seepage["sep_15.0"]["seepage"].iloc[1] == pytest.approx(
+        -0.033760, abs=1e-6
+    )
 
 
 def test_boundary_from_input_drops_zero_area_catchments_without_crash():
