@@ -29,12 +29,11 @@ class Damo25Converter(Damo22Converter):
             "Kunstwerkopening",
             column_mapping={"afsluitmiddelid": "regelmiddelid"},
         ),
-        # In DAMO v2.5, Afsluitmiddel became the management device (previously
-        # Regelmiddel in v2.2). There is no longer a separate closing device
-        # layer. Redirecting to the old v2.2 source name "Regelmiddel" means
-        # load_into() will not find the layer and skip it — all LayerSpecs are
-        # optional=True by default, so a missing layer is logged and skipped
-        # rather than treated as an error.
+        # Override the inherited Afsluitmiddel -> closing_device mapping:
+        # in 2.5, Afsluitmiddel populates the internal management_device below.
+        # The internal closing_device attribute is retained, but Regelmiddel
+        # is absent from 2.5 input, so this optional spec is skipped.
+        # Removing this override alone would load Afsluitmiddel into both tables.
         LayerSpec("closing_device", "Regelmiddel"),
         LayerSpec(
             "management_device",
