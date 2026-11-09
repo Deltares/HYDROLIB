@@ -253,6 +253,125 @@ def test_convert_structures():
     assert hydamo.structures.bridges_df.shape[0] == hydamo.bridges.shape[0]
     assert hydamo.structures.pumps_df.shape[0] == hydamo.pumps.shape[0]
 
+def _pump_hydamo(management_counts):
+    """Build one station; each tuple entry gives a pump's management row count."""
+    hydamo = HyDAMO()
+    hydamo.branches.set_data(
+        gpd.GeoDataFrame({"code": ["B1"], "geometry": [LineString([(0, 0), (100, 0)])]}),
+        index_col="code",
+    )
+    hydamo.pumpstations.set_data(
+        gpd.GeoDataFrame(
+            {
+                "code": ["S1"],
+                "globalid": ["station-1"],
+                "branch_id": ["B1"],
+                "branch_offset": [50.0],
+                "geometry": [Point(50, 0)],
+            }
+        ),
+        index_col="code",
+    )
+    # Distinct capacities (m³/min) and levels reveal incorrect pump/control links.
+    pump_rows = []
+    for pump_index in range(len(management_counts)):
+        pump_rows.append(
+            {
+                "code": f"P{pump_index}",
+                "globalid": f"pump-{pump_index}",
+                "gemaalid": "station-1",
+                "maximalecapaciteit": 60.0 * (pump_index + 1),
+            }
+        )
+    pumps = pd.DataFrame(
+        pump_rows,
+        columns=["code", "globalid", "gemaalid", "maximalecapaciteit"],
+    )
+    hydamo.pumps.set_data(pumps, index_col="code")
+    management_rows = []
+    for pump_index, management_count in enumerate(management_counts):
+        for management_index in range(management_count):
+            management_rows.append(
+                {
+                    "code": f"M{pump_index}-{management_index}",
+                    "globalid": f"management-{pump_index}-{management_index}",
+                    "pompid": f"pump-{pump_index}",
+                    "bovengrens": 17.5 + pump_index,
+                    "ondergrens": 17.3 + pump_index,
+                }
+            )
+    management = pd.DataFrame(
+        management_rows,
+        columns=["code", "globalid", "pompid", "bovengrens", "ondergrens"],
+    )
+    hydamo.management.set_data(management, index_col="code")
+    return hydamo
+
+
+@pytest.mark.parametrize(
+    ("management_counts", "expected"),
+    [
+        pytest.param((1,), [("S1", 1.0, [17.5], [17.3])], id="single-pump"),
+        pytest.param((0,), [], id="single-pump-without-management"),
+        pytest.param(
+            (1, 1),
+            [("S1_1", 1.0, [17.5], [17.3]), ("S1_2", 2.0, [18.5], [18.3])],
+            id="compound-station",
+        ),
+        pytest.param((0, 1), [("S1_2", 2.0, [18.5], [18.3])], id="skip-first-pump"),
+        pytest.param((0, 0), [], id="all-pumps-without-management"),
+    ],
+)
+def test_convert_pumps(management_counts, expected):
+    """Check IDs, capacity conversion to m³/s, control levels, and compound members.
+
+    Expected rows contain (id, capacity, start levels, stop levels).
+    Missing management skips a pump without renumbering the remaining pumps.
+    """
+    hydamo = _pump_hydamo(management_counts)
+    hydamo.structures.convert.pumps(
+        hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
+    )
+    pumps = list(hydamo.structures.pumps_df.itertuples())
+    assert [
+        (pump.id, pump.capacity, pump.startlevelsuctionside, pump.stoplevelsuctionside)
+        for pump in pumps
+    ] == expected
+    for pump in pumps:
+        assert pump.startleveldeliveryside == pump.startlevelsuctionside
+        assert pump.stopleveldeliveryside == pump.stoplevelsuctionside
+        # Catch the original list-of-Series regression, even for a single value.
+        assert np.isscalar(pump.startlevelsuctionside[0])
+        assert np.isscalar(pump.stoplevelsuctionside[0])
+
+    compounds = hydamo.structures.compounds_df
+    if len(management_counts) > 1:
+        # Current behavior retains an empty compound when every pump is skipped.
+        assert compounds.id.tolist() == ["cmp_S1"]
+        assert compounds.iloc[0].numstructures == len(expected)
+        assert compounds.iloc[0].structureids == ";".join(row[0] for row in expected)
+    else:
+        assert compounds.empty
+
+
+@pytest.mark.parametrize(
+    "management_counts",
+    [
+        pytest.param((2,), id="single-pump"),
+        pytest.param((1, 2), id="second-pump-in-compound"),
+    ],
+)
+def test_convert_pumps_rejects_duplicate_management(management_counts):
+    """Reject multiple control rows per pump instead of choosing the first."""
+    hydamo = _pump_hydamo(management_counts)
+    with pytest.raises(
+        ValueError, match="Pump station S1: expected one management row per pump, found 2"
+    ):
+        hydamo.structures.convert.pumps(
+            hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
+        )
+
+
 def _convert_crosssections():
     # initiate a hydamo object
     hydamo = _convert_structures()
