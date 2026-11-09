@@ -1167,77 +1167,61 @@ class StructuresIO:
                 name = pumpstation.name
             else:
                 name = pumpstation.code
-            if pumps_subset.shape[0] > 1:
-                # more than one pump
-                cmp_list = []
+            is_compound = len(pumps_subset) > 1
+            cmp_list = []
+            if is_compound:
                 logger.info(
                     "Pumpstation %s contains %d openings. Creating a compound structure with a fictional pump for each one.",
                     pumpstation.code,
                     pumps_subset.shape[0],
                 )
-                for ipump, (pump_index, pump) in enumerate(pumps_subset.iterrows()):
 
-                    pump_rows = pumps_subset.loc[[pump_index]]
-                    pump_control = management_pump.children_of(
-                        pump_rows,
-                        management,
-                    )
-                    if pump_control.empty:
-                        logger.warning("No management found for %s", pump.code)
-                        continue
-
-                    startlevelsuctionside = [pump_control["bovengrens"]]
-                    stoplevelsuctionside = [pump_control["ondergrens"]]
-
-                    pumpid = f'{pumpstation.code}_{ipump+1}'
-                    cmp_list.append(pumpid)
-
-                    self.structures.add_pump(
-                        id=pumpid,
-                        name=name,
-                        branchid=pumpstation.branch_id,
-                        chainage=pumpstation.branch_offset,
-                        orientation="positive",
-                        numstages=1,
-                        controlside="suctionside",
-                        capacity=pump.maximalecapaciteit/60.,
-                        startlevelsuctionside=startlevelsuctionside,
-                        stoplevelsuctionside=stoplevelsuctionside,
-                        startleveldeliveryside=startlevelsuctionside,
-                        stopleveldeliveryside=stoplevelsuctionside,
-                    )
-                self.structures.add_compound(id=f'cmp_{pumpstation.code}', structureids =cmp_list)
-
-            else:
-                #  only one pump
+            for ipump, (pump_index, pump) in enumerate(pumps_subset.iterrows()):
+                pump_rows = pumps_subset.loc[[pump_index]]
                 pump_control = management_pump.children_of(
-                    pumps_subset,
+                    pump_rows,
                     management,
                 )
                 if pump_control.empty:
-                    logger.warning(
-                        "Skipping %s because there is no associated management.",
-                        pumpstation.code,
+                    if is_compound:
+                        logger.warning("No management found for %s", pump.code)
+                    else:
+                        logger.warning(
+                            "Skipping %s because there is no associated management.",
+                            pumpstation.code,
+                        )
+                    continue
+                if len(pump_control) > 1:
+                    raise ValueError(
+                        f"Pump station {pumpstation.code}: expected one management row "
+                        f"per pump, found {len(pump_control)}."
                     )
+                startlevelsuctionside = [pump_control["bovengrens"].iloc[0]]
+                stoplevelsuctionside = [pump_control["ondergrens"].iloc[0]]
 
-                startlevelsuctionside = [pump_control["bovengrens"]]
-                stoplevelsuctionside = [pump_control["ondergrens"]]
-
-
-                # the pumpstation has only one pump
+                if is_compound:
+                    pumpid = f"{pumpstation.code}_{ipump + 1}"
+                else:
+                    pumpid = pumpstation.code
+                cmp_list.append(pumpid)
                 self.structures.add_pump(
-                    id=pumpstation.code,
+                    id=pumpid,
                     name=name,
                     branchid=pumpstation.branch_id,
                     chainage=pumpstation.branch_offset,
                     orientation="positive",
                     numstages=1,
                     controlside="suctionside",
-                    capacity=pumps_subset.maximalecapaciteit.to_numpy()[0]/60.,
+                    capacity=pump.maximalecapaciteit / 60.0,
                     startlevelsuctionside=startlevelsuctionside,
                     stoplevelsuctionside=stoplevelsuctionside,
                     startleveldeliveryside=startlevelsuctionside,
                     stopleveldeliveryside=stoplevelsuctionside,
+                )
+
+            if is_compound:
+                self.structures.add_compound(
+                    id=f"cmp_{pumpstation.code}", structureids=cmp_list
                 )
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))

@@ -63,6 +63,10 @@ def setup_model(hydamo_obj=None, full_test=False):
             gateloweredgelevel=18.5,
             crestwidth=7.5,
             corrcoeff=1.0,
+            uselimitflowpos="false",
+            limitflowpos=0.0,
+            uselimitflowneg="false",
+            limitflowneg=0.0,
         )
     structures = hydamo.structures.as_dataframe(
         rweirs=True,

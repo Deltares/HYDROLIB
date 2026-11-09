@@ -22,7 +22,6 @@ dependencies:
 - pip
 - pip:
   - -e ./
-  - meshkernel==8.3.0
   - pyzmq==27.2.0
   - matplotlib==3.11.2
   - rasterstats==0.21.0
@@ -103,7 +102,7 @@ dependencies:
   - tornado==6.6
   - six==1.17.0
   - pyproj==3.8.0
-  - hydrolib-core==1.6.0
+  - meshkernel==8.4.0
   - jedi==0.20.1
   - openpyxl==3.1.5
   - distlib==0.4.4
@@ -124,6 +123,7 @@ dependencies:
   - cfgv==3.5.0
   - locket==1.0.0
   - filelock==4.2.4
+  - hydrolib-core==1.5.0
   - cycler==0.12.1
   - jupyter-core==5.9.1
   - pre-commit==4.7.0
