@@ -758,12 +758,12 @@ def _prepare_hydamo():
     assert gpkg_file.exists()
 
     # read branchs
-    hydamo.branches.read_gpkg_layer(
+    hydamo.branches._read_gpkg_layer(
         str(gpkg_file), layer_name="HydroObject", index_col="code"
     )
 
     # Read management device
-    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
+    hydamo.management_device._read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
 
     return hydamo
 
