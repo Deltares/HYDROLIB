@@ -24,9 +24,20 @@ from hydrolib.dhydamo.converters.hydamo2df import (
     StructuresIO,
 )
 from hydrolib.dhydamo.geometry import common
+from hydrolib.dhydamo.core.drr import DRRModel
+from hydrolib.dhydamo.core.relations import (
+    RelationsHyDAMO,
+    build_cascade_plan,
+)
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
+from hydrolib.dhydamo.io.damo_converters import get_damo_converter
+from hydrolib.dhydamo.validation import (
+    HydamoValidationResult,
+    ValidationMode,
+    validate_or_raise,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +48,7 @@ class HyDAMO:
     """
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
-    def __init__(self, extent_file: Path | str = None) -> None:
+    def __init__(self, extent_file: Path | str | None = None) -> None:
         """Initiate subclasses and IO-methods
 
         Args:
@@ -82,6 +93,8 @@ class HyDAMO:
             "dimr_version": "Deltares, DIMR_EXE Version 2.00.00.140737 (Win64) (Win64)",
             "suite_version": "D-HYDRO Suite 2024.03 1D2D,",
         }
+        self.source_damo_version = "2.2"
+        self.validation_result: HydamoValidationResult | None = None
 
         # Create standard dataframe for network, crosssections, orifices, weirs
         self.branches = ExtendedGeoDataFrame(
@@ -89,31 +102,12 @@ class HyDAMO:
             required_columns=[
                 "code",
                 "geometry"
-            ],
-            related=None
+            ]
         )
 
         self.profile = ExtendedGeoDataFrame(
             geotype=LineString,
-            required_columns=["code", "geometry", "globalid", "profiellijnid"],
-            related={
-                "profile_roughness": {
-                    "via": "globalid",
-                    "on": "profielpuntid",
-                    "coupled_to": None
-                },
-                "profile_line": {
-                    "via": "profiellijnid",
-                    "on": "globalid",
-                    "coupled_to": {
-                        "profile_group": {
-                            "via": "profielgroepid",
-                            "on": "globalid",
-                            "coupled_to": None
-                        }
-                    }
-                }
-            }
+            required_columns=["code", "geometry", "globalid", "profiellijnid"]
         )
         self.profile_roughness = ExtendedDataFrame(
             required_columns=["profielpuntid"]
@@ -121,25 +115,7 @@ class HyDAMO:
 
         self.profile_line = ExtendedGeoDataFrame(
             geotype=LineString,
-            required_columns=["globalid", "profielgroepid"],
-            related={
-                "profile_group": {
-                    "via": "profielgroepid",
-                    "on": "globalid",
-                    "coupled_to": None
-                },
-                "profile": {
-                    "via": "globalid",
-                    "on": "profiellijnid",
-                    "coupled_to": {
-                        "profile_roughness": {
-                            "via": "globalid",
-                            "on": "profielpuntid",
-                            "coupled_to": None
-                        }
-                    }
-                }
-            }
+            required_columns=["globalid", "profielgroepid"]
         )
 
         self.profile_group = ExtendedDataFrame(
@@ -169,20 +145,7 @@ class HyDAMO:
                 "geometry",
                 "globalid",                
                 "afvoercoefficient",
-            ],
-            related={
-                "opening": {
-                    "via": "globalid",
-                    "on": "stuwid",
-                    "coupled_to": {
-                        "management_device": {
-                            "via": "globalid",
-                            "on": "kunstwerkopeningid",
-                            "coupled_to": None
-                        }
-                    }
-                }
-            }
+            ]
         )
 
         # opening
@@ -217,8 +180,7 @@ class HyDAMO:
                 "uittreeverlies",
                 "ruwheid",
                 "typeruwheid",
-            ],
-            related=None
+            ]
         )
 
         # Culverts
@@ -237,14 +199,7 @@ class HyDAMO:
                 "uittreeverlies",
                 "typeruwheid",
                 "ruwheid",
-            ],
-            related={
-                "management_device": {
-                    "via": "globalid",
-                    "on": "duikersifonhevelid",
-                    "coupled_to": None
-                }
-            }
+            ]
         )
 
         # Gemalen
@@ -254,20 +209,7 @@ class HyDAMO:
                 "code",
                 "globalid",
                 "geometry",
-            ],
-            related={
-                "pumps": {
-                    "via": "globalid",
-                    "on": "gemaalid",
-                    "coupled_to": {
-                        "management": {
-                            "via": "globalid",
-                            "on": "pompid",
-                            "coupled_to": None
-                        }
-                    }
-                }
-            }
+            ]
         )
         self.pumps = ExtendedDataFrame(
             required_columns=["code", "globalid", "gemaalid", "maximalecapaciteit"]
@@ -279,99 +221,49 @@ class HyDAMO:
         # Hydraulische randvoorwaarden
         self.boundary_conditions = ExtendedGeoDataFrame(
             geotype=Point,
-            required_columns=["code", "typerandvoorwaarde", "geometry"],
-            related=None
+            required_columns=["code", "typerandvoorwaarde", "geometry"]
         )
 
         # RR catchments
         self.catchments = ExtendedGeoDataFrame(
             geotype=Polygon | MultiPolygon,
-            required_columns=["code", "geometry", "globalid", "lateraleknoopid"],
-            related={
-                "laterals": {
-                    "via": "lateraleknoopid",
-                    "on": "globalid",
-                    "coupled_to": None
-                }
-            }
+            required_columns=["code", "geometry", "globalid", "lateraleknoopid"]
         )
 
         # Laterals
         self.laterals = ExtendedGeoDataFrame(
             geotype=Point,
-            required_columns=["code", "geometry", "globalid"],
-            related={
-                "catchments": {
-                    "via": "globalid",
-                    "on": "lateraleknoopid",
-                    "coupled_to": None
-                }
-            }
+            required_columns=["code", "geometry", "globalid"]
         )
 
         # RR overflows
         self.overflows = ExtendedGeoDataFrame(
             geotype=Point,
-            required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
-            related={
-                "sewer_areas": {
-                    "via": "codegerelateerdobject",
-                    "on": "code",
-                    "coupled_to": None
-                }
-            }
+            required_columns=["code", "geometry", "codegerelateerdobject", "fractie"]
         )
 
         # RR sewer areas
         self.sewer_areas = ExtendedGeoDataFrame(
             geotype=Polygon,
-            required_columns=["code", "geometry"],
-            related={
-                "overflows": {
-                    "via": "code",
-                    "on": "codegerelateerdobject",
-                    "coupled_to": None
-                }
-            }
+            required_columns=["code", "geometry"]
         )
 
         # RR overflows
         self.overflows = ExtendedGeoDataFrame(
             geotype=Point,
-            required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
-            related={
-                "sewer_areas": {
-                    "via": "codegerelateerdobject",
-                    "on": "code",
-                    "coupled_to": None
-                }
-            }
+            required_columns=["code", "geometry", "codegerelateerdobject", "fractie"]
         )
 
         # RR greenhouse areas
         self.greenhouse_areas = ExtendedGeoDataFrame(
             geotype=Polygon,
-            required_columns=["code", "geometry"],
-            related={
-                "greenhouse_laterals": {
-                    "via": "code",
-                    "on": "codegerelateerdobject",
-                    "coupled_to": None
-                }
-            }
+            required_columns=["code", "geometry"]
         )
 
          # RR overflows
         self.greenhouse_laterals = ExtendedGeoDataFrame(
             geotype=Point,
-            required_columns=["code", "geometry", "codegerelateerdobject"],
-            related={
-                "greenhouse_areas": {
-                    "via": "codegerelateerdobject",
-                    "on": "code",
-                    "coupled_to": None
-                }
-            }
+            required_columns=["code", "geometry", "codegerelateerdobject"]
         )
 
         # RR overflows
@@ -379,6 +271,163 @@ class HyDAMO:
             geotype=Polygon,
             required_columns=["code", "geometry"],            
         )
+
+    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    def validate_gpkg(
+        self,
+        gpkg_path: Path | str,
+        hydamo_version: str = "2.2",
+        validation_coverages: dict | None = None,
+        validation_rules_path: Path | str | None = None,
+    ) -> HydamoValidationResult:
+        """Validate a GeoPackage without loading its layers.
+
+        Requires Python 3.12 and the optional dependency installed with
+        ``pip install "hydrolib[validation]"``.
+
+        Parameters
+        ----------
+        gpkg_path : str or Path
+            Path to the GeoPackage file.
+        hydamo_version : str
+            DAMO version to validate against. Default is ``"2.2"``. This
+            selects the requested version; it does not detect the source version.
+        validation_coverages : dict, optional
+            Coverage dict forwarded to the validator.
+        validation_rules_path : str or Path, optional
+            Path to a validation-rules JSON file for the requested DAMO version.
+            If omitted, generated rules check ID presence on recognized layers
+            with an ID column. Supply custom rules for more comprehensive checks.
+
+        Returns
+        -------
+        HydamoValidationResult
+            Also stored as ``self.validation_result``. Inspect ``success``,
+            ``status``, and ``errors`` to handle validation failures. A reported
+            failure is returned rather than raised as ``HyDAMOValidationError``.
+            Diagnostic warnings and errors are logged by the
+            ``hydamo_validation.validator`` logger.
+
+        Raises
+        ------
+        ImportError
+            If the optional validation dependency is unavailable.
+        ValueError
+            If generated rules are requested for a version unsupported by the
+            installed validator's schemas.
+        """
+        result = validate_or_raise(
+            gpkg_path=gpkg_path,
+            hydamo_version=hydamo_version,
+            validation_mode="warn",
+            coverages=validation_coverages,
+            validation_rules_path=validation_rules_path,
+        )
+        assert result is not None
+        self.validation_result = result
+        return result
+
+    def load_from_gpkg(
+        self,
+        gpkg_path: Path | str,
+        hydamo_version: str = "2.2",
+        clip_layers: dict | None = None,
+        check_3d: bool = True,
+        validation_mode: ValidationMode = "off",
+        validation_coverages: dict | None = None,
+        validation_rules_path: Path | str | None = None,
+    ) -> "HyDAMO":
+        """Load HyDAMO data from a GeoPackage via a versioned DAMO converter.
+
+        Parameters
+        ----------
+        gpkg_path : str or Path
+            Path to the GeoPackage file.
+        hydamo_version : str
+            DAMO schema version string: ``"2.2"``, ``"2.3"``, ``"2.4"``, or
+            ``"2.5"``. Selects the converter; it does not detect or verify the
+            source schema version. Default is ``"2.2"``.
+        clip_layers : dict, optional
+            Per-layer spatial clip. Maps ``target_attr`` name to a
+            ``(geometry, cliptype)`` tuple, e.g.
+            ``{"branches": (gpd.read_file(extent).union_all(), "clip")}``.
+            Layers absent from the dict are loaded without clipping.
+        check_3d : bool
+            Whether to require Z coordinates on profile points when grouping
+            them into lines. Other layers are not checked for Z coordinates.
+            Pass ``False`` to allow 2D profile points. Default is ``True``.
+        validation_mode : str
+            ``"off"`` skips validation (default). ``"warn"`` validates and
+            continues after a reported failure; diagnostic warnings and errors
+            are logged by the ``hydamo_validation.validator`` logger. Inspect
+            ``validation_result`` for the full result.
+            ``"strict"`` raises ``HyDAMOValidationError`` on a reported failure
+            before loading layers. Validation setup errors can raise in either
+            enabled mode.
+        validation_coverages : dict, optional
+            Coverage dict forwarded to the validator.
+        validation_rules_path : str or Path, optional
+            Path to a custom validation-rules JSON file for the source DAMO
+            version. If omitted, generated rules check ID presence on recognized
+            layers with an ID column. Strict mode changes failure handling,
+            not the rules or their coverage.
+
+        Returns
+        -------
+        HyDAMO
+            This instance, to allow method chaining.
+
+        Raises
+        ------
+        HyDAMOValidationError
+            If validation reports failure in ``"strict"`` mode.
+        ImportError
+            If validation is enabled and its optional dependency is unavailable.
+        ValueError
+            If the converter version is unsupported, or generated validation
+            rules require a version unsupported by the installed validator.
+
+        Notes
+        -----
+        Validation requires Python 3.12 and ``pip install "hydrolib[validation]"``.
+        After enabled validation returns normally, ``self.validation_result``
+        contains ``success``, ``status``, and ``errors``. It is ``None`` when
+        validation is off. Use ``validate_gpkg()`` to inspect validation failures
+        without loading data. Comprehensive schema, type, and relation checks
+        require appropriate custom rules; selecting a converter or using strict
+        mode alone does not establish that the input is valid DAMO data.
+
+        Examples
+        --------
+        Given a rules file for DAMO 2.2, load and inspect reported failures:
+
+        >>> hydamo = HyDAMO().load_from_gpkg(
+        ...     "model.gpkg",
+        ...     hydamo_version="2.2",
+        ...     validation_mode="warn",
+        ...     validation_rules_path="validationrules.json",
+        ... )
+        >>> result = hydamo.validation_result
+        >>> print(result.success, result.status, result.errors)
+
+        Use ``validation_mode="strict"`` to raise ``HyDAMOValidationError``
+        instead of loading after a reported validation failure.
+        """
+        # Resolve the converter first so an unsupported version fails before validation runs.
+        converter = get_damo_converter(hydamo_version)
+
+        self.validation_result = None
+        self.source_damo_version = hydamo_version
+        self.validation_result = validate_or_raise(
+            gpkg_path=gpkg_path,
+            hydamo_version=hydamo_version,
+            validation_mode=validation_mode,
+            coverages=validation_coverages,
+            validation_rules_path=validation_rules_path,
+        )
+
+        converter.load_into(self, gpkg_path, clip_layers=clip_layers, check_3d=check_3d)
+        return self
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def list_to_str(self, lst: list | np.ndarray) -> str:
@@ -409,43 +458,71 @@ class HyDAMO:
 
         return pd.DataFrame.from_dict(dictionary, orient="index")
 
-    def snap_to_branch_and_drop(self, extendedgdf, branches, snap_method: str, maxdist=5, drop_related=True):
-        """Snap the geometries to the branch and drop loose objects"""
+    def snap_to_branch_and_drop(
+        self,
+        extendedgdf: ExtendedGeoDataFrame,
+        branches: ExtendedGeoDataFrame,
+        snap_method: str,
+        maxdist: float = 5,
+        drop_related: bool = True,
+        source_table: str | None = None,
+    ) -> None:
+        """Snap geometries to branches and drop loose objects and cascades.
+
+        Parameters
+        ----------
+        extendedgdf : ExtendedGeoDataFrame
+            HyDAMO dataframe to snap and potentially prune.
+        branches : ExtendedGeoDataFrame
+            Branch geometries used for snapping.
+        snap_method : str
+            Method passed to :meth:`ExtendedGeoDataFrame.snap_to_branch`.
+        maxdist : float, default=5
+            Maximum snapping distance passed to ``snap_to_branch``.
+        drop_related : bool, default=True
+            Whether to drop rows reached through the configured cascade paths.
+        source_table : str, optional
+            Canonical HyDAMO table name.  If omitted, the name is determined
+            from the dataframe object stored on this ``HyDAMO`` instance.
+            Supply this when ``extendedgdf`` is a dataframe copy; the named
+            table must still exist as an attribute on this instance.
+        """
 
         # Snap the extended geodataframe to branches
         extendedgdf.snap_to_branch(branches, snap_method, maxdist=maxdist)
 
         # Determine which labels need to be drop for the first object based on
         # nan values for branch_offset.
-        drop_idx = extendedgdf[pd.isna(extendedgdf.branch_offset)].index.to_numpy()
-        drop_list = [(extendedgdf, drop_idx)]
+        drop_idx = extendedgdf.index[pd.isna(extendedgdf.branch_offset)]
         logger.info("dropping objects with indices: %s", drop_idx)
 
-        # Find out which labels need to be dropped from related objects
-        if drop_related and extendedgdf.related is not None:
-            for target_str, relation in extendedgdf.related.items():
-                self._recursive_drop_related(drop_list, extendedgdf, drop_idx, target_str, **relation)
+        # Build the complete plan before mutating any dataframe.  This keeps
+        # all relation traversals independent from the drops performed below.
+        drop_plan: dict[str, pd.Index] = {}
+        if drop_related:
+            if source_table is None:
+                for table_name, table in vars(self).items():
+                    if table is extendedgdf:
+                        source_table = table_name
+                        break
+            if source_table is None:
+                raise ValueError(
+                    "Could not determine the HyDAMO source table for the "
+                    "dataframe; pass source_table explicitly"
+                )
+            drop_plan = build_cascade_plan(self, source_table, drop_idx)
 
-        # Drop the relevant rows with the list of labels
-        for source, drop_idx in drop_list:
-            # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
-            source.drop(labels=drop_idx, inplace=True)  # noqa: PD002
+        # Drop the source and all related rows only after the plan is complete.
+        # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
+        extendedgdf.drop(labels=drop_idx, inplace=True)  # noqa: PD002
+        for target_table, target_index in drop_plan.items():
+            logger.info(
+                "  - dropping objects from '%s' with indices: %s",
+                target_table,
+                target_index,
+            )
+            getattr(self, target_table).drop(labels=target_index, inplace=True)  # noqa: PD002
 
-    def _recursive_drop_related(self, drop_list, source, drop_idx, target_str, via, on, coupled_to):
-        target = getattr(self, target_str)
-        drop_related = source.loc[drop_idx, via].to_numpy()
-        drop_idx = target[target[on].isin(drop_related)].index.to_numpy()
-        drop_list.append((target, drop_idx))
-        logger.info(
-            "  - dropping objects from '%s' with indices: %s",
-            target_str,
-            drop_idx,
-        )
-
-        if coupled_to is not None:
-            for next_target_str, next_relation in coupled_to.items():
-                return self._recursive_drop_related(drop_list, target, drop_idx, next_target_str, **next_relation)
-            
     def create_laterals(
         self,
         qspec_file=None,
@@ -1382,14 +1459,20 @@ class CrossSections:
         """
 
         cssdct = {}
-        for param in parametrised.itertuples():
-            branch = [
-                branch for branch in branches if branch.globalid == param.hydroobjectid
-            ]
+        branch_relation = RelationsHyDAMO.PARAM_PROFILE_BRANCH
+        values_relation = RelationsHyDAMO.PARAM_PROFILE_VALUES
 
-            values = parametrised_values[
-                parametrised_values.normgeparamprofielid == param.normgeparamprofielid
-            ]
+        branches_by_id = {}
+        for branch in branches:
+            branch_id = getattr(branch, branch_relation.parent_key)
+            # Preserve the previous behavior of using the first matching branch.
+            branches_by_id.setdefault(branch_id, branch)
+
+        for _, param in parametrised.iterrows():
+            param_row = param.to_frame().T
+            branch_id = param[branch_relation.foreign_key]
+            branch = branches_by_id[branch_id]
+            values = values_relation.children_of(param_row, parametrised_values)
 
             # Drop profiles for which not enough data is available to write (as rectangle)
             # nulls = pd.isna(parambranches[['bodembreedte', 'bodemhoogtebenedenstrooms', 'bodemhoogtebovenstrooms']]).any(axis=1).to_numpy()
@@ -1472,7 +1555,7 @@ class CrossSections:
                 )
             # Determine name for cross section
             if css_type == "trapezium":
-                cssdct[branch[0].Index] = {
+                cssdct[branch.Index] = {
                     "type": css_type,
                     "slope": round(slope, 2),
                     "maximumflowwidth": round(maxflowwidth, 1),
@@ -1490,7 +1573,7 @@ class CrossSections:
                     "bottomlevel_lower": botlev_lower,
                 }
             elif css_type == "rectangle":
-                cssdct[branch[0].Index] = {
+                cssdct[branch.Index] = {
                     "type": css_type,
                     "height": 5.0,
                     "width": round(
@@ -2242,6 +2325,24 @@ class Structures:
         self.pumps_df = pd.DataFrame()
         self.compounds_df = pd.DataFrame()
 
+        # Maps management_device.globalid -> generated D-FlowFM structure id,
+        # for weirs/orifices that have more than one Kunstwerkopening.
+        #
+        # Background: a weir's structure id is normally just its HyDAMO code,
+        # and is therefore derivable from the static FK chain
+        # management_device.kunstwerkopeningid -> opening.globalid ->
+        # opening.stuwid -> weirs.globalid (see DRTCModel._resolve_weir_via_opening
+        # in core/drtc.py). But when a weir has multiple openings, StructuresIO
+        # builds one compound structure per opening and invents the id as
+        # f"{weir.code}_{opening_index+1}" - that id only exists once this
+        # enumeration has run, so it cannot be derived from HyDAMO data alone.
+        # StructuresIO.weirs() populates this dict as it assigns those ids, and
+        # DRTCModel falls back to it when the static chain finds no match.
+        # Consequently, DRTCModel.from_hydamo()/check_timeseries() only resolve
+        # multi-opening weirs correctly if structure conversion (StructuresIO)
+        # has already run on this `hydamo` instance.
+        self.compound_weir_structure_ids: dict[str, str] = {}
+
         self.convert = StructuresIO(self)
 
     def check_branchid_chainage(self, branchid, chainage):
@@ -2599,7 +2700,9 @@ class Structures:
             ],
         ):
             if any(df) and add:
-                df = df.copy()
+                # Skip columns that are empty for this structure type, so they don't
+                # affect the dtype of the combined column (pandas FutureWarning).
+                df = df.dropna(axis=1, how="all").copy()
                 df.insert(loc=0, column="structype", value=descr, allow_duplicates=True)
                 dfs.append(df)
 

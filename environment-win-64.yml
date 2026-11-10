@@ -22,14 +22,16 @@ dependencies:
 - pip
 - pip:
   - -e ./
-  - meshkernel==8.3.0
   - pyzmq==27.2.0
   - matplotlib==3.11.2
+  - rasterstats==0.21.0
   - nest-asyncio2==1.7.4
   - tzdata==2026.6
   - jupyter-client==8.10.0
   - coverage==7.17.0
   - fonttools==4.68.0
+  - rpds-py==2026.9.1
+  - referencing==0.37.0
   - ipython==9.17.1
   - certifi==2026.10.23
   - jupyterlab-widgets==3.0.17
@@ -41,10 +43,12 @@ dependencies:
   - scipy==1.18.1
   - lxml==6.1.3
   - affine==3.0.1
+  - click-plugins==1.1.1.2
   - xarray==2026.9.0
   - markupsafe==3.0.4
   - pluggy==1.7.0
   - matplotlib-inline==0.2.2
+  - jsonschema-specifications==2025.9.1
   - typing-extensions==4.16.0
   - debugpy==1.8.22
   - executing==2.3.0
@@ -69,7 +73,10 @@ dependencies:
   - kiwisolver==1.5.1
   - pygments==2.21.0
   - partd==1.4.2
+  - cligj==0.7.2
+  - simplejson==4.2.0
   - mypy-extensions==1.1.0
+  - fiona==1.10.1
   - branca==0.8.2
   - strenum==0.4.15
   - pandas==2.3.3
@@ -82,6 +89,7 @@ dependencies:
   - ast-serialize==0.13.1
   - requests==2.34.2
   - ipykernel==7.4.0
+  - hydamo-validation==1.6.0
   - tqdm==4.70.1
   - cftime==1.6.6.1
   - xyzservices==2026.9.1
@@ -94,6 +102,7 @@ dependencies:
   - tornado==6.6
   - six==1.17.0
   - pyproj==3.8.0
+  - meshkernel==8.4.0
   - jedi==0.20.1
   - openpyxl==3.1.5
   - distlib==0.4.4
@@ -101,6 +110,7 @@ dependencies:
   - ipywidgets==8.1.9
   - pydantic-core==2.50.1
   - geopandas==1.2.0
+  - jsonschema==4.22.0
   - virtualenv==21.15.1
   - ruff==0.17.3
   - colorama==0.4.6

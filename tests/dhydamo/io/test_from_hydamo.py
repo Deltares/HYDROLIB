@@ -69,86 +69,31 @@ def _mixed_extended_geometries():
     return geoms
 
 
-def _check_related(hydamo_obj, hydamo_name):
-    # assert type of object
-    extendedgdf = getattr(hydamo_obj, hydamo_name)
-    assert isinstance(extendedgdf, ExtendedGeoDataFrame)
+def test_extended_geodataframe_copy_preserves_metadata():
+    geoms = _mixed_extended_geometries()
 
-    # Check relations recursively
-    if extendedgdf.related is not None:
-        for target_str, relation in extendedgdf.related.items():
-            print(f"{target_str}:")
-            _recursive_check_related(hydamo_obj, hydamo_name, target_str, **relation)
+    copied = geoms.copy()
 
-def _recursive_check_related(hydamo_obj, source_str, target_str, via, on, coupled_to):
-    source = getattr(hydamo_obj, source_str)
-    target = getattr(hydamo_obj, target_str)
+    assert copied.required_columns == geoms.required_columns
+    assert copied.geotype is geoms.geotype
 
-    assert not source.empty
-    assert not target.empty
-    assert via in source.columns
-    assert on in target.columns
-
-    if coupled_to is not None:
-        for next_target_str, next_relation in coupled_to.items():
-            return _recursive_check_related(
-                hydamo_obj, target_str, next_target_str, **next_relation
-            )
-
-def test_hydamo_related():
-    # all data is contained in one geopackage called 'Example model'
-    gpkg_file = hydamo_data_path / "Example_model.gpkg"
-    assert gpkg_file.exists()
-
-    hydamo = HyDAMO()
-    hydamo.branches.read_gpkg_layer(gpkg_file, layer_name="HydroObject", index_col="code")
-    hydamo.profile.read_gpkg_layer(gpkg_file, layer_name="ProfielPunt", groupby_column="profiellijnid", order_column="codevolgnummer", id_col="code")
-    hydamo.profile_roughness.read_gpkg_layer(gpkg_file, layer_name="RuwheidProfiel")
-    hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name="profiellijn")
-    hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name="profielgroep")
-    hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name="Stuw")
-    hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
-    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-    hydamo.culverts.read_gpkg_layer(gpkg_file, layer_name="DuikerSifonHevel", index_col="code")
-    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-    hydamo.pumpstations.read_gpkg_layer(gpkg_file, layer_name="Gemaal", index_col="code")
-    hydamo.pumps.read_gpkg_layer(gpkg_file, layer_name="Pomp", index_col="code")
-    hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
-    hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
-    hydamo.boundary_conditions.read_gpkg_layer(gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code")
-    hydamo.catchments.read_gpkg_layer(gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code", check_geotype=False)
-    hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
-    hydamo.sewer_areas.read_shp(hydamo_data_path / 'rioleringsgebieden.shp', index_col='code', column_mapping={'Code':'code', 'Berging_mm':'riool_berging_mm', 'POC_m3s':'riool_poc_m3s' })
-    hydamo.overflows.read_shp(hydamo_data_path / 'overstorten.shp', column_mapping={'codegerela': 'codegerelateerdobject'})
-
-    _check_related(hydamo, "branches")
-    _check_related(hydamo, "profile")
-    _check_related(hydamo, "profile_line")
-    _check_related(hydamo, "weirs")
-    _check_related(hydamo, "bridges")
-    _check_related(hydamo, "culverts")
-    _check_related(hydamo, "pumpstations")
-    _check_related(hydamo, "boundary_conditions")
-    _check_related(hydamo, "catchments")
-    _check_related(hydamo, "laterals")
-    _check_related(hydamo, "overflows")
-    _check_related(hydamo, "sewer_areas")
 
 def test_clip_hydamo_object():
     extent_file = hydamo_data_path / "test_deelmodel.shp"
     assert extent_file.exists()
     extent = gpd.read_file(extent_file).union_all()
 
-    hydamo = HyDAMO(extent_file=extent_file)
-
     gpkg_file = hydamo_data_path / "Example_model.gpkg"
     assert gpkg_file.exists()
 
-    # Read branches
-    hydamo.branches.read_gpkg_layer(str(gpkg_file), layer_name="HydroObject", index_col="code", clip=extent, cliptype="clip")    
+    hydamo = HyDAMO()
+    hydamo.load_from_gpkg(
+        gpkg_file,
+        hydamo_version="2.2",
+        clip_layers={"branches": (extent, "clip")},
+    )
 
-    assert hydamo.branches.shape[0] ==  18
-
+    assert hydamo.branches.shape[0] == 18
     assert np.isclose(np.round(hydamo.branches.loc['W_242208_0'].geometry.length, 2), 426.4)
 
 
@@ -215,78 +160,17 @@ def _hydamo_object_from_gpkg():
     gpkg_file = hydamo_data_path / "Example_model.gpkg"
     assert gpkg_file.exists()
 
-    # Read branches
-    hydamo.branches.read_gpkg_layer(
-        str(gpkg_file), layer_name="HydroObject", index_col="code"
-    )
+    hydamo.load_from_gpkg(gpkg_file, hydamo_version="2.2")
 
-    hydamo.profile.read_gpkg_layer(
-        gpkg_file,
-        layer_name="ProfielPunt",
-        groupby_column="profiellijnid",
-        order_column="codevolgnummer",
-        id_col="code",
-    )
-
-    # read roughness
-    hydamo.profile_roughness.read_gpkg_layer(gpkg_file, layer_name="RuwheidProfiel")
-
-    hydamo.profile_line.read_gpkg_layer(gpkg_file, layer_name="profiellijn")
-    hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name="profielgroep")
-    hydamo.profile.drop("code", axis=1, inplace=True)  # noqa: PD002
-    hydamo.profile["code"] = hydamo.profile["profiellijnid"]
     len_profile_before = len(hydamo.profile)
     hydamo.snap_to_branch_and_drop(hydamo.profile, hydamo.branches, snap_method="intersecting", drop_related=True)
-
-    # Read Weirs
-    hydamo.weirs.read_gpkg_layer(gpkg_file, layer_name="Stuw")
-    hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
-    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-
-    # Read culverts
-    hydamo.culverts.read_gpkg_layer(
-        gpkg_file, layer_name="DuikerSifonHevel", index_col="code"
-    )
-
-    # Read management device
-    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
-
     hydamo.snap_to_branch_and_drop(hydamo.weirs, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
-
     hydamo.snap_to_branch_and_drop(hydamo.culverts, hydamo.branches, snap_method="ends", maxdist=5, drop_related=True)
-
-    # Read pumpstations
-    hydamo.pumpstations.read_gpkg_layer(
-        gpkg_file, layer_name="Gemaal", index_col="code"
-    )
-    hydamo.pumps.read_gpkg_layer(gpkg_file, layer_name="Pomp", index_col="code")
-    hydamo.management.read_gpkg_layer(gpkg_file, layer_name="Sturing", index_col="code")
-
     hydamo.snap_to_branch_and_drop(hydamo.pumpstations, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
-
-    # Read bridges
-    hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
     hydamo.snap_to_branch_and_drop(hydamo.bridges, hydamo.branches, snap_method="overal", maxdist=1100, drop_related=True)
-
-    # Read boundary conditions
-    hydamo.boundary_conditions.read_gpkg_layer(
-        gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code"
-    )
-    hydamo.boundary_conditions.snap_to_branch(
-        hydamo.branches, snap_method="overal", maxdist=10
-    )
-
-    # Read catchments
-    hydamo.catchments.read_gpkg_layer(
-        gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code", check_geotype=False,
-    )
-
-    # Read laterals
-    # read laterals
-    hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
+    hydamo.boundary_conditions.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
     hydamo.laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=5000)
-    hydamo.catchments['boundary_node'] = [hydamo.laterals[hydamo.laterals.globalid==c['lateraleknoopid']].code.to_numpy()[0] for _,c in hydamo.catchments.iterrows()]
-        
+
     return hydamo, len_profile_before
 
 
@@ -368,6 +252,125 @@ def test_convert_structures():
     
     assert hydamo.structures.bridges_df.shape[0] == hydamo.bridges.shape[0]
     assert hydamo.structures.pumps_df.shape[0] == hydamo.pumps.shape[0]
+
+def _pump_hydamo(management_counts):
+    """Build one station; each tuple entry gives a pump's management row count."""
+    hydamo = HyDAMO()
+    hydamo.branches.set_data(
+        gpd.GeoDataFrame({"code": ["B1"], "geometry": [LineString([(0, 0), (100, 0)])]}),
+        index_col="code",
+    )
+    hydamo.pumpstations.set_data(
+        gpd.GeoDataFrame(
+            {
+                "code": ["S1"],
+                "globalid": ["station-1"],
+                "branch_id": ["B1"],
+                "branch_offset": [50.0],
+                "geometry": [Point(50, 0)],
+            }
+        ),
+        index_col="code",
+    )
+    # Distinct capacities (m³/min) and levels reveal incorrect pump/control links.
+    pump_rows = []
+    for pump_index in range(len(management_counts)):
+        pump_rows.append(
+            {
+                "code": f"P{pump_index}",
+                "globalid": f"pump-{pump_index}",
+                "gemaalid": "station-1",
+                "maximalecapaciteit": 60.0 * (pump_index + 1),
+            }
+        )
+    pumps = pd.DataFrame(
+        pump_rows,
+        columns=["code", "globalid", "gemaalid", "maximalecapaciteit"],
+    )
+    hydamo.pumps.set_data(pumps, index_col="code")
+    management_rows = []
+    for pump_index, management_count in enumerate(management_counts):
+        for management_index in range(management_count):
+            management_rows.append(
+                {
+                    "code": f"M{pump_index}-{management_index}",
+                    "globalid": f"management-{pump_index}-{management_index}",
+                    "pompid": f"pump-{pump_index}",
+                    "bovengrens": 17.5 + pump_index,
+                    "ondergrens": 17.3 + pump_index,
+                }
+            )
+    management = pd.DataFrame(
+        management_rows,
+        columns=["code", "globalid", "pompid", "bovengrens", "ondergrens"],
+    )
+    hydamo.management.set_data(management, index_col="code")
+    return hydamo
+
+
+@pytest.mark.parametrize(
+    ("management_counts", "expected"),
+    [
+        pytest.param((1,), [("S1", 1.0, [17.5], [17.3])], id="single-pump"),
+        pytest.param((0,), [], id="single-pump-without-management"),
+        pytest.param(
+            (1, 1),
+            [("S1_1", 1.0, [17.5], [17.3]), ("S1_2", 2.0, [18.5], [18.3])],
+            id="compound-station",
+        ),
+        pytest.param((0, 1), [("S1_2", 2.0, [18.5], [18.3])], id="skip-first-pump"),
+        pytest.param((0, 0), [], id="all-pumps-without-management"),
+    ],
+)
+def test_convert_pumps(management_counts, expected):
+    """Check IDs, capacity conversion to m³/s, control levels, and compound members.
+
+    Expected rows contain (id, capacity, start levels, stop levels).
+    Missing management skips a pump without renumbering the remaining pumps.
+    """
+    hydamo = _pump_hydamo(management_counts)
+    hydamo.structures.convert.pumps(
+        hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
+    )
+    pumps = list(hydamo.structures.pumps_df.itertuples())
+    assert [
+        (pump.id, pump.capacity, pump.startlevelsuctionside, pump.stoplevelsuctionside)
+        for pump in pumps
+    ] == expected
+    for pump in pumps:
+        assert pump.startleveldeliveryside == pump.startlevelsuctionside
+        assert pump.stopleveldeliveryside == pump.stoplevelsuctionside
+        # Catch the original list-of-Series regression, even for a single value.
+        assert np.isscalar(pump.startlevelsuctionside[0])
+        assert np.isscalar(pump.stoplevelsuctionside[0])
+
+    compounds = hydamo.structures.compounds_df
+    if len(management_counts) > 1:
+        # Current behavior retains an empty compound when every pump is skipped.
+        assert compounds.id.tolist() == ["cmp_S1"]
+        assert compounds.iloc[0].numstructures == len(expected)
+        assert compounds.iloc[0].structureids == ";".join(row[0] for row in expected)
+    else:
+        assert compounds.empty
+
+
+@pytest.mark.parametrize(
+    "management_counts",
+    [
+        pytest.param((2,), id="single-pump"),
+        pytest.param((1, 2), id="second-pump-in-compound"),
+    ],
+)
+def test_convert_pumps_rejects_duplicate_management(management_counts):
+    """Reject multiple control rows per pump instead of choosing the first."""
+    hydamo = _pump_hydamo(management_counts)
+    with pytest.raises(
+        ValueError, match="Pump station S1: expected one management row per pump, found 2"
+    ):
+        hydamo.structures.convert.pumps(
+            hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
+        )
+
 
 def _convert_crosssections():
     # initiate a hydamo object
@@ -920,3 +923,12 @@ def test_create_laterals_excludes_nodata_and_keeps_negative_discharge(tmp_path, 
         qspec * hydamo.catchments.area.to_numpy() / (1000 * 86400),
         rtol=1e-6,
     )
+
+
+def test_make_index_unique_suffixes_duplicates_without_code_column():
+    from hydrolib.dhydamo.io.common import _make_index_unique
+
+    gdf = gpd.GeoDataFrame({"globalid": ["a", "a", "b", "a"]}, geometry=[Point(0, 0)] * 4)
+    _make_index_unique(gdf, "globalid")
+
+    assert gdf["globalid"].tolist() == ["a", "a_1", "b", "a_2"]

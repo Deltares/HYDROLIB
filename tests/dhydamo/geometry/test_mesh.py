@@ -1,4 +1,3 @@
-import platform
 from pathlib import Path
 
 import branca
@@ -136,11 +135,7 @@ def test_create_2d_triangular_within_circle(do_plot):
         ).add_to(m)
         m.save(test_figure_path / "test_create_2d_triangular_within_circle_mk.html")        
     
-    # Triangular grids lead to different grids on windows vs macos/linux
-    if platform.system() == "Windows":
-        assert len(network._mesh2d.get_mesh2d().face_x) == 254
-    else:
-        assert len(network._mesh2d.get_mesh2d().face_x) == 258
+    assert len(network._mesh2d.get_mesh2d().face_x) == 174
 
 
 def test_create_2d_rectangular_from_multipolygon(do_plot):
@@ -248,14 +243,9 @@ def test_create_2d_triangular_from_multipolygon(do_plot):
         
         m.save(test_figure_path / "test_create_2d_triangular_from_multipolygon_mk.html")        
      
-    if platform.system() == "Windows":
-        assert pre_refine_length_face == 376
-        assert pre_refine_length_edge == 589
-        assert len(network._mesh2d.mesh2d_face_x) == 1334
-    else:
-        assert pre_refine_length_face == 382
-        assert pre_refine_length_edge == 598
-        assert len(network._mesh2d.mesh2d_face_x) == 1360
+    assert pre_refine_length_face == 244
+    assert pre_refine_length_edge == 391
+    assert len(network._mesh2d.mesh2d_face_x) == 736
 
 def test_2d_refine_ring_geometry(do_plot):
     # Define polygon
@@ -758,26 +748,25 @@ def _prepare_hydamo():
     assert gpkg_file.exists()
 
     # read branchs
-    hydamo.branches.read_gpkg_layer(
+    hydamo.branches._read_gpkg_layer(
         str(gpkg_file), layer_name="HydroObject", index_col="code"
     )
 
     # Read management device
-    hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
+    hydamo.management_device._read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
 
     return hydamo
 
 
-@pytest.mark.skipif(platform.system() == "Darwin", reason="Skip on macOS")
 @pytest.mark.parametrize(
     ("where", "fill_option", "fill_value", "outcome"),
     [
-        ("face", "interpolate", 10.0, 8737.646),
-        ("face", "fill_value", 10.0, 8737.646),
-        ("face", "nearest", None, 9125.028),
-        ("node", "interpolate", 10.0, 6360.791),
-        ("node", "fill_value", 10.0, 6349.224),
-        ("node", "nearest", None, 6779.017),
+        ("face", "interpolate", 10.0, 5727.619),
+        ("face", "fill_value", 10.0, 5727.619),
+        ("face", "nearest", None, 6053.623),
+        ("node", "interpolate", 10.0, 4860.906),
+        ("node", "fill_value", 10.0, 4860.906),
+        ("node", "nearest", None, 5244.467),
     ],
 )
 def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
