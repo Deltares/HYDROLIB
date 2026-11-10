@@ -23,7 +23,7 @@ from hydrolib.core.dflowfm.crosssection.models import (
     YZCrsDef,
     ZWCrsDef,
 )
-from hydrolib.core.dflowfm.ext.models import Boundary, Lateral
+from hydrolib.core.dflowfm.ext.models import Boundary, ExtModel, Lateral
 from hydrolib.core.dflowfm.friction.models import FrictGlobal
 from hydrolib.core.dflowfm.inifield.models import IniFieldModel, InitialField, ParameterField
 from hydrolib.core.dflowfm.obs.models import ObservationPoint
@@ -52,6 +52,11 @@ from hydrolib.dhydamo.geometry.spatial import (
 from hydrolib.dhydamo.io.rasterwriter import write_raster
 
 logger = logging.getLogger(__name__)
+
+# Version of the external forcings file (bnd.ext). hydrolib-core 1.6 writes 3.00 by default, which D-Flow FM in
+# D-HYDRO 2026.02 refuses ("Unsupported format of new external forcing file ... v3.00. Current format: v2.02").
+# See https://github.com/Deltares/HYDROLIB/issues/248.
+EXT_FILE_VERSION = "2.02"
 
 
 class ConstantWithInterpolation(Constant):
@@ -111,6 +116,19 @@ class Df2HydrolibModel:
         self.storagenodes_to_dhydro()
         self.inifields_to_dhydro()
         self.spatial_fields_to_dhydro()
+
+    def ext_model(self) -> ExtModel:
+        """External forcings model (bnd.ext) with the boundaries and laterals, readable by D-HYDRO.
+
+        Use as fm.external_forcing.extforcefilenew = models.ext_model(). The file version is set to
+        EXT_FILE_VERSION, as D-HYDRO 2026.02 does not read the default version of hydrolib-core 1.6.
+
+        Returns:
+            ExtModel: external forcings model
+        """
+        extmodel = ExtModel(boundary=self.boundaries_ext, lateral=self.laterals_ext)
+        extmodel.general.fileversion = EXT_FILE_VERSION
+        return extmodel
 
     @staticmethod
     def _clear_comments(lst):

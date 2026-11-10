@@ -4,7 +4,6 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from hydrolib.core.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
-from hydrolib.core.dflowfm.ext.models import ExtModel
 from hydrolib.core.dflowfm.friction.models import FrictionModel
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.core.dflowfm.obs.models import ObservationPointModel
@@ -14,7 +13,8 @@ from hydrolib.core.dflowfm.structure.models import StructureModel
 from hydrolib.core.dimr.models import DIMR, FMComponent
 
 # Importing relevant classes from Hydrolib-dhydamo
-from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
+from hydrolib.dhydamo.converters.df2hydrolibmodel import EXT_FILE_VERSION, Df2HydrolibModel
+from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
 from shapely.geometry import Point
 from tests.dhydamo.io import test_from_hydamo
@@ -191,13 +191,7 @@ def _add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False, model
 
     fm.output.obsfile = [ObservationPointModel(observationpoint=models.obspoints)]
 
-    extmodel = ExtModel()
-    # HYDROLIB-core writes ext file version 3.00 by default, which D-HYDRO Suite 2026.02 cannot read yet.
-    # Version 2.02 is sufficient for [Boundary] and [Lateral] blocks.
-    extmodel.general.fileversion = "2.02"
-    extmodel.boundary = models.boundaries_ext
-    extmodel.lateral = models.laterals_ext
-    fm.external_forcing.extforcefilenew = extmodel
+    fm.external_forcing.extforcefilenew = models.ext_model()
 
     # initial fields: writes the data files and links them in the initial field file
     models.write_initial_fields(fm, model_path / "dflowfm")
@@ -260,3 +254,13 @@ def test_write_model():
     assert (output_path / "dflowfm" / "crsdef.ini").exists()
     assert (output_path / "dflowfm" / "network.nc").exists()
     assert (output_path / "dflowfm" / "initialwaterdepth.ini").exists()
+
+
+def test_ext_model_file_version(tmp_path):
+    # D-HYDRO 2026.02 refuses the default version 3.00 of hydrolib-core 1.6 (issue #248)
+    models = Df2HydrolibModel(HyDAMO())
+    extmodel = models.ext_model()
+    extmodel.save(filepath=tmp_path / "bnd.ext")
+
+    lines = (tmp_path / "bnd.ext").read_text().splitlines()
+    assert any(line.split("#")[0].split() == ["fileVersion", "=", EXT_FILE_VERSION] for line in lines)
