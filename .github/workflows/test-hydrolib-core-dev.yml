@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: ['hydrolib-core-main-314']
+        environment: ['hydrolib-core-dev-314']
         os: [ubuntu-latest]
 
     runs-on: ${{ matrix.os }}

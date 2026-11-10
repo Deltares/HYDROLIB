@@ -147,7 +147,7 @@ python = "3.13.*"
 [tool.pixi.feature.py314.dependencies]
 python = "3.14.*"
 
-[tool.pixi.feature.hydrolib_core_main.pypi-dependencies]
+[tool.pixi.feature.hydrolib_core_dev.pypi-dependencies]
 # Get the latest version from main
 hydrolib-core = { git = "https://github.com/Deltares/hydrolib-core.git", branch = "main" }
 
@@ -159,7 +159,7 @@ py312 = ["py312", "dev", "validation"]
 py313 = ["py313", "dev"]
 py314 = ["py314", "dev"]
 docs = ["docs", "py312"]
-hydrolib-core-main-314= { features = ["py314", "dev", "hydrolib_core_main"]}
+hydrolib-core-dev-314= { features = ["py314", "dev", "hydrolib_core_dev"]}
 
 [tool.pixi.environments.release]
 #The release environment only bumps the version and builds the package, so it
