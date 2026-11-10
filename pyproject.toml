@@ -11,7 +11,7 @@ maintainers = [
   { name = "Ruud Hurkmans", email = "r.hurkmans@hkv.nl" },
 ]
 dependencies = [
-  "pandas>=2,<3", # TODO add support for pandas 3: https://github.com/Deltares/HYDROLIB/issues/225
+  "pandas>=2,<4", # TODO add support for pandas 3: https://github.com/Deltares/HYDROLIB/issues/225
   "python-dateutil>=2.8.2",
   "geopandas>=1,<2",
   "xarray>=2024",
