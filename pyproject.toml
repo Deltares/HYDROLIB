@@ -120,6 +120,9 @@ hydrolib = { path = ".", editable = true }
 
 # Tasks for the "dev" feature, whose dependencies come from [dependency-groups].
 [tool.pixi.feature.dev.tasks]
+# pytest-cov collects coverage for hydrolib (excluding contrib) and writes coverage.xml.
+# .github/workflows/ci.yml uploads the report to Codecov; codecov.yml defines
+# the module path filters used by the README coverage badges.
 test = "pytest -v -m 'not slow and not plot and not dll' --cov=hydrolib --cov-report=xml --cov-report=term"
 lint = "ruff format --check . && ruff check hydrolib tests"
 fix = "ruff format . && ruff check --fix hydrolib tests"
