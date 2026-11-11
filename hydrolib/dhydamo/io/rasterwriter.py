@@ -35,16 +35,16 @@ def write_raster(
             f"Unsupported raster extension '{path.suffix}', use one of {list(DRIVERS)}."
         )
     driver = DRIVERS[suffix]
-    profile = dict(
-        driver=driver,
-        height=array.shape[0],
-        width=array.shape[1],
-        count=1,
-        dtype=array.dtype,
-        crs=crs,
-        transform=transform,
-        nodata=nodata,
-    )
+    profile = {
+        "driver": driver,
+        "height": array.shape[0],
+        "width": array.shape[1],
+        "count": 1,
+        "dtype": array.dtype,
+        "crs": crs,
+        "transform": transform,
+        "nodata": nodata,
+    }
     if driver == "GTiff" and compress:
         profile["compress"] = "deflate"
     path.parent.mkdir(parents=True, exist_ok=True)

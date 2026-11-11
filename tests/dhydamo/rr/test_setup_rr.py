@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
+from hydrolib.dhydamo.io import drrwriter
 from hydrolib.dhydamo.io.drrwriter import DRRWriter
 from shapely.geometry import Point, Polygon, box
 from tests.dhydamo.io import test_from_hydamo
@@ -177,12 +178,12 @@ def _fnm_input_files(fnm_path):
 def test_rr_file_names_match_fnm():
     # File systems on Linux are case-sensitive: the names drrwriter uses must match Sobek_3b.fnm and the
     # files copied from resources exactly. Checked on the source, so that it also fails on Windows.
-    import hydrolib.dhydamo.io.drrwriter as drrwriter
-
     resources = Path(drrwriter.__file__).parent.parent / "resources" / "RR"
-    fnm_names = {name.lower(): name for name in re.findall(r"^\s*'([^']+)'", (resources / "Sobek_3b.fnm").read_text(encoding="latin-1"), re.M)}
+    fnm_text = (resources / "Sobek_3b.fnm").read_text(encoding="latin-1")
+    fnm_names = {name.lower(): name for name in re.findall(r"^\s*'([^']+)'", fnm_text, re.MULTILINE)}
     resource_names = {path.name.lower(): path.name for path in resources.iterdir()}
-    used = re.findall(r'os\.path\.join\(\s*self\.output_dir\s*,\s*["\']([^"\']+)["\']', Path(drrwriter.__file__).read_text(encoding="utf-8"))
+    source = Path(drrwriter.__file__).read_text(encoding="utf-8")
+    used = re.findall(r'os\.path\.join\(\s*self\.output_dir\s*,\s*["\']([^"\']+)["\']', source)
     assert used
 
     for name in used:

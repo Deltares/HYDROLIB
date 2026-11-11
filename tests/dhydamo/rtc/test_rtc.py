@@ -11,9 +11,14 @@ from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
+from netCDF4 import Dataset, chartostring
 from shapely.geometry import Point
-from tests.dhydamo.io.test_to_hydrolibcore import output_path as model_path
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
+
+# repository root, so the tests do not depend on the working directory
+REPOSITORY = Path(__file__).resolve().parents[3]
+RTC_STATE = REPOSITORY / "hydrolib" / "sample_data" / "data" / "rtc_state"
+REFERENCE_HIS = REPOSITORY / "tests" / "reference_model" / "dflowfm" / "output" / "DFM_his.nc"
 
 
 @functools.cache
@@ -589,7 +594,7 @@ def test_complex_controller_wrong(caplog):
 
 
 def test_state_from_file(tmp_path, caplog):
-    state_path = Path("hydrolib/sample_data/data/rtc_state").resolve()
+    state_path = RTC_STATE
     rtcd = _setup_rtc_model(output_path=tmp_path)
     with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
         rtcd.set_state_from_file(state_path)
@@ -622,26 +627,26 @@ def test_set_initial_state(tmp_path, caplog):
     assert any("no controlled structure not_a_structure" in msg for msg in caplog.messages)
 
 
-def test_initial_pid_setting_from_structure(tmp_path):
+def test_initial_pid_setting_written_to_state(tmp_path):
+    # the start value of each PID controller ends up in state_import.xml; the value itself is tested with fixed
+    # numbers in test_initial_pid_setting_crest_level
     rtcd = _setup_rtc_model(output_path=tmp_path)
     rtcd.write_xml_v1()
     state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
 
+    checked = 0
     for structure_id, controller in rtcd.pid_controllers.items():
         leaf_id = f"[Output]{structure_id}/{controller['steering_variable']}"
         if leaf_id not in state:
             continue  # replaced by a complex controller
-        setting = rtcd._structure_setting(structure_id, controller["steering_variable"])
-        lower, upper = float(controller["lower_bound"]), float(controller["upper_bound"])
-        expected = upper if setting is None else min(max(setting, lower), upper)
-        assert float(state[leaf_id]) == expected
+        assert float(state[leaf_id]) == rtcd._initial_pid_setting(structure_id, controller)
+        checked += 1
+    assert checked > 0
 
 
 def test_state_from_modelrun(tmp_path, caplog):
-    from netCDF4 import Dataset, chartostring
-
     rtcd = _setup_rtc_model(output_path=tmp_path)
-    his_path = Path("tests/reference_model/dflowfm/output/DFM_his.nc")
+    his_path = REFERENCE_HIS
     with caplog.at_level(logging.INFO):
         values = rtcd.set_state_from_modelrun(his_path, time="2016-06-02 12:00")
     assert values
@@ -660,9 +665,9 @@ def test_state_from_modelrun(tmp_path, caplog):
     assert float(state[f"[Output]{weir}/{controller['steering_variable']}"]) == values[weir]
 
 
-def test_state_from_modelrun_time_options():
-    rtcd = _setup_rtc_model(output_path=model_path)
-    his_path = Path("tests/reference_model/dflowfm/output/DFM_his.nc")
+def test_state_from_modelrun_time_options(tmp_path):
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    his_path = REFERENCE_HIS
     # without a time, the last time step is used
     last = rtcd.set_state_from_modelrun(his_path)
     assert last == rtcd.set_state_from_modelrun(his_path, netcdf_index=-1)
@@ -727,3 +732,26 @@ def test_resolve_management_structure_culvert(minimal_drtc):
 
     row = pd.Series({"pompid": pd.NA, "regelmiddelid": "dev-guid"})
     assert drtc._resolve_management_structure(row) == ("culvert", "C_TEST")
+
+
+@pytest.mark.parametrize(
+    ("attribute", "crestlevel", "expected"),
+    [
+        ("rweirs_df", 15.2, 15.2),  # the structure's own crest level
+        ("uweirs_df", 15.2, 15.2),  # also for universal weirs
+        ("uweirs_df", 18.0, 16.0),  # limited to the upper bound of the controller
+        ("uweirs_df", 12.0, 14.0),  # limited to the lower bound of the controller
+    ],
+)
+def test_initial_pid_setting_crest_level(minimal_drtc, attribute, crestlevel, expected):
+    drtc, hydamo = minimal_drtc
+    setattr(hydamo.structures, attribute, pd.DataFrame({"id": ["S_TEST"], "crestlevel": [crestlevel]}))
+    controller = {"steering_variable": "Crest level (s)", "lower_bound": 14.0, "upper_bound": 16.0}
+    assert drtc._initial_pid_setting("S_TEST", controller) == expected
+
+
+def test_initial_pid_setting_without_structure_setting(minimal_drtc):
+    # no setting available for the structure: start at the upper bound, as before
+    drtc, _ = minimal_drtc
+    controller = {"steering_variable": "Crest level (s)", "lower_bound": 14.0, "upper_bound": 16.0}
+    assert drtc._initial_pid_setting("S_UNKNOWN", controller) == 16.0

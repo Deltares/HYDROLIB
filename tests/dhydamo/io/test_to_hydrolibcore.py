@@ -253,7 +253,7 @@ def test_write_model():
     assert (output_path / "dflowfm" / "DFM.mdu").exists()
     assert (output_path / "dflowfm" / "crsdef.ini").exists()
     assert (output_path / "dflowfm" / "network.nc").exists()
-    assert (output_path / "dflowfm" / "initialwaterdepth.ini").exists()
+    assert (output_path / "dflowfm" / "InitialWaterDepth.ini").exists()
 
 
 def test_ext_model_file_version(tmp_path):

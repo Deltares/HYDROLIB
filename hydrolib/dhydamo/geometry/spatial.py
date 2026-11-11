@@ -1,3 +1,4 @@
+import itertools
 import logging
 
 import geopandas as gpd
@@ -293,8 +294,8 @@ def rasterize_polygons(
     ymin = np.floor(ymin / cellsize) * cellsize
     xmax = np.ceil(xmax / cellsize) * cellsize
     ymax = np.ceil(ymax / cellsize) * cellsize
-    ncols = max(int(round((xmax - xmin) / cellsize)), 1)
-    nrows = max(int(round((ymax - ymin) / cellsize)), 1)
+    ncols = max(round((xmax - xmin) / cellsize), 1)
+    nrows = max(round((ymax - ymin) / cellsize), 1)
 
     transform = from_origin(xmin, ymax, cellsize, cellsize)
     array = features.rasterize(
@@ -307,13 +308,14 @@ def rasterize_polygons(
     return array, transform
 
 
-def _line_parts(geometry) -> list[LineString]:
+def line_parts(geometry) -> list[LineString]:
     """All LineStrings in a geometry, including those in a GeometryCollection; points are ignored."""
     if isinstance(geometry, LineString):
         return [geometry]
     if hasattr(geometry, "geoms"):
-        return [part for geom in geometry.geoms for part in _line_parts(geom)]
+        return [part for geom in geometry.geoms for part in line_parts(geom)]
     return []
+
 
 def polygons_to_branch_values(
     branches: gpd.GeoDataFrame, polygons: gpd.GeoDataFrame, column: str, step: float = 0.01
@@ -347,7 +349,7 @@ def polygons_to_branch_values(
         # intervals (start, end) along the branch per polygon, in the order of the polygons
         intervals = []
         for i in candidates:
-            for part in _line_parts(line.intersection(polygons.geometry.iloc[i])):
+            for part in line_parts(line.intersection(polygons.geometry.iloc[i])):
                 if part.length < step:
                     continue
                 chainages = [line.project(Point(c)) for c in part.coords]
@@ -357,8 +359,8 @@ def polygons_to_branch_values(
 
         # value per sub-interval between breakpoints: the last polygon covering it
         breakpoints = sorted({0.0, length} | {s for s0, s1, _ in intervals for s in (s0, s1)})
-        segments = []
-        for a, b in zip(breakpoints[:-1], breakpoints[1:]):
+        segments: list[list[float]] = []
+        for a, b in itertools.pairwise(breakpoints):
             if b - a < step:
                 continue
             mid = 0.5 * (a + b)

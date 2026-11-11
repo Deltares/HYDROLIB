@@ -5,6 +5,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
+from scipy.interpolate import LinearNDInterpolator
 
 from pydantic import Field
 
@@ -44,7 +45,7 @@ from hydrolib.core.dflowfm.xyz.models import XYZModel, XYZPoint
 
 from hydrolib.dhydamo.geometry import common
 from hydrolib.dhydamo.geometry.spatial import (
-    _line_parts,
+    line_parts,
     points_to_branch_values,
     polygons_to_branch_values,
     rasterize_polygons,
@@ -57,6 +58,10 @@ logger = logging.getLogger(__name__)
 # D-HYDRO 2026.02 refuses ("Unsupported format of new external forcing file ... v3.00. Current format: v2.02").
 # See https://github.com/Deltares/HYDROLIB/issues/248.
 EXT_FILE_VERSION = "2.02"
+
+# The D-HYDRO GUI holds one 1D initial condition per quantity and always writes it to these files. All 1D fields
+# per branch of a quantity are therefore combined into one file with this name.
+ONEDFIELD_FILES = {"waterlevel": "InitialWaterLevel.ini", "waterdepth": "InitialWaterDepth.ini"}
 
 
 class ConstantWithInterpolation(Constant):
@@ -84,7 +89,6 @@ class Df2HydrolibModel:
         self.obspoints = []
         self.storagenodes = []
         self.inifields = []
-        self.onedfields = []
         self.parameterfields = []
         # data for the spatial fields, written by write_spatial_fields()
         self.spatial_data = {}
@@ -414,10 +418,10 @@ class Df2HydrolibModel:
         1dField entries in self.inifields. Use write_initial_fields() to write them.
         """
         initial = [
-            ("waterlevel", self.hydamo.external_forcings.initial_waterlevel_polygons, "initialwaterlevel.ini"),
-            ("waterdepth", self.hydamo.external_forcings.initial_waterdepth_polygons, "initialwaterdepth.ini"),
+            ("waterlevel", self.hydamo.external_forcings.initial_waterlevel_polygons),
+            ("waterdepth", self.hydamo.external_forcings.initial_waterdepth_polygons),
         ]
-        for quantity, gdf, filename in initial:
+        for quantity, gdf in initial:
             # uniform 1D values are written per branch by spatial_fields_to_dhydro
             if gdf.empty or (gdf["locationtype"] == "1d").all():
                 continue
@@ -427,6 +431,8 @@ class Df2HydrolibModel:
                     "Use hydamo.external_forcings.set_spatial_field() for spatially varying values."
                 )
             row = gdf.iloc[0]
+            # e.g. initialwaterlevel_2d.ini; the 1D files use the names of the GUI (ONEDFIELD_FILES)
+            filename = f"initial{quantity}_{row['locationtype']}.ini"
             inifield = InitialField(
                 quantity=quantity,
                 datafiletype="1dField",
@@ -446,14 +452,23 @@ class Df2HydrolibModel:
     def spatial_fields_to_dhydro(self):
         """Convert spatial fields (branch values, polygons, rasters or samples) to InitialField/ParameterField objects.
 
-        Branch values are derived from the HyDAMO branches and written as one 1dField file. Polygon files
-        get one .pol file and one block per distinct value. Only the references are created here;
-        the data files themselves are written by write_spatial_fields().
+        Branch values are derived from the HyDAMO branches. All initial water level and water depth fields per
+        branch (including uniform 1D values) are combined into one 1dField file per quantity (ONEDFIELD_FILES), as
+        the D-HYDRO GUI expects. This gives the same result in D-Flow FM: a field per branch fills whole branches
+        and the last field wins, so per branch the values of the last field are kept, and a branch that a later
+        field gives the other quantity is moved to that quantity. The combined block is placed at the position of
+        the last field of that quantity. Polygon files get one .pol file and one block per distinct value. Only the
+        references are created here; the data files themselves are written by write_spatial_fields().
         """
         # footprints of the initial water level and depth fields, to check where both apply
         level_depth_fields = []
+        # combined 1D fields per branch: values per quantity, and the order of the blocks
+        combined: dict[str, dict] = {"waterlevel": {}, "waterdepth": {}}
+        combined_quantity: dict[str, str] = {}
+        order: list = []
         for sf in self.hydamo.external_forcings.spatial_fields:
             gdf, column = sf["gdf"], sf["column"]
+            kind = self._level_or_depth(sf["quantity"]) if sf["kind"] == "initial" else None
 
             # list of (filename, datafiletype, value) per block
             blocks = []
@@ -487,7 +502,19 @@ class Df2HydrolibModel:
                         self.hydamo.branches, gdf, column, max_distance=sf["max_snap_distance"]
                     )
                 if not branch_values:
-                    logger.warning(f"No values on any branch for {sf['filename']}; the file is empty.")
+                    logger.warning(f"No values on any branch for {sf['filename']}.")
+                if kind is not None:
+                    # combined with the other fields of this quantity, see the docstring
+                    other = "waterdepth" if kind == "waterlevel" else "waterlevel"
+                    for branch_id in branch_values:
+                        combined[other].pop(branch_id, None)
+                    combined[kind].update(branch_values)
+                    combined_quantity[kind] = sf["quantity"]
+                    order = [entry for entry in order if entry != ("combined", kind)] + [("combined", kind)]
+                    footprint = self._level_depth_footprint(sf, {"branches": branch_values})
+                    if footprint is not None:
+                        level_depth_fields.append(footprint)
+                    continue
                 self.spatial_data[sf["filename"]] = {
                     "filetype": "branch",
                     "branches": branch_values,
@@ -521,15 +548,37 @@ class Df2HydrolibModel:
                 }
                 blocks.append((sf["filename"], "sample", None))
 
+            order.append(("blocks", sf, blocks))
+            footprint = self._level_depth_footprint(sf, self.spatial_data.get(sf["filename"]))
+            if footprint is not None:
+                level_depth_fields.append(footprint)
+
+        for entry in order:
+            if entry[0] == "combined":
+                kind = entry[1]
+                if not combined[kind]:
+                    continue
+                filename = ONEDFIELD_FILES[kind]
+                self.spatial_data[filename] = {
+                    "filetype": "branch",
+                    "branches": combined[kind],
+                    "quantity": combined_quantity[kind],
+                    "nodata": -999.0,
+                }
+                field = InitialField(quantity=combined_quantity[kind], datafile=filename, datafiletype="1dField")
+                self._clear_comments(field)
+                self.inifields.append(field)
+                continue
+            _, sf, blocks = entry
             for filename, datafiletype, value in blocks:
-                kwargs = dict(
-                    quantity=sf["quantity"],
-                    datafile=filename,
-                    datafiletype=datafiletype,
-                    interpolationmethod=sf["interpolationmethod"],
-                    locationtype=sf["locationtype"],
-                    operand=sf["operand"],
-                )
+                kwargs = {
+                    "quantity": sf["quantity"],
+                    "datafile": filename,
+                    "datafiletype": datafiletype,
+                    "interpolationmethod": sf["interpolationmethod"],
+                    "locationtype": sf["locationtype"],
+                    "operand": sf["operand"],
+                }
                 if value is not None:
                     kwargs["value"] = value
                 if datafiletype == "1dField":
@@ -546,10 +595,6 @@ class Df2HydrolibModel:
                     field = ParameterField(**kwargs)
                     self._clear_comments(field)
                     self.parameterfields.append(field)
-
-            footprint = self._level_depth_footprint(sf, self.spatial_data.get(sf["filename"]))
-            if footprint is not None:
-                level_depth_fields.append(footprint)
 
         self._check_level_and_depth(level_depth_fields, self.hydamo.branches)
         self._check_uniform_depth(level_depth_fields)
@@ -607,7 +652,7 @@ class Df2HydrolibModel:
         covered = {}
         for branch_id, line in zip(candidates.index, candidates.geometry):
             intervals = []
-            for part in _line_parts(line.intersection(footprint["area"])):
+            for part in line_parts(line.intersection(footprint["area"])):
                 chainages = [line.project(shapely.Point(c)) for c in part.coords]
                 intervals.append((min(chainages), max(chainages)))
             if intervals:
@@ -663,10 +708,13 @@ class Df2HydrolibModel:
                     )
                     if shared:
                         logger.warning(f"{len(shared)} branch(es) {header}{note} Branches: {shared[:10]}")
-                elif field_i["area"] is not None and field_j["area"] is not None:
-                    # no network to check against: compare the areas
-                    if field_i["area"].intersection(field_j["area"]).area > 0.0:
-                        logger.warning(f"The areas of the 1D fields {header}{note}")
+                elif (
+                    field_i["area"] is not None
+                    and field_j["area"] is not None
+                    and field_i["area"].intersection(field_j["area"]).area > 0.0
+                ):
+                    # no network to check against: the areas overlap
+                    logger.warning(f"The areas of the 1D fields {header}{note}")
 
         for j, field in enumerate(fields):
             if field["kind"] != "waterdepth" or field["filetype"] == "branch":
@@ -776,11 +824,16 @@ class Df2HydrolibModel:
         fm.geometry.inifieldfile = inifieldmodel
         return inifieldmodel
 
-    def initial_conditions_at_nodes(self, network, output_file: Path | str = None, crs=None) -> gpd.GeoDataFrame:
-        """Initial water level or depth at the 1D computational nodes, as D-Flow FM applies the initial fields.
+    def initial_conditions_at_nodes(
+        self, network, output_file: Path | str | None = None, crs=None
+    ) -> gpd.GeoDataFrame:
+        """Approximation of the initial water level or depth at the 1D computational nodes.
 
-        Useful to check the initial conditions, e.g. in a GIS, since the D-HYDRO GUI hardly shows them. The
-        fields are applied in their order, following the behaviour found in tests with D-HYDRO 2026.02:
+        A diagnostic to check the initial conditions, e.g. in a GIS, since the D-HYDRO GUI hardly shows them.
+        It is not computed by D-Flow FM: it reproduces how D-Flow FM applied the initial fields in tests with
+        D-HYDRO 2026.02 (1404 to 1421 of the 1421 nodes of the test model matched the water level at t=0;
+        differences at junctions and structures). Other D-Flow FM versions may behave differently. The fields
+        are applied in their order:
         - values per branch (1dField) are interpolated along the branch and kept constant beyond the first and
           last chainage; uniform values apply everywhere;
         - samples are interpolated linearly in triangles (inside their convex hull), polygon files apply inside
@@ -800,8 +853,6 @@ class Df2HydrolibModel:
             gpd.GeoDataFrame: one point per node with branchid, chainage, quantity ('waterlevel' or 'waterdepth'),
                 value and source (data file of the field that sets the value)
         """
-        from scipy.interpolate import LinearNDInterpolator
-
         mesh1d = network._mesh1d
         x, y = np.asarray(mesh1d.mesh1d_node_x, dtype=float), np.asarray(mesh1d.mesh1d_node_y, dtype=float)
         branch_names = np.asarray(mesh1d.network1d_branch_id, dtype=object)
@@ -864,6 +915,7 @@ class Df2HydrolibModel:
         if crs is None:
             # the projection that DIMRWriter.add_crs writes to the model
             crs = "EPSG:28992"
+            logger.info("No coordinate system known for the branches; EPSG:28992 is used for the 1D nodes.")
         nodes = gpd.GeoDataFrame(
             {
                 "node_id": np.asarray(mesh1d.mesh1d_node_id, dtype=object),

@@ -94,8 +94,8 @@ class DRTCModel:
         self.interval_controllers = {}
 
         # initial state: from an earlier model run (set_state_from_file) and/or per structure (set_initial_state)
-        self.state_from_file = None
-        self.initial_state = {}
+        self.state_from_file: dict[str, str] | None = None
+        self.initial_state: dict[str, float] = {}
 
         # set up the output path
         base_output_path = Path(".") if output_path is None else Path(output_path)
@@ -1293,7 +1293,7 @@ class DRTCModel:
             )
 
     def set_state_from_modelrun(
-        self, his_path: str | Path, time: dt | pd.Timestamp | str = None, netcdf_index: int = None
+        self, his_path: str | Path, time: dt | pd.Timestamp | str | None = None, netcdf_index: int | None = None
     ) -> dict[str, float]:
         """Use the structure settings of an earlier model run (his-file) as initial setting of the controllers.
 
@@ -1339,6 +1339,7 @@ class DRTCModel:
                         value = his[variable][index, names[kind].index(structure_id)]
                         if not np.ma.is_masked(value) and np.isfinite(value):
                             values[structure_id] = float(value)
+                        # the structure is found; a missing (masked) value is not looked up in other tables
                         break
                 if structure_id not in values:
                     missing.append(structure_id)
@@ -2041,9 +2042,13 @@ class DRTCModel:
         return min(max(setting, lower), upper)
 
     def _structure_setting(self, structure_id: str, steering_variable: str) -> float | None:
-        """Get the setting of a structure for a steering variable from the structure dataframes."""
+        """Get the setting of a structure for a steering variable from the structure dataframes.
+
+        These are the columns of the HyDAMO structure tables; set_state_from_modelrun reads the corresponding
+        his-file variables, which also include values that are not in these tables (e.g. culvert gate levels).
+        """
         sources = {
-            "Crest level (s)": [("rweirs_df", "crestlevel"), ("orifices_df", "crestlevel")],
+            "Crest level (s)": [("rweirs_df", "crestlevel"), ("orifices_df", "crestlevel"), ("uweirs_df", "crestlevel")],
             "Gate lower edge level (s)": [("orifices_df", "gateloweredgelevel")],
             "Valve opening (s)": [("culverts_df", "valveopeningheight")],
             "Capacity (p)": [("pumps_df", "capacity")],
@@ -2066,7 +2071,7 @@ class DRTCModel:
         vector_tag = gn_brackets + "vector"
 
         def leaves() -> dict[str, ET.Element]:
-            return {el.get("id"): el for el in tree_vector.iter(leaf_tag)}
+            return {leaf_id: el for el in tree_vector.iter(leaf_tag) if (leaf_id := el.get("id")) is not None}
 
         if self.state_from_file is not None:
             valid_ids = self._dataconfig_ids()
