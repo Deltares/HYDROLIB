@@ -447,13 +447,15 @@ def _add_structures_manually():
     hydamo.structures.add_uweir(
         id="uwtest",
         name="uwtest",
-        branchid="W_1486_0",
-        chainage=27.0,
-        dischargecoeff=1.0,
-        crestlevel=18.0,
-        numlevels=4,
-        yvalues="0.0 1.0 2.0 3.0",
-        zvalues="19.0 18.0 18.2 19.0",
+        branchid="W_242224_0",
+        chainage=300.0,
+        dischargecoeff=0.9,
+        # in the main watercourse (about 2 m3/s), crest below the water level (bed 13.7 m, water level 14.3-15.2 m),
+        # so that the weir flows in test_run
+        crestlevel=14.0,
+        numlevels=3,
+        yvalues="0 2.5 5.0",
+        zvalues="15.0 14.0 15.0",
     )
 
     hydamo.structures.add_bridge(

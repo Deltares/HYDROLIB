@@ -5,7 +5,7 @@ step(s), so the file is small enough for the repository. The result can be read 
 HyDAMO.external_forcings.read_values_from_modelrun(..., netcdf_index=-1).
 
 Usage:
-    python reduce_map.py DFM_map.nc DFM_map_last.nc [number of last time steps, default 1]
+    python tests/tools/reduce_map.py DFM_map.nc hydrolib/sample_data/data/model_result/DFM_map_last.nc [number of last time steps, default 1]
 """
 
 import sys
