@@ -73,9 +73,16 @@ ONEDFIELD_FILES = {"waterlevel": "InitialWaterLevel.ini", "waterdepth": "Initial
 class ConstantWithInterpolation(Constant):
     """Constant [Forcing] block that also writes timeInterpolation.
 
-    hydrolib-core's Constant has no timeInterpolation field, but the D-HYDRO GUI raises an error when it is
-    missing. D-Flow FM (2026.02) accepts it and ignores it for constant values.
+    Workaround for the D-HYDRO GUI (2026.02), which raises an error when timeInterpolation is missing,
+    although it has no meaning for a constant. hydrolib-core's Constant has no such field (a value passed
+    to it is silently dropped). D-Flow FM (2026.02) accepts it and ignores it for constant values.
     """
+
+    timeinterpolation: TimeInterpolation = Field(TimeInterpolation.linear, alias="timeInterpolation")
+
+
+class QHTableWithInterpolation(QHTable):
+    """QH-table [Forcing] block that also writes timeInterpolation (same GUI workaround as ConstantWithInterpolation)."""
 
     timeinterpolation: TimeInterpolation = Field(TimeInterpolation.linear, alias="timeInterpolation")
 
@@ -317,15 +324,12 @@ class Df2HydrolibModel:
                     datablock=list(map(list, zip(bound["vec1"], bound["vec2"]))),
                 )
             else:
-                bnd_bc = QHTable(                 
-                        name=bound["nodeid"],
-                        function="qhtable",
-                        timeinterpolation="linear",
-                        quantityunitpair=[
-                            QuantityUnitPair(quantity="qhbnd waterlevel", unit=bound["unit2"]),
-                        QuantityUnitPair(
-                            quantity="qhbnd discharge", unit=bound["unit1"]
-                        ),
+                bnd_bc = QHTableWithInterpolation(
+                    name=bound["nodeid"],
+                    function="qhtable",
+                    quantityunitpair=[
+                        QuantityUnitPair(quantity="qhbnd waterlevel", unit=bound["unit2"]),
+                        QuantityUnitPair(quantity="qhbnd discharge", unit=bound["unit1"]),
                     ],
                     datablock=list(map(list, zip(bound["vec2"], bound["vec1"]))),
                 )

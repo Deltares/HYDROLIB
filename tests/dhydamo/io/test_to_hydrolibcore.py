@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import geopandas as gpd
@@ -267,3 +268,25 @@ def test_ext_model_file_version(tmp_path):
 
     lines = (tmp_path / "bnd.ext").read_text().splitlines()
     assert any(line.split("#")[0].split() == ["fileVersion", "=", EXT_FILE_VERSION] for line in lines)
+
+
+def test_constant_and_qh_boundaries_write_time_interpolation(tmp_path):
+    # the D-HYDRO GUI (2026.02) requires timeInterpolation in every [Forcing] block, also for
+    # constant values and QH tables, where hydrolib-core does not write it
+    class _Mesh1D:
+        class _mesh1d:
+            mesh1d_node_id = np.array(["n1", "n2"])
+            mesh1d_node_x = np.array([0.0, 100.0])
+            mesh1d_node_y = np.array([0.0, 0.0])
+
+    hydamo = HyDAMO()
+    forcings = hydamo.external_forcings
+    forcings.add_boundary_condition("constant", (0.0, 0.0), "waterlevelbnd", 1.5, _Mesh1D())
+    forcings.add_boundary_condition("qh", (100.0, 0.0), "qhbnd", {"Q": [0.0, 1.0], "H": [1.0, 2.0]}, _Mesh1D())
+    models = Df2HydrolibModel(hydamo)
+    models.forcingmodel.save(tmp_path / "boundaryconditions.bc")
+
+    blocks = (tmp_path / "boundaryconditions.bc").read_text().split("[Forcing]")[1:]
+    functions = [re.search(r"function\s*=\s*(\w+)", block).group(1) for block in blocks]
+    assert functions == ["constant", "qhtable"]
+    assert all(re.search(r"timeInterpolation\s*=\s*linear", block) for block in blocks)
