@@ -755,3 +755,42 @@ def test_initial_pid_setting_without_structure_setting(minimal_drtc):
     drtc, _ = minimal_drtc
     controller = {"steering_variable": "Crest level (s)", "lower_bound": 14.0, "upper_bound": 16.0}
     assert drtc._initial_pid_setting("S_UNKNOWN", controller) == 16.0
+
+
+def test_state_from_file_missing(minimal_drtc, tmp_path):
+    drtc, _ = minimal_drtc
+    missing = tmp_path / "no_state"
+    missing.mkdir()
+    with pytest.raises(FileNotFoundError, match="state_export.xml not found"):
+        drtc.set_state_from_file(missing)
+
+
+def test_state_from_file_without_items(minimal_drtc, tmp_path):
+    drtc, _ = minimal_drtc
+    empty = tmp_path / "state_export.xml"
+    empty.write_text('<?xml version="1.0"?><treeVector xmlns="http://www.wldelft.nl/fews"/>')
+    with pytest.raises(ValueError, match="No state items"):
+        drtc.set_state_from_file(empty)
+
+
+@pytest.mark.parametrize(
+    ("with_statepi", "check_time", "message"),
+    [
+        pytest.param(False, True, "the time of the state is not checked", id="no_statepi"),
+        pytest.param(True, False, None, id="time_not_checked"),
+    ],
+)
+def test_state_from_file_time_check(minimal_drtc, tmp_path, caplog, with_statepi, check_time, message):
+    drtc, _ = minimal_drtc
+    folder = tmp_path / "state"
+    folder.mkdir()
+    (folder / "state_export.xml").write_bytes((RTC_STATE / "state_export.xml").read_bytes())
+    if with_statepi:
+        (folder / "statePI.xml").write_bytes((RTC_STATE / "statePI.xml").read_bytes())
+    with caplog.at_level(logging.INFO, logger="hydrolib.dhydamo.core.drtc"):
+        drtc.set_state_from_file(folder, check_time=check_time)
+
+    assert drtc.state_from_file
+    assert not any("The RTC state is valid for" in msg for msg in caplog.messages)
+    if message is not None:
+        assert any(message in msg for msg in caplog.messages)

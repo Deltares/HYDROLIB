@@ -13,7 +13,10 @@ from hydrolib.core.dflowfm.structure.models import StructureModel
 from hydrolib.core.dimr.models import DIMR, FMComponent
 
 # Importing relevant classes from Hydrolib-dhydamo
-from hydrolib.dhydamo.converters.df2hydrolibmodel import EXT_FILE_VERSION, Df2HydrolibModel
+from hydrolib.dhydamo.converters.df2hydrolibmodel import (
+    EXT_FILE_VERSION,
+    Df2HydrolibModel,
+)
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
 from shapely.geometry import Point

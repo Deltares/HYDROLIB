@@ -1,16 +1,17 @@
+import base64
+import io
+
+import branca.colormap as bcm
+import folium
+import geopandas as gpd
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.collections import LineCollection
-import folium
-from hydrolib.core.dflowfm.net.models import Network
-import branca.colormap as bcm
-import matplotlib.colors as mcolors
-import io, base64
+import shapely
 from branca.element import MacroElement
 from jinja2 import Template
-import shapely
-import geopandas as gpd
 from matplotlib.figure import Figure
+
 
 # --- helper for point layers ---
 def point_layer(m, gdf, name, color, symbol, size=14, use_centroid=False):

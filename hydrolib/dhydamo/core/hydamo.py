@@ -7,13 +7,12 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
+from netCDF4 import Dataset, chartostring
 from pydantic.v1 import ConfigDict, validate_arguments
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from tqdm.auto import tqdm
-from netCDF4 import Dataset, chartostring
 
-from hydrolib.dhydamo.io.netcdfreader import time_index
 from hydrolib import dhydamo
 from hydrolib.dhydamo.converters.hydamo2df import (
     CrossSectionsIO,
@@ -22,16 +21,15 @@ from hydrolib.dhydamo.converters.hydamo2df import (
     StorageNodesIO,
     StructuresIO,
 )
-from hydrolib.dhydamo.geometry import common
-from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.core.relations import (
     RelationsHyDAMO,
     build_cascade_plan,
 )
-from hydrolib.dhydamo.geometry import zonal
+from hydrolib.dhydamo.geometry import common, zonal
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 from hydrolib.dhydamo.io.damo_converters import get_damo_converter
+from hydrolib.dhydamo.io.netcdfreader import time_index
 from hydrolib.dhydamo.validation import (
     HydamoValidationResult,
     ValidationMode,
@@ -1965,7 +1963,9 @@ class ExternalForcings:
             crs=crs,
         )
 
-    def set_initial_velocity(self, velocities: gpd.GeoDataFrame, column: str = "value") -> None:
+    def set_initial_velocity(
+        self, velocities: gpd.GeoDataFrame, column: str = "value"
+    ) -> None:
         """
         Set the initial velocity on the 1D flow links from a model result, e.g. 'mesh1d_u1' read with
         read_values_from_modelrun.

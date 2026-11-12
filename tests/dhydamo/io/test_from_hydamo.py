@@ -7,9 +7,11 @@ import pandas as pd
 import pytest
 import rasterio
 from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
+from netCDF4 import Dataset
 from rasterio.transform import from_origin
 from shapely.geometry import (
     LineString,
@@ -19,9 +21,6 @@ from shapely.geometry import (
     box,
 )
 from shapely.geometry.base import BaseGeometry
-from netCDF4 import Dataset
-
-from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
 
 hydamo_data_path = (
     Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"

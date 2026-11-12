@@ -5,9 +5,8 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
-from scipy.interpolate import LinearNDInterpolator
-
 from pydantic import Field
+from scipy.interpolate import LinearNDInterpolator
 
 from hydrolib.core.dflowfm.bc.models import (
     Constant,
@@ -26,9 +25,19 @@ from hydrolib.core.dflowfm.crosssection.models import (
 )
 from hydrolib.core.dflowfm.ext.models import Boundary, ExtModel, Lateral
 from hydrolib.core.dflowfm.friction.models import FrictGlobal
-from hydrolib.core.dflowfm.inifield.models import IniFieldModel, InitialField, ParameterField
+from hydrolib.core.dflowfm.inifield.models import (
+    IniFieldModel,
+    InitialField,
+    ParameterField,
+)
 from hydrolib.core.dflowfm.obs.models import ObservationPoint
-from hydrolib.core.dflowfm.onedfield.models import OneDFieldBranch, OneDFieldGlobal, OneDFieldModel
+from hydrolib.core.dflowfm.onedfield.models import (
+    OneDFieldBranch,
+    OneDFieldGlobal,
+    OneDFieldModel,
+)
+from hydrolib.core.dflowfm.polyfile.models import Metadata, PolyFile, PolyObject
+from hydrolib.core.dflowfm.polyfile.models import Point as PolyPoint
 from hydrolib.core.dflowfm.storagenode.models import StorageNode
 from hydrolib.core.dflowfm.structure.models import (
     Bridge,
@@ -39,10 +48,7 @@ from hydrolib.core.dflowfm.structure.models import (
     UniversalWeir,
     Weir,
 )
-from hydrolib.core.dflowfm.polyfile.models import Metadata, PolyFile, PolyObject
-from hydrolib.core.dflowfm.polyfile.models import Point as PolyPoint
 from hydrolib.core.dflowfm.xyz.models import XYZModel, XYZPoint
-
 from hydrolib.dhydamo.geometry import common
 from hydrolib.dhydamo.geometry.spatial import (
     line_parts,
@@ -640,7 +646,9 @@ class Df2HydrolibModel:
         return footprint
 
     @staticmethod
-    def _covered_parts(footprint: dict, branches: gpd.GeoDataFrame) -> dict[str, list[tuple[float, float]]]:
+    def _covered_parts(
+        footprint: dict, branches: gpd.GeoDataFrame
+    ) -> dict[str, list[tuple[float, float]]]:
         """Parts of the branches covered by a footprint, as {branch id: [(start chainage, end chainage), ...]}.
 
         Chainage intervals are compared instead of line geometries, which is robust to rounding in intersections.
@@ -660,14 +668,18 @@ class Df2HydrolibModel:
         return covered
 
     @staticmethod
-    def _overlap_length(intervals_i: list[tuple[float, float]], intervals_j: list[tuple[float, float]]) -> float:
+    def _overlap_length(
+        intervals_i: list[tuple[float, float]], intervals_j: list[tuple[float, float]]
+    ) -> float:
         """Total length of the overlap between two lists of chainage intervals."""
         return sum(
             max(0.0, min(b_i, b_j) - max(a_i, a_j)) for a_i, b_i in intervals_i for a_j, b_j in intervals_j
         )
 
     @classmethod
-    def _check_level_and_depth(cls, fields: list[dict], branches: gpd.GeoDataFrame, tolerance: float = 0.01) -> None:
+    def _check_level_and_depth(
+        cls, fields: list[dict], branches: gpd.GeoDataFrame, tolerance: float = 0.01
+    ) -> None:
         """Warn where a water level field and a water depth field both give values on the same part of a branch.
 
         D-Flow FM applies the fields in order, and the last field wins, also between water level and water

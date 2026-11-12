@@ -1,10 +1,11 @@
+import copy
 import re
 from pathlib import Path
 
 import pytest
 from hydrolib.dhydamo.core.drr import DRRModel
-from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 from hydrolib.dhydamo.io import drrwriter
+from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 from hydrolib.dhydamo.io.drrwriter import DRRWriter
 from shapely.geometry import Point, Polygon, box
 from tests.dhydamo.io import test_from_hydamo
@@ -95,8 +96,14 @@ def _setup_rr_model(hydamo=None):
     return drrmodel
 
 
-def test_setup_rr_model():
-    drrmodel = _setup_rr_model()
+@pytest.fixture(scope="module")
+def rr_model():
+    """The RR model of the sample data, built once for this module (takes about a minute)."""
+    return _setup_rr_model()
+
+
+def test_setup_rr_model(rr_model):
+    drrmodel = rr_model
     assert len([i[1]['ga'] for i in drrmodel.unpaved.unp_nodes.items() if float(i[1]['ga']) > 0.0]) == 121
     assert len([i[1]['ar'] for i in drrmodel.paved.pav_nodes.items() if float(i[1]['ar']) > 0.0]) == 101
     assert len([i[1]['ar'] for i in drrmodel.greenhouse.gh_nodes.items() if float(i[1]['ar']) > 0.0]) == 1
@@ -191,8 +198,8 @@ def test_rr_file_names_match_fnm():
         assert resource_names.get(name.lower(), name) == name, f"drrwriter uses {name}, resources {resource_names[name.lower()]}"
 
 
-def test_rr_written_files_match_fnm(tmp_path):
-    drrmodel = _setup_rr_model()
+def test_rr_written_files_match_fnm(rr_model, tmp_path):
+    drrmodel = copy.deepcopy(rr_model)  # the time settings below should not leak into other tests
     drrmodel.d3b_parameters["Timestepsize"] = "60"
     drrmodel.d3b_parameters["StartTime"] = "'2016/06/01;00:00:00'"
     drrmodel.d3b_parameters["EndTime"] = "'2016/06/03;00:00:00'"

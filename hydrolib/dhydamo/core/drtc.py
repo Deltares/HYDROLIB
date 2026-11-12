@@ -16,8 +16,8 @@ from pydantic.v1 import ConfigDict, validate_arguments
 
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.io.netcdfreader import time_index
 from hydrolib.dhydamo.core.relations import RelationsHyDAMO
+from hydrolib.dhydamo.io.netcdfreader import time_index
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,12 @@ TIMESERIES_IMPORT_XML = "timeseries_import.xml"
 RTC_DATA_CONFIG_XML = "rtcDataConfig.xml"
 RTC_TOOLS_CONFIG_XML = "rtcToolsConfig.xml"
 STATE_IMPORT_XML = "state_import.xml"
+
+# RTC steering variables (output of a controller to a structure)
+CREST_LEVEL = "Crest level (s)"
+GATE_LOWER_EDGE_LEVEL = "Gate lower edge level (s)"
+VALVE_OPENING = "Valve opening (s)"
+CAPACITY = "Capacity (p)"
 INPUT_PREFIX = "[Input]"
 OUTPUT_PREFIX = "[Output]"
 
@@ -96,6 +102,8 @@ class DRTCModel:
         # initial state: from an earlier model run (set_state_from_file) and/or per structure (set_initial_state)
         self.state_from_file: dict[str, str] | None = None
         self.initial_state: dict[str, float] = {}
+        # ids of the time series in rtcDataConfig.xml, set by write_dataconfig
+        self._written_dataconfig_ids: set[str] | None = None
 
         # set up the output path
         base_output_path = Path(".") if output_path is None else Path(output_path)
@@ -185,11 +193,11 @@ class DRTCModel:
         if rtc_onlytimeseries:
             for name, data in rtc_timeseriesdata.items():
                 if name in hydamo.structures.rweirs_df.id.to_list():
-                    steering_var = "Crest level (s)"
+                    steering_var = CREST_LEVEL
                 if name in hydamo.structures.orifices_df.id.to_list():
-                    steering_var = 'Gate lower edge level (s)'
+                    steering_var = GATE_LOWER_EDGE_LEVEL
                 if name in hydamo.structures.pumps_df.id.to_list():
-                    steering_var = 'Capacity (p)'
+                    steering_var = CAPACITY
                 self.add_time_controller(
                     structure_id=name, steering_variable=steering_var, data=data
                 )
@@ -1047,13 +1055,13 @@ class DRTCModel:
                 continue
             structype, struc_id = resolved
             if structype == 'weir' and management.stuurvariabele == "bovenkant afsluitmiddel":
-                steering_variable = "Crest level (s)"
+                steering_variable = CREST_LEVEL
             elif structype == 'weir' and management.stuurvariabele == "hoogte opening":
-                steering_variable = "Gate lower edge level (s)"
+                steering_variable = GATE_LOWER_EDGE_LEVEL
             elif structype == 'pump' and management.stuurvariabele == "pompdebiet":
-                steering_variable = "Capacity (p)"
+                steering_variable = CAPACITY
             elif structype == 'culvert' and management.stuurvariabele == "hoogte opening":
-                steering_variable = "Valve opening (s)" 
+                steering_variable = VALVE_OPENING 
             else:
                 raise ValueError(
                     f"Invalid value for steering variable of {struc_id}: {management.stuurvariabele}. Allowed values are 'bovenkant afsluitmiddel' for weirs, 'hoogte opening' for oroficies and culverts, and 'pompdebiet' for pumps."
@@ -1255,7 +1263,9 @@ class DRTCModel:
             "extrapolation_option": extrapolation_option,
         }
 
-    def set_state_from_file(self, state_export: str | Path, check_time: bool = True) -> None:
+    def set_state_from_file(
+        self, state_export: str | Path, check_time: bool = True
+    ) -> None:
         """Use the RTC state of an earlier model run as initial state (warm start).
 
         The state_export.xml of the earlier run is written as state_import.xml, including the internal
@@ -1293,7 +1303,10 @@ class DRTCModel:
             )
 
     def set_state_from_modelrun(
-        self, his_path: str | Path, time: dt | pd.Timestamp | str | None = None, netcdf_index: int | None = None
+        self,
+        his_path: str | Path,
+        time: dt | pd.Timestamp | str | None = None,
+        netcdf_index: int | None = None,
     ) -> dict[str, float]:
         """Use the structure settings of an earlier model run (his-file) as initial setting of the controllers.
 
@@ -1317,10 +1330,10 @@ class DRTCModel:
             logger.info(f"No time given; the last time step in {his_path} is used.")
             netcdf_index = -1
         sources = {
-            "Crest level (s)": [("weirgen", "crest_level"), ("orifice", "crest_level"), ("uniweir", "crest_level")],
-            "Gate lower edge level (s)": [("orifice", "gate_lower_edge_level"), ("culvert", "gate_lower_edge_level")],
-            "Valve opening (s)": [("culvert", "gate_opening_height")],
-            "Capacity (p)": [("pump", "capacity")],
+            CREST_LEVEL: [("weirgen", "crest_level"), ("orifice", "crest_level"), ("uniweir", "crest_level")],
+            GATE_LOWER_EDGE_LEVEL: [("orifice", "gate_lower_edge_level"), ("culvert", "gate_lower_edge_level")],
+            VALVE_OPENING: [("culvert", "gate_opening_height")],
+            CAPACITY: [("pump", "capacity")],
         }
         controllers = {**self.time_controllers, **self.interval_controllers, **self.pid_controllers}
 
@@ -1778,7 +1791,7 @@ class DRTCModel:
             j.text = controller["steering_variable"]
 
             k = ET.SubElement(g, gn_brackets + "unit")
-            k.text = m3unit if controller["steering_variable"] == 'Capacity (p)' else munit
+            k.text = m3unit if controller["steering_variable"] == CAPACITY else munit
 
         for ikey, key in enumerate(self.all_controllers.keys()):
             controller = self.all_controllers[key]
@@ -1810,6 +1823,7 @@ class DRTCModel:
             )
 
         self.finish_file(myroot, configfile, self.output_path / RTC_DATA_CONFIG_XML)
+        self._written_dataconfig_ids = {el.get("id") for el in myroot.iter() if el.get("id") is not None}
 
     def write_timeseries_import(self) -> None:
         """Function to write timeseries_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
@@ -2041,17 +2055,19 @@ class DRTCModel:
             return setting
         return min(max(setting, lower), upper)
 
-    def _structure_setting(self, structure_id: str, steering_variable: str) -> float | None:
+    def _structure_setting(
+        self, structure_id: str, steering_variable: str
+    ) -> float | None:
         """Get the setting of a structure for a steering variable from the structure dataframes.
 
         These are the columns of the HyDAMO structure tables; set_state_from_modelrun reads the corresponding
         his-file variables, which also include values that are not in these tables (e.g. culvert gate levels).
         """
         sources = {
-            "Crest level (s)": [("rweirs_df", "crestlevel"), ("orifices_df", "crestlevel"), ("uweirs_df", "crestlevel")],
-            "Gate lower edge level (s)": [("orifices_df", "gateloweredgelevel")],
-            "Valve opening (s)": [("culverts_df", "valveopeningheight")],
-            "Capacity (p)": [("pumps_df", "capacity")],
+            CREST_LEVEL: [("rweirs_df", "crestlevel"), ("orifices_df", "crestlevel"), ("uweirs_df", "crestlevel")],
+            GATE_LOWER_EDGE_LEVEL: [("orifices_df", "gateloweredgelevel")],
+            VALVE_OPENING: [("culverts_df", "valveopeningheight")],
+            CAPACITY: [("pumps_df", "capacity")],
         }
         for attribute, column in sources.get(steering_variable, []):
             df = getattr(self.hydamo.structures, attribute, None)
@@ -2104,7 +2120,13 @@ class DRTCModel:
                 current[leaf_id].find(vector_tag).text = str(value)
 
     def _dataconfig_ids(self) -> set[str] | None:
-        """Ids of all time series in the written rtcDataConfig.xml, or None if it has not been written yet."""
+        """Ids of all time series in rtcDataConfig.xml, or None if it has not been written yet.
+
+        Uses the ids from write_dataconfig of this model; reads the file only if the data config was not written
+        by this model (e.g. write_state_import called on its own).
+        """
+        if self._written_dataconfig_ids is not None:
+            return self._written_dataconfig_ids
         path = self.output_path / RTC_DATA_CONFIG_XML
         if not path.exists():
             return None

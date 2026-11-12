@@ -8,7 +8,9 @@ from netCDF4 import Dataset, num2date
 logger = logging.getLogger(__name__)
 
 
-def time_index(dataset: Dataset, time: datetime | pd.Timestamp | str, tolerance: float = 1.0) -> int:
+def time_index(
+    dataset: Dataset, time: datetime | pd.Timestamp | str, tolerance: float = 1.0
+) -> int:
     """Index of the time step in a D-Flow FM output file (map, his or fou) closest to a given time.
 
     Args:

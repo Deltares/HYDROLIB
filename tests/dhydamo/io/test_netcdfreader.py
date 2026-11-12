@@ -2,9 +2,8 @@ import logging
 
 import numpy as np
 import pytest
-from netCDF4 import Dataset
-
 from hydrolib.dhydamo.io.netcdfreader import time_index
+from netCDF4 import Dataset
 
 
 @pytest.fixture
