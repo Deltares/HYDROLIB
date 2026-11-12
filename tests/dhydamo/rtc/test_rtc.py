@@ -11,8 +11,14 @@ from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
+from netCDF4 import Dataset, chartostring
 from shapely.geometry import Point
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
+
+# repository root, so the tests do not depend on the working directory
+REPOSITORY = Path(__file__).resolve().parents[3]
+RTC_STATE = REPOSITORY / "hydrolib" / "sample_data" / "data" / "rtc_state"
+REFERENCE_HIS = REPOSITORY / "tests" / "reference_model" / "dflowfm" / "output" / "DFM_his.nc"
 
 
 @functools.cache
@@ -587,6 +593,88 @@ def test_complex_controller_wrong(caplog):
     assert check_msg4 in caplog.messages
 
 
+def test_state_from_file(tmp_path, caplog):
+    state_path = RTC_STATE
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
+        rtcd.set_state_from_file(state_path)
+        rtcd.write_xml_v1()
+
+    state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
+    exported = DRTCModel._read_state_leaves(state_path / "state_export.xml")
+    valid_ids = rtcd._dataconfig_ids()
+
+    # all exported items that are part of this RTC model are copied, the others are skipped
+    copied = {key: value for key, value in exported.items() if key in valid_ids}
+    assert len(copied) > 0
+    assert all(state[key] == value for key, value in copied.items())
+    assert all(key in valid_ids for key in state)
+    assert any("not part of this RTC model and are skipped" in msg for msg in caplog.messages)
+    # the state is valid for the end of the earlier run, which differs from the start of this model
+    assert any("The RTC state is valid for 2016-06-03" in msg for msg in caplog.messages)
+
+
+def test_set_initial_state(tmp_path, caplog):
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    structure_id = next(iter(rtcd.pid_controllers))
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
+        rtcd.set_initial_state({structure_id: 12.34, "not_a_structure": 1.0})
+        rtcd.write_xml_v1()
+
+    state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
+    steering_variable = rtcd.pid_controllers[structure_id]["steering_variable"]
+    assert state[f"[Output]{structure_id}/{steering_variable}"] == "12.34"
+    assert any("no controlled structure not_a_structure" in msg for msg in caplog.messages)
+
+
+def test_initial_pid_setting_written_to_state(tmp_path):
+    # the start value of each PID controller ends up in state_import.xml; the value itself is tested with fixed
+    # numbers in test_initial_pid_setting_crest_level
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    rtcd.write_xml_v1()
+    state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
+
+    checked = 0
+    for structure_id, controller in rtcd.pid_controllers.items():
+        leaf_id = f"[Output]{structure_id}/{controller['steering_variable']}"
+        if leaf_id not in state:
+            continue  # replaced by a complex controller
+        assert float(state[leaf_id]) == rtcd._initial_pid_setting(structure_id, controller)
+        checked += 1
+    assert checked > 0
+
+
+def test_state_from_modelrun(tmp_path, caplog):
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    his_path = REFERENCE_HIS
+    with caplog.at_level(logging.INFO):
+        values = rtcd.set_state_from_modelrun(his_path, time="2016-06-02 12:00")
+    assert values
+    assert rtcd.initial_state == values
+
+    # compare one weir with the his-file at the same time step
+    with Dataset(his_path) as his:
+        index = int(np.argmin(np.abs(his["time"][:] - 36 * 3600)))
+        names = [n.strip() for n in chartostring(his["weirgen_name"][:])]
+        weir = next(sid for sid in values if sid in names)
+        assert values[weir] == float(his["weirgen_crest_level"][index, names.index(weir)])
+
+    rtcd.write_xml_v1()
+    state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
+    controller = {**rtcd.time_controllers, **rtcd.interval_controllers, **rtcd.pid_controllers}[weir]
+    assert float(state[f"[Output]{weir}/{controller['steering_variable']}"]) == values[weir]
+
+
+def test_state_from_modelrun_time_options(tmp_path):
+    rtcd = _setup_rtc_model(output_path=tmp_path)
+    his_path = REFERENCE_HIS
+    # without a time, the last time step is used
+    last = rtcd.set_state_from_modelrun(his_path)
+    assert last == rtcd.set_state_from_modelrun(his_path, netcdf_index=-1)
+    with pytest.raises(ValueError):
+        rtcd.set_state_from_modelrun(his_path, time="2016-06-02", netcdf_index=-1)
+
+
 @pytest.fixture
 def minimal_drtc(tmp_path):
     """Minimal DRTCModel built from a bare HyDAMO instance — no GeoPackage load."""
@@ -644,3 +732,65 @@ def test_resolve_management_structure_culvert(minimal_drtc):
 
     row = pd.Series({"pompid": pd.NA, "regelmiddelid": "dev-guid"})
     assert drtc._resolve_management_structure(row) == ("culvert", "C_TEST")
+
+
+@pytest.mark.parametrize(
+    ("attribute", "crestlevel", "expected"),
+    [
+        ("rweirs_df", 15.2, 15.2),  # the structure's own crest level
+        ("uweirs_df", 15.2, 15.2),  # also for universal weirs
+        ("uweirs_df", 18.0, 16.0),  # limited to the upper bound of the controller
+        ("uweirs_df", 12.0, 14.0),  # limited to the lower bound of the controller
+    ],
+)
+def test_initial_pid_setting_crest_level(minimal_drtc, attribute, crestlevel, expected):
+    drtc, hydamo = minimal_drtc
+    setattr(hydamo.structures, attribute, pd.DataFrame({"id": ["S_TEST"], "crestlevel": [crestlevel]}))
+    controller = {"steering_variable": "Crest level (s)", "lower_bound": 14.0, "upper_bound": 16.0}
+    assert drtc._initial_pid_setting("S_TEST", controller) == expected
+
+
+def test_initial_pid_setting_without_structure_setting(minimal_drtc):
+    # no setting available for the structure: start at the upper bound, as before
+    drtc, _ = minimal_drtc
+    controller = {"steering_variable": "Crest level (s)", "lower_bound": 14.0, "upper_bound": 16.0}
+    assert drtc._initial_pid_setting("S_UNKNOWN", controller) == 16.0
+
+
+def test_state_from_file_missing(minimal_drtc, tmp_path):
+    drtc, _ = minimal_drtc
+    missing = tmp_path / "no_state"
+    missing.mkdir()
+    with pytest.raises(FileNotFoundError, match="state_export.xml not found"):
+        drtc.set_state_from_file(missing)
+
+
+def test_state_from_file_without_items(minimal_drtc, tmp_path):
+    drtc, _ = minimal_drtc
+    empty = tmp_path / "state_export.xml"
+    empty.write_text('<?xml version="1.0"?><treeVector xmlns="http://www.wldelft.nl/fews"/>')
+    with pytest.raises(ValueError, match="No state items"):
+        drtc.set_state_from_file(empty)
+
+
+@pytest.mark.parametrize(
+    ("with_statepi", "check_time", "message"),
+    [
+        pytest.param(False, True, "the time of the state is not checked", id="no_statepi"),
+        pytest.param(True, False, None, id="time_not_checked"),
+    ],
+)
+def test_state_from_file_time_check(minimal_drtc, tmp_path, caplog, with_statepi, check_time, message):
+    drtc, _ = minimal_drtc
+    folder = tmp_path / "state"
+    folder.mkdir()
+    (folder / "state_export.xml").write_bytes((RTC_STATE / "state_export.xml").read_bytes())
+    if with_statepi:
+        (folder / "statePI.xml").write_bytes((RTC_STATE / "statePI.xml").read_bytes())
+    with caplog.at_level(logging.INFO, logger="hydrolib.dhydamo.core.drtc"):
+        drtc.set_state_from_file(folder, check_time=check_time)
+
+    assert drtc.state_from_file
+    assert not any("The RTC state is valid for" in msg for msg in caplog.messages)
+    if message is not None:
+        assert any(message in msg for msg in caplog.messages)
