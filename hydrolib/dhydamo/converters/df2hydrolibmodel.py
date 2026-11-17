@@ -1,5 +1,6 @@
 import itertools
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -154,18 +155,18 @@ class _NodeValues:
         self.quantity[has_value], self.value[has_value] = kind, values[has_value]
         self.source[has_value], self.source_type[has_value] = filename, filetype
 
-    def apply_uniform_depth(self, value: float, filename: str | None) -> None:
+    def apply_uniform_depth(self, values: np.ndarray, filename: str | None) -> None:
         """Override all water levels with a uniform water depth, whatever the order of the fields.
 
         Parameters
         ----------
-        value : float
-            The uniform water depth.
+        values : np.ndarray
+            The uniform water depth at every node.
         filename : str | None
             Data file of the uniform water depth.
         """
         spatial_level = self.quantity == "waterlevel"
-        self.quantity[spatial_level], self.value[spatial_level] = "waterdepth", value
+        self.quantity[spatial_level], self.value[spatial_level] = "waterdepth", values[spatial_level]
         self.source[spatial_level] = filename
 
 
@@ -610,16 +611,28 @@ class Df2HydrolibModel:
             if footprint is not None:
                 level_depth_fields.append(footprint)
 
+        self._add_fields_in_order(order, combined)
+        self._check_level_and_depth(level_depth_fields, self.hydamo.branches)
+        self._check_uniform_depth(level_depth_fields)
+
+    def _add_fields_in_order(self, order: list[tuple], combined: _CombinedOneDFields) -> None:
+        """Add the blocks of the spatial fields to the initial and parameter fields, in their order.
+
+        Parameters
+        ----------
+        order : list[tuple]
+            ("combined", kind) for a combined 1dField file, or ("blocks", spatial field,
+            [(filename, datafiletype, value)]) for the blocks of another field.
+        combined : _CombinedOneDFields
+            The combined initial water level and depth per branch.
+        """
         for entry in order:
             if entry[0] == "combined":
                 self._add_combined_field(entry[1], combined)
-            else:
-                _, sf, blocks = entry
-                for filename, datafiletype, value in blocks:
-                    self._add_block_field(sf, filename, datafiletype, value)
-
-        self._check_level_and_depth(level_depth_fields, self.hydamo.branches)
-        self._check_uniform_depth(level_depth_fields)
+                continue
+            _, sf, blocks = entry
+            for filename, datafiletype, value in blocks:
+                self._add_block_field(sf, filename, datafiletype, value)
 
     def _field_blocks(self, sf: dict) -> list[tuple[str, str, float | None]]:
         """Data and blocks of a spatial field that is not combined with other fields.
@@ -1176,23 +1189,13 @@ class Df2HydrolibModel:
 
         uniform_fields = iter(self.onedfieldmodels)
         for inifield in self.inifields:
-            filename = inifield.datafile.filepath.name if inifield.datafile and inifield.datafile.filepath else None
-            kind = self._level_or_depth(inifield.quantity)
-            data = self.spatial_data.get(filename)
-            if data is None and inifield.datafiletype == "1dField":
-                # a uniform value: its [Global] block is the next of self.onedfieldmodels, also when it is skipped
-                onedfield = next(uniform_fields)
-                values = self._uniform_values_at_nodes(inifield, kind, float(onedfield.value), len(x))
-                filetype = "uniform"
-                if values is not None and kind == "waterdepth":
-                    uniform_depth = (float(onedfield.value), filename)
-            elif kind is None or data is None:
+            field = self._inifield_at_nodes(inifield, uniform_fields, mesh_nodes)
+            if field is None:
                 continue
-            else:
-                values = self._spatial_values_at_nodes(inifield, filename, data, mesh_nodes)
-                filetype = data["filetype"]
-            if values is not None and kind is not None:
-                state.apply(kind, values, filename, filetype)
+            kind, values, filename, filetype = field
+            state.apply(kind, values, filename, filetype)
+            if filetype == "uniform" and kind == "waterdepth":
+                uniform_depth = (values, filename)
 
         if uniform_depth is not None:
             state.apply_uniform_depth(*uniform_depth)
@@ -1214,6 +1217,43 @@ class Df2HydrolibModel:
         if output_file is not None:
             nodes.to_file(output_file)
         return nodes
+
+    def _inifield_at_nodes(
+        self, inifield, uniform_fields: Iterator, nodes: _Mesh1dNodes
+    ) -> tuple[str, np.ndarray, str | None, str] | None:
+        """Values of an initial field at the 1D nodes, if it sets a water level or depth there.
+
+        Parameters
+        ----------
+        inifield : InitialField
+            The initial field.
+        uniform_fields : Iterator
+            The [Global] blocks of the uniform values (self.onedfieldmodels); the next one is consumed for
+            every uniform value, also when it is skipped.
+        nodes : _Mesh1dNodes
+            The 1D nodes.
+
+        Returns
+        -------
+        tuple[str, np.ndarray, str | None, str] | None
+            (kind, value per node, data file, filetype), with kind 'waterlevel' or 'waterdepth' and filetype
+            'uniform' or that of the spatial data; None if the field gives no water level or depth at the nodes.
+        """
+        filename = inifield.datafile.filepath.name if inifield.datafile and inifield.datafile.filepath else None
+        kind = self._level_or_depth(inifield.quantity)
+        data = self.spatial_data.get(filename)
+        if data is None and inifield.datafiletype == "1dField":
+            onedfield = next(uniform_fields)
+            values = self._uniform_values_at_nodes(inifield, kind, float(onedfield.value), len(nodes.x))
+            filetype = "uniform"
+        elif kind is None or data is None:
+            return None
+        else:
+            values = self._spatial_values_at_nodes(inifield, filename, data, nodes)
+            filetype = data["filetype"]
+        if values is None or kind is None:
+            return None
+        return kind, values, filename, filetype
 
     @staticmethod
     def _uniform_values_at_nodes(inifield, kind: str | None, value: float, n: int) -> np.ndarray | None:
