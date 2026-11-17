@@ -704,7 +704,8 @@ def test_add_initialfields_level_from_polygon():
     models = Df2HydrolibModel(hydamo)
     assert [(f.quantity, f.datafiletype) for f in models.inifields] == [('waterlevel', '1dField')]
     values = {v for _, branch_values in models.spatial_data['InitialWaterLevel.ini']['branches'].values() for v in branch_values}
-    assert len(values) > 1 and values <= set(poly_values['waterstand'])
+    assert len(values) > 1
+    assert values <= set(poly_values['waterstand'])
 
 
 def test_add_initialfields_polygon_requires_value_column():

@@ -1,4 +1,6 @@
+import itertools
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 import geopandas as gpd
@@ -85,6 +87,123 @@ class QHTableWithInterpolation(QHTable):
     """QH-table [Forcing] block that also writes timeInterpolation (same GUI workaround as ConstantWithInterpolation)."""
 
     timeinterpolation: TimeInterpolation = Field(TimeInterpolation.linear, alias="timeInterpolation")
+
+
+@dataclass
+class _Mesh1dNodes:
+    """Location of the 1D computational nodes.
+
+    Attributes
+    ----------
+    x, y : np.ndarray
+        Coordinates of the nodes.
+    branchid : np.ndarray
+        Branch id per node.
+    chainage : np.ndarray
+        Chainage of the node on its branch.
+    points : gpd.array.GeometryArray
+        Point geometry per node.
+    """
+
+    x: np.ndarray
+    y: np.ndarray
+    branchid: np.ndarray
+    chainage: np.ndarray
+    points: gpd.array.GeometryArray
+
+
+class _NodeValues:
+    """Initial water level or depth at the 1D nodes, built up by applying the initial fields in order.
+
+    Reproduces how D-Flow FM applied the fields in tests with D-HYDRO 2026.02: where fields overlap the
+    last one applies, also between water level and water depth; a water depth from polygons or samples
+    removes earlier water levels from polygons or samples; a uniform water depth overrides spatial water
+    levels.
+
+    Parameters
+    ----------
+    n : int
+        Number of nodes.
+    """
+
+    def __init__(self, n: int) -> None:
+        self.quantity = np.full(n, None, dtype=object)
+        self.value = np.full(n, np.nan)
+        self.source = np.full(n, None, dtype=object)
+        self.source_type = np.full(n, None, dtype=object)
+
+    def apply(self, kind: str, values: np.ndarray, filename: str | None, filetype: str) -> None:
+        """Apply a field: nodes where it has a value get that value.
+
+        Parameters
+        ----------
+        kind : str
+            'waterlevel' or 'waterdepth'.
+        values : np.ndarray
+            Value per node, NaN where the field gives no value.
+        filename : str | None
+            Data file of the field.
+        filetype : str
+            'uniform', 'branch', 'sample' or 'polygon'.
+        """
+        if kind == "waterdepth" and filetype in ("polygon", "sample"):
+            removed = (self.quantity == "waterlevel") & np.isin(self.source_type, ["polygon", "sample"])
+            self.quantity[removed], self.value[removed] = None, np.nan
+            self.source[removed], self.source_type[removed] = None, None
+        has_value = ~np.isnan(values)
+        self.quantity[has_value], self.value[has_value] = kind, values[has_value]
+        self.source[has_value], self.source_type[has_value] = filename, filetype
+
+    def apply_uniform_depth(self, value: float, filename: str | None) -> None:
+        """Override all water levels with a uniform water depth, whatever the order of the fields.
+
+        Parameters
+        ----------
+        value : float
+            The uniform water depth.
+        filename : str | None
+            Data file of the uniform water depth.
+        """
+        spatial_level = self.quantity == "waterlevel"
+        self.quantity[spatial_level], self.value[spatial_level] = "waterdepth", value
+        self.source[spatial_level] = filename
+
+
+class _CombinedOneDFields:
+    """Initial water level and water depth per branch, combined into one 1dField file per quantity.
+
+    A field per branch fills whole branches and the last field wins, so per branch the values of the last field
+    are kept, and a branch that a later field gives the other quantity is moved to that quantity.
+
+    Attributes
+    ----------
+    branches : dict[str, dict[str, tuple[list[float], list[float]]]]
+        Chainages and values per branch id, for 'waterlevel' and 'waterdepth'.
+    quantity : dict[str, str]
+        Quantity name of the last field per kind, as used in the [Initial] block.
+    """
+
+    def __init__(self) -> None:
+        self.branches: dict[str, dict[str, tuple[list[float], list[float]]]] = {"waterlevel": {}, "waterdepth": {}}
+        self.quantity: dict[str, str] = {}
+
+    def add(self, kind: str, quantity: str, branch_values: dict[str, tuple[list[float], list[float]]]) -> None:
+        """Add the values of a field per branch; they replace earlier values on the same branches.
+
+        Parameters
+        ----------
+        kind : str
+            'waterlevel' or 'waterdepth'.
+        quantity : str
+            Quantity name of the field.
+        branch_values : dict[str, tuple[list[float], list[float]]]
+            Chainages and values per branch id.
+        """
+        other = "waterdepth" if kind == "waterlevel" else "waterlevel"
+        for branch_id in branch_values:
+            self.branches[other].pop(branch_id, None)
+        self.branches[kind].update(branch_values)
+        self.quantity[kind] = quantity
 
 
 class Df2HydrolibModel:
@@ -459,7 +578,7 @@ class Df2HydrolibModel:
             self.inifields.append(inifield)
             self.onedfieldmodels.append(onedfield)
 
-    def spatial_fields_to_dhydro(self):
+    def spatial_fields_to_dhydro(self) -> None:
         """Convert spatial fields (branch values, polygons, rasters or samples) to InitialField/ParameterField objects.
 
         Branch values are derived from the HyDAMO branches. All initial water level and water depth fields per
@@ -472,142 +591,251 @@ class Df2HydrolibModel:
         """
         # footprints of the initial water level and depth fields, to check where both apply
         level_depth_fields = []
-        # combined 1D fields per branch: values per quantity, and the order of the blocks
-        combined: dict[str, dict] = {"waterlevel": {}, "waterdepth": {}}
-        combined_quantity: dict[str, str] = {}
-        order: list = []
+        # initial water level and depth per branch, combined into one 1dField file per quantity
+        combined = _CombinedOneDFields()
+        # order of the blocks: ("combined", kind) or ("blocks", spatial field, [(filename, datafiletype, value)])
+        order: list[tuple] = []
         for sf in self.hydamo.external_forcings.spatial_fields:
-            gdf, column = sf["gdf"], sf["column"]
             kind = self._level_or_depth(sf["quantity"]) if sf["kind"] == "initial" else None
-
-            # list of (filename, datafiletype, value) per block
-            blocks = []
-            if sf["filetype"] == "polygon":
-                values = sorted(gdf[column].astype(float).unique())
-                stem, suffix = Path(sf["filename"]).stem, Path(sf["filename"]).suffix or ".pol"
-                for i, value in enumerate(values):
-                    filename = sf["filename"] if len(values) == 1 else f"{stem}_{i:02d}{suffix}"
-                    geometries = gdf.loc[gdf[column].astype(float) == value].geometry
-                    self.spatial_data[filename] = {
-                        "filetype": "polygon",
-                        "polygons": [
-                            poly for geom in geometries for poly in common.as_polygon_list(geom)
-                        ],
-                    }
-                    blocks.append((filename, "polygon", value))
-
-            elif sf["filetype"] == "branch":
-                if sf.get("uniform") is not None:
-                    branches = self.hydamo.branches
-                    if branches is None or branches.empty:
-                        raise ValueError(f"A uniform initial {sf['quantity']} for 1D requires the branches.")
-                    branch_values = {
-                        branch_id: ([0.0, line.length], [sf["uniform"]] * 2)
-                        for branch_id, line in zip(branches.index, branches.geometry)
-                    }
-                elif gdf.geom_type.isin(["Polygon", "MultiPolygon"]).all():
-                    branch_values = polygons_to_branch_values(self.hydamo.branches, gdf, column)
-                else:
-                    branch_values = points_to_branch_values(
-                        self.hydamo.branches, gdf, column, max_distance=sf["max_snap_distance"]
-                    )
-                if not branch_values:
-                    logger.warning(f"No values on any branch for {sf['filename']}.")
-                if kind is not None:
-                    # combined with the other fields of this quantity, see the docstring
-                    other = "waterdepth" if kind == "waterlevel" else "waterlevel"
-                    for branch_id in branch_values:
-                        combined[other].pop(branch_id, None)
-                    combined[kind].update(branch_values)
-                    combined_quantity[kind] = sf["quantity"]
-                    order = [entry for entry in order if entry != ("combined", kind)] + [("combined", kind)]
-                    footprint = self._level_depth_footprint(sf, {"branches": branch_values})
-                    if footprint is not None:
-                        level_depth_fields.append(footprint)
-                    continue
-                self.spatial_data[sf["filename"]] = {
-                    "filetype": "branch",
-                    "branches": branch_values,
-                    "quantity": sf["quantity"],
-                    "nodata": sf["nodata"],
-                }
-                blocks.append((sf["filename"], "1dField", None))
-
-            elif sf["filetype"] == "raster":
-                array, transform = rasterize_polygons(
-                    gdf, column, sf["cellsize"], fill=sf["nodata"]
-                )
-                self.spatial_data[sf["filename"]] = {
-                    "filetype": "raster",
-                    "array": array,
-                    "transform": transform,
-                    "crs": gdf.crs,
-                    "nodata": sf["nodata"],
-                }
-                datafiletype = (
-                    "arcInfo" if Path(sf["filename"]).suffix.lower() == ".asc" else "GeoTIFF"
-                )
-                blocks.append((sf["filename"], datafiletype, None))
-
+            if sf["filetype"] == "branch" and kind is not None:
+                # combined with the other fields of this quantity, at the position of the last one; see the docstring
+                branch_values = self._branch_values(sf)
+                combined.add(kind, sf["quantity"], branch_values)
+                order = [entry for entry in order if entry != ("combined", kind)] + [("combined", kind)]
+                data: dict | None = {"branches": branch_values}
             else:
-                self.spatial_data[sf["filename"]] = {
-                    "filetype": "sample",
-                    "x": gdf.geometry.x.to_numpy(),
-                    "y": gdf.geometry.y.to_numpy(),
-                    "z": gdf[column].to_numpy(dtype=float),
-                }
-                blocks.append((sf["filename"], "sample", None))
-
-            order.append(("blocks", sf, blocks))
-            footprint = self._level_depth_footprint(sf, self.spatial_data.get(sf["filename"]))
+                order.append(("blocks", sf, self._field_blocks(sf)))
+                data = self.spatial_data.get(sf["filename"])
+            footprint = self._level_depth_footprint(sf, data)
             if footprint is not None:
                 level_depth_fields.append(footprint)
 
         for entry in order:
             if entry[0] == "combined":
-                kind = entry[1]
-                if not combined[kind]:
-                    continue
-                filename = ONEDFIELD_FILES[kind]
-                self.spatial_data[filename] = {
-                    "filetype": "branch",
-                    "branches": combined[kind],
-                    "quantity": combined_quantity[kind],
-                    "nodata": -999.0,
-                }
-                field = InitialField(quantity=combined_quantity[kind], datafile=filename, datafiletype="1dField")
-                self._clear_comments(field)
-                self.inifields.append(field)
-                continue
-            _, sf, blocks = entry
-            for filename, datafiletype, value in blocks:
-                kwargs = {
-                    "quantity": sf["quantity"],
-                    "datafile": filename,
-                    "datafiletype": datafiletype,
-                    "interpolationmethod": sf["interpolationmethod"],
-                    "locationtype": sf["locationtype"],
-                    "operand": sf["operand"],
-                }
-                if value is not None:
-                    kwargs["value"] = value
-                if datafiletype == "1dField":
-                    # interpolation and location type are not used for 1dField files
-                    del kwargs["interpolationmethod"], kwargs["locationtype"]
-                if sf["interpolationmethod"] == "averaging":
-                    kwargs["averagingtype"] = sf["averagingtype"]
-
-                if sf["kind"] == "initial":
-                    field = InitialField(**kwargs)
-                    self._clear_comments(field)
-                    self.inifields.append(field)
-                else:
-                    field = ParameterField(**kwargs)
-                    self._clear_comments(field)
-                    self.parameterfields.append(field)
+                self._add_combined_field(entry[1], combined)
+            else:
+                _, sf, blocks = entry
+                for filename, datafiletype, value in blocks:
+                    self._add_block_field(sf, filename, datafiletype, value)
 
         self._check_level_and_depth(level_depth_fields, self.hydamo.branches)
         self._check_uniform_depth(level_depth_fields)
+
+    def _field_blocks(self, sf: dict) -> list[tuple[str, str, float | None]]:
+        """Data and blocks of a spatial field that is not combined with other fields.
+
+        The data is stored in self.spatial_data, and written by write_spatial_fields().
+
+        Parameters
+        ----------
+        sf : dict
+            The spatial field, see ExternalForcings.set_spatial_field.
+
+        Returns
+        -------
+        list[tuple[str, str, float | None]]
+            (filename, datafiletype, value) per block; value is only set for polygon files.
+        """
+        builders = {
+            "polygon": self._polygon_blocks,
+            "branch": self._branch_blocks,
+            "raster": self._raster_blocks,
+        }
+        return builders.get(sf["filetype"], self._sample_blocks)(sf)
+
+    def _polygon_blocks(self, sf: dict) -> list[tuple[str, str, float | None]]:
+        """One .pol file and one block per distinct value of a polygon field.
+
+        Parameters
+        ----------
+        sf : dict
+            The spatial field.
+
+        Returns
+        -------
+        list[tuple[str, str, float | None]]
+            (filename, 'polygon', value) per distinct value.
+        """
+        gdf, column = sf["gdf"], sf["column"]
+        values = sorted(gdf[column].astype(float).unique())
+        stem, suffix = Path(sf["filename"]).stem, Path(sf["filename"]).suffix or ".pol"
+        blocks: list[tuple[str, str, float | None]] = []
+        for i, value in enumerate(values):
+            filename = sf["filename"] if len(values) == 1 else f"{stem}_{i:02d}{suffix}"
+            geometries = gdf.loc[gdf[column].astype(float) == value].geometry
+            self.spatial_data[filename] = {
+                "filetype": "polygon",
+                "polygons": [poly for geom in geometries for poly in common.as_polygon_list(geom)],
+            }
+            blocks.append((filename, "polygon", value))
+        return blocks
+
+    def _branch_values(self, sf: dict) -> dict[str, tuple[list[float], list[float]]]:
+        """Values per branch of a field: a uniform value, or derived from polygons or points.
+
+        Parameters
+        ----------
+        sf : dict
+            The spatial field, with filetype 'branch'.
+
+        Returns
+        -------
+        dict[str, tuple[list[float], list[float]]]
+            Chainages and values per branch id.
+
+        Raises
+        ------
+        ValueError
+            For a uniform value without branches.
+        """
+        gdf, column = sf["gdf"], sf["column"]
+        if sf.get("uniform") is not None:
+            branches = self.hydamo.branches
+            if branches is None or branches.empty:
+                raise ValueError(f"A uniform initial {sf['quantity']} for 1D requires the branches.")
+            branch_values = {
+                branch_id: ([0.0, line.length], [sf["uniform"]] * 2)
+                for branch_id, line in zip(branches.index, branches.geometry)
+            }
+        elif gdf.geom_type.isin(["Polygon", "MultiPolygon"]).all():
+            branch_values = polygons_to_branch_values(self.hydamo.branches, gdf, column)
+        else:
+            branch_values = points_to_branch_values(
+                self.hydamo.branches, gdf, column, max_distance=sf["max_snap_distance"]
+            )
+        if not branch_values:
+            logger.warning(f"No values on any branch for {sf['filename']}.")
+        return branch_values
+
+    def _branch_blocks(self, sf: dict) -> list[tuple[str, str, float | None]]:
+        """A 1dField file and block for a field per branch that is not combined (e.g. a parameter field).
+
+        Parameters
+        ----------
+        sf : dict
+            The spatial field, with filetype 'branch'.
+
+        Returns
+        -------
+        list[tuple[str, str, float | None]]
+            One block (filename, '1dField', None).
+        """
+        self.spatial_data[sf["filename"]] = {
+            "filetype": "branch",
+            "branches": self._branch_values(sf),
+            "quantity": sf["quantity"],
+            "nodata": sf["nodata"],
+        }
+        return [(sf["filename"], "1dField", None)]
+
+    def _raster_blocks(self, sf: dict) -> list[tuple[str, str, float | None]]:
+        """A raster (GeoTIFF or ArcInfo grid) and block for a polygon field.
+
+        Parameters
+        ----------
+        sf : dict
+            The spatial field, with filetype 'raster'.
+
+        Returns
+        -------
+        list[tuple[str, str, float | None]]
+            One block (filename, 'arcInfo' or 'GeoTIFF', None).
+        """
+        gdf = sf["gdf"]
+        array, transform = rasterize_polygons(gdf, sf["column"], sf["cellsize"], fill=sf["nodata"])
+        self.spatial_data[sf["filename"]] = {
+            "filetype": "raster",
+            "array": array,
+            "transform": transform,
+            "crs": gdf.crs,
+            "nodata": sf["nodata"],
+        }
+        datafiletype = "arcInfo" if Path(sf["filename"]).suffix.lower() == ".asc" else "GeoTIFF"
+        return [(sf["filename"], datafiletype, None)]
+
+    def _sample_blocks(self, sf: dict) -> list[tuple[str, str, float | None]]:
+        """A sample file (.xyz) and block for a point field.
+
+        Parameters
+        ----------
+        sf : dict
+            The spatial field, with filetype 'sample'.
+
+        Returns
+        -------
+        list[tuple[str, str, float | None]]
+            One block (filename, 'sample', None).
+        """
+        gdf = sf["gdf"]
+        self.spatial_data[sf["filename"]] = {
+            "filetype": "sample",
+            "x": gdf.geometry.x.to_numpy(),
+            "y": gdf.geometry.y.to_numpy(),
+            "z": gdf[sf["column"]].to_numpy(dtype=float),
+        }
+        return [(sf["filename"], "sample", None)]
+
+    def _add_combined_field(self, kind: str, combined: _CombinedOneDFields) -> None:
+        """Add the combined 1dField file and [Initial] block of a quantity, if it has values.
+
+        Parameters
+        ----------
+        kind : str
+            'waterlevel' or 'waterdepth'.
+        combined : _CombinedOneDFields
+            The combined values per branch.
+        """
+        if not combined.branches[kind]:
+            return
+        filename = ONEDFIELD_FILES[kind]
+        self.spatial_data[filename] = {
+            "filetype": "branch",
+            "branches": combined.branches[kind],
+            "quantity": combined.quantity[kind],
+            "nodata": -999.0,
+        }
+        field = InitialField(quantity=combined.quantity[kind], datafile=filename, datafiletype="1dField")
+        self._clear_comments(field)
+        self.inifields.append(field)
+
+    def _add_block_field(self, sf: dict, filename: str, datafiletype: str, value: float | None) -> None:
+        """Add an [Initial] or [Parameter] block for a data file of a spatial field.
+
+        Parameters
+        ----------
+        sf : dict
+            The spatial field.
+        filename : str
+            The data file.
+        datafiletype : str
+            Data file type, e.g. '1dField', 'polygon', 'GeoTIFF' or 'sample'.
+        value : float | None
+            Value inside the polygons, for polygon files.
+        """
+        kwargs = {
+            "quantity": sf["quantity"],
+            "datafile": filename,
+            "datafiletype": datafiletype,
+            "interpolationmethod": sf["interpolationmethod"],
+            "locationtype": sf["locationtype"],
+            "operand": sf["operand"],
+        }
+        if value is not None:
+            kwargs["value"] = value
+        if datafiletype == "1dField":
+            # interpolation and location type are not used for 1dField files
+            del kwargs["interpolationmethod"], kwargs["locationtype"]
+        if sf["interpolationmethod"] == "averaging":
+            kwargs["averagingtype"] = sf["averagingtype"]
+
+        if sf["kind"] == "initial":
+            field = InitialField(**kwargs)
+            self._clear_comments(field)
+            self.inifields.append(field)
+        else:
+            field = ParameterField(**kwargs)
+            self._clear_comments(field)
+            self.parameterfields.append(field)
 
     @staticmethod
     def _level_or_depth(quantity: str) -> str | None:
@@ -697,41 +925,105 @@ class Df2HydrolibModel:
         nothing. Rasters were not tested and are treated like samples.
         """
         has_branches = branches is not None and not branches.empty and "geometry" in branches
-        parts = [cls._covered_parts(f, branches) if has_branches else None for f in fields]
+        parts = [cls._covered_parts(f, branches) for f in fields] if has_branches else []
 
-        for i, field_i in enumerate(fields):
-            for j in range(i + 1, len(fields)):
-                field_j = fields[j]
-                if field_i["kind"] == field_j["kind"] or field_i["background"] or field_j["background"]:
-                    continue
+        for (i, field_i), (j, field_j) in itertools.combinations(enumerate(fields), 2):
+            if field_i["kind"] == field_j["kind"] or field_i["background"] or field_j["background"]:
+                continue
+            message = cls._overlap_message(field_i, field_j)
+            if has_branches:
+                shared = cls._shared_branches(parts[i], parts[j], tolerance)
+                if shared:
+                    logger.warning(f"{len(shared)} branch(es) {message} Branches: {shared[:10]}")
+            elif cls._areas_overlap(field_i, field_j):
+                # no network to check against: the areas overlap
+                logger.warning(f"The areas of the 1D fields {message}")
 
-                notes = []
-                if "sample" in (field_i["filetype"], field_j["filetype"]):
-                    notes.append("samples with triangulation fill the convex hull of the points")
-                if "branch" in (field_i["filetype"], field_j["filetype"]):
-                    notes.append("a 1dField file fills the whole branch")
-                note = f" Note: {'; '.join(notes)}." if notes else ""
-                header = (
-                    f"get both a {field_i['quantity']} ({field_i['filename']}) and a {field_j['quantity']} "
-                    f"({field_j['filename']}). There the {field_j['quantity']} applies, as it is added last."
-                )
+        cls._warn_depth_after_level(fields)
 
-                if parts[i] is not None:
-                    shared = sorted(
-                        branch_id
-                        for branch_id in parts[i].keys() & parts[j].keys()
-                        if cls._overlap_length(parts[i][branch_id], parts[j][branch_id]) > tolerance
-                    )
-                    if shared:
-                        logger.warning(f"{len(shared)} branch(es) {header}{note} Branches: {shared[:10]}")
-                elif (
-                    field_i["area"] is not None
-                    and field_j["area"] is not None
-                    and field_i["area"].intersection(field_j["area"]).area > 0.0
-                ):
-                    # no network to check against: the areas overlap
-                    logger.warning(f"The areas of the 1D fields {header}{note}")
+    @staticmethod
+    def _overlap_message(field_i: dict, field_j: dict) -> str:
+        """Message for a water level and a water depth field that give values at the same place.
 
+        Parameters
+        ----------
+        field_i, field_j : dict
+            Footprints of the earlier and the later field.
+
+        Returns
+        -------
+        str
+            The message, with a note on why the footprints may be larger than expected.
+        """
+        notes = []
+        if "sample" in (field_i["filetype"], field_j["filetype"]):
+            notes.append("samples with triangulation fill the convex hull of the points")
+        if "branch" in (field_i["filetype"], field_j["filetype"]):
+            notes.append("a 1dField file fills the whole branch")
+        note = f" Note: {'; '.join(notes)}." if notes else ""
+        header = (
+            f"get both a {field_i['quantity']} ({field_i['filename']}) and a {field_j['quantity']} "
+            f"({field_j['filename']}). There the {field_j['quantity']} applies, as it is added last."
+        )
+        return f"{header}{note}"
+
+    @classmethod
+    def _shared_branches(
+        cls,
+        parts_i: dict[str, list[tuple[float, float]]],
+        parts_j: dict[str, list[tuple[float, float]]],
+        tolerance: float,
+    ) -> list[str]:
+        """Branches where two footprints overlap over more than `tolerance`.
+
+        Parameters
+        ----------
+        parts_i, parts_j : dict[str, list[tuple[float, float]]]
+            Covered chainage intervals per branch id, see _covered_parts.
+        tolerance : float
+            Overlap up to this length (e.g. only at junctions) is ignored.
+
+        Returns
+        -------
+        list[str]
+            Sorted branch ids.
+        """
+        return sorted(
+            branch_id
+            for branch_id in parts_i.keys() & parts_j.keys()
+            if cls._overlap_length(parts_i[branch_id], parts_j[branch_id]) > tolerance
+        )
+
+    @staticmethod
+    def _areas_overlap(field_i: dict, field_j: dict) -> bool:
+        """Whether the areas of two footprints overlap; False if one of them has no area (fields per branch).
+
+        Parameters
+        ----------
+        field_i, field_j : dict
+            Footprints of two fields.
+
+        Returns
+        -------
+        bool
+            True if the areas overlap.
+        """
+        if field_i["area"] is None or field_j["area"] is None:
+            return False
+        return field_i["area"].intersection(field_j["area"]).area > 0.0
+
+    @staticmethod
+    def _warn_depth_after_level(fields: list[dict]) -> None:
+        """Warn for a water depth from polygons, samples or rasters after such a water level.
+
+        In tests with D-HYDRO 2026.02, such a water depth field removed those water levels everywhere, also
+        outside its own area. Fields per branch (1dField) are not affected.
+
+        Parameters
+        ----------
+        fields : list[dict]
+            Footprints of the initial water level and depth fields, in their order.
+        """
         for j, field in enumerate(fields):
             if field["kind"] != "waterdepth" or field["filetype"] == "branch":
                 continue
@@ -872,15 +1164,14 @@ class Df2HydrolibModel:
         mesh1d = network._mesh1d
         x, y = np.asarray(mesh1d.mesh1d_node_x, dtype=float), np.asarray(mesh1d.mesh1d_node_y, dtype=float)
         branch_names = np.asarray(mesh1d.network1d_branch_id, dtype=object)
-        branchid = branch_names[np.asarray(mesh1d.mesh1d_node_branch_id, dtype=int)]
-        chainage = np.asarray(mesh1d.mesh1d_node_branch_offset, dtype=float)
-        n = len(x)
-        points = gpd.points_from_xy(x, y)
-
-        quantity = np.full(n, None, dtype=object)
-        value = np.full(n, np.nan)
-        source = np.full(n, None, dtype=object)
-        source_type = np.full(n, None, dtype=object)
+        mesh_nodes = _Mesh1dNodes(
+            x=x,
+            y=y,
+            branchid=branch_names[np.asarray(mesh1d.mesh1d_node_branch_id, dtype=int)],
+            chainage=np.asarray(mesh1d.mesh1d_node_branch_offset, dtype=float),
+            points=gpd.points_from_xy(x, y),
+        )
+        state = _NodeValues(len(x))
         uniform_depth = None
 
         uniform_fields = iter(self.onedfieldmodels)
@@ -889,63 +1180,127 @@ class Df2HydrolibModel:
             kind = self._level_or_depth(inifield.quantity)
             data = self.spatial_data.get(filename)
             if data is None and inifield.datafiletype == "1dField":
+                # a uniform value: its [Global] block is the next of self.onedfieldmodels, also when it is skipped
                 onedfield = next(uniform_fields)
-                if kind is None or str(inifield.locationtype).lower() == "2d":
-                    continue
-                values, filetype = np.full(n, float(onedfield.value)), "uniform"
-                if kind == "waterdepth":
+                values = self._uniform_values_at_nodes(inifield, kind, float(onedfield.value), len(x))
+                filetype = "uniform"
+                if values is not None and kind == "waterdepth":
                     uniform_depth = (float(onedfield.value), filename)
             elif kind is None or data is None:
                 continue
-            elif data["filetype"] == "branch":
-                values, filetype = np.full(n, np.nan), "branch"
-                for bid, (branch_chainage, branch_values) in data["branches"].items():
-                    on_branch = branchid == bid
-                    values[on_branch] = np.interp(chainage[on_branch], branch_chainage, branch_values)
-            elif data["filetype"] == "sample":
-                values, filetype = np.full(n, np.nan), "sample"
-                if len(data["x"]) >= 3:
-                    interpolator = LinearNDInterpolator(np.c_[data["x"], data["y"]], data["z"])
-                    values = interpolator(np.c_[x, y])
-            elif data["filetype"] == "polygon":
-                values, filetype = np.full(n, np.nan), "polygon"
-                inside = gpd.GeoSeries(points).intersects(shapely.union_all(data["polygons"]))
-                values[inside.to_numpy()] = float(inifield.value)
             else:
-                logger.warning(f"Raster field {filename} is not evaluated at the nodes.")
-                continue
-
-            if kind == "waterdepth" and filetype in ("polygon", "sample"):
-                removed = (quantity == "waterlevel") & np.isin(source_type, ["polygon", "sample"])
-                quantity[removed], value[removed], source[removed], source_type[removed] = None, np.nan, None, None
-            has_value = ~np.isnan(values)
-            quantity[has_value], value[has_value] = kind, values[has_value]
-            source[has_value], source_type[has_value] = filename, filetype
+                values = self._spatial_values_at_nodes(inifield, filename, data, mesh_nodes)
+                filetype = data["filetype"]
+            if values is not None and kind is not None:
+                state.apply(kind, values, filename, filetype)
 
         if uniform_depth is not None:
-            spatial_level = quantity == "waterlevel"
-            quantity[spatial_level], value[spatial_level], source[spatial_level] = "waterdepth", uniform_depth[0], uniform_depth[1]
+            state.apply_uniform_depth(*uniform_depth)
 
-        if crs is None and getattr(self.hydamo, "branches", None) is not None:
-            crs = self.hydamo.branches.crs
-        if crs is None:
-            # the projection that DIMRWriter.add_crs writes to the model
-            crs = "EPSG:28992"
-            logger.info("No coordinate system known for the branches; EPSG:28992 is used for the 1D nodes.")
         nodes = gpd.GeoDataFrame(
             {
                 "node_id": np.asarray(mesh1d.mesh1d_node_id, dtype=object),
-                "branchid": branchid,
-                "chainage": chainage,
-                "quantity": quantity,
-                "value": value,
-                "source": source,
+                "branchid": mesh_nodes.branchid,
+                "chainage": mesh_nodes.chainage,
+                "quantity": state.quantity,
+                "value": state.value,
+                "source": state.source,
             },
-            geometry=points,
-            crs=crs,
+            geometry=mesh_nodes.points,
+            crs=self._nodes_crs(crs),
         )
         if (nodes["quantity"].isna()).any():
             logger.info(f"{nodes['quantity'].isna().sum()} 1D nodes get no initial value and keep WaterLevIni.")
         if output_file is not None:
             nodes.to_file(output_file)
         return nodes
+
+    @staticmethod
+    def _uniform_values_at_nodes(inifield, kind: str | None, value: float, n: int) -> np.ndarray | None:
+        """Values of a uniform 1D water level or depth at the nodes.
+
+        Parameters
+        ----------
+        inifield : InitialField
+            The initial field of the uniform value.
+        kind : str | None
+            'waterlevel', 'waterdepth', or None for other quantities.
+        value : float
+            The uniform value.
+        n : int
+            Number of nodes.
+
+        Returns
+        -------
+        np.ndarray | None
+            The value at every node, or None for other quantities and 2D-only fields.
+        """
+        if kind is None or str(inifield.locationtype).lower() == "2d":
+            return None
+        return np.full(n, value)
+
+    @staticmethod
+    def _spatial_values_at_nodes(
+        inifield, filename: str | None, data: dict, nodes: _Mesh1dNodes
+    ) -> np.ndarray | None:
+        """Values of a spatial field at the nodes, as D-Flow FM applied them (D-HYDRO 2026.02).
+
+        - values per branch (1dField) are interpolated along the branch and kept constant beyond the first
+          and last chainage;
+        - samples are interpolated linearly in triangles, inside their convex hull (at least 3 samples);
+        - polygon files give the value of the field inside the polygons.
+
+        Parameters
+        ----------
+        inifield : InitialField
+            The initial field.
+        filename : str | None
+            Data file of the field, for messages.
+        data : dict
+            The data of the field in spatial_data.
+        nodes : _Mesh1dNodes
+            The 1D nodes.
+
+        Returns
+        -------
+        np.ndarray | None
+            Value per node, NaN where the field gives no value; None for rasters, which are not evaluated.
+        """
+        values = np.full(len(nodes.x), np.nan)
+        if data["filetype"] == "branch":
+            for bid, (branch_chainage, branch_values) in data["branches"].items():
+                on_branch = nodes.branchid == bid
+                values[on_branch] = np.interp(nodes.chainage[on_branch], branch_chainage, branch_values)
+        elif data["filetype"] == "sample":
+            if len(data["x"]) >= 3:
+                interpolator = LinearNDInterpolator(np.c_[data["x"], data["y"]], data["z"])
+                values = interpolator(np.c_[nodes.x, nodes.y])
+        elif data["filetype"] == "polygon":
+            inside = gpd.GeoSeries(nodes.points).intersects(shapely.union_all(data["polygons"]))
+            values[inside.to_numpy()] = float(inifield.value)
+        else:
+            logger.warning(f"Raster field {filename} is not evaluated at the nodes.")
+            return None
+        return values
+
+    def _nodes_crs(self, crs):
+        """Coordinate reference system for the 1D nodes.
+
+        Parameters
+        ----------
+        crs : optional
+            Requested coordinate reference system, or None.
+
+        Returns
+        -------
+        crs
+            The requested crs, otherwise the crs of the HyDAMO branches, otherwise EPSG:28992 (as written to
+            the model by DIMRWriter.add_crs).
+        """
+        if crs is None and getattr(self.hydamo, "branches", None) is not None:
+            crs = self.hydamo.branches.crs
+        if crs is None:
+            # the projection that DIMRWriter.add_crs writes to the model
+            crs = "EPSG:28992"
+            logger.info("No coordinate system known for the branches; EPSG:28992 is used for the 1D nodes.")
+        return crs

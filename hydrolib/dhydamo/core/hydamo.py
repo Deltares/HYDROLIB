@@ -7,7 +7,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
-from netCDF4 import Dataset, chartostring
+from netCDF4 import Dataset, Variable, chartostring
 from pydantic.v1 import ConfigDict, validate_arguments
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
@@ -1601,6 +1601,64 @@ class CrossSections:
         return cssdct
 
 
+def _boundary_crossings(line: LineString, polygons: gpd.GeoDataFrame) -> list[float]:
+    """Chainages where a branch crosses the boundary of one of the polygons.
+
+    Parameters
+    ----------
+    line : LineString
+        Branch geometry.
+    polygons : gpd.GeoDataFrame
+        Polygons that intersect the branch.
+
+    Returns
+    -------
+    list[float]
+        Sorted, unique chainages of the crossings.
+    """
+    crossings: set[float] = set()
+    for boundary in polygons.geometry.boundary:
+        intersection = line.intersection(boundary)
+        for geom in getattr(intersection, "geoms", [intersection]):
+            if not geom.is_empty:
+                crossings.update(line.project(Point(c)) for c in geom.coords)
+    return sorted(crossings)
+
+
+def _value_at_chainage(
+    point: Point,
+    chainage: float,
+    polygons: gpd.GeoDataFrame,
+    value_column: str,
+    original: gpd.GeoDataFrame,
+) -> float:
+    """Value at a point on a branch: of the last polygon that contains it, otherwise of the model result.
+
+    Parameters
+    ----------
+    point : Point
+        Point on the branch.
+    chainage : float
+        Chainage of the point.
+    polygons : gpd.GeoDataFrame
+        Polygons with values that intersect the branch.
+    value_column : str
+        Column in polygons with the values.
+    original : gpd.GeoDataFrame
+        Model values on the branch, sorted by chainage, with columns 'chainage' and 'value'; interpolated
+        linearly if the point is outside all polygons.
+
+    Returns
+    -------
+    float
+        The value at the point.
+    """
+    inside = polygons[polygons.geometry.intersects(point)]
+    if len(inside):
+        return float(inside[value_column].iloc[-1])
+    return float(np.interp(chainage, original["chainage"], original["value"]))
+
+
 class ExternalForcings:
     def __init__(self, hydamo):
         self.hydamo = hydamo
@@ -1812,28 +1870,19 @@ class ExternalForcings:
                 continue
             original = original.sort_values("chainage")
 
-            # chainages where the branch crosses a polygon boundary
-            crossings: set[float] = set()
-            for boundary in candidates.geometry.boundary:
-                intersection = line.intersection(boundary)
-                parts = getattr(intersection, "geoms", [intersection])
-                for geom in parts:
-                    if not geom.is_empty:
-                        crossings.update(line.project(Point(c)) for c in geom.coords)
-
-            for crossing in sorted(crossings):
-                for chainage in (crossing - 0.5 * step, crossing + 0.5 * step):
-                    if not 0.0 <= chainage <= line.length:
-                        continue
-                    point = line.interpolate(chainage)
-                    inside = candidates[candidates.geometry.intersects(point)]
-                    if len(inside):
-                        value = float(inside[value_column].iloc[-1])
-                    else:
-                        value = float(np.interp(chainage, original["chainage"], original["value"]))
-                    rows.append(
-                        {"x": point.x, "y": point.y, "value": value, "branchid": branch_id, "chainage": chainage, "geometry": point}
-                    )
+            # two chainages per crossing of a polygon boundary, half a step on either side, within the branch
+            chainages = [
+                chainage
+                for crossing in _boundary_crossings(line, candidates)
+                for chainage in (crossing - 0.5 * step, crossing + 0.5 * step)
+                if 0.0 <= chainage <= line.length
+            ]
+            for chainage in chainages:
+                point = line.interpolate(chainage)
+                value = _value_at_chainage(point, chainage, candidates, value_column, original)
+                rows.append(
+                    {"x": point.x, "y": point.y, "value": value, "branchid": branch_id, "chainage": chainage, "geometry": point}
+                )
         if not rows:
             return gpd.GeoDataFrame(columns=["x", "y", "value", "branchid", "chainage", "geometry"], geometry="geometry")
         return gpd.GeoDataFrame(rows, geometry="geometry", crs=model_values.crs)
@@ -1877,91 +1926,199 @@ class ExternalForcings:
         """
         logger.info(f"Reading {netcdf_field} from {netcdf_path} ...")
         with Dataset(netcdf_path, "r") as results:  # Open file in read mode
-            from_depth = (
-                netcdf_field == "mesh1d_s1"
-                and netcdf_field not in results.variables
-                and {"mesh1d_waterdepth", "mesh1d_flowelem_bl"} <= set(results.variables)
+            variable, from_depth = self._select_netcdf_variable(results, netcdf_field, netcdf_path)
+            netcdf_index = self._resolve_netcdf_index(
+                results, variable, netcdf_field, netcdf_path, netcdf_index, time
             )
-            if from_depth:
-                logger.info("mesh1d_s1 is not in the file; the water level is computed as bed level + water depth.")
-                variable = results["mesh1d_waterdepth"]
-            elif netcdf_field in results.variables:
-                variable = results[netcdf_field]
-            else:
-                raise KeyError(f"{netcdf_field} not found in {netcdf_path}.")
-
-            if time is not None:
-                if netcdf_index is not None:
-                    raise ValueError("Provide either netcdf_index or time, not both.")
-                if "time" not in variable.dimensions:
-                    raise ValueError(f"{netcdf_field} in {netcdf_path} has no time dimension.")
-                netcdf_index = time_index(results, time)
-            if netcdf_index is not None and "time" not in variable.dimensions:
-                raise ValueError(f"{netcdf_field} in {netcdf_path} has no time dimension; do not provide netcdf_index.")
-            if netcdf_index is None and "time" in variable.dimensions:
-                n_time = results.dimensions["time"].size
-                if n_time != 1:
-                    logger.info(f"No time given; the last of the {n_time} time steps in {netcdf_path} is used.")
-                netcdf_index = -1
-            if netcdf_index is None:
-                value = np.ma.masked_invalid(variable[:])
-            else:
-                value = np.ma.masked_invalid(variable[netcdf_index, :])
+            masked = np.ma.masked_invalid(variable[:] if netcdf_index is None else variable[netcdf_index, :])
             if from_depth:
                 # dry nodes (missing depth) get the bed level
                 bed_level = np.ma.filled(results["mesh1d_flowelem_bl"][:], np.nan)
-                value = np.ma.masked_invalid(bed_level + np.ma.filled(value, 0.0))
+                masked = np.ma.masked_invalid(bed_level + np.ma.filled(masked, 0.0))
 
             # location of the variable: 1D nodes or 1D edges (flow links)
             location = "edge" if variable.dimensions[-1] == "mesh1d_nEdges" else "node"
             x = np.array(results[f"mesh1d_{location}_x"][:])
             y = np.array(results[f"mesh1d_{location}_y"][:])
-            if value.ndim != 1 or len(x) != len(value):
+            if masked.ndim != 1 or len(x) != len(masked):
                 raise ValueError(f'For {netcdf_field} in {netcdf_path}, length of coordinates and values are not equal.')
 
-            topology = {}
-            if all(v in results.variables for v in (f"mesh1d_{location}_branch", f"mesh1d_{location}_offset", "network1d_branch_id")):
-                branch_ids = np.array([b.strip() for b in chartostring(results["network1d_branch_id"][:])], dtype=object)
-                branch_index = np.array(results[f"mesh1d_{location}_branch"][:]).astype(int)
-                branch_index -= int(getattr(results[f"mesh1d_{location}_branch"], "start_index", 0))
-                topology = {"branchid": branch_ids[branch_index], "chainage": np.array(results[f"mesh1d_{location}_offset"][:])}
-            if location == "edge" and "mesh1d_edge_nodes" in results.variables:
-                # direction of the link (from its first to its second node), to decompose velocities in x and y
-                edge_nodes = np.array(results["mesh1d_edge_nodes"][:]).astype(int)
-                edge_nodes -= int(getattr(results["mesh1d_edge_nodes"], "start_index", 0))
-                node_x, node_y = np.array(results["mesh1d_node_x"][:]), np.array(results["mesh1d_node_y"][:])
-                topology["direction"] = np.arctan2(
-                    node_y[edge_nodes[:, 1]] - node_y[edge_nodes[:, 0]], node_x[edge_nodes[:, 1]] - node_x[edge_nodes[:, 0]]
-                )
-
-            missing = np.ma.getmaskarray(value)
+            topology = self._read_1d_topology(results, location)
+            value, missing = self._fill_missing_values(masked, results, netcdf_field, location)
             if missing.any():
-                name = netcdf_field.lower()
-                if "depth" in name or location == "edge" or "velocity" in name:
-                    fill, label = np.zeros(len(value)), "0"
-                elif name.endswith("_s1") or "waterlevel" in name:
-                    fill = np.ma.filled(results["mesh1d_flowelem_bl"][:], np.nan) if "mesh1d_flowelem_bl" in results.variables else None
-                    label = "the bed level"
-                else:
-                    fill = None
-                if fill is not None:
-                    logger.info(f"{missing.sum()} {location}s without a value (dry) in {netcdf_field}, set to {label}.")
-                    value = np.where(missing, fill, np.ma.filled(value, np.nan))
-                    missing = np.isnan(value)
-                else:
-                    value = np.ma.filled(value, np.nan)
-                if missing.any():
-                    logger.warning(f"{missing.sum()} {location}s without a value in {netcdf_field} are left out.")
-                    x, y, value = x[~missing], y[~missing], value[~missing]
-                    topology = {key: values[~missing] for key, values in topology.items()}
-            else:
-                value = np.ma.filled(value, np.nan)
+                logger.warning(f"{missing.sum()} {location}s without a value in {netcdf_field} are left out.")
+                x, y, value = x[~missing], y[~missing], value[~missing]
+                topology = {key: values[~missing] for key, values in topology.items()}
 
         return gpd.GeoDataFrame(
             {"x": x, "y": y, "value": value, **topology},
             geometry=gpd.points_from_xy(x, y),
             crs=crs,
         )
+
+    @staticmethod
+    def _select_netcdf_variable(
+        results: Dataset, netcdf_field: str, netcdf_path: str | Path
+    ) -> tuple[Variable, bool]:
+        """The variable to read from a model result.
+
+        If 'mesh1d_s1' is requested but the file only contains the water depth, the water depth is returned,
+        to compute the water level as bed level + water depth.
+
+        Parameters
+        ----------
+        results : Dataset
+            The opened map- or fou-file.
+        netcdf_field : str
+            Requested variable, e.g. 'mesh1d_s1'.
+        netcdf_path : str | Path
+            Path of the file, for messages.
+
+        Returns
+        -------
+        tuple[Variable, bool]
+            The variable, and whether it is the water depth that replaces 'mesh1d_s1'.
+
+        Raises
+        ------
+        KeyError
+            If the variable is not in the file.
+        """
+        from_depth = (
+            netcdf_field == "mesh1d_s1"
+            and netcdf_field not in results.variables
+            and {"mesh1d_waterdepth", "mesh1d_flowelem_bl"} <= set(results.variables)
+        )
+        if from_depth:
+            logger.info("mesh1d_s1 is not in the file; the water level is computed as bed level + water depth.")
+            return results["mesh1d_waterdepth"], True
+        if netcdf_field in results.variables:
+            return results[netcdf_field], False
+        raise KeyError(f"{netcdf_field} not found in {netcdf_path}.")
+
+    @staticmethod
+    def _resolve_netcdf_index(
+        results: Dataset,
+        variable: Variable,
+        netcdf_field: str,
+        netcdf_path: str | Path,
+        netcdf_index: int | None,
+        time: datetime | pd.Timestamp | str | None,
+    ) -> int | None:
+        """Time index to read, from netcdf_index or time; the last time step if neither is given.
+
+        Parameters
+        ----------
+        results : Dataset
+            The opened map- or fou-file.
+        variable : Variable
+            The variable to read.
+        netcdf_field : str
+            Requested variable, for messages.
+        netcdf_path : str | Path
+            Path of the file, for messages.
+        netcdf_index : int | None
+            Requested time index.
+        time : datetime | pd.Timestamp | str | None
+            Requested time; the nearest time step is used.
+
+        Returns
+        -------
+        int | None
+            The time index, or None for a variable without a time dimension.
+
+        Raises
+        ------
+        ValueError
+            If both netcdf_index and time are given, or one of them for a variable without a time dimension.
+        """
+        has_time = "time" in variable.dimensions
+        if time is not None:
+            if netcdf_index is not None:
+                raise ValueError("Provide either netcdf_index or time, not both.")
+            if not has_time:
+                raise ValueError(f"{netcdf_field} in {netcdf_path} has no time dimension.")
+            return time_index(results, time)
+        if netcdf_index is not None and not has_time:
+            raise ValueError(f"{netcdf_field} in {netcdf_path} has no time dimension; do not provide netcdf_index.")
+        if netcdf_index is None and has_time:
+            n_time = results.dimensions["time"].size
+            if n_time != 1:
+                logger.info(f"No time given; the last of the {n_time} time steps in {netcdf_path} is used.")
+            return -1
+        return netcdf_index
+
+    @staticmethod
+    def _read_1d_topology(results: Dataset, location: str) -> dict[str, np.ndarray]:
+        """Branch id and chainage of the 1D nodes or edges, and the direction of the edges, if in the file.
+
+        Parameters
+        ----------
+        results : Dataset
+            The opened map- or fou-file.
+        location : str
+            'node' or 'edge'.
+
+        Returns
+        -------
+        dict[str, np.ndarray]
+            'branchid' and 'chainage' (if the file contains the 1D network topology), and for edges
+            'direction' (angle of the link from its first to its second node, in radians).
+        """
+        topology = {}
+        if all(v in results.variables for v in (f"mesh1d_{location}_branch", f"mesh1d_{location}_offset", "network1d_branch_id")):
+            branch_ids = np.array([b.strip() for b in chartostring(results["network1d_branch_id"][:])], dtype=object)
+            branch_index = np.array(results[f"mesh1d_{location}_branch"][:]).astype(int)
+            branch_index -= int(getattr(results[f"mesh1d_{location}_branch"], "start_index", 0))
+            topology = {"branchid": branch_ids[branch_index], "chainage": np.array(results[f"mesh1d_{location}_offset"][:])}
+        if location == "edge" and "mesh1d_edge_nodes" in results.variables:
+            # direction of the link (from its first to its second node), to decompose velocities in x and y
+            edge_nodes = np.array(results["mesh1d_edge_nodes"][:]).astype(int)
+            edge_nodes -= int(getattr(results["mesh1d_edge_nodes"], "start_index", 0))
+            node_x, node_y = np.array(results["mesh1d_node_x"][:]), np.array(results["mesh1d_node_y"][:])
+            topology["direction"] = np.arctan2(
+                node_y[edge_nodes[:, 1]] - node_y[edge_nodes[:, 0]], node_x[edge_nodes[:, 1]] - node_x[edge_nodes[:, 0]]
+            )
+        return topology
+
+    @staticmethod
+    def _fill_missing_values(
+        masked: np.ma.MaskedArray, results: Dataset, netcdf_field: str, location: str
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Fill missing values (dry nodes or links) where a fill value is known.
+
+        Water levels get the bed level, and water depths, velocities and discharges get 0. Other variables
+        are not filled.
+
+        Parameters
+        ----------
+        masked : np.ma.MaskedArray
+            Values, with missing values masked.
+        results : Dataset
+            The opened map- or fou-file, for the bed level.
+        netcdf_field : str
+            Requested variable, which determines the fill value.
+        location : str
+            'node' or 'edge'; values on edges (velocities, discharges) are filled with 0.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray]
+            The values (NaN where still missing), and a boolean array that is True where values are missing.
+        """
+        missing = np.ma.getmaskarray(masked)
+        if not missing.any():
+            return np.ma.filled(masked, np.nan), missing
+        name = netcdf_field.lower()
+        if "depth" in name or location == "edge" or "velocity" in name:
+            fill, label = np.zeros(len(masked)), "0"
+        elif (name.endswith("_s1") or "waterlevel" in name) and "mesh1d_flowelem_bl" in results.variables:
+            fill, label = np.ma.filled(results["mesh1d_flowelem_bl"][:], np.nan), "the bed level"
+        else:
+            return np.ma.filled(masked, np.nan), missing
+        logger.info(f"{missing.sum()} {location}s without a value (dry) in {netcdf_field}, set to {label}.")
+        value = np.where(missing, fill, np.ma.filled(masked, np.nan))
+        return value, np.isnan(value)
 
     def set_initial_velocity(
         self, velocities: gpd.GeoDataFrame, column: str = "value"
@@ -2073,68 +2230,16 @@ class ExternalForcings:
             )
 
         geomtypes = set(gdf.geom_type)
-        if geomtypes <= {"Polygon", "MultiPolygon"}:
-            filetype = "branch" if filetype is None else filetype
-            if filetype not in ("branch", "polygon", "raster"):
-                raise ValueError(f"For polygons, filetype should be 'branch', 'polygon' or 'raster', not '{filetype}'.")
-        elif geomtypes <= {"Point"}:
-            filetype = "branch" if filetype is None else filetype
-            if filetype not in ("sample", "branch"):
-                raise ValueError(f"For points, filetype should be 'sample' or 'branch', not '{filetype}'.")
-        else:
-            raise ValueError(
-                f"Only (multi)polygons or points are supported, found: {geomtypes}."
-            )
-
+        filetype = self._resolve_filetype(geomtypes, filetype)
         if filetype == "branch" and locationtype != "1d":
             raise ValueError("Filetype 'branch' is only available for locationtype '1d'.")
         if filetype == "raster" and cellsize is None:
             raise ValueError("A cellsize is required to rasterize polygons.")
 
-        if filetype == "branch":
-            interpolationmethod = None
-        elif interpolationmethod is None:
-            if filetype == "polygon":
-                interpolationmethod = "constant"
-            elif filetype == "raster" and locationtype != "1d":
-                interpolationmethod = "averaging"
-            else:
-                interpolationmethod = "triangulation"
-        if filetype == "polygon" and interpolationmethod != "constant":
-            raise ValueError("Polygon files only support interpolationmethod 'constant'.")
-        if interpolationmethod == "averaging" and locationtype == "1d":
-            raise ValueError(
-                "interpolationmethod 'averaging' assigns no values to 1D nodes (D-HYDRO 2026.02). "
-                "Use filetype 'branch' or 'polygon' for polygons, or 'triangulation' for samples."
-            )
-        if filetype == "raster" and locationtype in ("1d", "all"):
-            logger.warning(
-                "D-Flow FM uses the raster nodata value as data, which affects 1D nodes near polygon edges. "
-                "Consider filetype 'branch' for 1D."
-            )
-        if filetype == "polygon" and any(
-            len(p.interiors) > 0 for geom in gdf.geometry for p in common.as_polygon_list(geom)
-        ):
-            logger.warning("Polygon files do not support holes; interiors of the polygons are ignored.")
-
-        if column is None:
-            if "Point" not in geomtypes or not gdf.has_z.all():
-                raise ValueError(
-                    "Provide a value column, or use points with a Z-coordinate."
-                )
-            gdf = gdf.assign(_z=gdf.geometry.z)
-            column = "_z"
-
-        if gdf[column].isnull().any():
-            raise ValueError(
-                f"Column {column} not filled for all features. Please provide valid values."
-            )
-
-        # generated file name, unique per field, e.g. initial_waterlevel_00.ini; uniform values use other names
-        ext = {"branch": ".ini", "polygon": ".pol", "raster": ".tif", "sample": ".xyz"}[filetype]
-        name = quantity.lower().removeprefix(kind)
-        filename = f"{kind}_{name}_{self._next_field_number:02d}{ext}"
-        self._next_field_number += 1
+        interpolationmethod = self._resolve_interpolation(filetype, locationtype, interpolationmethod)
+        self._warn_spatial_field_options(gdf, filetype, locationtype)
+        gdf, column = self._value_column(gdf, column, geomtypes)
+        filename = self._next_field_filename(kind, quantity, filetype)
 
         columns = [column, "geometry"]
         if filetype == "branch" and {"branchid", "chainage"} <= set(gdf.columns):
@@ -2157,6 +2262,171 @@ class ExternalForcings:
                 "max_snap_distance": max_snap_distance,
             }
         )
+
+    @staticmethod
+    def _resolve_filetype(geomtypes: set[str], filetype: str | None) -> str:
+        """Check the filetype for the geometry type of a spatial field; the default is 'branch'.
+
+        Parameters
+        ----------
+        geomtypes : set[str]
+            Geometry types in the GeoDataFrame.
+        filetype : str | None
+            Requested filetype, or None for the default.
+
+        Returns
+        -------
+        str
+            The filetype.
+
+        Raises
+        ------
+        ValueError
+            If the geometries are not all (multi)polygons or all points, or the filetype is not
+            available for them.
+        """
+        if geomtypes <= {"Polygon", "MultiPolygon"}:
+            filetype = "branch" if filetype is None else filetype
+            if filetype not in ("branch", "polygon", "raster"):
+                raise ValueError(f"For polygons, filetype should be 'branch', 'polygon' or 'raster', not '{filetype}'.")
+        elif geomtypes <= {"Point"}:
+            filetype = "branch" if filetype is None else filetype
+            if filetype not in ("sample", "branch"):
+                raise ValueError(f"For points, filetype should be 'sample' or 'branch', not '{filetype}'.")
+        else:
+            raise ValueError(
+                f"Only (multi)polygons or points are supported, found: {geomtypes}."
+            )
+        return filetype
+
+    @staticmethod
+    def _resolve_interpolation(filetype: str, locationtype: str, interpolationmethod: str | None) -> str | None:
+        """Interpolation method of a spatial field, with the default per filetype and location type.
+
+        Parameters
+        ----------
+        filetype : str
+            'branch', 'polygon', 'raster' or 'sample'.
+        locationtype : str
+            '1d', '2d' or 'all'.
+        interpolationmethod : str | None
+            Requested interpolation method, or None for the default.
+
+        Returns
+        -------
+        str | None
+            None for 'branch' (not used for 1dField files); otherwise the requested method, or
+            'constant' (polygon), 'averaging' (raster, not 1D) or 'triangulation'.
+
+        Raises
+        ------
+        ValueError
+            For polygon files with a method other than 'constant', and for 'averaging' on 1D nodes.
+        """
+        if filetype == "branch":
+            return None
+        if interpolationmethod is None:
+            if filetype == "polygon":
+                interpolationmethod = "constant"
+            elif filetype == "raster" and locationtype != "1d":
+                interpolationmethod = "averaging"
+            else:
+                interpolationmethod = "triangulation"
+        if filetype == "polygon" and interpolationmethod != "constant":
+            raise ValueError("Polygon files only support interpolationmethod 'constant'.")
+        if interpolationmethod == "averaging" and locationtype == "1d":
+            raise ValueError(
+                "interpolationmethod 'averaging' assigns no values to 1D nodes (D-HYDRO 2026.02). "
+                "Use filetype 'branch' or 'polygon' for polygons, or 'triangulation' for samples."
+            )
+        return interpolationmethod
+
+    @staticmethod
+    def _warn_spatial_field_options(gdf: gpd.GeoDataFrame, filetype: str, locationtype: str) -> None:
+        """Warn for options that work, but may not give the intended result.
+
+        Parameters
+        ----------
+        gdf : gpd.GeoDataFrame
+            Polygons or points with values.
+        filetype : str
+            'branch', 'polygon', 'raster' or 'sample'.
+        locationtype : str
+            '1d', '2d' or 'all'.
+        """
+        if filetype == "raster" and locationtype in ("1d", "all"):
+            logger.warning(
+                "D-Flow FM uses the raster nodata value as data, which affects 1D nodes near polygon edges. "
+                "Consider filetype 'branch' for 1D."
+            )
+        if filetype == "polygon" and any(
+            len(p.interiors) > 0 for geom in gdf.geometry for p in common.as_polygon_list(geom)
+        ):
+            logger.warning("Polygon files do not support holes; interiors of the polygons are ignored.")
+
+    @staticmethod
+    def _value_column(
+        gdf: gpd.GeoDataFrame, column: str | None, geomtypes: set[str]
+    ) -> tuple[gpd.GeoDataFrame, str]:
+        """Column with the values of a spatial field; without a column, the Z-coordinate of points is used.
+
+        Parameters
+        ----------
+        gdf : gpd.GeoDataFrame
+            Polygons or points with values.
+        column : str | None
+            Column with values, or None to use the Z-coordinate of points.
+        geomtypes : set[str]
+            Geometry types in the GeoDataFrame.
+
+        Returns
+        -------
+        tuple[gpd.GeoDataFrame, str]
+            The GeoDataFrame (with a column '_z' if the Z-coordinate is used) and the value column.
+
+        Raises
+        ------
+        ValueError
+            If there is no column and no Z-coordinate, or the column has missing values.
+        """
+        if column is None:
+            if "Point" not in geomtypes or not gdf.has_z.all():
+                raise ValueError(
+                    "Provide a value column, or use points with a Z-coordinate."
+                )
+            gdf = gdf.assign(_z=gdf.geometry.z)
+            column = "_z"
+
+        if gdf[column].isnull().any():
+            raise ValueError(
+                f"Column {column} not filled for all features. Please provide valid values."
+            )
+        return gdf, column
+
+    def _next_field_filename(self, kind: str, quantity: str, filetype: str) -> str:
+        """Generated file name, unique per field, e.g. initial_waterlevel_00.ini.
+
+        Uniform values (set_initial_waterlevel/-depth) use other names.
+
+        Parameters
+        ----------
+        kind : str
+            'initial' or 'parameter'.
+        quantity : str
+            D-Flow FM quantity, e.g. 'waterlevel'.
+        filetype : str
+            'branch', 'polygon', 'raster' or 'sample'.
+
+        Returns
+        -------
+        str
+            The file name.
+        """
+        ext = {"branch": ".ini", "polygon": ".pol", "raster": ".tif", "sample": ".xyz"}[filetype]
+        name = quantity.lower().removeprefix(kind)
+        filename = f"{kind}_{name}_{self._next_field_number:02d}{ext}"
+        self._next_field_number += 1
+        return filename
 
 
     def add_rainfall_2D(self, fName, bctype="rainfall"):

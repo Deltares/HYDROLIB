@@ -341,46 +341,117 @@ def polygons_to_branch_values(
     values = polygons[column].astype(float).to_numpy()
     result = {}
     for branch_id, line in zip(branches.index, branches.geometry):
-        candidates = sorted(polygons.sindex.query(line, predicate="intersects"))
-        if len(candidates) == 0:
-            continue
-        length = line.length
-
-        # intervals (start, end) along the branch per polygon, in the order of the polygons
-        intervals = []
-        for i in candidates:
-            for part in line_parts(line.intersection(polygons.geometry.iloc[i])):
-                if part.length < step:
-                    continue
-                chainages = [line.project(Point(c)) for c in part.coords]
-                intervals.append((min(chainages), max(chainages), i))
+        intervals = _polygon_intervals(line, polygons, step)
         if not intervals:
             continue
-
-        # value per sub-interval between breakpoints: the last polygon covering it
-        breakpoints = sorted({0.0, length} | {s for s0, s1, _ in intervals for s in (s0, s1)})
-        segments: list[list[float]] = []
-        for a, b in itertools.pairwise(breakpoints):
-            if b - a < step:
-                continue
-            mid = 0.5 * (a + b)
-            covering = [i for s0, s1, i in intervals if s0 <= mid <= s1]
-            if not covering:
-                continue
-            value = values[max(covering)]
-            if segments and np.isclose(segments[-1][1], a) and segments[-1][2] == value:
-                segments[-1][1] = b
-            else:
-                segments.append([a, b, value])
-
-        chainage, branch_values = [], []
-        for a, b, value in segments:
-            start = a if np.isclose(a, 0.0) else a + 0.5 * step
-            end = b if np.isclose(b, length) else b - 0.5 * step
-            chainage += [start, end]
-            branch_values += [value, value]
-        result[branch_id] = (chainage, branch_values)
+        segments = _covering_segments(intervals, values, line.length, step)
+        result[branch_id] = _segments_to_chainages(segments, line.length, step)
     return result
+
+
+def _polygon_intervals(
+    line: LineString, polygons: gpd.GeoDataFrame, step: float
+) -> list[tuple[float, float, int]]:
+    """Chainage intervals of the parts of a branch inside each polygon.
+
+    Parameters
+    ----------
+    line : LineString
+        Branch geometry.
+    polygons : gpd.GeoDataFrame
+        Polygons with a default (0..n-1) index.
+    step : float
+        Parts of the branch shorter than this are ignored.
+
+    Returns
+    -------
+    list[tuple[float, float, int]]
+        (start chainage, end chainage, polygon index), in the order of the polygons.
+    """
+    intervals = []
+    for i in sorted(polygons.sindex.query(line, predicate="intersects")):
+        for part in line_parts(line.intersection(polygons.geometry.iloc[i])):
+            if part.length < step:
+                continue
+            chainages = [line.project(Point(c)) for c in part.coords]
+            intervals.append((min(chainages), max(chainages), i))
+    return intervals
+
+
+def _covering_segments(
+    intervals: list[tuple[float, float, int]],
+    values: np.ndarray,
+    length: float,
+    step: float,
+) -> list[list[float]]:
+    """Segments of a branch with the value of the last polygon that covers them.
+
+    The branch is split at all interval ends. Each sub-interval gets the value of the last
+    polygon covering its midpoint; sub-intervals shorter than `step` or outside all polygons
+    are left out. Adjacent segments with the same value are merged.
+
+    Parameters
+    ----------
+    intervals : list[tuple[float, float, int]]
+        (start chainage, end chainage, polygon index) per part of the branch inside a polygon.
+    values : np.ndarray
+        Value per polygon index.
+    length : float
+        Length of the branch.
+    step : float
+        Minimum length of a segment.
+
+    Returns
+    -------
+    list[list[float]]
+        [start chainage, end chainage, value] per segment, along the branch.
+    """
+    breakpoints = sorted({0.0, length} | {s for s0, s1, _ in intervals for s in (s0, s1)})
+    segments: list[list[float]] = []
+    for a, b in itertools.pairwise(breakpoints):
+        if b - a < step:
+            continue
+        mid = 0.5 * (a + b)
+        covering = [i for s0, s1, i in intervals if s0 <= mid <= s1]
+        if not covering:
+            continue
+        value = values[max(covering)]
+        if segments and np.isclose(segments[-1][1], a) and segments[-1][2] == value:
+            segments[-1][1] = b
+        else:
+            segments.append([a, b, value])
+    return segments
+
+
+def _segments_to_chainages(
+    segments: list[list[float]], length: float, step: float
+) -> tuple[list[float], list[float]]:
+    """Chainages and values for a 1dField file, with a stepwise change at segment ends.
+
+    Segment ends inside the branch are moved half a `step` into the segment, so two
+    neighbouring segments are `step` apart; ends at the start or end of the branch are kept.
+
+    Parameters
+    ----------
+    segments : list[list[float]]
+        [start chainage, end chainage, value] per segment.
+    length : float
+        Length of the branch.
+    step : float
+        Distance between the chainages at a boundary between two segments.
+
+    Returns
+    -------
+    tuple[list[float], list[float]]
+        Chainages and values, two per segment.
+    """
+    chainage, branch_values = [], []
+    for a, b, value in segments:
+        start = a if np.isclose(a, 0.0) else a + 0.5 * step
+        end = b if np.isclose(b, length) else b - 0.5 * step
+        chainage += [start, end]
+        branch_values += [value, value]
+    return chainage, branch_values
 
 
 def points_to_branch_values(
@@ -433,8 +504,36 @@ def points_to_branch_values(
         group = group.sort_values("chainage").drop_duplicates("chainage", keep="last")
         result[branch_id] = (group["chainage"].astype(float).tolist(), group[column].astype(float).tolist())
 
-    # A point at a junction belongs to one branch only. Give the other branches at that junction the same
-    # value at their end, otherwise D-Flow FM extrapolates from their first inner point to the junction.
+    _add_junction_end_values(result, branches, points, column, junction_tolerance)
+    return result
+
+
+def _add_junction_end_values(
+    result: dict[str, tuple[list[float], list[float]]],
+    branches: gpd.GeoDataFrame,
+    points: gpd.GeoDataFrame,
+    column: str,
+    junction_tolerance: float,
+) -> None:
+    """Give branch ends near a point at a junction the value of that point, in place.
+
+    A point at a junction belongs to one branch only. The other branches at that junction get the same
+    value at their end, otherwise D-Flow FM extrapolates from their first inner point to the junction.
+    Branch ends that already have a chainage within `junction_tolerance` are left as they are.
+
+    Parameters
+    ----------
+    result : dict[str, tuple[list[float], list[float]]]
+        Chainages and values per branch id; the lists are extended in place.
+    branches : gpd.GeoDataFrame
+        Branches, with the branch id as index.
+    points : gpd.GeoDataFrame
+        Points with values.
+    column : str
+        Column with the values.
+    junction_tolerance : float
+        Distance within which a point at a branch end is used for that end.
+    """
     geometries = branches.geometry
     for branch_id, (chainage, values) in result.items():
         line = geometries.loc[branch_id]
@@ -447,4 +546,3 @@ def points_to_branch_values(
             position = int(np.searchsorted(chainage, end_chainage))
             chainage.insert(position, end_chainage)
             values.insert(position, float(points[column].iloc[nearby[0]]))
-    return result
