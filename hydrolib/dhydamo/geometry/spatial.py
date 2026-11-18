@@ -1,5 +1,6 @@
 import itertools
 import logging
+from collections.abc import Hashable
 
 import geopandas as gpd
 import numpy as np
@@ -171,7 +172,7 @@ def find_nearest_branch(branches, geometries, method='overal', maxdist=5):
                     method,
                 )
 
-def orthogonal_line(line: LineString, offset: float, width: float=1.0) -> list[tuple[float]]:
+def orthogonal_line(line: LineString, offset: float, width: float=1.0) -> list[tuple[float, float]]:
     """
     Parameters
     ----------
@@ -198,9 +199,9 @@ def orthogonal_line(line: LineString, offset: float, width: float=1.0) -> list[t
     pt = line.interpolate(offset).coords[0]
 
     f = 0.5 * width
-    line = [(pt[0] + np.cos(angle) * f, pt[1] + np.sin(angle) * f), (pt[0] - np.cos(angle) * f, pt[1] - np.sin(angle) * f)]
+    orthogonal = [(pt[0] + np.cos(angle) * f, pt[1] + np.sin(angle) * f), (pt[0] - np.cos(angle) * f, pt[1] - np.sin(angle) * f)]
 
-    return line
+    return orthogonal
 
 def extend_linestring(line: LineString, near_pt: Point, length: float) -> LineString:
 
@@ -233,6 +234,8 @@ def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> g
     borderpts = [border.interpolate(dist).coords[0] for dist in np.linspace(0, border.length, max(20, int(border.length / 100)))]
     vor = Voronoi(points=np.vstack([nodes, borderpts]))
     clippoly = facedata.union_all()
+    if not isinstance(clippoly, (Polygon, MultiPolygon)):
+        raise TypeError(f"Expected the union of the faces to be a Polygon or MultiPolygon, not a {clippoly.geom_type}.")
     # Get lines
     lines = []
     for poly in common.as_polygon_list(clippoly):
@@ -241,7 +244,7 @@ def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> g
     linesprep = prep(MultiLineString(lines))
 
     # Determine for all nodes at once whether they lie within the clip polygon
-    inside = shapely.intersects(clippoly, shapely.points(nodes))
+    inside = shapely.intersects_xy(clippoly, nodes[:, 0], nodes[:, 1])
 
     # Collect polygons
     data = []
@@ -256,12 +259,16 @@ def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> g
             crds = vor.vertices[region]
             poly = Polygon(crds)
             if linesprep.intersects(poly):
-                poly = poly.intersection(clippoly)
-                if isinstance(poly, MultiPolygon):
-                    poly = poly.buffer(0.001)
-                if isinstance(poly, MultiPolygon):
+                clipped = poly.intersection(clippoly)
+                if isinstance(clipped, MultiPolygon):
+                    clipped = clipped.buffer(0.001)
+                if isinstance(clipped, MultiPolygon):
                     logger.warning('Got multipolygon when clipping voronoi polygon. Only adding coordinates for largest of the polygons.')
-                    poly = poly[np.argmax([p.area for p in common.as_polygon_list(poly)])]
+                    parts = common.as_polygon_list(clipped)
+                    clipped = parts[int(np.argmax([p.area for p in parts]))]
+                if not isinstance(clipped, Polygon):
+                    raise TypeError(f"Expected the clipped voronoi polygon to be a Polygon, not a {clipped.geom_type}.")
+                poly = clipped
                 crds = np.vstack(poly.exterior.coords[:])
             data.append({'geometry': poly, 'crds': crds})
             
@@ -319,7 +326,7 @@ def line_parts(geometry) -> list[LineString]:
 
 def polygons_to_branch_values(
     branches: gpd.GeoDataFrame, polygons: gpd.GeoDataFrame, column: str, step: float = 0.01
-) -> dict[str, tuple[list[float], list[float]]]:
+) -> dict[Hashable, tuple[list[float], list[float]]]:
     """Convert polygon values to values per branch and chainage, e.g. for a 1dField file.
 
     Each part of a branch inside a polygon gets the value of that polygon. At polygon boundaries two
@@ -335,12 +342,14 @@ def polygons_to_branch_values(
         step (float, optional): distance between the two chainages at a polygon boundary. Defaults to 0.01.
 
     Returns:
-        dict[str, tuple[list[float], list[float]]]: chainages and values per branch id
+        dict[Hashable, tuple[list[float], list[float]]]: chainages and values per branch id
     """
     polygons = polygons.reset_index(drop=True)
     values = polygons[column].astype(float).to_numpy()
-    result = {}
+    result: dict[Hashable, tuple[list[float], list[float]]] = {}
     for branch_id, line in zip(branches.index, branches.geometry):
+        if not isinstance(line, LineString):
+            raise TypeError(f"Expected branch {branch_id} to be a LineString, not a {line.geom_type}.")
         intervals = _polygon_intervals(line, polygons, step)
         if not intervals:
             continue
@@ -460,7 +469,7 @@ def points_to_branch_values(
     column: str,
     max_distance: float = 5.0,
     junction_tolerance: float = 0.1,
-) -> dict[str, tuple[list[float], list[float]]]:
+) -> dict[Hashable, tuple[list[float], list[float]]]:
     """Convert point values to values per branch and chainage, e.g. for a 1dField file.
 
     If the points have columns 'branchid' and 'chainage' (e.g. from a model result on the same network),
@@ -477,7 +486,7 @@ def points_to_branch_values(
             other branches at that junction. Defaults to 0.1.
 
     Returns:
-        dict[str, tuple[list[float], list[float]]]: chainages and values per branch id
+        dict[Hashable, tuple[list[float], list[float]]]: chainages and values per branch id
     """
     if {"branchid", "chainage"} <= set(points.columns):
         data = points[["branchid", "chainage", column]].copy()
@@ -499,7 +508,7 @@ def points_to_branch_values(
             geometries[b].project(p) for b, p in zip(branch_idx, points.geometry.to_numpy()[point_idx])
         ]
 
-    result = {}
+    result: dict[Hashable, tuple[list[float], list[float]]] = {}
     for branch_id, group in data.groupby("branchid", sort=False):
         group = group.sort_values("chainage").drop_duplicates("chainage", keep="last")
         result[branch_id] = (group["chainage"].astype(float).tolist(), group[column].astype(float).tolist())
@@ -509,7 +518,7 @@ def points_to_branch_values(
 
 
 def _add_junction_end_values(
-    result: dict[str, tuple[list[float], list[float]]],
+    result: dict[Hashable, tuple[list[float], list[float]]],
     branches: gpd.GeoDataFrame,
     points: gpd.GeoDataFrame,
     column: str,
@@ -523,7 +532,7 @@ def _add_junction_end_values(
 
     Parameters
     ----------
-    result : dict[str, tuple[list[float], list[float]]]
+    result : dict[Hashable, tuple[list[float], list[float]]]
         Chainages and values per branch id; the lists are extended in place.
     branches : gpd.GeoDataFrame
         Branches, with the branch id as index.
@@ -534,9 +543,9 @@ def _add_junction_end_values(
     junction_tolerance : float
         Distance within which a point at a branch end is used for that end.
     """
-    geometries = branches.geometry
+    geometries = dict(zip(branches.index, branches.geometry))
     for branch_id, (chainage, values) in result.items():
-        line = geometries.loc[branch_id]
+        line = geometries[branch_id]
         for end_chainage, end_point in ((0.0, Point(line.coords[0])), (line.length, Point(line.coords[-1]))):
             if any(abs(c - end_chainage) < junction_tolerance for c in chainage):
                 continue

@@ -26,8 +26,9 @@ def time_index(
     if "time" not in dataset.variables:
         raise ValueError(f"No time variable in {dataset.filepath()}.")
     variable = dataset["time"]
+    # the netCDF4 stubs return datetime | ndarray; for the array of all times this is always an ndarray
     times = pd.DatetimeIndex(
-        num2date(variable[:], variable.units, only_use_cftime_datetimes=False, only_use_python_datetimes=True)
+        num2date(variable[:], variable.units, only_use_cftime_datetimes=False, only_use_python_datetimes=True)  # type: ignore[arg-type]
     )
     requested = pd.Timestamp(time)
     if requested.tzinfo is not None:

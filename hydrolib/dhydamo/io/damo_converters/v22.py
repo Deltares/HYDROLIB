@@ -13,7 +13,7 @@ class Damo22Converter(BaseDamoConverter):
     """
 
     hydamo_version = "2.2"
-    layer_specs = (
+    layer_specs: tuple[LayerSpec, ...] = (
         LayerSpec("branches", "HydroObject", index_col="code"),
         LayerSpec(
             "profile",

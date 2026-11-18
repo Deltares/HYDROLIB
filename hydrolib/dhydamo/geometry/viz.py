@@ -132,12 +132,12 @@ def plot_network(
         # reproject face points
         pts = shapely.points(np.stack([face_x, face_y], axis=1))
         gdf_z = gpd.GeoDataFrame({"z": face_z}, geometry=pts, crs=crs).to_crs(4326)
-        xs, ys = gdf_z.geometry.x.values, gdf_z.geometry.y.values
+        xs, ys = gdf_z.geometry.x.to_numpy(), gdf_z.geometry.y.to_numpy()
         lon0, lat0, lon1, lat1 = xs.min(), ys.min(), xs.max(), ys.max()
         
         # render scatter to transparent PNG
         fig = Figure(figsize=(10, 10))
-        ax = fig.add_axes([0, 0, 1, 1])  # axes fills entire figure — ensures bounds align exactly
+        ax = fig.add_axes((0, 0, 1, 1))  # axes fills entire figure — ensures bounds align exactly
         ax.scatter(xs, ys, c=face_z, cmap=face_z_kwargs["cmap"],
                    vmin=vmin, vmax=vmax, s=face_z_kwargs["radius"] ** 2, linewidths=0)
         ax.set_xlim(lon0, lon1)

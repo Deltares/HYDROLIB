@@ -1,6 +1,6 @@
 import itertools
 import logging
-from collections.abc import Iterator
+from collections.abc import Hashable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -178,17 +178,17 @@ class _CombinedOneDFields:
 
     Attributes
     ----------
-    branches : dict[str, dict[str, tuple[list[float], list[float]]]]
+    branches : dict[str, dict[Hashable, tuple[list[float], list[float]]]]
         Chainages and values per branch id, for 'waterlevel' and 'waterdepth'.
     quantity : dict[str, str]
         Quantity name of the last field per kind, as used in the [Initial] block.
     """
 
     def __init__(self) -> None:
-        self.branches: dict[str, dict[str, tuple[list[float], list[float]]]] = {"waterlevel": {}, "waterdepth": {}}
+        self.branches: dict[str, dict[Hashable, tuple[list[float], list[float]]]] = {"waterlevel": {}, "waterdepth": {}}
         self.quantity: dict[str, str] = {}
 
-    def add(self, kind: str, quantity: str, branch_values: dict[str, tuple[list[float], list[float]]]) -> None:
+    def add(self, kind: str, quantity: str, branch_values: dict[Hashable, tuple[list[float], list[float]]]) -> None:
         """Add the values of a field per branch; they replace earlier values on the same branches.
 
         Parameters
@@ -197,7 +197,7 @@ class _CombinedOneDFields:
             'waterlevel' or 'waterdepth'.
         quantity : str
             Quantity name of the field.
-        branch_values : dict[str, tuple[list[float], list[float]]]
+        branch_values : dict[Hashable, tuple[list[float], list[float]]]
             Chainages and values per branch id.
         """
         other = "waterdepth" if kind == "waterlevel" else "waterlevel"
@@ -396,31 +396,32 @@ class Df2HydrolibModel:
 
         # Circles
         cs_circle = _get_cstype_part_of_dict("circle")
-        cs = [CircleCrsDef(**cs) for cs in cs_circle.values()]
-        self._clear_comments(cs)
-        self.crossdefs += cs
+        circles = [CircleCrsDef(**cs) for cs in cs_circle.values()]
+        self._clear_comments(circles)
+        self.crossdefs += circles
 
         # YZ
         cs_yz = _get_cstype_part_of_dict("yz")
-        cs = [YZCrsDef(**cs) for cs in cs_yz.values()]
-        self._clear_comments(cs)
-        self.crossdefs += cs
+        yz_profiles = [YZCrsDef(**cs) for cs in cs_yz.values()]
+        self._clear_comments(yz_profiles)
+        self.crossdefs += yz_profiles
 
         # Rectangle
         cs_rect = _get_cstype_part_of_dict("rectangle")
-        cs = [RectangleCrsDef(**cs) for cs in cs_rect.values()]
-        self._clear_comments(cs)
-        self.crossdefs += cs
+        rectangles = [RectangleCrsDef(**cs) for cs in cs_rect.values()]
+        self._clear_comments(rectangles)
+        self.crossdefs += rectangles
 
         # Trapezium
         cs_zw = _get_cstype_part_of_dict("zw")
-        cs = [ZWCrsDef(**cs) for cs in cs_zw.values()]
-        self._clear_comments(cs)
-        self.crossdefs += cs
+        zw_profiles = [ZWCrsDef(**cs) for cs in cs_zw.values()]
+        self._clear_comments(zw_profiles)
+        self.crossdefs += zw_profiles
 
     def boundaries_to_dhydro(self) -> None:
         """Convert dataframe of boundaries to ext and bc models"""
         for bound in self.hydamo.external_forcings.boundary_nodes.values():
+            bnd_bc: ConstantWithInterpolation | TimeSeries | QHTableWithInterpolation
             if bound["vec1"] is None:
                 bnd_bc = ConstantWithInterpolation(
                     name=bound["nodeid"],
@@ -478,6 +479,7 @@ class Df2HydrolibModel:
                 )
             else:
                 # time series or constant value
+                lat_bc: TimeSeries | ConstantWithInterpolation
                 if isinstance(lateral["discharge"], pd.Series):
                     lat_bc = TimeSeries(
                         name=key,
@@ -492,7 +494,8 @@ class Df2HydrolibModel:
                         datablock=list(map(list, zip(lateral["time"], lateral["value"]))),
                     )
                     self.laterals_bc.append(lat_bc)
-                elif isinstance(lateral["discharge"], float):
+                else:
+                    # add_lateral validates the discharge as a pd.Series, float or str
                     lat_bc = ConstantWithInterpolation(
                         name=key,
                         function="constant",
@@ -682,7 +685,7 @@ class Df2HydrolibModel:
             blocks.append((filename, "polygon", value))
         return blocks
 
-    def _branch_values(self, sf: dict) -> dict[str, tuple[list[float], list[float]]]:
+    def _branch_values(self, sf: dict) -> dict[Hashable, tuple[list[float], list[float]]]:
         """Values per branch of a field: a uniform value, or derived from polygons or points.
 
         Parameters
@@ -692,7 +695,7 @@ class Df2HydrolibModel:
 
         Returns
         -------
-        dict[str, tuple[list[float], list[float]]]
+        dict[Hashable, tuple[list[float], list[float]]]
             Chainages and values per branch id.
 
         Raises
@@ -841,13 +844,13 @@ class Df2HydrolibModel:
             kwargs["averagingtype"] = sf["averagingtype"]
 
         if sf["kind"] == "initial":
-            field = InitialField(**kwargs)
-            self._clear_comments(field)
-            self.inifields.append(field)
+            initial_field = InitialField(**kwargs)
+            self._clear_comments(initial_field)
+            self.inifields.append(initial_field)
         else:
-            field = ParameterField(**kwargs)
-            self._clear_comments(field)
-            self.parameterfields.append(field)
+            parameter_field = ParameterField(**kwargs)
+            self._clear_comments(parameter_field)
+            self.parameterfields.append(parameter_field)
 
     @staticmethod
     def _level_or_depth(quantity: str) -> str | None:
@@ -882,6 +885,8 @@ class Df2HydrolibModel:
             footprint["branches"] = set(data["branches"]) if data else set()
             footprint["area"] = None
         elif sf["filetype"] == "sample":
+            if data is None:
+                raise ValueError(f"No sample data for {sf['filename']}.")
             footprint["branches"] = None
             footprint["area"] = shapely.MultiPoint(list(zip(data["x"], data["y"]))).convex_hull
         else:

@@ -73,7 +73,7 @@ class GeometryList(GeometryListMK):
         return gl
 
     @classmethod
-    def _from_multigeometry(cls, multigeometry: MultiLineString | MultiPolygon):
+    def _from_multigeometry(cls, multigeometry: MultiLineString | MultiPolygon | MultiPoint):
         x_crds = []
         y_crds = []
         cls.inner_outer_separator = -998
@@ -99,11 +99,11 @@ class GeometryList(GeometryListMK):
         return cls._from_multigeometry(multipolygon)
 
     @classmethod
-    def from_multilinestring(cls, multilinestring: LineString):
+    def from_multilinestring(cls, multilinestring: MultiLineString):
         return cls._from_multigeometry(multilinestring)
 
     @classmethod
-    def from_multipoint(cls, multipoint: Point):
+    def from_multipoint(cls, multipoint: MultiPoint):
         return cls._from_multigeometry(multipoint)
 
     def _to_polygon(
@@ -119,7 +119,7 @@ class GeometryList(GeometryListMK):
         if is_multi:
             return MultiPolygon(polygons)
         else:
-            return polygons[0] if len(polygons)==1 else None
+            return polygons[0]
 
     def _to_linestring(
         self, geometries: list[GeometryListMK], is_multi: bool

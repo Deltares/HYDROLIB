@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def _points_to_lines(
     layer: gpd.GeoDataFrame, groupby_column: str, order_column: str | None, check_3d: bool
-) -> tuple[list, list]:
+) -> tuple[list[pd.Series], list[LineString]]:
     """Group 3D points into LineStrings, one per `groupby_column` value, ordered by `order_column`.
 
     Returns the fields (first row of each group) and the line geometries.
@@ -66,7 +66,8 @@ def _make_index_unique(gdf: gpd.GeoDataFrame, index_col: str) -> None:
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
     # normal properties
-    _metadata = ["required_columns", "geotype"] + gpd.GeoDataFrame._metadata
+    # _metadata exists at runtime, but types-geopandas does not declare it
+    _metadata = ["required_columns", "geotype"] + gpd.GeoDataFrame._metadata  # type: ignore[attr-defined]
 
     def __init__(self, geotype, required_columns=None, logger=logging, *args, **kwargs):
         # Check type
@@ -86,7 +87,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         self.required_columns = required_columns[:]
         self.geotype = geotype
 
-    def copy(self, deep=True):
+    # pandas-stubs marks DataFrame.copy as final; this override keeps the geotype and required columns
+    def copy(self, deep=True):  # type: ignore[misc]
         """
         Create a copy
         """
@@ -342,14 +344,12 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
 
+        # Create geodataframe
         if groupby_column is not None:
             fields, geometries = _points_to_lines(layer, groupby_column, order_column, check_3d)
+            gdf = gpd.GeoDataFrame(fields, columns=columns, geometry=geometries)
         else:
-            fields = layer
-            geometries = layer.geometry
-
-        # Create geodataframe
-        gdf = gpd.GeoDataFrame(fields, columns=columns, geometry=geometries)
+            gdf = gpd.GeoDataFrame(layer, columns=columns, geometry=layer.geometry)
 
         if column_mapping is not None:
             gdf = gdf.rename(columns=column_mapping)
@@ -368,7 +368,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if clip is not None:
             self.clip(geometry=clip, cliptype=cliptype)
 
-    def clip(self, geometry: Polygon | MultiPolygon, cliptype: str = "select", clip_and_drop: bool = True):
+    # replaces GeoDataFrame.clip with an in-place clip or selection, with its own arguments
+    def clip(self, geometry: Polygon | MultiPolygon, cliptype: str = "select", clip_and_drop: bool = True):  # type: ignore[override]
         """
         Clip geometry
         """
@@ -390,7 +391,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                 # Explode to deal with geometry collections
                 rem = rem.explode(ignore_index=False, index_parts=False)
                 rem = rem[rem.geom_type.isin(pre_geomtypes)]
-                gdf = pd.concat([gdf[gdf.geom_type.isin(pre_geomtypes)], rem], ignore_index=False)
+                gdf = gpd.GeoDataFrame(
+                    pd.concat([gdf[gdf.geom_type.isin(pre_geomtypes)], rem], ignore_index=False), crs=gdf.crs
+                )
                 # Merge duplicate indices to single multigeometry
                 keep = []
                 for idx, group in gdf.groupby(level=0, sort=False):
@@ -494,7 +497,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
 
 class ExtendedDataFrame(pd.DataFrame):
-    _metadata = ["required_columns"] + pd.DataFrame._metadata
+    # _metadata exists at runtime, but pandas-stubs does not declare it
+    _metadata = ["required_columns"] + pd.DataFrame._metadata  # type: ignore[attr-defined]
 
     def __init__(self, required_columns=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -570,7 +574,7 @@ class ExtendedDataFrame(pd.DataFrame):
     def read_gpkg_layer(
         self,
         gpkg_path: str | Path,
-        layer_name: str | None = None,
+        layer_name: str,
         column_mapping: dict | None = None,
         index_col: str | None = None,
     ):
@@ -591,7 +595,7 @@ class ExtendedDataFrame(pd.DataFrame):
     def _read_gpkg_layer(
         self,
         gpkg_path: str | Path,
-        layer_name: str | None = None,
+        layer_name: str,
         column_mapping: dict | None = None,
         index_col: str | None = None,
         **kwargs,
