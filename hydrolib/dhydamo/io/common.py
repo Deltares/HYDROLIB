@@ -76,7 +76,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             required_columns = [required_columns]
 
         # Add required columns to column list
-        if "columns" in kwargs.keys():
+        if "columns" in kwargs:
             kwargs["columns"] += required_columns
         else:
             kwargs["columns"] = required_columns
@@ -191,7 +191,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         for col, values in gdf.items():
             if str(values.dtype) == "geometry":
                 # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
-                self.set_geometry(values.to_numpy(), inplace=True)  # noqa: PD002
+                self.set_geometry(values.to_numpy(), inplace=True)
             else:
                 self[col] = values.to_numpy()
 
@@ -424,7 +424,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         """
         if crs_out != self.crs:
             # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
-            self.to_crs(crs_out, inplace=True)  # noqa: PD002
+            self.to_crs(crs_out, inplace=True)
         else:
             logger.info("OSM data has same projection as projected crs in ini-file")
 

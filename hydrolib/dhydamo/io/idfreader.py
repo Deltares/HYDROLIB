@@ -17,10 +17,11 @@ import pathlib
 import re
 import struct
 import warnings
+
 import cftime
 import dask.array
-import numpy as np
 import dateutil.parser
+import numpy as np
 import xarray as xr
 from rasterio.transform import from_origin
 
@@ -48,7 +49,7 @@ def _check_cellsizes(cellsizes):
     """
     msg = "Cellsizes of IDFs do not match"
     if len(cellsizes) == 1:
-        return None
+        return
     try:
         if (cellsizes.count(cellsizes[0]) != len(cellsizes)):
             raise ValueError(msg)

@@ -1,6 +1,6 @@
 import logging
 import numbers
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import geopandas as gpd
@@ -86,7 +86,7 @@ class HyDAMO:
         # versioning info
         self.version = {
             "number": dhydamo.__version__,
-            "date": datetime.strftime(datetime.now(timezone.utc), "%Y-%m-%dT%H:%M:%S.%fZ"),
+            "date": datetime.strftime(datetime.now(UTC), "%Y-%m-%dT%H:%M:%S.%fZ"),
             "dimr_version": "Deltares, DIMR_EXE Version 2.00.00.140737 (Win64) (Win64)",
             "suite_version": "D-HYDRO Suite 2024.03 1D2D,",
         }

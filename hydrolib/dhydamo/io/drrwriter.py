@@ -417,15 +417,11 @@ class DRRWriter:
                             + "' co 4 PDIN 0 0 pdin ss 0\n"
                         )
                         f.write("TBLE\n")
-                        for row in self.rrmodel.external_forcings.seepage[dct["sp"]][
-                            "seepage"
-                        ].items():
-                            f.write(
-                                "'"
-                                + row[0].strftime("%Y/%m/%d;%H:%M:%S")
-                                + "' "
-                                + f"{row[1]:.5f} <\n"
-                            )
+                        seepage = self.rrmodel.external_forcings.seepage[dct["sp"]]["seepage"]
+                        f.writelines(
+                            f"'{time.strftime('%Y/%m/%d;%H:%M:%S')}' {value:.5f} <\n"
+                            for time, value in seepage.items()
+                        )
                         f.write("tble\nseep\n")
 
     def write_paved(self):

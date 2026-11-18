@@ -72,7 +72,7 @@ class DRTCModel:
         rtc_timeseriesdata: pd.DataFrame=None,
         complex_controllers_folder: list[str | Path] | str | Path = None,
         id_limit_complex_controllers: list[str] | None = None,
-        rtc_timestep: int | float = 60,
+        rtc_timestep: float = 60,
 
     ) -> None:
         """Initialize the DRTCModel.
@@ -100,7 +100,7 @@ class DRTCModel:
                 may be coupled to complex controller logic. Required when
                 `complex_controllers_folder` is provided. An empty list means no IDs
                 are allowed.
-            rtc_timestep (Union[int, float], optional): Time step of the RTC model.
+            rtc_timestep (float, optional): Time step of the RTC model.
                 Defaults to 60 seconds.
         """
         self.hydamo = hydamo
