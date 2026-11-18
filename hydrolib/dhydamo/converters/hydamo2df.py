@@ -25,7 +25,7 @@ class CrossSectionsIO:
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def from_datamodel(
-        self, crsdefs: pd.DataFrame = None, crslocs: pd.DataFrame = None
+        self, crsdefs: pd.DataFrame | None = None, crslocs: pd.DataFrame | None = None
     ) -> None:
         """ "
         From parsed data models of crsdefs and crslocs
@@ -277,7 +277,7 @@ class ExternalForcingsIO:
 
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def boundaries(
-        self, boundary_conditions: ExtendedGeoDataFrame, mesh1d: Network = None
+        self, boundary_conditions: ExtendedGeoDataFrame, mesh1d: Network | None = None
     ) -> None:
         """
         Generate boundary conditions from hydamo 'randvoorwaarden' file. The file format does not allow for timeseries.
@@ -631,12 +631,12 @@ class StructuresIO:
     @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def weirs(
         self,
-        weirs: ExtendedGeoDataFrame = None,
+        weirs: ExtendedGeoDataFrame | None = None,
         profile_groups = None,
         profile_lines = None,
         profiles: ExtendedGeoDataFrame | None = None,
-        opening: ExtendedDataFrame = None,
-        management_device: ExtendedDataFrame = None,
+        opening: ExtendedDataFrame | None = None,
+        management_device: ExtendedDataFrame | None = None,
         usevelocityheight: str | None = "true",
     ) -> None:
         """
@@ -945,9 +945,9 @@ class StructuresIO:
     def bridges(
         self,
         bridges: ExtendedGeoDataFrame,
-        profile_groups: ExtendedDataFrame = None,
-        profile_lines: ExtendedGeoDataFrame = None,
-        profiles: ExtendedGeoDataFrame = None,
+        profile_groups: ExtendedDataFrame | None = None,
+        profile_lines: ExtendedGeoDataFrame | None = None,
+        profiles: ExtendedGeoDataFrame | None = None,
     ) -> None:
         """
         Method to convert HyDAMO bridges to DFlowFM bridges. Every bridge needs an associated YZ-profile through profile_groups ('brugid'), profile_lines and profiles.
@@ -1139,8 +1139,8 @@ class StructuresIO:
     def pumps(
         self,
         pumpstations: ExtendedGeoDataFrame,
-        pumps: ExtendedDataFrame = None,
-        management: ExtendedDataFrame = None,
+        pumps: ExtendedDataFrame | None = None,
+        management: ExtendedDataFrame | None = None,
     ) -> None:
         """
         Method to convert HyDAMO pumps to DFlowFM pumps. Three objects are required: pumpstations, pumps and management ('sturing').

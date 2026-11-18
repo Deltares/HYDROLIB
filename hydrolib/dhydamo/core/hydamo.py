@@ -598,7 +598,7 @@ class Network:
         self.offsets = {}
 
     @validate_arguments
-    def set_branch_order(self, branchids: list, idx: int = None) -> None:
+    def set_branch_order(self, branchids: list, idx: int | None = None) -> None:
         """
         Group branch ids so that the cross sections are
         interpolated along the branch.
@@ -1366,7 +1366,7 @@ class CrossSections:
         crosssections: gpd.GeoDataFrame | ExtendedGeoDataFrame,
         roughness: ExtendedDataFrame,
         branches: ExtendedGeoDataFrame | None,
-        roughness_variant: RoughnessVariant = None,
+        roughness_variant: RoughnessVariant | None = None,
     ) -> dict:
         """
         Function to convert hydamo cross sections 'dwarsprofiel' to
@@ -1447,7 +1447,7 @@ class CrossSections:
         parametrised: ExtendedDataFrame,
         parametrised_values: ExtendedDataFrame,
         branches: list,
-        roughness_variant: RoughnessVariant = None,
+        roughness_variant: RoughnessVariant | None = None,
     ) -> dict:
         """
         Generate parametrised cross sections for all branches,
@@ -2663,13 +2663,13 @@ class Structures:
     @validate_arguments
     def add_rweir(
         self,
-        id: str = None,
+        id: str | None = None,
         name: str | float | None = None,
-        branchid: str = None,
-        chainage: float = None,
-        crestlevel: float = None,
-        crestwidth: float = None,
-        corrcoeff: float = None,
+        branchid: str | None = None,
+        chainage: float | None = None,
+        crestlevel: float | None = None,
+        crestwidth: float | None = None,
+        corrcoeff: float | None = None,
         usevelocityheight: str = "true",
         allowedflowdir: str = "both",
     ) -> None:
@@ -2698,20 +2698,20 @@ class Structures:
     @validate_arguments
     def add_orifice(
         self,
-        id: str = None,
+        id: str | None = None,
         name:  str | float | None = None,
-        branchid: str = None,
-        chainage: float = None,
-        crestlevel: float = None,
-        crestwidth: float = None,
-        corrcoeff: float = None,
+        branchid: str | None = None,
+        chainage: float | None = None,
+        crestlevel: float | None = None,
+        crestwidth: float | None = None,
+        corrcoeff: float | None = None,
         usevelocityheight: str = "true",
         allowedflowdir: str = "both",
-        gateloweredgelevel: float = None,
-        uselimitflowpos: str = None,
-        limitflowpos: float = None,
-        uselimitflowneg: str = None,
-        limitflowneg: float = None,
+        gateloweredgelevel: float | None = None,
+        uselimitflowpos: str | None = None,
+        limitflowpos: float | None = None,
+        uselimitflowneg: str | None = None,
+        limitflowneg: float | None = None,
     ) -> None:
         """
         Function to add a orifice. Arguments correspond to the required input of DFlowFM.
@@ -2743,18 +2743,18 @@ class Structures:
     @validate_arguments
     def add_uweir(
         self,
-        id: str = None,
+        id: str | None = None,
         name:  str | float | None = None,
-        branchid: str = None,
-        chainage: float = None,
-        crestlevel: float = None,
-        crestwidth: float = None,
-        dischargecoeff: float = None,
+        branchid: str | None = None,
+        chainage: float | None = None,
+        crestlevel: float | None = None,
+        crestwidth: float | None = None,
+        dischargecoeff: float | None = None,
         usevelocityheight: str = "true",
         allowedflowdir: str = "both",
-        numlevels: float = None,
-        yvalues: str = None,
-        zvalues: str = None,
+        numlevels: float | None = None,
+        yvalues: str | None = None,
+        zvalues: str | None = None,
     ) -> None:
         """
         Function to add a universalweir. Arguments correspond to the required input of DFlowFM.
@@ -2782,18 +2782,18 @@ class Structures:
     @validate_arguments
     def add_bridge(
         self,
-        id: str = None,
+        id: str | None = None,
         name:  str | float | None = None,
-        branchid: str = None,
-        chainage: float = None,
-        length: float = None,
-        inletlosscoeff: float = None,
-        outletlosscoeff: float = None,
-        csdefid: str = None,
-        shift: float = None,
+        branchid: str | None = None,
+        chainage: float | None = None,
+        length: float | None = None,
+        inletlosscoeff: float | None = None,
+        outletlosscoeff: float | None = None,
+        csdefid: str | None = None,
+        shift: float | None = None,
         allowedflowdir: str = "both",
-        frictiontype: str = None,
-        friction: float = None,
+        frictiontype: str | None = None,
+        friction: float | None = None,
     ) -> None:
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
@@ -2823,24 +2823,24 @@ class Structures:
     @validate_arguments
     def add_culvert(
         self,
-        id: str = None,
+        id: str | None = None,
         name:  str | float | None = None,
-        branchid: str = None,
-        chainage: float = None,
-        leftlevel: float = None,
-        rightlevel: float = None,
-        length: float = None,
-        inletlosscoeff: float = None,
-        outletlosscoeff: float = None,
-        crosssection: dict = None,
+        branchid: str | None = None,
+        chainage: float | None = None,
+        leftlevel: float | None = None,
+        rightlevel: float | None = None,
+        length: float | None = None,
+        inletlosscoeff: float | None = None,
+        outletlosscoeff: float | None = None,
+        crosssection: dict | None = None,
         allowedflowdir: str = "both",
         valveonoff: int = 0,
-        numlosscoeff: int = None,
+        numlosscoeff: int | None = None,
         valveopeningheight: float = 0,
-        relopening: list = None,
-        losscoeff: list = None,
-        bedfrictiontype: str = None,
-        bedfriction: float = None,
+        relopening: list | None = None,
+        losscoeff: list | None = None,
+        bedfrictiontype: str | None = None,
+        bedfriction: float | None = None,
     ) -> None:
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
@@ -2894,18 +2894,18 @@ class Structures:
     @validate_arguments
     def add_pump(
         self,
-        id: str = None,
+        id: str | None = None,
         name:  str | float | None = None,
-        branchid: str = None,
-        chainage: float = None,
+        branchid: str | None = None,
+        chainage: float | None = None,
         orientation: str = "positive",
         numstages: int = 1,
         controlside: str = "suctionSide",
-        capacity: float = None,
-        startlevelsuctionside: list = None,
-        stoplevelsuctionside: list = None,
-        startleveldeliveryside: list = None,
-        stopleveldeliveryside: list = None,
+        capacity: float | None = None,
+        startlevelsuctionside: list | None = None,
+        stoplevelsuctionside: list | None = None,
+        startleveldeliveryside: list | None = None,
+        stopleveldeliveryside: list | None = None,
     ) -> None:
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
@@ -2930,7 +2930,7 @@ class Structures:
         self.pumps_df = pd.concat([self.pumps_df, dct], ignore_index=True)
 
     @validate_arguments
-    def add_compound(self, id:  str | float | None = None, structureids: list = None) -> None:
+    def add_compound(self, id:  str | float | None = None, structureids: list | None = None) -> None:
         structurestring = ";".join([f"{s}" for s in structureids])
         numstructures = len(structureids)
         dct = pd.DataFrame(

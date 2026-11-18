@@ -19,7 +19,7 @@ class DIMRWriter:
 
     @validate_arguments
     def __init__(
-        self, dimr_path: str = None, output_path: str | Path = None
+        self, dimr_path: str | None = None, output_path: str | Path | None = None
     ) -> None:
         """Class initialization for the DIMR writer. This is a temporary fix to include writers for RR and RTC, that are not yet fully included in Hydrolib-core, or have bugs. Eventually, this file should be redundant as this functionality is fully included in Hydrolib-core
 
@@ -52,7 +52,7 @@ class DIMRWriter:
                 f.write('call "' + str(self.run_dimr) + '" -d ' + str(debuglevel) + ' > ' + str(runlog) + '\n')
 
     @validate_arguments
-    def add_crs(self, netcdf_path: str | Path = None) -> None:
+    def add_crs(self, netcdf_path: str | Path | None = None) -> None:
         """Reads the Netcdf file and addes the required attributes for a valid CRS."""        
         if netcdf_path is None:
             netfile = list((self.output_path / 'dflowfm').glob('*.nc'))[0]
@@ -127,7 +127,7 @@ class DIMRWriter:
 
     #@validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
     def write_dimrconfig(
-        self, fm: FMModel, rr_model: DRRModel = None, rtc_model: DRTCModel = None
+        self, fm: FMModel, rr_model: DRRModel | None = None, rtc_model: DRTCModel | None = None
     ) -> None:
         """Construct the contents of a DIMR-config file, using elements from FM, RTC and RR models.
 

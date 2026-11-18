@@ -53,10 +53,10 @@ class TitleControl(MacroElement):
 def plot_network(
     network,
     crs: int = 28992,
-    mesh1d_kwargs: dict = None,
-    mesh2d_kwargs: dict = None,
-    links1d2d_kwargs: dict = None,
-    face_z_kwargs: dict = None,
+    mesh1d_kwargs: dict | None = None,
+    mesh2d_kwargs: dict | None = None,
+    links1d2d_kwargs: dict | None = None,
+    face_z_kwargs: dict | None = None,
     background: bool=True
 ) -> folium.Map:
     if mesh1d_kwargs is None:

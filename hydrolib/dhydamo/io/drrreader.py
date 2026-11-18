@@ -63,7 +63,7 @@ class UnpavedIO:
         infiltration_capacity: StrictStr | Path | float,
         initial_gwd: StrictStr | Path | float,
         meteo_areas: ExtendedGeoDataFrame,
-        greenhouse_areas: ExtendedGeoDataFrame = None,
+        greenhouse_areas: ExtendedGeoDataFrame | None = None,
         *,
         min_coverage_frac: float = 0.0,
         coverage_weight: zonal.CoverageWeight = "fraction",
@@ -290,8 +290,8 @@ class PavedIO:
         sewer_storage:StrictStr | Path | float,
         pump_capacity:StrictStr | Path | float,
         meteo_areas: ExtendedGeoDataFrame,
-        overflows: ExtendedGeoDataFrame = None,
-        sewer_areas: ExtendedGeoDataFrame = None,
+        overflows: ExtendedGeoDataFrame | None = None,
+        sewer_areas: ExtendedGeoDataFrame | None = None,
         *,
         min_coverage_frac: float = 0.0,
         coverage_weight: zonal.CoverageWeight = "fraction",
@@ -589,8 +589,8 @@ class GreenhouseIO:
         surface_level: Path | str,
         roof_storage: StrictStr | float,
         meteo_areas: ExtendedGeoDataFrame,
-        greenhouse_areas: ExtendedGeoDataFrame=None,
-        greenhouse_laterals: ExtendedGeoDataFrame=None,
+        greenhouse_areas: ExtendedGeoDataFrame | None=None,
+        greenhouse_laterals: ExtendedGeoDataFrame | None=None,
         basin_storage_class: int = 2,
         *,
         min_coverage_frac: float = 0.0,
@@ -978,8 +978,8 @@ class ExternalForcingsIO:
         boundary_nodes: ExtendedGeoDataFrame,
         catchments: ExtendedGeoDataFrame,
         drrmodel,
-        overflows: ExtendedGeoDataFrame = None,
-        greenhouse_laterals: ExtendedGeoDataFrame=None
+        overflows: ExtendedGeoDataFrame | None = None,
+        greenhouse_laterals: ExtendedGeoDataFrame | None=None
     ) -> None:
         """Generate RR-boundary nodes to link to RR-nodes and to FM-laterals.
 
