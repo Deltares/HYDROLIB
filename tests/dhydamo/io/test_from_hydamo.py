@@ -8,9 +8,10 @@ import pytest
 import rasterio
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
+from hydrolib.dhydamo.converters.hydamo2df import RoughnessVariant
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
-from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
+from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 from netCDF4 import Dataset
 from rasterio.transform import from_origin
 from shapely.geometry import (
@@ -451,6 +452,46 @@ def test_convert_crosssections():
     bridge_profile = hydamo.structures.bridges_df.csdefid.to_numpy()[0]
     assert bridge_profile  in hydamo.crosssections.crosssection_def
     assert "default" in hydamo.crosssections.crosssection_def
+
+
+@pytest.mark.parametrize(
+    "profile",
+    [
+        pytest.param(LineString([(5, -2, 1.0), (5, 2, 0.0)]), id="one-crossing"),
+        # crosses the branch twice, at y=0 and y=5: the intersection is a MultiPoint
+        pytest.param(LineString([(5, -2, 1.0), (5, 7, 0.0)]), id="two-crossings"),
+    ],
+)
+def test_crosssection_to_yzprofiles_thalweg(profile):
+    branch = LineString([(0, 0), (10, 0), (10, 5), (0, 5)])
+    branches = ExtendedGeoDataFrame(geotype=LineString, required_columns=["code"])
+    branches.set_data(gpd.GeoDataFrame({"code": ["b1"]}, geometry=[branch]), index_col="code")
+    crosssections = gpd.GeoDataFrame(
+        {"code": ["p1"], "branch_id": ["b1"], "branch_offset": [5.0], "globalid": ["g1"]},
+        geometry=[profile],
+    )
+    roughness = ExtendedDataFrame()
+    roughness.set_data(
+        pd.DataFrame(
+            {"profielpuntid": ["g1"], "typeruwheid": ["StricklerKs"], "ruwheidhoog": [30.0], "ruwheidlaag": [20.0]}
+        ),
+        index_col=None,
+    )
+
+    cssdct = HyDAMO().crosssections.crosssection_to_yzprofiles(
+        crosssections, roughness, branches, roughness_variant=RoughnessVariant.HIGH
+    )
+
+    # the thalweg is at the first point where the profile crosses its branch
+    crossing = profile.intersection(branch)
+    first = crossing.geoms[0] if crossing.geom_type == "MultiPoint" else crossing
+    css = cssdct["p1"]
+    assert css["thalweg"] == pytest.approx(Point(profile.coords[0]).distance(first))
+    assert css["branchid"] == "b1"
+    assert css["chainage"] == 5.0
+    np.testing.assert_allclose(css["yz"], [[0.0, 1.0], [profile.length, 0.0]])
+    assert css["typeruwheid"] == "StricklerKs"
+    assert css["ruwheid"] == 30.0
 
 
 def _add_structures_manually():
