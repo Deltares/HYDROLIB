@@ -342,12 +342,10 @@ class Df2HydrolibModel:
     def crosssection_locations_to_dhydro(self):
         """Convert crosssection locations to CrossLoc models"""
         # Check which of the branches do not have a cross section. Add the default one to those
-        branchids = set(
-            [
-                dct["branchid"]
-                for dct in self.hydamo.crosssections.crosssection_loc.values()
-            ]
-        )
+        branchids = {
+            dct["branchid"]
+            for dct in self.hydamo.crosssections.crosssection_loc.values()
+        }
 
         # check if there locations specified where a default profile should be added
         if hasattr(self.hydamo.crosssections, "default_locations"):
@@ -366,10 +364,11 @@ class Df2HydrolibModel:
             logger.info(
                 f"Adding default cross section definition to branches with ids: {', '.join(list(default_locs))}"
             )
+            half_lengths = self.hydamo.branches.geometry.length / 2
             for branchid in default_locs:
                 self.hydamo.crosssections.add_crosssection_location(
                     branchid=branchid,
-                    chainage=self.hydamo.branches.at[branchid, "geometry"].length / 2,
+                    chainage=float(half_lengths.loc[branchid]),
                     definition=self.hydamo.crosssections.default_definition,
                     minz=np.nan,
                     shift=self.hydamo.crosssections.default_definition_shift,
@@ -555,7 +554,7 @@ class Df2HydrolibModel:
             # uniform 1D values are written per branch by spatial_fields_to_dhydro
             if gdf.empty or (gdf["locationtype"] == "1d").all():
                 continue
-            if gdf.geometry.notnull().any() or len(gdf) > 1:
+            if gdf.geometry.notna().any() or len(gdf) > 1:
                 raise ValueError(
                     f"Initial {quantity} with polygons is not supported by set_initial_{quantity}. "
                     "Use hydamo.external_forcings.set_spatial_field() for spatially varying values."

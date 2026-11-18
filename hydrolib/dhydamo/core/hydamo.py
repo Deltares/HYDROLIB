@@ -557,7 +557,7 @@ class HyDAMO:
 
             area = cat.geometry.area           # m2
             q_m3s = q*area/(1000*86400)        # van mm/d naar m3/s
-            self.laterals.at[cat.Index, 'afvoer'] = q_m3s          
+            self.laterals.loc[cat.Index, 'afvoer'] = q_m3s          
             knoopid = cat.lateraleknoopid
         
         
@@ -571,20 +571,20 @@ class HyDAMO:
                 ## Index van de watergang waarop je wilt snappen. Dit is de watergang die in het gebied ligt Ã©n het dichtst bij de centroid van het afwateringsgebied is.
                 index_watergang = selectie.distance(cat.geometry.centroid).idxmin() 
                 ## Combineer de ge intersecte watergangen met de index om het stuk watergang te vinden waarop mag worden gesnapt.
-                watergang = selectie.at[index_watergang]
+                watergang = selectie.loc[index_watergang]
             ## No intersects 
             else:
                 ## Vind de watergang die het dichtst bij de centroid van het gebied is
                 index_watergang = self.branches.distance(cat.geometry.centroid).idxmin()
                 ## Selecteer deze watergang om op te mogen snappen
-                watergang = self.branches.at[index_watergang, 'geometry']
+                watergang = self.branches.loc[index_watergang, 'geometry']
         
             ## Snap de centroid van het afwateringsgebied op de geselecteerde watergang
             lateral = watergang.interpolate(watergang.project(cat.geometry.centroid))
             ## Schrijf de snap-locatie weg in de geodataframe
-            self.laterals.at[cat.Index, 'geometry'] = lateral
-            self.laterals.at[cat.Index, 'globalid'] = knoopid
-            self.laterals.at[cat.Index, 'code']= f'lat_{cat.code}'
+            self.laterals.loc[cat.Index, 'geometry'] = lateral
+            self.laterals.loc[cat.Index, 'globalid'] = knoopid
+            self.laterals.loc[cat.Index, 'code']= f'lat_{cat.code}'
 
 class Network:
     def __init__(self, hydamo: HyDAMO) -> None:
@@ -719,12 +719,10 @@ class Network:
                 all_nodes = [self.nodes_to_branch_map[b] for b in all_branches]
                 # First check if any of the branches has a bedlevel from a cross-section profile otherwise skip
                 check = all(
-                    [
-                        bedlevels_crs_branches.loc[
+                    bedlevels_crs_branches.loc[
                             bedlevels_crs_branches["branchid"] == b
                         ].empty
                         for b in all_branches
-                    ]
                 )
                 if check:
                     continue  # if this happens, cross-section is not defined. This can be a problem.
@@ -755,22 +753,18 @@ class Network:
                     # Check if indeed everything is now in proper direction. Otherwise try again
                     if n == n_length:
                         up = all(
-                            [
-                                np.count_nonzero(
+                            np.count_nonzero(
                                     node[0] == np.array([x[0] for x in all_nodes])
                                 )
                                 == 1
                                 for node in all_nodes
-                            ]
                         )
                         down = all(
-                            [
-                                np.count_nonzero(
+                            np.count_nonzero(
                                     node[1] == np.array([x[1] for x in all_nodes])
                                 )
                                 == 1
                                 for node in all_nodes
-                            ]
                         )
                         if (not up) or (not down):
                             n = 0
@@ -819,14 +813,17 @@ class Network:
                     all_branches_sorted.append(all_branches[i_upstream])
                     all_nodes_sorted.append(all_nodes[i_upstream])
                     direction_sorted.append(direction[i_upstream])
-                    try:
-                        i_upstream = [
+                    next_upstream = next(
+                        (
                             i
                             for i, n in enumerate([x[0] for x in all_nodes])
                             if [x[1] for x in all_nodes][i_upstream] == n
-                        ][0]
-                    except IndexError:
+                        ),
+                        None,
+                    )
+                    if next_upstream is None:
                         break
+                    i_upstream = next_upstream
                 # Stitch chainages and bedlevels together
                 chainage, bedlevel = [], []
                 branch_length = 0
@@ -958,11 +955,11 @@ class Network:
                     continue  # in this case the branch is not connected to other branches. make separate group
                 else:
                     # remove branch from connected_branches because we are not interested in it
-                    b = [_b for _b in b if _b != branch_id][0]
+                    b = next(_b for _b in b if _b != branch_id)
                     if b in branch_ids_checked:
                         # connected branch is already added to a group, so this means that branch should be added to
                         # that group
-                        groups[[k for k, v in groups.items() if b in v][0]].append(
+                        groups[next(k for k, v in groups.items() if b in v)].append(
                             branch_id
                         )
                         branch_ids_checked.extend([branch_id])
@@ -1341,7 +1338,7 @@ class CrossSections:
         for css in self.crosssection_loc.values():
             # Get location
             geometry.append(
-                self.dflowfmmodel.network.schematised.at[
+                self.dflowfmmodel.network.schematised.loc[
                     css["branchid"], "geometry"
                 ].interpolate(css["chainage"])
             )
@@ -2398,7 +2395,7 @@ class ExternalForcings:
             gdf = gdf.assign(_z=gdf.geometry.z)
             column = "_z"
 
-        if gdf[column].isnull().any():
+        if gdf[column].isna().any():
             raise ValueError(
                 f"Column {column} not filled for all features. Please provide valid values."
             )
@@ -2649,7 +2646,7 @@ class Structures:
             )
 
         # Get the branch
-        branch = self.hydamo.branches.at[branchid, "geometry"]
+        branch = self.hydamo.branches.loc[branchid, "geometry"]
 
         # Check the limits
         if chainage < 0.0:
@@ -3199,7 +3196,6 @@ def remove_nan_values(base):
     """
     base_copy = base.copy()
     for k, v in base.items():
-        if isinstance(v, float):
-            if np.isnan(v):
-                base_copy.pop(k)
+        if isinstance(v, float) and np.isnan(v):
+            base_copy.pop(k)
     return base_copy

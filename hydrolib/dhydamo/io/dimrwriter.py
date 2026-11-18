@@ -55,12 +55,15 @@ class DIMRWriter:
     def add_crs(self, netcdf_path: str | Path | None = None) -> None:
         """Reads the Netcdf file and addes the required attributes for a valid CRS."""        
         if netcdf_path is None:
-            netfile = list((self.output_path / 'dflowfm').glob('*.nc'))[0]
-            if not netfile.exists():
+            netfile = next((self.output_path / 'dflowfm').glob('*.nc'), None)
+            if netfile is None:
                 raise FileNotFoundError(f"Netcdf file not found in {self.output_path / 'dflowfm'}. Provide the correct path via the netcdf_path argument.")
         else:
+            netcdf_path = Path(netcdf_path)
             if netcdf_path.is_dir():
-                netfile = list(netcdf_path.glob('*.nc'))[0]
+                netfile = next(netcdf_path.glob('*.nc'), None)
+                if netfile is None:
+                    raise FileNotFoundError(f"Netcdf file not found in {netcdf_path}.")
             elif netcdf_path.is_file():
                 netfile = netcdf_path  
             else:        
@@ -338,21 +341,20 @@ class DIMRWriter:
                 complex_config = rtc_model.complex_controllers["dimr_config"][0]
                 for block in complex_config:
                     block_tag = block.tag.split("}", 1)[-1] if block.tag.startswith("{") else block.tag
-                    if block_tag == "coupler":
-                        if block.attrib["name"].lower().startswith("rtc_to_flow"):
-                            for iblock in block:
-                                iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
-                                if iblock_tag == "item":
-                                    source = iblock.find(".//{*}sourceName")
-                                    target = iblock.find(".//{*}targetName")
-                                    if self._add_unique_coupler_item(
-                                        couplerrtcfm,
-                                        source.text if source is not None else None,
-                                        target.text if target is not None else None,
-                                        rtc_to_flow_seen_pairs,
-                                        gn_brackets,
-                                    ):
-                                        rtc_to_flow_complex_count += 1
+                    if block_tag == "coupler" and block.attrib["name"].lower().startswith("rtc_to_flow"):
+                        for iblock in block:
+                            iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
+                            if iblock_tag == "item":
+                                source = iblock.find(".//{*}sourceName")
+                                target = iblock.find(".//{*}targetName")
+                                if self._add_unique_coupler_item(
+                                    couplerrtcfm,
+                                    source.text if source is not None else None,
+                                    target.text if target is not None else None,
+                                    rtc_to_flow_seen_pairs,
+                                    gn_brackets,
+                                ):
+                                    rtc_to_flow_complex_count += 1
 
             logger.info(
                 "dimr_config.xml: Wrote rtc_to_flow coupler with %d items "

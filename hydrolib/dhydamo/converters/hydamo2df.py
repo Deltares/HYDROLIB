@@ -210,8 +210,8 @@ class CrossSectionsIO:
 
             # Add cross sections
             for branchid, css in param_profiles_converted.items():
-                chainage_upper = branchdata.at[branchid, "chainage_upper"]
-                chainage_lower = branchdata.at[branchid, "chainage_lower"]
+                chainage_upper = float(branchdata.loc[branchid, "chainage_upper"])
+                chainage_lower = float(branchdata.loc[branchid, "chainage_lower"])
 
                 if css["type"] == "rectangle":
                     name = self.crosssections.add_rectangle_definition(
@@ -490,8 +490,8 @@ class ExternalForcingsIO:
             coord_string_y = f'{dtype}_input_geom_node_coordy'
         try:
             loc_index = np.nonzero(loc_ids == location_id)[0][0]
-        except Exception:
-            raise ValueError(f'Location ID {location_id} of type {location_type} not found in {his_file}. Available IDs: {loc_ids}') 
+        except IndexError as err:
+            raise ValueError(f'Location ID {location_id} of type {location_type} not found in {his_file}. Available IDs: {loc_ids}') from err
                 
         if variable == 'waterlevel_upstream':
             variable = 's1up'
@@ -1019,9 +1019,8 @@ class StructuresIO:
         Parameters corrspond to the HyDAMO DAMO2.2 objects.
         """
         management_device_culvert = RelationsHyDAMO.MANAGEMENT_DEVICE_CULVERT
-        if management_device is not None:
-            if 'soortafsluitmiddel' not in management_device.columns:
-               management_device['soortafsluitmiddel'] = management_device['soortregelmiddel']
+        if management_device is not None and 'soortafsluitmiddel' not in management_device.columns:
+            management_device['soortafsluitmiddel'] = management_device['soortregelmiddel']
 
         for culvert in culverts.itertuples():
             culvert_rows = culverts.loc[[culvert.Index]]

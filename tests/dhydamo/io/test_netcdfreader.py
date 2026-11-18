@@ -43,6 +43,8 @@ def test_time_outside_the_period_raises(his_like):
 
 
 def test_file_without_time_raises():
-    with Dataset("no_time.nc", "w", diskless=True) as dataset:
-        with pytest.raises(ValueError, match="No time variable"):
-            time_index(dataset, "2016-06-01")
+    with (
+        Dataset("no_time.nc", "w", diskless=True) as dataset,
+        pytest.raises(ValueError, match="No time variable"),
+    ):
+        time_index(dataset, "2016-06-01")

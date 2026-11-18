@@ -543,7 +543,7 @@ def test_observationpoint_snapping(snapping_distance, outcome):
     )
 
     assert len(hydamo.observationpoints.observation_points) == 1
-    assert hydamo.observationpoints.observation_points.branchid.values[0] == outcome
+    assert hydamo.observationpoints.observation_points.branchid.to_numpy()[0] == outcome
 
 def test_storagenodes():
     hydamo, _ = _hydamo_object_from_gpkg()
@@ -844,7 +844,7 @@ def test_read_values_from_modelrun_time():
     by_index = hydamo.external_forcings.read_values_from_modelrun(nc_path, 'mesh1d_s1', netcdf_index=index)
     assert np.allclose(by_time['value'], by_index['value'])
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="is outside the period"):
         hydamo.external_forcings.read_values_from_modelrun(nc_path, 'mesh1d_s1', time='2030-01-01')
 
 
@@ -895,7 +895,7 @@ def test_set_initial_velocity():
     assert np.allclose(np.hypot(vx, vy), np.abs(u['value']))
 
     # D-Flow FM does not accept 'initialvelocity' itself
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="does not support 'initialvelocity'"):
         hydamo.external_forcings.set_spatial_field(u, 'value', quantity='initialvelocity')
 
 

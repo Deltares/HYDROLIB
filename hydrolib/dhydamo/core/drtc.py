@@ -677,7 +677,7 @@ class DRTCModel:
             log_validation=False,
         )
         # Do not return observation point IDs in this method
-        cc_ids = set([cc.struct_name for cc in cc_structs if cc.struct_type != "observations"])
+        cc_ids = {cc.struct_name for cc in cc_structs if cc.struct_type != "observations"}
 
         return cc_ids
 
@@ -771,7 +771,7 @@ class DRTCModel:
                     logger.warning(msg)
             else:
                 validated_cc_structs.append(fs)
-        validated_cc_ids = set([fs.struct_name for fs in validated_cc_structs])
+        validated_cc_ids = {fs.struct_name for fs in validated_cc_structs}
 
         return validated_cc_structs, validated_cc_ids
 

@@ -213,16 +213,16 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         """
         present_columns = gdf.columns.tolist()
         for column in self.required_columns:
+            # TODO: geopackages don't support very long names. Only give an error if the first 25
+            # characters don't occur, otherwise lengthen the column name (not implemented yet).
             if column not in present_columns:
-                # geopackages don't support very long names. Only give an error if the first 25 characters don't occur, otherwise lengthen the column name
-                if column not in present_columns:
-                    raise KeyError(
-                        'Column "{}" not found. Got {}, Expected at least {}'.format(
-                            column,
-                            ", ".join(present_columns),
-                            ", ".join(self.required_columns),
-                        )
+                raise KeyError(
+                    'Column "{}" not found. Got {}, Expected at least {}'.format(
+                        column,
+                        ", ".join(present_columns),
+                        ", ".join(self.required_columns),
                     )
+                )
 
     def _check_geotype(self):
         """
@@ -406,7 +406,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                                 idx,
                             )
                             geom = geoms[0]
-                        row.at["geometry"] = geom
+                        row["geometry"] = geom
                         keep.append(row)
                 gdf = gpd.GeoDataFrame(keep, crs=gdf.crs)
         elif cliptype == "select":
@@ -451,8 +451,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                 gdf_out[rename_col] = [
                     f"{prefix}{g[1][rename_col]}{suffix}" for g in self.iterrows()
                 ]
-            except Exception:
-                raise ValueError(f"Column rename with '{rename_col}' did not succeed.")
+            except KeyError as err:
+                raise ValueError(f"Column rename with '{rename_col}' did not succeed.") from err
 
         return gdf_out
 
@@ -462,10 +462,10 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if col1 or col2 in self.columns.to_numpy():
             try:
                 self[rename_col] = self[col1] + self[col2]
-            except Exception:
+            except (KeyError, TypeError) as err:
                 raise ValueError(
                     f"Merge of two profile columns'{col1}' and '{col2}' did not succeed."
-                )
+                ) from err
 
     def snap_to_branch(self, branches, snap_method, maxdist=5):
         """Snap the geometries to the branch"""

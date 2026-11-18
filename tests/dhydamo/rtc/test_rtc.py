@@ -671,7 +671,7 @@ def test_state_from_modelrun_time_options(tmp_path):
     # without a time, the last time step is used
     last = rtcd.set_state_from_modelrun(his_path)
     assert last == rtcd.set_state_from_modelrun(his_path, netcdf_index=-1)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="either time or netcdf_index, not both"):
         rtcd.set_state_from_modelrun(his_path, time="2016-06-02", netcdf_index=-1)
 
 
