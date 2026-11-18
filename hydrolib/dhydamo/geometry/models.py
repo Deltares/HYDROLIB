@@ -153,21 +153,15 @@ class GeometryList(GeometryListMK):
         ]
         is_multi = len(geometries) > 1
 
-        for geometry_list in geometries:
-            # Check if polygon, by comparing first and last coordinates
-            exterior = split_by(geometry_list, self.inner_outer_separator)[0]
-            is_polygon = exterior.x_coordinates[0] == exterior.x_coordinates[-1]
-            # Check if linestring, by checking the length of coordinate sequences
-            is_linestring = (len(geometry_list.x_coordinates) > 1) and (not is_polygon)
-
-            if is_polygon:
-                return self._to_polygon(geometries, is_multi)
-
-            elif is_linestring:
-                return self._to_linestring(geometries, is_multi)
-
-            else:
-                return self._to_point(geometries, is_multi)
+        # The first geometry determines the type
+        exterior = split_by(geometries[0], self.inner_outer_separator)[0]
+        x, y = exterior.x_coordinates, exterior.y_coordinates
+        # A ring has at least 4 coordinates, and its first and last coordinate are equal
+        if len(x) >= 4 and x[0] == x[-1] and y[0] == y[-1]:
+            return self._to_polygon(geometries, is_multi)
+        if len(x) > 1:
+            return self._to_linestring(geometries, is_multi)
+        return self._to_points(geometries, is_multi)
 
     @property
     def geoms(self):
