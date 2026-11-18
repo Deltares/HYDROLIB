@@ -16,6 +16,9 @@ dependencies = [
   "geopandas>=1,<2",
   "xarray>=2024",
   "pydantic>=2,<3",
+  # TypedDict that pydantic accepts on Python < 3.12 (complex controllers in drtc.py)
+  # TODO: drop when the minimum Python is 3.12; use typing.TypedDict in drtc.py instead
+  "typing_extensions>=4.6",
   # implicit dependency, specific version follows from hydrolib-core
   "meshkernel",
   # upper pin <2 because hydrolib-core will remove support for some quantities/blocks

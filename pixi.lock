@@ -3215,6 +3215,7 @@ packages:
   - geopandas>=1,<2
   - xarray>=2024
   - pydantic>=2,<3
+  - typing-extensions>=4.6
   - meshkernel
   - hydrolib-core>=1.6.1,<2
   - numpy>=2,<2.5

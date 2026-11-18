@@ -4,7 +4,7 @@ import os
 import shutil
 import xml.dom.minidom
 import xml.etree.ElementTree as ET
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime as dt
 from pathlib import Path
@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from netCDF4 import Dataset, chartostring
 from pydantic import ConfigDict, Field, validate_call
+from typing_extensions import TypedDict
 
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
@@ -51,6 +52,22 @@ STRUCTURE_SETTING_COLUMNS: dict[str, list[tuple[str, str]]] = {
     VALVE_OPENING: [("culverts_df", "valveopeningheight")],
     CAPACITY: [("pumps_df", "capacity")],
 }
+
+
+
+class ComplexControllers(TypedDict):
+    """XML of the complex controllers: fragments per RTC file, and the parsed DIMR config roots.
+
+    pydantic needs ``typing_extensions.TypedDict`` (not ``typing.TypedDict``) on Python < 3.12.
+    """
+
+    dataconfig_import: list[str]
+    dataconfig_export: list[str]
+    toolsconfig_rules: list[str]
+    toolsconfig_triggers: list[str]
+    timeseries: list[str]
+    state: list[str]
+    dimr_config: list[ET.Element]
 
 
 @dataclass
@@ -132,7 +149,7 @@ class DRTCModel:
         self.struct_ids_by_type = DRTCModel._get_struct_ids_by_type(self.hydamo)
 
         # parse user-provided controllers
-        self.complex_controllers = None
+        self.complex_controllers: ComplexControllers | None = None
         self.cc_structs = None
         self.cc_ids = None
         self.cc_referenced_ids = None
@@ -500,7 +517,7 @@ class DRTCModel:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def parse_complex_controller(
         self, xml_folder: Path | str
-    ) -> dict[str, list[str | ET.Element]]:
+    ) -> ComplexControllers:
         """Method to parse user-specified 'complex' controllers
 
         Args:
@@ -510,7 +527,7 @@ class DRTCModel:
             dict: dict of list with the data in the files. Every key is a RTC-file, including the DIMR-config.
         """
         files = [p for p in Path(xml_folder).iterdir() if p.suffix == ".xml"]
-        savedict = {
+        savedict: ComplexControllers = {
             "dataconfig_import": [],
             "dataconfig_export": [],
             "toolsconfig_rules": [],
@@ -539,8 +556,8 @@ class DRTCModel:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_cc_rtc_dataconfig(
-        self, root: ET.Element, savedict: dict[str, list[str | ET.Element]]
-    ) -> dict[str, list[str | ET.Element]]:
+        self, root: ET.Element, savedict: ComplexControllers
+    ) -> ComplexControllers:
         children = self._parse_unique_children(root)
         import_series = children.get("importSeries")
         if import_series is not None:
@@ -578,8 +595,8 @@ class DRTCModel:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_cc_rtc_toolsconfig(
-        self, root: ET.Element, savedict: dict[str, list[str | ET.Element]]
-    ) -> dict[str, list[str | ET.Element]]:
+        self, root: ET.Element, savedict: ComplexControllers
+    ) -> ComplexControllers:
         children = self._parse_unique_children(root)
 
         rules = children.get("rules")
@@ -612,8 +629,8 @@ class DRTCModel:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_cc_timeseries(
-        self, root: ET.Element, savedict: dict[str, list[str | ET.Element]]
-    ) -> dict[str, list[str | ET.Element]]:
+        self, root: ET.Element, savedict: ComplexControllers
+    ) -> ComplexControllers:
         for el in root:
             savedict["timeseries"].append(ET.tostring(el).decode())
 
@@ -621,8 +638,8 @@ class DRTCModel:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_cc_state(
-        self, root: ET.Element, savedict: dict[str, list[str | ET.Element]]
-    ) -> dict[str, list[str | ET.Element]]:
+        self, root: ET.Element, savedict: ComplexControllers
+    ) -> ComplexControllers:
         for el in root[0]:
             savedict["state"].append(ET.tostring(el).decode())
 
@@ -630,8 +647,8 @@ class DRTCModel:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_cc_dimr_config(
-        self, root: ET.Element, savedict: dict[str, list[str | ET.Element]]
-    ) -> dict[str, list[str | ET.Element]]:
+        self, root: ET.Element, savedict: ComplexControllers
+    ) -> ComplexControllers:
         red_root = copy.deepcopy(root)
         for coupler_name, coupler_target in (
             ("rtc_to_flow", "targetName"),
@@ -792,25 +809,24 @@ class DRTCModel:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _load_complex_controllers(
         self, complex_controllers_folder: list[str | Path] | str | Path,
-    ) -> dict[str, list[str | ET.Element]]:
+    ) -> ComplexControllers:
         """Normalize input folders, merge parsed controllers, and validate unique IDs."""
         if isinstance(complex_controllers_folder, list):
-            complex_controllers = {}
-            for folder in complex_controllers_folder:
-                # Merge controller XML fragments from multiple folders.
-                controllers = self.parse_complex_controller(Path(folder))
-                for key, items in controllers.items():
-                    # Append controller XML fragments across folders by section key.
-                    complex_controllers.setdefault(key, []).extend(items)
+            folders = complex_controllers_folder
         else:
-            complex_controllers = self.parse_complex_controller(Path(complex_controllers_folder))
-
-        # Keep a single merged DIMR root so downstream writers can consume index 0.
-        complex_controllers["dimr_config"] = self._merge_dimr_config_roots(
-            complex_controllers.get("dimr_config", [])
-        )
-
-        return complex_controllers
+            folders = [complex_controllers_folder]
+        parsed = [self.parse_complex_controller(Path(folder)) for folder in folders]
+        # Append the XML fragments of all folders per section, and keep a single merged
+        # DIMR root so downstream writers can consume index 0.
+        return {
+            "dataconfig_import": [x for c in parsed for x in c["dataconfig_import"]],
+            "dataconfig_export": [x for c in parsed for x in c["dataconfig_export"]],
+            "toolsconfig_rules": [x for c in parsed for x in c["toolsconfig_rules"]],
+            "toolsconfig_triggers": [x for c in parsed for x in c["toolsconfig_triggers"]],
+            "timeseries": [x for c in parsed for x in c["timeseries"]],
+            "state": [x for c in parsed for x in c["state"]],
+            "dimr_config": self._merge_dimr_config_roots([x for c in parsed for x in c["dimr_config"]]),
+        }
 
     @staticmethod
     def get_item_pair(item: ET.Element) -> tuple[str, str] | None:
@@ -1020,7 +1036,7 @@ class DRTCModel:
     def _append_unique_elements(
         self,
         parent: ET.Element,
-        elements: list[str | ET.Element],
+        elements: Sequence[str | ET.Element],
         key_getter: Callable[[ET.Element], str | None],
         file_label: str,
     ) -> None:

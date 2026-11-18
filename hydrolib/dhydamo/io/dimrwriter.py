@@ -35,7 +35,7 @@ class DIMRWriter:
         if output_path is None:
             self.output_path = Path(os.path.abspath("."))
         else:
-            self.output_path = output_path
+            self.output_path = Path(output_path)
 
         self.template_dir = Path(os.path.abspath("."))
 
@@ -86,8 +86,8 @@ class DIMRWriter:
     @staticmethod
     def _add_unique_coupler_item(
         coupler: ET.Element,
-        source_name: str,
-        target_name: str,
+        source_name: str | None,
+        target_name: str | None,
         seen_pairs: set[tuple[str, str]],
         gn_brackets: str,
     ) -> bool:
@@ -139,14 +139,6 @@ class DIMRWriter:
             rr_model (instance of a DRRModel object, optional): Class containig all information from the RR-model. Defaults to None.
             rtc_model (instance of a DRTCmodel, optional): Class containig all information from the RTC-model. Defaults to None.
         """
-        # initiate flags for RR and RTC blocks
-        RR = False
-        RTC = False
-        if rr_model is not None:
-            RR = True
-        if rtc_model is not None:
-            RTC = True
-
         generalname = "http://schemas.deltares.nl/dimr"  # Config
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
         gn_brackets = "{" + generalname + "}"
@@ -159,6 +151,8 @@ class DIMRWriter:
         configfile = ET.parse(self.template_dir / "dimr_config.xml")
 
         myroot = configfile.getroot()
+        if fm.filepath is None:
+            raise ValueError("The FM model has no filepath: save it before writing the DIMR config.")
         myroot[1][1].text = fm.filepath.parts[-2]
         myroot[1][2].text = fm.filepath.name
 
@@ -168,12 +162,12 @@ class DIMRWriter:
         control.tail = "\n"
         myroot.insert(1, control)
 
-        if RR or RTC:
+        if rr_model is not None or rtc_model is not None:
             parallel = ET.SubElement(control, gn_brackets + "parallel")
             parallel.tail = "\n"
             parallel.text = ""
 
-        if RTC:
+        if rtc_model is not None:
             # a flow_to_rtc coupler is only needed for PID/interval controllers,
             # or complex controllers whose dimr_config defines one themselves
             complex_flow_to_rtc_blocks = self._get_complex_coupler_blocks(
@@ -204,7 +198,7 @@ class DIMRWriter:
             couplerrtc.attrib = {"name": "rtc_to_flow"}
             couplerrtc.tail = "\n"
 
-        if RR:
+        if rr_model is not None:
             startgrouprr = ET.SubElement(parallel, gn_brackets + "startGroup")
             startgrouprr.text = ""
             startgrouprr.tail = "\n"
@@ -223,7 +217,7 @@ class DIMRWriter:
             couplerfrr = ET.SubElement(startgrouprr, gn_brackets + "coupler")
             couplerfrr.attrib = {"name": "rr_to_flow"}
             couplerfrr.tail = "\n"
-        if RR or RTC:
+        if rr_model is not None or rtc_model is not None:
             startfm = ET.SubElement(parallel, gn_brackets + "start")
         else:
             startfm = ET.SubElement(control, gn_brackets + "start")
@@ -231,7 +225,7 @@ class DIMRWriter:
         startfm.tail = "\n"
 
         # component blocks
-        if RTC:
+        if rtc_model is not None:
             comprtc = ET.Element(gn_brackets + "component")
             comprtc.attrib = {"name": "Real_Time_Control"}
             comprtc.tail = "\n"
@@ -246,7 +240,7 @@ class DIMRWriter:
             frtc.tail = "\n"
             myroot.insert(2, comprtc)
 
-        if RR:
+        if rr_model is not None:
             comprr = ET.Element(gn_brackets + "component")
             comprr.attrib = {"name": "RR"}
             comprr.tail = "\n"
@@ -300,7 +294,7 @@ class DIMRWriter:
             flogfmrr.tail = "\n"
             myroot.append(couplerfmrr)
 
-        if RTC:
+        if rtc_model is not None:
             # RTC to FM coupler
             couplerrtcfm = ET.Element(gn_brackets + "coupler")
             couplerrtcfm.attrib = {"name": "rtc_to_flow"}
@@ -321,7 +315,7 @@ class DIMRWriter:
                       "Valve opening (s)": ["culverts", "valveOpeningHeight"]
                       }
 
-            rtc_to_flow_seen_pairs = set()
+            rtc_to_flow_seen_pairs: set[tuple[str, str]] = set()
             rtc_to_flow_simple_count = 0
             rtc_to_flow_complex_count = 0
 
@@ -345,12 +339,12 @@ class DIMRWriter:
                         for iblock in block:
                             iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
                             if iblock_tag == "item":
-                                source = iblock.find(".//{*}sourceName")
-                                target = iblock.find(".//{*}targetName")
+                                found_source = iblock.find(".//{*}sourceName")
+                                found_target = iblock.find(".//{*}targetName")
                                 if self._add_unique_coupler_item(
                                     couplerrtcfm,
-                                    source.text if source is not None else None,
-                                    target.text if target is not None else None,
+                                    found_source.text if found_source is not None else None,
+                                    found_target.text if found_target is not None else None,
                                     rtc_to_flow_seen_pairs,
                                     gn_brackets,
                                 ):
@@ -380,7 +374,7 @@ class DIMRWriter:
 
             # the Fm to RTC coupler is not always needed. It is for PID controllers.
             coupler_exists = False
-            flow_to_rtc_seen_pairs = set()
+            flow_to_rtc_seen_pairs: set[tuple[str, str]] = set()
             flow_to_rtc_simple_count = 0
             flow_to_rtc_complex_count = 0
             if bool(rtc_model.pid_controllers) or bool(rtc_model.interval_controllers):
@@ -459,12 +453,12 @@ class DIMRWriter:
                 for iblock in block:
                     iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
                     if iblock_tag == "item":
-                        source = iblock.find(".//{*}sourceName")
-                        target = iblock.find(".//{*}targetName")
+                        found_source = iblock.find(".//{*}sourceName")
+                        found_target = iblock.find(".//{*}targetName")
                         if self._add_unique_coupler_item(
                             couplerfmrtc,
-                            source.text if source is not None else None,
-                            target.text if target is not None else None,
+                            found_source.text if found_source is not None else None,
+                            found_target.text if found_target is not None else None,
                             flow_to_rtc_seen_pairs,
                             gn_brackets,
                         ):
@@ -493,7 +487,7 @@ class DIMRWriter:
 
                 myroot.append(couplerfmrtc)
 
-        if RR:
+        if rr_model is not None:
             # finally the RR to FM coupler
             couplerrrfm = ET.Element(gn_brackets + "coupler")
             couplerrrfm.attrib = {"name": "rr_to_flow"}
