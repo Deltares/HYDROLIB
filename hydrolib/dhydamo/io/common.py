@@ -456,16 +456,35 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         return gdf_out
 
-    def merge_columns(self, col1, col2, rename_col):
-        """merge columns"""
+    def merge_columns(self, col1: str, col2: str, rename_col: str) -> None:
+        """Add two columns and store the result in a column, in place.
 
-        if col1 or col2 in self.columns.to_numpy():
-            try:
-                self[rename_col] = self[col1] + self[col2]
-            except (KeyError, TypeError) as err:
-                raise ValueError(
-                    f"Merge of two profile columns'{col1}' and '{col2}' did not succeed."
-                ) from err
+        Strings are concatenated, numbers are added.
+
+        Parameters
+        ----------
+        col1, col2 : str
+            Names of the columns to add.
+        rename_col : str
+            Name of the column for the result; an existing column is overwritten.
+
+        Raises
+        ------
+        ValueError
+            If a column does not exist, or the columns cannot be added.
+        """
+        missing = [col for col in (col1, col2) if col not in self.columns]
+        if missing:
+            raise ValueError(
+                f"Cannot merge columns '{col1}' and '{col2}': "
+                f"{', '.join(repr(col) for col in missing)} not found."
+            )
+        try:
+            self[rename_col] = self[col1] + self[col2]
+        except TypeError as err:
+            raise ValueError(
+                f"Merge of columns '{col1}' and '{col2}' did not succeed."
+            ) from err
 
     def snap_to_branch(self, branches, snap_method, maxdist=5):
         """Snap the geometries to the branch"""

@@ -128,6 +128,46 @@ def test_clip_and_drop_extended_geodataframe():
     assert geoms.loc["geometrycollection_result"].geometry.geom_type == "MultiPolygon"
 
 
+def _columns_to_merge():
+    gdf = gpd.GeoDataFrame(
+        {"code": ["a", "b"], "x": ["1", "2"], "y": ["3", "4"], "n": [1.0, 2.0]},
+        geometry=[Point(0, 0), Point(1, 1)],
+    )
+    geoms = ExtendedGeoDataFrame(geotype=Point, required_columns=["code"])
+    geoms.set_data(gdf, index_col="code")
+    return geoms
+
+
+def test_merge_columns():
+    geoms = _columns_to_merge()
+
+    geoms.merge_columns("x", "y", "xy")
+    geoms.merge_columns("n", "n", "n2")
+
+    assert geoms["xy"].tolist() == ["13", "24"]
+    assert geoms["n2"].tolist() == [2.0, 4.0]
+    assert isinstance(geoms, ExtendedGeoDataFrame)
+
+
+@pytest.mark.parametrize(
+    ("col1", "col2", "missing"),
+    [("x", "z", "'z'"), ("z", "y", "'z'"), (None, "z", "None, 'z'"), ("", "y", "''")],
+)
+def test_merge_columns_missing_column(col1, col2, missing):
+    geoms = _columns_to_merge()
+
+    with pytest.raises(ValueError, match=f"{missing} not found"):
+        geoms.merge_columns(col1, col2, "merged")
+    assert "merged" not in geoms.columns
+
+
+def test_merge_columns_incompatible_types():
+    geoms = _columns_to_merge()
+
+    with pytest.raises(ValueError, match="did not succeed"):
+        geoms.merge_columns("x", "n", "merged")
+
+
 def test_clip_and_drop_linestring_uses_first_with_warning(caplog):
     gdf = gpd.GeoDataFrame(
         {
