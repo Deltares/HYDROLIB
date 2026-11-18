@@ -551,17 +551,17 @@ def decompose(path, pattern=None):
     d = _groupdict(stem, pattern)
     dims = list(d.keys())
     # If name is not provided, generate one from other fields
-    if "name" not in d.keys():
+    if "name" not in d:
         d["name"] = "_".join(d.values())
     else:
         dims.remove("name")
     
     # String -> type conversion
-    if "layer" in d.keys():
+    if "layer" in d:
         d["layer"] = int(d["layer"])
-    if "species" in d.keys():
+    if "species" in d:
         d["species"] = int(d["species"])
-    if "time" in d.keys():
+    if "time" in d:
         d["time"] = to_datetime(d["time"])
     if "steady-state" in d["name"]:
         # steady-state as time identifier isn't picked up by <time>[0-9] regex

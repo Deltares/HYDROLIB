@@ -688,7 +688,7 @@ class Network:
         self.make_branches_to_node_map()
         self.make_nodes_to_branch_map()
         nodes_dict = {
-            n: {"up": [], "down": []} for n in self.branches_to_node_map.keys()
+            n: {"up": [], "down": []} for n in self.branches_to_node_map
         }
         reserved_branches = []
         for order, (branch, nodes) in tqdm(
@@ -1091,7 +1091,7 @@ class CrossSections:
         return name
 
     def set_default_definition(self, definition, shift=0.0):
-        if definition not in self.crosssection_def.keys():
+        if definition not in self.crosssection_def:
             raise KeyError(f'Cross section definition "{definition}" not found."')
 
         self.default_definition = definition
@@ -1338,7 +1338,7 @@ class CrossSections:
         data = []
         geometry = []
 
-        for key, css in self.crosssection_loc.items():
+        for css in self.crosssection_loc.values():
             # Get location
             geometry.append(
                 self.dflowfmmodel.network.schematised.at[
@@ -2499,7 +2499,7 @@ class ExternalForcings:
             unit1 = 'm3/s'
             unit2 = 'm'
         
-        if name in self.boundary_nodes.keys():
+        if name in self.boundary_nodes:
             raise KeyError(
                 f'A boundary condition with name "{name}" is already present.'
             )

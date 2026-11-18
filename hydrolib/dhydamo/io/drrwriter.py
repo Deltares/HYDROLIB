@@ -101,7 +101,7 @@ class DRRWriter:
 
             # Unpaved nodes
             if any(self.rrmodel.unpaved.unp_nodes):
-                for _, dct in self.rrmodel.unpaved.unp_nodes.items():
+                for dct in self.rrmodel.unpaved.unp_nodes.values():
                     if np.sum([float(d) for d in dct["ar"].split(" ")]) > 0.0:
                         f.write(
                             "NODE id '"
@@ -117,7 +117,7 @@ class DRRWriter:
 
             # Paved nodes
             if any(self.rrmodel.paved.pav_nodes):
-                for _, dct in self.rrmodel.paved.pav_nodes.items():
+                for dct in self.rrmodel.paved.pav_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "NODE id '"
@@ -148,7 +148,7 @@ class DRRWriter:
 
             # Greenhouse nodes
             if any(self.rrmodel.greenhouse.gh_nodes):
-                for _, dct in self.rrmodel.greenhouse.gh_nodes.items():
+                for dct in self.rrmodel.greenhouse.gh_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "NODE id '"
@@ -164,7 +164,7 @@ class DRRWriter:
 
             # Openwater nodes
             if any(self.rrmodel.openwater.ow_nodes):
-                for _, dct in self.rrmodel.openwater.ow_nodes.items():
+                for dct in self.rrmodel.openwater.ow_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "NODE id '"
@@ -180,7 +180,7 @@ class DRRWriter:
 
             # Boundary_nodes
             if any(self.rrmodel.external_forcings.boundary_nodes):
-                for _, dct in self.rrmodel.external_forcings.boundary_nodes.items():
+                for dct in self.rrmodel.external_forcings.boundary_nodes.values():
                     f.write(
                         "NODE id '"
                         + dct["id"]
@@ -198,7 +198,7 @@ class DRRWriter:
 
             cnt = 0
             if any(self.rrmodel.unpaved.unp_nodes):
-                for _, dct in self.rrmodel.unpaved.unp_nodes.items():
+                for dct in self.rrmodel.unpaved.unp_nodes.values():
                     if np.sum([float(d) for d in dct["ar"].split(" ")]) > 0.0:
                         cnt += 1
                         f.write(
@@ -211,7 +211,7 @@ class DRRWriter:
                             + "' brch\n"
                         )
             if any(self.rrmodel.paved.pav_nodes):
-                for _, dct in self.rrmodel.paved.pav_nodes.items():
+                for dct in self.rrmodel.paved.pav_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         cnt += 1
                         f.write(
@@ -239,7 +239,7 @@ class DRRWriter:
                 )
 
             if any(self.rrmodel.greenhouse.gh_nodes):
-                for _, dct in self.rrmodel.greenhouse.gh_nodes.items():
+                for dct in self.rrmodel.greenhouse.gh_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         cnt += 1
                         f.write(
@@ -252,7 +252,7 @@ class DRRWriter:
                             + "' brch\n"
                         )
             if any(self.rrmodel.openwater.ow_nodes):
-                for _, dct in self.rrmodel.openwater.ow_nodes.items():
+                for dct in self.rrmodel.openwater.ow_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         cnt += 1
                         f.write(
@@ -268,7 +268,7 @@ class DRRWriter:
         # bound3b.3b
         filepath = os.path.join(self.output_dir, "Bound3B.3B")
         with open(filepath, "w") as f:
-            for _, dct in self.rrmodel.external_forcings.boundary_nodes.items():
+            for dct in self.rrmodel.external_forcings.boundary_nodes.values():
                 f.write("BOUN id '" + dct["id"] + "' bl 2 '0' is 0 boun\n")
             if any(self.rrmodel.paved.pav_nodes):
                 f.write("BOUN id 'WWTP_BND' bl 0 -3 is 0 boun\n")
@@ -278,7 +278,7 @@ class DRRWriter:
         header = {"fileVersion": "1.01", "fileType": "boundConds"}
         with open(filepath, "w") as f:
             self._write_dict(f, header, "General", "\n")
-            for _, dct in self.rrmodel.external_forcings.boundary_nodes.items():
+            for dct in self.rrmodel.external_forcings.boundary_nodes.values():
                 temp = {
                     "name": "" + dct["id"],
                     "function": "constant",
@@ -436,7 +436,7 @@ class DRRWriter:
         if any(self.rrmodel.paved.pav_nodes):
             filepath = os.path.join(self.output_dir, "PAVED.3B")
             with open(filepath, "w") as f:
-                for _, dct in self.rrmodel.paved.pav_nodes.items():
+                for dct in self.rrmodel.paved.pav_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "PAVE id '"
@@ -464,7 +464,7 @@ class DRRWriter:
 
             filepath = os.path.join(self.output_dir, "PAVED.STO")
             with open(filepath, "w") as f:
-                for _, dct in self.rrmodel.paved.pav_nodes.items():
+                for dct in self.rrmodel.paved.pav_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "STDF id 'sto_"
@@ -504,7 +504,7 @@ class DRRWriter:
         if any(self.rrmodel.greenhouse.gh_nodes):
             filepath = os.path.join(self.output_dir, "GREENHSE.3B")
             with open(filepath, "w") as f:
-                for _, dct in self.rrmodel.greenhouse.gh_nodes.items():                    
+                for dct in self.rrmodel.greenhouse.gh_nodes.values():                    
                     if float(dct["ar"]) > 0.0:
                         area_string = ' '.join(['0' for _ in range(int(dct['basin_storage_class'])-1)]+ [dct['ar']]+['0' for _ in range(10-(int(dct['basin_storage_class'])))])
                         f.write(
@@ -529,7 +529,7 @@ class DRRWriter:
 
             filepath = os.path.join(self.output_dir, "GREENHSE.RF")
             with open(filepath, "w") as f:
-                for _, dct in self.rrmodel.greenhouse.gh_nodes.items():
+                for dct in self.rrmodel.greenhouse.gh_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "STDF id 'sto_"
@@ -554,7 +554,7 @@ class DRRWriter:
         if any(self.rrmodel.openwater.ow_nodes):
             filepath = os.path.join(self.output_dir, "OPENWATE.3B")
             with open(filepath, "w") as f:
-                for _, dct in self.rrmodel.openwater.ow_nodes.items():
+                for dct in self.rrmodel.openwater.ow_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "OWRR id '"

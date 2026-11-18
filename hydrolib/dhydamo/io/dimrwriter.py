@@ -271,7 +271,7 @@ class DIMRWriter:
             targetfmrr.text = "RR"
             targetfmrr.tail = "\n"
 
-            for i in rr_model.external_forcings.boundary_nodes.keys():
+            for i in rr_model.external_forcings.boundary_nodes:
                 item = ET.SubElement(couplerfmrr, gn_brackets + "item")
                 item.text = ""
                 item.tail = "\n"
@@ -322,7 +322,7 @@ class DIMRWriter:
             rtc_to_flow_simple_count = 0
             rtc_to_flow_complex_count = 0
 
-            for i in rtc_model.all_controllers.keys():
+            for i in rtc_model.all_controllers:
                 svar=rtc_model.all_controllers[i]['steering_variable']
                 if self._add_unique_coupler_item(
                     couplerrtcfm,
@@ -398,7 +398,7 @@ class DIMRWriter:
                 targetfmrtc.text = "Real_Time_Control"
                 targetfmrtc.tail = "\n"
 
-                for i in rtc_model.pid_controllers.keys():
+                for i in rtc_model.pid_controllers:
                     if rtc_model.pid_controllers[i]['target_variable'] == 'Discharge (op)':
                         source_name = f"observations/{rtc_model.pid_controllers[i]['observation_point']}/discharge"
                     elif rtc_model.pid_controllers[i]['target_variable'] == 'Water level (op)':
@@ -416,7 +416,7 @@ class DIMRWriter:
                         flow_to_rtc_simple_count += 1
 
                 # Loop through all interval controllers
-                for i in rtc_model.interval_controllers.keys():
+                for i in rtc_model.interval_controllers:
                     if rtc_model.interval_controllers[i]["target_variable"] == "Discharge (op)":
                         source_name = f"observations/{rtc_model.interval_controllers[i]['observation_point']}/discharge"
                     elif rtc_model.interval_controllers[i]["target_variable"] == "Water level (op)":
@@ -505,7 +505,7 @@ class DIMRWriter:
             targetrrfm.text = "DFM"
             targetrrfm.tail = "\n"
 
-            for i in rr_model.external_forcings.boundary_nodes.keys():
+            for i in rr_model.external_forcings.boundary_nodes:
                 item = ET.SubElement(couplerrrfm, gn_brackets + "item")
                 item.text = ""
                 item.tail = "\n"

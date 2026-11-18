@@ -1514,7 +1514,7 @@ class DRTCModel:
         self.all_controllers.update(self.interval_controllers)
 
         to_remove = []
-        for key in self.all_controllers.keys():
+        for key in self.all_controllers:
 
             controller = self.all_controllers[key]
             # For simple controllers: skip only when this id has an allowed complex controller.
@@ -1887,7 +1887,7 @@ class DRTCModel:
         configfile = ET.parse(self.template_dir / "timeseries_import_empty.xml")
         myroot = configfile.getroot()
 
-        for key in self.all_controllers.keys():
+        for key in self.all_controllers:
 
             controller = self.all_controllers[key]
             # For simple controllers: skip only when this id has an allowed complex controller.
@@ -2050,7 +2050,7 @@ class DRTCModel:
 
         a0 = ET.SubElement(myroot, gn_brackets + "treeVector")
 
-        for key in self.all_controllers.keys():
+        for key in self.all_controllers:
 
             controller = self.all_controllers[key]
             # For simple controllers: skip only when this id has an allowed complex controller.
