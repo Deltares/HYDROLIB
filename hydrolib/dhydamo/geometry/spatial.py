@@ -8,19 +8,11 @@ import rasterio
 import shapely
 from rasterio import features
 from rasterio.transform import from_origin
-from scipy.spatial import Voronoi
 from shapely import affinity
 from shapely.geometry import (
     LineString,
-    MultiLineString,
-    MultiPolygon,
     Point,
-    Polygon,
-    box,
 )
-from shapely.prepared import prep
-
-from hydrolib.dhydamo.geometry import common
 
 logger = logging.getLogger(__name__)
 
@@ -219,64 +211,33 @@ def extend_linestring(line: LineString, near_pt: Point, length: float) -> LineSt
     return LineString([(x0, y0), (x0 - dx, y0 - dy)])
 
 def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    """Creates voronoi polygons around face nodes.
+    """Voronoi cells around the nodes, clipped to the faces.
 
     Args:
-        nodes (np.ndarray): xy coordinates of face nodes
-        facedata (gpd.GeoDataFrame): GeoDataFrame with face properties
+        nodes (np.ndarray): xy coordinates of the nodes, shape (n, 2)
+        facedata (gpd.GeoDataFrame): the faces, which together form the area to clip the cells to
 
     Returns:
-        gpd.GeoDataFrame: Creating GeoDataFrame with created polygons and their properties
+        gpd.GeoDataFrame: one cell per node, in the order of the nodes, with index 1..n. A cell that the
+            faces split into parts is a MultiPolygon; a node outside the faces gets an empty cell.
     """
-    # Creat voronoi polygon
-    # Add border to limit polygons
-    border = box(nodes[:, 0].min(), nodes[:, 1].min(), nodes[:, 0].max(), nodes[:, 1].max()).buffer(1000).exterior
-    borderpts = [border.interpolate(dist).coords[0] for dist in np.linspace(0, border.length, max(20, int(border.length / 100)))]
-    vor = Voronoi(points=np.vstack([nodes, borderpts]))
+    # the model extent: the union of all faces, to which the cells are clipped
     clippoly = facedata.union_all()
-    if not isinstance(clippoly, (Polygon, MultiPolygon)):
-        raise TypeError(f"Expected the union of the faces to be a Polygon or MultiPolygon, not a {clippoly.geom_type}.")
-    # Get lines
-    lines = []
-    for poly in common.as_polygon_list(clippoly):
-        lines.append(poly.exterior)
-        lines.extend([line for line in poly.interiors])
-    linesprep = prep(MultiLineString(lines))
 
-    # Determine for all nodes at once whether they lie within the clip polygon
-    inside = shapely.intersects_xy(clippoly, nodes[:, 0], nodes[:, 1])
+    # GEOS needs unique coordinates; nodes are duplicated where meshes were added next to each other
+    unique_nodes, inverse = np.unique(nodes, axis=0, return_inverse=True)
 
-    # Collect polygons
-    data = []
-    for (pr, pt_inside) in zip(vor.point_region, inside):
-        region = vor.regions[pr]
-        if pr == -1:
-            break
-        region = [v for v in region if v != -1]
-        if len(region) < 3:
-            continue
-        if pt_inside:
-            crds = vor.vertices[region]
-            poly = Polygon(crds)
-            if linesprep.intersects(poly):
-                clipped = poly.intersection(clippoly)
-                if isinstance(clipped, MultiPolygon):
-                    clipped = clipped.buffer(0.001)
-                if isinstance(clipped, MultiPolygon):
-                    logger.warning('Got multipolygon when clipping voronoi polygon. Only adding coordinates for largest of the polygons.')
-                    parts = common.as_polygon_list(clipped)
-                    clipped = parts[int(np.argmax([p.area for p in parts]))]
-                if not isinstance(clipped, Polygon):
-                    raise TypeError(f"Expected the clipped voronoi polygon to be a Polygon, not a {clipped.geom_type}.")
-                poly = clipped
-                crds = np.vstack(poly.exterior.coords[:])
-            data.append({'geometry': poly, 'crds': crds})
-            
-    # Limit to model extend
-    facedata = gpd.GeoDataFrame(data)
-    facedata.index=np.arange(len(nodes), dtype=np.uint32) + 1
+    # one cell per unique node, in the same order, covering at least the extent of the faces
+    voronoi = shapely.voronoi_polygons(shapely.multipoints(unique_nodes), extend_to=clippoly, ordered=True)
+    cells = shapely.get_parts(voronoi)
 
-    return facedata
+    # only the cells on the edge of the faces need clipping
+    shapely.prepare(clippoly)
+    on_edge = ~shapely.contains_properly(clippoly, cells)
+    cells[on_edge] = shapely.intersection(cells[on_edge], clippoly)
+
+    # back to one cell per node (duplicate nodes share a cell), numbered from 1 like the nodes
+    return gpd.GeoDataFrame(geometry=cells[inverse.ravel()], index=np.arange(len(nodes), dtype=np.uint32) + 1)
 
 
 def rasterize_polygons(
