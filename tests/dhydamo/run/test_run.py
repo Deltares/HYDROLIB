@@ -20,7 +20,7 @@ from tests.dhydamo.rtc import test_rtc
 DHYDRO_VERSION = None
 
 
-def _find_dimr(dhydro_path="C:/Program Files/Deltares", version=None):
+def _find_dimr(dhydro_path: str | pathlib.Path = "C:/Program Files/Deltares", version: str | None = None) -> str | None:
     dimr_path = None
 
     # Find latest D-Hydro installation
@@ -55,7 +55,7 @@ skip_without_dimr = pytest.mark.skipif(
 
 
 @pytest.fixture(scope="module")
-def model_run():
+def model_run() -> tuple[pathlib.Path, subprocess.CompletedProcess[str]]:
     """Build and run the model once per module in tests/model, so it can be inspected afterwards.
 
     The folder is emptied first, so files left by other tests (e.g. test_rtc) do not end up in the run.
@@ -67,7 +67,7 @@ def model_run():
     return output_path, result
 
 
-def _run_model(output_path, version=None):
+def _run_model(output_path: pathlib.Path, version: str | None = None) -> subprocess.CompletedProcess[str]:
     # Read hydamo object only once
     hydamo = test_from_hydamo._add_structures_manually()
     hydamo = test_from_hydamo._convert_structures(hydamo_obj=hydamo)
@@ -113,7 +113,7 @@ def _run_model(output_path, version=None):
 
 @pytest.mark.slow
 @skip_without_dimr
-def test_run_model(model_run):
+def test_run_model(model_run: tuple[pathlib.Path, subprocess.CompletedProcess[str]]) -> None:
     _, result = model_run
     assert result.returncode == 0, result.stderr
 
@@ -133,7 +133,12 @@ def test_run_model(model_run):
         ('culvert'          , 'D_25561'     , 'discharge'            ),
     ],
 )
-def test_read_output(model_run, location_type, location_id, variable):
+def test_read_output(
+    model_run: tuple[pathlib.Path, subprocess.CompletedProcess[str]],
+    location_type: str,
+    location_id: str,
+    variable: str,
+) -> None:
     output_path, result = model_run
     assert result.returncode == 0, "Model run failed, see test_run_model"
     hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()

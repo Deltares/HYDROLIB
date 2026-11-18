@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from hydrolib.dhydamo.core.drr import DRRModel
+from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.io import drrwriter
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
 from hydrolib.dhydamo.io.drrwriter import DRRWriter
@@ -12,7 +13,7 @@ from shapely.geometry import Point, Polygon, box
 from tests.dhydamo.io import test_from_hydamo
 
 
-def _setup_rr_model(hydamo=None):
+def _setup_rr_model(hydamo: HyDAMO | None = None) -> DRRModel:
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
     
@@ -98,12 +99,12 @@ def _setup_rr_model(hydamo=None):
 
 
 @pytest.fixture(scope="module")
-def rr_model():
+def rr_model() -> DRRModel:
     """The RR model of the sample data, built once for this module (takes a few seconds)."""
     return _setup_rr_model()
 
 
-def test_setup_rr_model(rr_model):
+def test_setup_rr_model(rr_model: DRRModel) -> None:
     drrmodel = rr_model
     assert len([i[1]['ga'] for i in drrmodel.unpaved.unp_nodes.items() if float(i[1]['ga']) > 0.0]) == 121
     assert len([i[1]['ar'] for i in drrmodel.paved.pav_nodes.items() if float(i[1]['ar']) > 0.0]) == 101
@@ -134,7 +135,7 @@ def test_setup_rr_model(rr_model):
     )
 
 
-def test_setup_rr_model_with_sewer_areas_and_greenhouses():
+def test_setup_rr_model_with_sewer_areas_and_greenhouses() -> None:
     """RR model as in the example notebook: sewer areas with overflows, and greenhouse areas
     with their own laterals. Expected values were checked against the code before the
     mypy refactor of drrreader.py."""
@@ -235,7 +236,7 @@ def test_setup_rr_model_with_sewer_areas_and_greenhouses():
     assert hydamo.external_forcings.lateral_nodes["lat_kas_2"]["discharge"] == "realtime"
 
 
-def test_boundary_from_input_drops_zero_area_catchments_without_crash():
+def test_boundary_from_input_drops_zero_area_catchments_without_crash() -> None:
     # boundary_from_input first bulk-drops every catchment whose boundary_node
     # has no RR-node with area > 0 ("not_occurring"), then used to loop over
     # the same catchments a second time and re-drop them individually. Since
@@ -274,7 +275,7 @@ def test_boundary_from_input_drops_zero_area_catchments_without_crash():
     assert len(drrmodel.external_forcings.boundary_nodes) == 0
 
 
-def _fnm_input_files(fnm_path):
+def _fnm_input_files(fnm_path: Path) -> list[str]:
     """File names of the input files (flag I) in a Sobek_3b.fnm file."""
     names = []
     for line in Path(fnm_path).read_text(encoding="latin-1").splitlines():
@@ -284,7 +285,7 @@ def _fnm_input_files(fnm_path):
     return names
 
 
-def test_rr_file_names_match_fnm():
+def test_rr_file_names_match_fnm() -> None:
     # File systems on Linux are case-sensitive: the names drrwriter uses must match Sobek_3b.fnm and the
     # files copied from resources exactly. Checked on the source, so that it also fails on Windows.
     resources = Path(drrwriter.__file__).parent.parent / "resources" / "RR"
@@ -300,7 +301,7 @@ def test_rr_file_names_match_fnm():
         assert resource_names.get(name.lower(), name) == name, f"drrwriter uses {name}, resources {resource_names[name.lower()]}"
 
 
-def test_rr_written_files_match_fnm(rr_model, tmp_path):
+def test_rr_written_files_match_fnm(rr_model: DRRModel, tmp_path: Path) -> None:
     drrmodel = copy.deepcopy(rr_model)  # the time settings below should not leak into other tests
     drrmodel.d3b_parameters["Timestepsize"] = "60"
     drrmodel.d3b_parameters["StartTime"] = "'2016/06/01;00:00:00'"
@@ -309,7 +310,7 @@ def test_rr_written_files_match_fnm(rr_model, tmp_path):
 
     rr_dir = tmp_path / "rr"
     written = [path.name for path in rr_dir.iterdir()]
-    by_lower = {}
+    by_lower: dict[str, list[str]] = {}
     for name in written:
         by_lower.setdefault(name.lower(), []).append(name)
     # no files that only differ in case (on Linux these would be two different files)

@@ -4,23 +4,27 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+from hydrolib.core.base.models import DiskOnlyFileModel
 from hydrolib.core.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
 from hydrolib.core.dflowfm.friction.models import FrictionModel
 from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.core.dflowfm.net.models import NetworkModel
 from hydrolib.core.dflowfm.obs.models import ObservationPointModel
 from hydrolib.core.dflowfm.structure.models import StructureModel
 
 # and from hydrolib-core
 from hydrolib.core.dimr.models import DIMR, FMComponent
-
-# Importing relevant classes from Hydrolib-dhydamo
 from hydrolib.dhydamo.converters.df2hydrolibmodel import (
     EXT_FILE_VERSION,
     Df2HydrolibModel,
 )
+
+# Importing relevant classes from Hydrolib-dhydamo
+from hydrolib.dhydamo.converters.hydamo2df import RoughnessVariant
+from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
-from shapely.geometry import Point
+from shapely.geometry import Point, Polygon
 
 from tests.dhydamo.io import test_from_hydamo
 
@@ -32,10 +36,15 @@ assert data_path.exists()
 output_path = (Path(__file__).parent / ".." / ".." / "model").resolve()
 output_path.mkdir(parents=False, exist_ok=True)
 
-def setup_model(hydamo_obj=None, full_test=False, model_path=None):
+def setup_model(
+    hydamo_obj: HyDAMO | None = None,
+    full_test: bool = False,
+    model_path: Path | str | None = None,
+) -> tuple[HyDAMO, FMModel]:
     # model_path: folder to write the model to, defaults to the global output_path
     model_path = output_path if model_path is None else Path(model_path)
     fm = FMModel()
+    assert isinstance(fm.geometry.netfile, NetworkModel)
     # Set start and stop time
     fm.time.refdate = 20160601
     fm.time.tstop =  48*3600
@@ -68,9 +77,9 @@ def setup_model(hydamo_obj=None, full_test=False, model_path=None):
             gateloweredgelevel=18.5,
             crestwidth=7.5,
             corrcoeff=1.0,
-            uselimitflowpos="false",
+            uselimitflowpos=False,
             limitflowpos=0.0,
-            uselimitflowneg="false",
+            uselimitflowneg=False,
             limitflowneg=0.0,
         )
     structures = hydamo.structures.as_dataframe(
@@ -81,6 +90,7 @@ def setup_model(hydamo_obj=None, full_test=False, model_path=None):
         orifices=True,
         pumps=True,
     )
+    assert structures is not None
     if full_test:
         objects = pd.concat([structures, hydamo.observationpoints.observation_points], axis=0)    
     else:
@@ -103,7 +113,7 @@ def setup_model(hydamo_obj=None, full_test=False, model_path=None):
         param_profile=hydamo.param_profile,
         param_profile_values=hydamo.param_profile_values,
         branches=hydamo.branches,
-        roughness_variant="High",
+        roughness_variant=RoughnessVariant.HIGH,
     )
     missing = hydamo.crosssections.get_branches_without_crosssection()
     missing_after_interpolation = mesh.mesh1d_order_numbers_from_attribute(hydamo.branches, 
@@ -149,10 +159,11 @@ def setup_model(hydamo_obj=None, full_test=False, model_path=None):
 
     # Add 2d network
     if full_test:
-        extent = gpd.read_file(data_path.joinpath("2D_extent.shp")).loc[0, "geometry"]
+        extent = gpd.read_file(data_path.joinpath("2D_extent.shp")).geometry.iloc[0]
+        assert isinstance(extent, Polygon)
         network = fm.geometry.netfile.network
         mesh.mesh2d_add_rectilinear(network, extent, dx=20, dy=20)
-        mesh.mesh2d_clip(network, hydamo.branches.loc['W_2646_0'].geometry.buffer(20.))
+        mesh.mesh2d_clip(network, hydamo.branches.geometry['W_2646_0'].buffer(20.))
         mesh.mesh2d_altitude_from_raster(network, data_path.joinpath("rasters/AHN_2m_clipped_filled.tif"), "face", "mean", fill_value=-999)
         mesh.links1d2d_add_links_1d_to_2d(network)
         mesh.links1d2d_remove_1d_endpoints(network)
@@ -163,7 +174,7 @@ def setup_model(hydamo_obj=None, full_test=False, model_path=None):
     return hydamo, fm
 
 
-def test_convert_to_hydrolibmodel():
+def test_convert_to_hydrolibmodel() -> None:
     hydamo, _ = setup_model()
 
     models = Df2HydrolibModel(hydamo)
@@ -171,7 +182,12 @@ def test_convert_to_hydrolibmodel():
     assert len(models.crossdefs) == 443
 
 
-def _add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False, model_path=None):
+def _add_to_filestructure(
+    drrmodel: DRRModel | None = None,
+    hydamo_obj: HyDAMO | None = None,
+    full_test: bool = False,
+    model_path: Path | str | None = None,
+) -> FMModel:
     model_path = output_path if model_path is None else Path(model_path)
     hydamo, fm = setup_model(hydamo_obj=hydamo_obj, full_test=full_test, model_path=model_path)
 
@@ -191,7 +207,7 @@ def _add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False, model
     fm.geometry.frictfile = []
     for i, fric_def in enumerate(models.friction_defs):
         fric_model = FrictionModel(global_=fric_def)
-        fric_model.filepath = f"roughness_{i}.ini"
+        fric_model.filepath = Path(f"roughness_{i}.ini")
         fm.geometry.frictfile.append(fric_model)
 
     fm.output.obsfile = [ObservationPointModel(observationpoint=models.obspoints)]
@@ -203,12 +219,17 @@ def _add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False, model
 
     return fm
 
-def test_add_to_filestructure():
+def test_add_to_filestructure() -> None:
     fm = _add_to_filestructure()
     assert hasattr(fm, "geometry")
     assert hasattr(fm.geometry, "inifieldfile")
     
-def _write_model(drrmodel=None, hydamo_obj=None, full_test=False, model_path=None):
+def _write_model(
+    drrmodel: DRRModel | None = None,
+    hydamo_obj: HyDAMO | None = None,
+    full_test: bool = False,
+    model_path: Path | str | None = None,
+) -> tuple[FMModel, Path]:
     model_path = output_path if model_path is None else Path(model_path)
     fm = _add_to_filestructure(
         drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test, model_path=model_path
@@ -216,7 +237,7 @@ def _write_model(drrmodel=None, hydamo_obj=None, full_test=False, model_path=Non
 
     fm.geometry.uniformwidth1d = 1.0            # default  breedte 
     fm.geometry.bedlevtype = 1                  # 1: at cell center (tiles xz,yz,bl,bob=max(bl)), 2: at face (tiles xu,yu,blu,bob=blu), 3: at face (using mean node values), 4: at face 
-    fm.geometry.changestructuredimensions = 0   # Change the structure dimensions in case these are inconsistent with the channel dimensions.
+    fm.geometry.changestructuredimensions = False  # Change the structure dimensions in case these are inconsistent with the channel dimensions.
 
     fm.sediment.sedimentmodelnr = 0
 
@@ -224,18 +245,18 @@ def _write_model(drrmodel=None, hydamo_obj=None, full_test=False, model_path=Non
     fm.numerics.advectype = 33                  # Adv type, 0=no, 33=Perot q(uio-u) fast, 3=Perot q(uio-u).
 
     fm.volumetables.increment = 0.2             # parameter setting advised by Deltares for better performance
-    fm.volumetables.usevolumetables = 1         # parameter setting advised by Deltares for better performance
+    fm.volumetables.usevolumetables = True        # parameter setting advised by Deltares for better performance
 
-    fm.restart.restartfile     = None           # Restart file, only from netCDF-file, hence: either *_rst.nc or *_map.nc.
+    fm.restart.restartfile     = DiskOnlyFileModel(filepath=None)          # Restart file, only from netCDF-file, hence: either *_rst.nc or *_map.nc.
     fm.restart.restartdatetime = None           # Restart time [YYYYMMDDHHMMSS], only relevant in case of restart from *_map.nc.
     fm.sediment.sedimentmodelnr = 4
     fm.output.mapformat=4                       # parameter setting advised by Deltares for better performance
     fm.output.ncformat = 4                      # parameter setting advised by Deltares for better performance
-    fm.output.ncnoforcedflush = 1               # parameter setting advised by Deltares for better performance
-    fm.output.ncnounlimited = 1      
-    fm.output.outputdir = "output"
+    fm.output.ncnoforcedflush = True              # parameter setting advised by Deltares for better performance
+    fm.output.ncnounlimited = True     
+    fm.output.outputdir = Path("output")
     fm.output.statsinterval            = [1]       # Interval [s] between screen step outputs in seconds simulation time, if negative in seconds wall clock time.
-    fm.output.timingsinterval          =  ""    # Timings output interval TimingsInterval.
+    fm.output.timingsinterval          =  []    # Timings output interval TimingsInterval.
 
     if hasattr(fm, 'sediment'):
         delattr(fm, 'sediment')
@@ -246,14 +267,14 @@ def _write_model(drrmodel=None, hydamo_obj=None, full_test=False, model_path=Non
             name="DFM",
             workingDir=model_path / "dflowfm",
             model=fm,
-            inputfile=fm.filepath,
+            inputFile=fm.filepath,
         )
     )
     dimr.save(recurse=True)
 
     return fm, model_path
 
-def test_write_model():
+def test_write_model() -> None:
     _, output_path = _write_model()
     assert (output_path / "dflowfm" / "DFM.mdu").exists()
     assert (output_path / "dflowfm" / "crsdef.ini").exists()
@@ -261,7 +282,7 @@ def test_write_model():
     assert (output_path / "dflowfm" / "InitialWaterDepth.ini").exists()
 
 
-def test_ext_model_file_version(tmp_path):
+def test_ext_model_file_version(tmp_path: Path) -> None:
     # D-HYDRO 2026.02 refuses the default version 3.00 of hydrolib-core 1.6 (issue #248)
     models = Df2HydrolibModel(HyDAMO())
     extmodel = models.ext_model()
@@ -271,7 +292,7 @@ def test_ext_model_file_version(tmp_path):
     assert any(line.split("#")[0].split() == ["fileVersion", "=", EXT_FILE_VERSION] for line in lines)
 
 
-def test_constant_and_qh_boundaries_write_time_interpolation(tmp_path):
+def test_constant_and_qh_boundaries_write_time_interpolation(tmp_path: Path) -> None:
     # the D-HYDRO GUI (2026.02) requires timeInterpolation in every [Forcing] block, also for
     # constant values and QH tables, where hydrolib-core does not write it
     class _Mesh1D:
@@ -288,6 +309,6 @@ def test_constant_and_qh_boundaries_write_time_interpolation(tmp_path):
     models.forcingmodel.save(tmp_path / "boundaryconditions.bc")
 
     blocks = (tmp_path / "boundaryconditions.bc").read_text().split("[Forcing]")[1:]
-    functions = [re.search(r"function\s*=\s*(\w+)", block).group(1) for block in blocks]
-    assert functions == ["constant", "qhtable"]
+    functions = [re.findall(r"function\s*=\s*(\w+)", block) for block in blocks]
+    assert functions == [["constant"], ["qhtable"]]
     assert all(re.search(r"timeInterpolation\s*=\s*linear", block) for block in blocks)

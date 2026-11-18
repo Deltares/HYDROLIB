@@ -8,6 +8,7 @@ from shapely.geometry import (
     Point,
     box,
 )
+from shapely.geometry.base import BaseGeometry
 
 
 @pytest.mark.parametrize(
@@ -24,7 +25,7 @@ from shapely.geometry import (
         pytest.param(MultiPolygon([box(0, 0, 1, 1), box(2, 2, 3, 3)]), id="multipolygon"),
     ],
 )
-def test_geometrylist_round_trip(geometry):
+def test_geometrylist_round_trip(geometry: BaseGeometry) -> None:
     result = GeometryList.from_geometry(geometry).to_geometry()
     assert result.geom_type == geometry.geom_type
     assert result.equals(geometry)

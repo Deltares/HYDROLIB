@@ -148,6 +148,12 @@ module = ["hydrolib.core.*"]
 follow_untyped_imports = true
 implicit_optional = true
 
+# Every test function must have type hints: mypy skips the body of a function without them.
+# Only for the tests; not every function in hydrolib/dhydamo has type hints yet.
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short --durations=0"

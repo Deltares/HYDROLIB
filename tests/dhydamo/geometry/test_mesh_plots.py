@@ -8,52 +8,52 @@ from tests.dhydamo.geometry import test_mesh
 
 
 @pytest.mark.plot
-def test_plot_create_2d_rectilinear():
+def test_plot_create_2d_rectilinear() -> None:
     test_mesh.test_create_2d_rectilinear(do_plot=True)
 
 
 @pytest.mark.plot
-def test_plot_create_2d_rectilinear_within_circle():
+def test_plot_create_2d_rectilinear_within_circle() -> None:
     test_mesh.test_create_2d_rectilinear_within_circle(do_plot=True)
 
 
 @pytest.mark.plot
-def test_plot_create_2d_triangular_within_circle():
+def test_plot_create_2d_triangular_within_circle() -> None:
     test_mesh.test_create_2d_triangular_within_circle(do_plot=True)
 
 
 @pytest.mark.plot
-def test_plot_create_2d_rectangular_from_multipolygon():
+def test_plot_create_2d_rectangular_from_multipolygon() -> None:
     test_mesh.test_create_2d_rectangular_from_multipolygon(do_plot=True)
 
 
 @pytest.mark.plot
-def test_plot_create_2d_triangular_from_multipolygon():
+def test_plot_create_2d_triangular_from_multipolygon() -> None:
     test_mesh.test_create_2d_triangular_from_multipolygon(do_plot=True)
 
 
 @pytest.mark.plot
-def test_2d_refine_ring_geometry():
+def test_2d_refine_ring_geometry() -> None:
     test_mesh.test_2d_refine_ring_geometry(do_plot=True)
 
 
 @pytest.mark.plot
-def test_plot_2d_clip_outside_polygon():
+def test_plot_2d_clip_outside_polygon() -> None:
     test_mesh.test_2d_clip_outside_polygon(do_plot=True)
 
 
 @pytest.mark.plot
-def test_plot_2d_clip_inside_multipolygon():
+def test_plot_2d_clip_inside_multipolygon() -> None:
     test_mesh.test_2d_clip_inside_multipolygon(do_plot=True)
 
 
 @pytest.mark.plot
-def test_plot_2d_clip_inside_polygon_with_holes():
+def test_plot_2d_clip_inside_polygon_with_holes() -> None:
     test_mesh.test_plot_2d_clip_inside_polygon_with_holes(do_plot=True)
 
 
 @pytest.mark.plot
-def test_plot_1d_add_branch_from_linestring():
+def test_plot_1d_add_branch_from_linestring() -> None:
     test_mesh.test_1d_add_branch_from_linestring(do_plot=True)
 
 
@@ -68,7 +68,9 @@ def test_plot_1d_add_branch_from_linestring():
         (False, False, True, np.inf, True, 15),
     ],
 )
-def test_plot_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
+def test_plot_links1d2d_add_links_1d_to_2d(
+    b_within: bool, b_branchids: bool, b_refine: bool, max_length: float, b_plot: bool, outcome: int
+) -> None:
     test_mesh.test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_length, b_plot, outcome)
 
 
@@ -83,7 +85,9 @@ def test_plot_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_
         (False, False, True,  np.inf, True, 39),
     ],
 )
-def test_plot_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
+def test_plot_links1d2d_add_links_2d_to_1d_lateral(
+    b_within: bool, b_branchids: bool, b_refine: bool, max_length: float, b_plot: bool, outcome: int
+) -> None:
     test_mesh.test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, max_length, b_plot, outcome)
 
 
@@ -97,32 +101,34 @@ def test_plot_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refi
         (False, False, True, True, 48),
     ],
 )
-def test_plot_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, b_plot, outcome):
+def test_plot_links1d2d_add_links_2d_to_1d_embedded(
+    b_within: bool, b_branchids: bool, b_refine: bool, b_plot: bool, outcome: int
+) -> None:
     test_mesh.test_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, b_plot, outcome)
 
 
 @pytest.mark.plot
-def test_plot_linkd1d2d_remove_links_within_polygon():
+def test_plot_linkd1d2d_remove_links_within_polygon() -> None:
     test_mesh.test_linkd1d2d_remove_links_within_polygon(do_plot=True)
 
 
 @pytest.mark.plot
-def test_plot_linkd1d2d_remove_links_within_small_polygon():
+def test_plot_linkd1d2d_remove_links_within_small_polygon() -> None:
     test_mesh.test_linkd1d2d_remove_links_within_small_polygon(do_plot=True)
 
 
 @pytest.mark.plot
-def test_plot_links1d2d_remove_1d_endpoints():
+def test_plot_links1d2d_remove_1d_endpoints() -> None:
     test_mesh.test_links1d2d_remove_1d_endpoints(do_plot=True)
 
 
 @pytest.mark.plot
-def test_plot_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint():
+def test_plot_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint() -> None:
     test_mesh.test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(
         do_plot=True
     )
 
 
 @pytest.mark.plot
-def test_plot_mesh1d_add_branches_from_gdf():
+def test_plot_mesh1d_add_branches_from_gdf() -> None:
     test_mesh.test_mesh1d_add_branches_from_gdf(do_plot=True)

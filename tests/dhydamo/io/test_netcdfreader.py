@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterator
 
 import numpy as np
 import pytest
@@ -7,7 +8,7 @@ from netCDF4 import Dataset
 
 
 @pytest.fixture
-def his_like():
+def his_like() -> Iterator[Dataset]:
     """An in-memory netCDF file with hourly time steps on 1 June 2016 (0, 1, ..., 5 h)."""
     dataset = Dataset("in_memory.nc", "w", diskless=True)
     dataset.createDimension("time", None)
@@ -18,13 +19,13 @@ def his_like():
     dataset.close()
 
 
-def test_exact_time(his_like, caplog):
+def test_exact_time(his_like: Dataset, caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):
         assert time_index(his_like, "2016-06-01 03:00") == 3
     assert caplog.messages == []
 
 
-def test_nearest_time_with_warning(his_like, caplog):
+def test_nearest_time_with_warning(his_like: Dataset, caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):
         assert time_index(his_like, "2016-06-01 03:20") == 3
         assert time_index(his_like, "2016-06-01 03:40") == 4
@@ -32,17 +33,17 @@ def test_nearest_time_with_warning(his_like, caplog):
     assert "nearest time step" in caplog.messages[0]
 
 
-def test_time_zone_is_converted_to_utc(his_like):
+def test_time_zone_is_converted_to_utc(his_like: Dataset) -> None:
     # 04:00 in UTC+2 is 02:00 UTC
     assert time_index(his_like, "2016-06-01 04:00+02:00") == 2
 
 
-def test_time_outside_the_period_raises(his_like):
+def test_time_outside_the_period_raises(his_like: Dataset) -> None:
     with pytest.raises(ValueError, match="outside the period"):
         time_index(his_like, "2016-06-02 00:00")
 
 
-def test_file_without_time_raises():
+def test_file_without_time_raises() -> None:
     with (
         Dataset("no_time.nc", "w", diskless=True) as dataset,
         pytest.raises(ValueError, match="No time variable"),

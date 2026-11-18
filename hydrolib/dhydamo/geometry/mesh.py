@@ -6,6 +6,7 @@ from pathlib import Path
 import geopandas as gpd
 import meshkernel as mk
 import numpy as np
+import pandas as pd
 import shapely
 from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import KDTree
@@ -319,7 +320,7 @@ def mesh1d_add_branches_from_gdf(
     branch_name_col: str,
     node_distance: float,
     max_dist_to_struc: float | None = None,
-    structures: gpd.GeoDataFrame | None = None,
+    structures: pd.DataFrame | None = None,
 ) -> None:
     """Function to generate branches from geodataframe
 
@@ -329,7 +330,7 @@ def mesh1d_add_branches_from_gdf(
         branch_name_col (str): Name of the column in the GeoDataFrame with the branchnames
         node_distance (float): Preferred 1d mesh distance
         max_dist_to_struc (float | None, optional): Maximum distance to structure. Defaults to None.
-        structures (gpd.GeoDataFrame | None, optional): GeoDataFrame with structures. Must contain a column branchid and chainage. Defaults to None.
+        structures (pd.DataFrame | None, optional): DataFrame with structures. Must contain a column branchid and chainage. Defaults to None.
     """
 
     # Create empty dictionary for structure chainage
@@ -651,7 +652,8 @@ def links1d2d_add_links_2d_to_1d_embedded(
     for subarea in common.as_polygon_list(area):
         subarea = GeometryList.from_polygon(subarea)
         sub_idx = network.meshkernel.polygon_get_included_points(subarea, mpgl)
-        idx |= sub_idx.values == 1
+        # values of a meshkernel GeometryList, not pandas
+        idx |= sub_idx.values == 1  # noqa: PD011
 
     # Check for each of the remaining faces, if it actually crosses the branches
     where = np.nonzero(idx)[0]
@@ -861,12 +863,13 @@ def links1d2d_remove_within(
     # Check which links intersect the provided area
     for polygon in common.as_polygon_list(within):
         subarea = GeometryList.from_geometry(polygon)
+        # values of a meshkernel GeometryList, not pandas
         idx_faces |= (
-            network.meshkernel.polygon_get_included_points(subarea, mpgl_faces2d).values
+            network.meshkernel.polygon_get_included_points(subarea, mpgl_faces2d).values  # noqa: PD011
             == 1
         )
         idx_nodes |= (
-            network.meshkernel.polygon_get_included_points(subarea, mpgl_nodes1d).values
+            network.meshkernel.polygon_get_included_points(subarea, mpgl_nodes1d).values  # noqa: PD011
             == 1
         )
 

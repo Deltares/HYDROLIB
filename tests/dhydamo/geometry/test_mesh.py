@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 from folium import GeoJson
 from hydrolib.core.dflowfm.mdu.models import FMModel
-from hydrolib.core.dflowfm.net.models import NetworkModel
+from hydrolib.core.dflowfm.net.models import Network, NetworkModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh, viz
 from hydrolib.dhydamo.geometry.models import GeometryList
@@ -33,16 +33,17 @@ test_figure_path.mkdir(parents=True, exist_ok=True)
 
 
 @pytest.fixture
-def do_plot():
+def do_plot() -> bool:
     """Plots are off in normal runs; test_mesh_plots.py passes do_plot=True."""
     return False
 
 
-def test_create_2d_rectilinear(do_plot):
+def test_create_2d_rectilinear(do_plot: bool) -> None:
     # Define polygon
     # bbox = (1.0, -2.0, 3.0, 4.0)
 
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     polygon = box(0, 0, 10, 10)
@@ -69,9 +70,10 @@ def test_create_2d_rectilinear(do_plot):
         m.save(test_figure_path / "test_create_2d_rectilinear_mk.html")        
 
 @pytest.mark.parametrize("path_type", [Path, str])
-def test_mesh2d_from_netcdf(tmp_path, path_type):
+def test_mesh2d_from_netcdf(tmp_path: Path, path_type: type[Path] | type[str]) -> None:
     # write a small 2d mesh to a UGRID file, and read it into an empty network
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     mesh.mesh2d_add_rectilinear(
         fmmodel.geometry.netfile.network,
         box(0, 0, 10, 10),
@@ -82,7 +84,9 @@ def test_mesh2d_from_netcdf(tmp_path, path_type):
     netfile = tmp_path / "net.nc"
     fmmodel.geometry.netfile.save(filepath=netfile)
 
-    network = FMModel().geometry.netfile.network
+    read_model = FMModel()
+    assert isinstance(read_model.geometry.netfile, NetworkModel)
+    network = read_model.geometry.netfile.network
     mesh.mesh2d_from_netcdf(network, path_type(netfile))
 
     mesh2d = network._mesh2d.get_mesh2d()
@@ -92,7 +96,7 @@ def test_mesh2d_from_netcdf(tmp_path, path_type):
 
 
 def _get_circle_polygon(
-    radius,
+    radius: float,
     n_points: int = 361,
     xoff: float = 0,
     yoff: float = 0,
@@ -112,8 +116,9 @@ def _get_circle_polygon(
     return circle
 
 
-def test_create_2d_rectilinear_within_circle(do_plot):
+def test_create_2d_rectilinear_within_circle(do_plot: bool) -> None:
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     # Create circular polygon
@@ -141,8 +146,9 @@ def test_create_2d_rectilinear_within_circle(do_plot):
     assert len(network._mesh2d.mesh2d_face_x) == 88
 
 
-def test_create_2d_triangular_within_circle(do_plot):
+def test_create_2d_triangular_within_circle(do_plot: bool) -> None:
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     # Create circular polygonplot_ne
@@ -163,9 +169,10 @@ def test_create_2d_triangular_within_circle(do_plot):
     assert len(network._mesh2d.get_mesh2d().face_x) == 174
 
 
-def test_create_2d_rectangular_from_multipolygon(do_plot):
+def test_create_2d_rectangular_from_multipolygon(do_plot: bool) -> None:
     # Define polygon
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     # Create 2 part mesh
@@ -227,9 +234,10 @@ def test_create_2d_rectangular_from_multipolygon(do_plot):
     assert len(network._mesh2d.mesh2d_face_x) == 637
 
 
-def test_create_2d_triangular_from_multipolygon(do_plot):
+def test_create_2d_triangular_from_multipolygon(do_plot: bool) -> None:
     # Define polygon
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     circle1 = _get_circle_polygon(radius=10)
@@ -272,9 +280,10 @@ def test_create_2d_triangular_from_multipolygon(do_plot):
     assert pre_refine_length_edge == 391
     assert len(network._mesh2d.mesh2d_face_x) == 736
 
-def test_2d_refine_ring_geometry(do_plot):
+def test_2d_refine_ring_geometry(do_plot: bool) -> None:
     # Define polygon
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     # Create 2 part mesh
@@ -317,9 +326,10 @@ def test_2d_refine_ring_geometry(do_plot):
     assert len(network._mesh2d.mesh2d_face_x) == 27534
 
 
-def test_2d_clip_outside_polygon(do_plot):
+def test_2d_clip_outside_polygon(do_plot: bool) -> None:
     # Define polygon
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     rectangle = box(-10, -10, 10, 10)
@@ -336,6 +346,7 @@ def test_2d_clip_outside_polygon(do_plot):
     clipgeo = box(-8, -8, 8, 8).difference(
         MultiPolygon([box(-6, -1, -4, 2), box(4, 5, 7, 7)])
     )
+    assert isinstance(clipgeo, Polygon)
 
     mesh.mesh2d_clip(
         network,
@@ -357,9 +368,10 @@ def test_2d_clip_outside_polygon(do_plot):
     assert len(network._mesh2d.mesh2d_face_x) == 244
 
 
-def test_plot_2d_clip_inside_polygon_with_holes(do_plot):
+def test_plot_2d_clip_inside_polygon_with_holes(do_plot: bool) -> None:
     # Define polygon
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     rectangle = box(-10, -10, 10, 10)
@@ -374,6 +386,7 @@ def test_plot_2d_clip_inside_polygon_with_holes(do_plot):
 
     hole = box(-2, -2, 2, 2)
     clipgeo = box(-5, -5, 5, 5).difference(hole)
+    assert isinstance(clipgeo, Polygon)
 
     mesh.mesh2d_clip(
         network,
@@ -395,9 +408,10 @@ def test_plot_2d_clip_inside_polygon_with_holes(do_plot):
     assert len(network._mesh2d.mesh2d_node_x) == 305
 
 
-def test_2d_clip_inside_multipolygon(do_plot):
+def test_2d_clip_inside_multipolygon(do_plot: bool) -> None:
     # Define polygon
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     rectangle = box(-10, -10, 10, 10)
@@ -430,9 +444,10 @@ def test_2d_clip_inside_multipolygon(do_plot):
      
     assert len(network._mesh2d.mesh2d_node_x) == 357
 
-def test_1d_add_branch_from_linestring(do_plot):
+def test_1d_add_branch_from_linestring(do_plot: bool) -> None:
     # Define polygon
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     x = np.linspace(0, 20, 101)
@@ -454,7 +469,9 @@ def test_1d_add_branch_from_linestring(do_plot):
     assert len(network._mesh1d.mesh1d_node_x) == 8
 
 
-def _prepare_1d2d_mesh(second_branch: bool = False):
+def _prepare_1d2d_mesh(
+    second_branch: bool = False,
+) -> tuple[Network, MultiPolygon, list[str], list[LineString]]:
     # Define polygon
     fmmodel = FMModel()
     assert isinstance(fmmodel.geometry.netfile, NetworkModel)
@@ -485,6 +502,7 @@ def _prepare_1d2d_mesh(second_branch: bool = False):
     within = box(-10, -10, 12, 10).difference(
         LineString([[-2, -10], [2, 10]]).buffer(2)
     )
+    assert isinstance(within, MultiPolygon)
 
     return network, within, branchids, branches
 
@@ -498,7 +516,9 @@ def _prepare_1d2d_mesh(second_branch: bool = False):
         (False, False, True, np.inf, False, 15),
     ],
 )
-def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
+def test_links1d2d_add_links_1d_to_2d(
+    b_within: bool, b_branchids: bool, b_refine: bool, max_length: float, b_plot: bool, outcome: int
+) -> None:
     network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
     within = _within if b_within else None
     branchids = _branchids[-1:] if b_branchids else None
@@ -515,7 +535,7 @@ def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_lengt
         m = viz.plot_network(network, background=False, crs=4326)
         if b_within:
             GeoJson(
-                gpd.GeoDataFrame(geometry=[within], crs=4326),  
+                gpd.GeoDataFrame(geometry=[_within], crs=4326),  
                 style_function=lambda x: {"color": "green", "dashArray": "5 5", "fillOpacity": 0}
             ).add_to(m)
         m.save(test_figure_path / f"test_links1d2d_add_links_1d_to_2d_within={b_within}_branchids={b_branchids}_refine={b_refine}_maxlength={max_length}_mk.html")
@@ -533,7 +553,9 @@ def test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_lengt
         (False, False, True,  np.inf, False, 39),
     ],
 )
-def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, max_length, b_plot, outcome):
+def test_links1d2d_add_links_2d_to_1d_lateral(
+    b_within: bool, b_branchids: bool, b_refine: bool, max_length: float, b_plot: bool, outcome: int
+) -> None:
     network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
     within = _within if b_within else None
     branchids = _branchids[-1:] if b_branchids else None
@@ -550,7 +572,7 @@ def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, m
         m = viz.plot_network(network, background=False, crs=4326)
         if b_within:
             GeoJson(
-                gpd.GeoDataFrame(geometry=[within], crs=4326),  # shapely geometry, folium accepts it directly
+                gpd.GeoDataFrame(geometry=[_within], crs=4326),  # shapely geometry, folium accepts it directly
                 style_function=lambda x: {"color": "green", "dashArray": "5 5", "fillOpacity": 0}
             ).add_to(m)
         m.save(test_figure_path / f"test_links1d2d_add_links_2d_to_1d_lateral_within={b_within}_branchids={b_branchids}_refine={b_refine}_maxlength={max_length}_mk.html")
@@ -558,14 +580,17 @@ def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, m
     assert len(network._link1d2d.link1d2d_id) == outcome
 
 
-def test_links1d2d_add_links_2d_to_1d_lateral_within_splits_single_mesh_boundary():
+def test_links1d2d_add_links_2d_to_1d_lateral_within_splits_single_mesh_boundary() -> None:
     # A single 2d mesh area has one boundary Polygon. Clipping it with 'within' gives a
     # MultiPolygon, which used to fail with "Sequences of multi-polygons are not valid arguments".
-    network = FMModel().geometry.netfile.network
+    fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
+    network = fmmodel.geometry.netfile.network
     mesh.mesh1d_add_branch_from_linestring(network, LineString([[-9, -3], [0, 4]]), node_distance=1)
     mesh.mesh1d_add_branch_from_linestring(network, LineString([[0, 4], [9, 5]]), node_distance=1)
     mesh.mesh2d_add_rectilinear(network, box(-8, -10, 8, 10), dx=0.5, dy=0.5)
     within = box(-10, -10, 12, 10).difference(box(-10, -5.5, 12, -4))
+    assert isinstance(within, MultiPolygon)
 
     mesh.links1d2d_add_links_2d_to_1d_lateral(network, within=within)
 
@@ -588,7 +613,9 @@ def test_links1d2d_add_links_2d_to_1d_lateral_within_splits_single_mesh_boundary
         (False, False, True, False, 48),
     ],
 )
-def test_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, b_plot, outcome):
+def test_links1d2d_add_links_2d_to_1d_embedded(
+    b_within: bool, b_branchids: bool, b_refine: bool, b_plot: bool, outcome: int
+) -> None:
     network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
     within = _within if b_within else None
     branchids = _branchids[-1:] if b_branchids else None
@@ -605,7 +632,7 @@ def test_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, 
         m = viz.plot_network(network, background=False, crs=4326)
         if b_within:
             GeoJson(
-                gpd.GeoDataFrame(geometry=[within], crs=4326),  # shapely geometry, folium accepts it directly
+                gpd.GeoDataFrame(geometry=[_within], crs=4326),  # shapely geometry, folium accepts it directly
                 style_function=lambda x: {"color": "green", "dashArray": "5 5", "fillOpacity": 0}
             ).add_to(m)
         m.save(test_figure_path / f"test_links1d2d_add_links_2d_to_1d_embedded_within={b_within}_branchids={b_branchids}_refine={b_refine}_mk.html")
@@ -614,7 +641,7 @@ def test_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, 
     assert len(network._link1d2d.link1d2d_id) == outcome
 
 
-def test_links1d2d_lateral_then_embedded_preserves_existing_links():
+def test_links1d2d_lateral_then_embedded_preserves_existing_links() -> None:
     # Regression test: calling the embedded link generator after the lateral
     # one used to discard the previously created lateral links.
     network, _, _, _ = _prepare_1d2d_mesh(second_branch=True)
@@ -630,7 +657,7 @@ def test_links1d2d_lateral_then_embedded_preserves_existing_links():
     assert n_total >= n_lateral
 
 
-def test_links1d2d_embedded_then_1d_to_2d_preserves_existing_links():
+def test_links1d2d_embedded_then_1d_to_2d_preserves_existing_links() -> None:
     # Regression test for the general safety net in _filter_links_on_idx: any
     # link-adding function must preserve links created by an earlier one,
     # regardless of call order.
@@ -647,9 +674,9 @@ def test_links1d2d_embedded_then_1d_to_2d_preserves_existing_links():
     assert n_total >= n_embedded
 
 
-def test_linkd1d2d_remove_links_within_polygon(do_plot):
-    network, within, _, _ = _prepare_1d2d_mesh()
-    within = within.buffer(-2)
+def test_linkd1d2d_remove_links_within_polygon(do_plot: bool) -> None:
+    network, area, _, _ = _prepare_1d2d_mesh()
+    within = area.buffer(-2)
 
     # Generate all links
     mesh.links1d2d_add_links_1d_to_2d(network)
@@ -667,7 +694,7 @@ def test_linkd1d2d_remove_links_within_polygon(do_plot):
     assert len(network._link1d2d.link1d2d_id) == 4
 
 
-def test_linkd1d2d_remove_links_within_small_polygon(do_plot):
+def test_linkd1d2d_remove_links_within_small_polygon(do_plot: bool) -> None:
     network, _, _, _ = _prepare_1d2d_mesh()
 
     # Generate all links
@@ -687,8 +714,9 @@ def test_linkd1d2d_remove_links_within_small_polygon(do_plot):
 
     assert len(network._link1d2d.link1d2d_id) == 0
 
-def test_links1d2d_remove_1d_endpoints(do_plot):
+def test_links1d2d_remove_1d_endpoints(do_plot: bool) -> None:
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     # Build a small network where both branch-end nodes get a 1d2d link.
@@ -732,8 +760,9 @@ def test_links1d2d_remove_1d_endpoints(do_plot):
         fig.add_subplot(1, 2, 2).add_child(m2)
         fig.save(test_figure_path / "test_links1d2d_remove_1d_endpoints_mk.html")
 
-def test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(do_plot):
+def test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(do_plot: bool) -> None:
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     mesh.mesh1d_add_branch_from_linestring(
@@ -784,7 +813,7 @@ def test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(do_
         fig.save(test_figure_path / "test_links1d2d_remove_1d_endpoints_removes_all_matches_mk.html")
 
 
-def _prepare_hydamo():
+def _prepare_hydamo() -> HyDAMO:
     # initialize a hydamo object
     extent_file = hydamo_data_path / "OLO_stroomgebied_incl.maas.shp"
     assert extent_file.exists()
@@ -816,7 +845,7 @@ def _prepare_hydamo():
         ("node", "nearest", None, 5244.467),
     ],
 )
-def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
+def test_mesh2d_altitude_from_raster(where: str, fill_option: str, fill_value: float | None, outcome: float) -> None:
     rasterpath = hydamo_data_path / "rasters" / "AHN_2m_clipped_filled.tif"
     assert rasterpath.exists()
 
@@ -828,12 +857,15 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
 
     # Create FMModel
     fm = FMModel()
+    assert isinstance(fm.geometry.netfile, NetworkModel)
     cellsize = 200
 
     # Add 2D Mesh, partly triangular, partly rectangular
     xcenter = extent2d.centroid.coords[0][0]
     centerline = LineString([(xcenter, -1e6), (xcenter, 1e6)]).buffer(cellsize / 2)
-    parts = extent2d.difference(centerline).geoms
+    halves = extent2d.difference(centerline)
+    assert isinstance(halves, MultiPolygon)
+    parts = halves.geoms
 
     network = fm.geometry.netfile.network
     mesh.mesh2d_add_triangular(
@@ -864,11 +896,12 @@ def test_mesh2d_altitude_from_raster(where, fill_option, fill_value, outcome):
     )
 
 
-def test_mesh1d_add_branches_from_gdf(do_plot):
+def test_mesh1d_add_branches_from_gdf(do_plot: bool) -> None:
     # Create full HyDAMO object (use from other test)
     hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
 
     fm = FMModel()
+    assert isinstance(fm.geometry.netfile, NetworkModel)
 
     network = fm.geometry.netfile.network
 
@@ -901,8 +934,9 @@ def test_mesh1d_add_branches_from_gdf(do_plot):
     assert len(network._mesh1d.mesh1d_node_x) == 1421
 
 
-def test_mesh1d_add_branches_from_gdf_logs_missing_branchid(caplog):
+def test_mesh1d_add_branches_from_gdf_logs_missing_branchid(caplog: pytest.LogCaptureFixture) -> None:
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     branches = gpd.GeoDataFrame(
@@ -930,12 +964,13 @@ def test_mesh1d_add_branches_from_gdf_logs_missing_branchid(caplog):
     assert len(network._mesh1d.network1d_node_x) > 0
 
 
-def test_mesh1d_add_branches_from_gdf_logs_duplicate_structure_location(caplog):
+def test_mesh1d_add_branches_from_gdf_logs_duplicate_structure_location(caplog: pytest.LogCaptureFixture) -> None:
     # Two structures on the same branch at the same chainage, with non-string
     # (float) ids: this used to crash with
     # "TypeError: sequence item 0: expected str instance, float found" in the
     # ", ".join(...)" used to build the warning message.
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     branches = gpd.GeoDataFrame(

@@ -5,7 +5,7 @@ from hydrolib.dhydamo.geometry import spatial
 from shapely.geometry import MultiPolygon, box
 
 
-def test_voronoi_around_nodes_cells_cover_the_faces():
+def test_voronoi_around_nodes_cells_cover_the_faces() -> None:
     # 3x3 nodes of a 2x2 mesh: each cell contains its own node, and together the cells cover the faces exactly
     faces = gpd.GeoDataFrame(geometry=[box(0, 0, 1, 1), box(1, 0, 2, 1), box(0, 1, 1, 2), box(1, 1, 2, 2)])
     x, y = np.meshgrid([0.0, 1.0, 2.0], [0.0, 1.0, 2.0])
@@ -23,7 +23,7 @@ def test_voronoi_around_nodes_cells_cover_the_faces():
     assert cells.union_all().equals(box(0, 0, 2, 2))
 
 
-def test_voronoi_around_nodes_clipped_into_two_parts():
+def test_voronoi_around_nodes_clipped_into_two_parts() -> None:
     # The cell of the second node reaches into the first area, so the faces split it into two parts; both
     # are kept. This used to fail with "'MultiPolygon' object is not subscriptable".
     faces = gpd.GeoDataFrame(geometry=[box(0, 0, 10, 10), box(0, 12, 10, 13)])
@@ -36,7 +36,7 @@ def test_voronoi_around_nodes_clipped_into_two_parts():
     assert cells.geometry[2].equals(MultiPolygon([box(0, 8.75, 10, 10), box(0, 12, 10, 13)]))
 
 
-def test_voronoi_around_nodes_duplicate_nodes():
+def test_voronoi_around_nodes_duplicate_nodes() -> None:
     # Meshes added next to each other share border nodes; each copy gets the same cell
     faces = gpd.GeoDataFrame(geometry=[box(0, 0, 1, 1), box(1, 0, 2, 1)])
     nodes = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 0.0], [2.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 1.0], [2.0, 1.0]])
@@ -49,7 +49,7 @@ def test_voronoi_around_nodes_duplicate_nodes():
     assert cells.geometry[7].equals(cells.geometry[6])
 
 
-def test_voronoi_around_nodes_node_outside_faces():
+def test_voronoi_around_nodes_node_outside_faces() -> None:
     # A node outside the faces gets an empty cell, so the cells stay aligned with the nodes
     faces = gpd.GeoDataFrame(geometry=[box(0, 0, 1, 1)])
     nodes = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [5.0, 5.0]])

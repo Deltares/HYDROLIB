@@ -1,4 +1,6 @@
 import logging
+from pathlib import Path
+from typing import TypedDict
 
 import geopandas as gpd
 import numpy as np
@@ -7,6 +9,7 @@ import pytest
 import rasterio
 from hydrolib.core.dflowfm.inifield.models import IniFieldModel
 from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.core.dflowfm.net.models import NetworkModel
 from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
 from hydrolib.core.dflowfm.polyfile.models import PolyFile
 from hydrolib.dhydamo.converters.df2hydrolibmodel import Df2HydrolibModel
@@ -19,7 +22,7 @@ from hydrolib.dhydamo.geometry.spatial import (
 from shapely.geometry import LineString, Point, Polygon, box
 
 
-def _polygons():
+def _polygons() -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(
         {"peil": [1.0, 2.5, 1.0]},
         geometry=[box(0, 0, 10, 10), box(10, 0, 20, 10), box(20, 0, 30, 10)],
@@ -27,13 +30,13 @@ def _polygons():
     )
 
 
-def _points():
+def _points() -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(
         geometry=[Point(1, 1, 0.3), Point(5, 5, 0.4), Point(9, 2, 0.5)], crs=28992
     )
 
 
-def _write(hydamo, path):
+def _write(hydamo: HyDAMO, path: Path) -> Df2HydrolibModel:
     models = Df2HydrolibModel(hydamo)
     ini = IniFieldModel(initial=models.inifields, parameter=models.parameterfields)
     ini.filepath = path / "initialFields.ini"
@@ -42,7 +45,7 @@ def _write(hydamo, path):
     return models
 
 
-def test_polygon_field_written(tmp_path):
+def test_polygon_field_written(tmp_path: Path) -> None:
     hydamo = HyDAMO()
     hydamo.external_forcings.set_spatial_field(_polygons(), "peil", filetype="polygon")
     models = _write(hydamo, tmp_path)
@@ -57,7 +60,7 @@ def test_polygon_field_written(tmp_path):
     assert len(PolyFile(filepath=tmp_path / "initial_waterlevel_00_01.pol").objects) == 1
 
 
-def test_raster_field_written(tmp_path):
+def test_raster_field_written(tmp_path: Path) -> None:
     hydamo = HyDAMO()
     hydamo.external_forcings.set_spatial_field(
         _polygons(),
@@ -76,7 +79,7 @@ def test_raster_field_written(tmp_path):
         np.testing.assert_array_equal(np.unique(src.read(1)), [1.0, 2.5])
 
 
-def test_sample_field_written(tmp_path):
+def test_sample_field_written(tmp_path: Path) -> None:
     hydamo = HyDAMO()
     hydamo.external_forcings.set_spatial_field(_points(), filetype="sample")
     models = _write(hydamo, tmp_path)
@@ -85,6 +88,17 @@ def test_sample_field_written(tmp_path):
     assert (field.datafiletype, field.interpolationmethod) == ("sample", "triangulation")
     xyz = np.loadtxt(tmp_path / "initial_waterlevel_00.xyz")
     np.testing.assert_allclose(xyz[:, 2], [0.3, 0.4, 0.5])
+
+
+class _SpatialFieldArgs(TypedDict, total=False):
+    """Keyword arguments of set_spatial_field used by the invalid-input cases."""
+
+    column: str | None
+    kind: str
+    filetype: str
+    cellsize: float
+    locationtype: str
+    interpolationmethod: str
 
 
 @pytest.mark.parametrize(
@@ -123,21 +137,21 @@ def test_sample_field_written(tmp_path):
         pytest.param({"column": None}, "Provide a value column", id="no_value_column"),
     ],
 )
-def test_spatial_field_invalid_polygon_input(kwargs, message):
+def test_spatial_field_invalid_polygon_input(kwargs: _SpatialFieldArgs, message: str) -> None:
     hydamo = HyDAMO()
     polygons = _polygons()
     with pytest.raises(ValueError, match=message):
         hydamo.external_forcings.set_spatial_field(polygons, **kwargs)
 
 
-def test_spatial_field_points_without_z():
+def test_spatial_field_points_without_z() -> None:
     hydamo = HyDAMO()
     points = gpd.GeoDataFrame(geometry=[Point(1, 1), Point(2, 2)], crs=28992)
     with pytest.raises(ValueError, match="Provide a value column"):
         hydamo.external_forcings.set_spatial_field(points)
 
 
-def _branches():
+def _branches() -> gpd.GeoDataFrame:
     # two branches meeting at (30, 5)
     # like hydamo.branches: the code both as index and as column
     return gpd.GeoDataFrame(
@@ -148,7 +162,7 @@ def _branches():
     )
 
 
-def test_polygons_to_branch_values():
+def test_polygons_to_branch_values() -> None:
     values = polygons_to_branch_values(_branches(), _polygons(), "peil", step=0.01)
 
     # br1 crosses the three polygons (1.0, 2.5, 1.0) with steps at chainage 10 and 20
@@ -161,7 +175,7 @@ def test_polygons_to_branch_values():
     np.testing.assert_allclose(branch_values, [1.0, 1.0])
 
 
-def test_points_to_branch_values():
+def test_points_to_branch_values() -> None:
     points = gpd.GeoDataFrame(
         {"value": [1.0, 2.0, 3.0, 4.0]},
         geometry=[Point(5, 6), Point(30, 5), Point(31, 15), Point(100, 100)],
@@ -176,9 +190,9 @@ def test_points_to_branch_values():
     np.testing.assert_allclose(values["br2"][1], [2.0, 3.0])
 
 
-def test_branch_field_written(tmp_path):
+def test_branch_field_written(tmp_path: Path) -> None:
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     hydamo.external_forcings.set_spatial_field(_polygons(), "peil")
     models = _write(hydamo, tmp_path)
 
@@ -187,13 +201,14 @@ def test_branch_field_written(tmp_path):
     onedfield = OneDFieldModel(filepath=tmp_path / "InitialWaterLevel.ini")
     assert [b.branchid for b in onedfield.branch] == ["br1", "br2"]
     # a [Global] block with the nodata value, required by the D-HYDRO GUI
+    assert onedfield.global_ is not None
     assert (onedfield.global_.quantity, onedfield.global_.value) == ("waterlevel", -999.0)
     np.testing.assert_allclose(onedfield.branch[0].values, [1.0, 1.0, 2.5, 2.5, 1.0, 1.0])
 
 
-def test_level_and_depth_on_same_branch_warns(caplog):
+def test_level_and_depth_on_same_branch_warns(caplog: pytest.LogCaptureFixture) -> None:
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     level = gpd.GeoDataFrame({"peil": [1.0]}, geometry=[box(0, 0, 15, 10)], crs=28992)
     depth = gpd.GeoDataFrame({"diepte": [0.5]}, geometry=[box(15, 0, 35, 30)], crs=28992)
     hydamo.external_forcings.set_spatial_field(depth, "diepte", quantity="waterdepth")
@@ -208,7 +223,9 @@ def test_level_and_depth_on_same_branch_warns(caplog):
     assert "['br1']" in messages[0]
 
 
-def _level_depth_warnings(hydamo, caplog):
+def _level_depth_warnings(
+    hydamo: HyDAMO, caplog: pytest.LogCaptureFixture
+) -> tuple[list[str], list[str], list[str]]:
     """Warnings about water level and water depth fields: (overlap messages, order messages, other messages)."""
     with caplog.at_level(logging.WARNING):
         Df2HydrolibModel(hydamo)
@@ -218,13 +235,13 @@ def _level_depth_warnings(hydamo, caplog):
     return overlap, order, uniform
 
 
-def _depth_points(*xy):
+def _depth_points(*xy: tuple[float, float]) -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame({"diepte": [0.5] * len(xy)}, geometry=[Point(x, y) for x, y in xy], crs=28992)
 
 
-def test_level_polygons_and_depth_samples_overlap_through_convex_hull(caplog):
+def test_level_polygons_and_depth_samples_overlap_through_convex_hull(caplog: pytest.LogCaptureFixture) -> None:
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     level = gpd.GeoDataFrame({"peil": [1.0]}, geometry=[box(0, 0, 10, 10)], crs=28992)
     # none of the points is inside the level polygon, but their convex hull covers br1 from x=0 to 11
     depth = _depth_points((-5, -5), (15, -5), (5, 20))
@@ -240,9 +257,9 @@ def test_level_polygons_and_depth_samples_overlap_through_convex_hull(caplog):
     assert "initial_waterdepth_01.xyz" in order[0]
 
 
-def test_disjoint_level_and_depth_polygons_depth_first_no_warning(caplog):
+def test_disjoint_level_and_depth_polygons_depth_first_no_warning(caplog: pytest.LogCaptureFixture) -> None:
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     level = gpd.GeoDataFrame({"peil": [1.0]}, geometry=[box(0, 0, 10, 10)], crs=28992)
     depth = gpd.GeoDataFrame({"diepte": [0.5]}, geometry=[box(15, 0, 25, 10)], crs=28992)
     hydamo.external_forcings.set_spatial_field(depth, "diepte", quantity="waterdepth", filetype="polygon")
@@ -251,9 +268,9 @@ def test_disjoint_level_and_depth_polygons_depth_first_no_warning(caplog):
     assert _level_depth_warnings(hydamo, caplog) == ([], [], [])
 
 
-def test_level_branches_and_depth_samples(caplog):
+def test_level_branches_and_depth_samples(caplog: pytest.LogCaptureFixture) -> None:
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     level = gpd.GeoDataFrame({"peil": [1.0]}, geometry=[box(0, 0, 10, 10)], crs=28992)
     # the level is written per branch, so it fills the whole of br1; the samples cover br2 from y=15 to 24
     hydamo.external_forcings.set_spatial_field(level, "peil", quantity="waterlevel")
@@ -267,9 +284,9 @@ def test_level_branches_and_depth_samples(caplog):
     assert order == []
 
 
-def test_depth_samples_and_level_branches_overlap_on_whole_branch(caplog):
+def test_depth_samples_and_level_branches_overlap_on_whole_branch(caplog: pytest.LogCaptureFixture) -> None:
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     level = gpd.GeoDataFrame({"peil": [1.0]}, geometry=[box(0, 0, 10, 10)], crs=28992)
     # the samples are beyond the level polygon, but the 1dField file gives br1 a water level over its whole length
     depth = _depth_points((20, 0), (25, 0), (22, 9))
@@ -283,9 +300,9 @@ def test_depth_samples_and_level_branches_overlap_on_whole_branch(caplog):
     assert order == []
 
 
-def test_overlap_only_at_junction_is_ignored(caplog):
+def test_overlap_only_at_junction_is_ignored(caplog: pytest.LogCaptureFixture) -> None:
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     # br1 (y=5, up to x=30) gets the level, br2 (x=30, from y=5) the depth; both polygons have a corner at the
     # junction (30, 5), so the covered parts only share that point
     level = gpd.GeoDataFrame(
@@ -301,7 +318,7 @@ def test_overlap_only_at_junction_is_ignored(caplog):
     assert overlap == []
 
 
-def test_level_and_depth_areas_overlap_without_network(caplog):
+def test_level_and_depth_areas_overlap_without_network(caplog: pytest.LogCaptureFixture) -> None:
     hydamo = HyDAMO()
     level = gpd.GeoDataFrame({"peil": [1.0]}, geometry=[box(0, 0, 10, 10)], crs=28992)
     depth = gpd.GeoDataFrame({"diepte": [0.5]}, geometry=[box(5, 0, 15, 10)], crs=28992)
@@ -313,7 +330,7 @@ def test_level_and_depth_areas_overlap_without_network(caplog):
     assert overlap[0].startswith("The areas of the 1D fields")
 
 
-def test_uniform_depth_for_all_with_spatial_level_warns(caplog):
+def test_uniform_depth_for_all_with_spatial_level_warns(caplog: pytest.LogCaptureFixture) -> None:
     # a uniform depth for 1D and 2D is a [Global] value, which overrides spatial water levels
     hydamo = HyDAMO()
     hydamo.external_forcings.set_initial_waterdepth(1.5, locationtype="all")
@@ -325,9 +342,9 @@ def test_uniform_depth_for_all_with_spatial_level_warns(caplog):
     assert "initial_waterlevel_00.pol" in uniform[0]
 
 
-def test_uniform_1d_value_is_a_background_per_branch(caplog):
+def test_uniform_1d_value_is_a_background_per_branch(caplog: pytest.LogCaptureFixture) -> None:
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     levels = gpd.GeoDataFrame({"peil": [1.0]}, geometry=[box(0, 0, 10, 10)], crs=28992)
     hydamo.external_forcings.set_spatial_field(levels, "peil", quantity="waterlevel")
     hydamo.external_forcings.set_initial_waterdepth(1.0)
@@ -347,7 +364,7 @@ def test_uniform_1d_value_is_a_background_per_branch(caplog):
     }
 
 
-def test_generated_file_names():
+def test_generated_file_names() -> None:
     # file names are generated: unique per call, with the extension of the file type
     hydamo = HyDAMO()
     hydamo.external_forcings.set_spatial_field(_polygons(), "peil", quantity="waterdepth")
@@ -357,9 +374,9 @@ def test_generated_file_names():
     assert names == ["initial_waterdepth_00.ini", "initial_waterlevel_01.pol", "initial_waterlevel_02.xyz"]
 
 
-def test_correction_adds_hard_boundary():
+def test_correction_adds_hard_boundary() -> None:
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     # model values every 5 m along br1 (y=5, x from 0 to 30), rising from 1.0 to 4.0
     chainage = np.arange(0.0, 31.0, 5.0)
     model_values = gpd.GeoDataFrame(
@@ -385,10 +402,11 @@ def test_correction_adds_hard_boundary():
     assert len(plain) == len(model_values)
 
 
-def test_initial_conditions_at_nodes(tmp_path):
+def test_initial_conditions_at_nodes(tmp_path: Path) -> None:
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     fm = FMModel()
+    assert isinstance(fm.geometry.netfile, NetworkModel)
     mesh.mesh1d_add_branches_from_gdf(fm.geometry.netfile.network, branches=hydamo.branches, branch_name_col="code", node_distance=5)
 
     # water depth on br2 first, then the target levels per polygon on br1 only (a polygon touching br2 would
@@ -402,8 +420,8 @@ def test_initial_conditions_at_nodes(tmp_path):
     nodes = models.initial_conditions_at_nodes(fm.geometry.netfile.network, output_file=tmp_path / "nodes.shp")
     on_br1 = nodes[nodes["branchid"] == "br1"].set_index("chainage")
     assert (on_br1["quantity"] == "waterlevel").all()
-    assert on_br1.loc[5.0, "value"] == 1.0
-    assert on_br1.loc[15.0, "value"] == 2.5
+    assert on_br1["value"].loc[5.0] == 1.0
+    assert on_br1["value"].loc[15.0] == 2.5
     on_br2 = nodes[(nodes["branchid"] == "br2") & (nodes["chainage"] > 0)]
     assert (on_br2["quantity"] == "waterdepth").all()
     assert (on_br2["value"] == 0.5).all()
@@ -411,10 +429,10 @@ def test_initial_conditions_at_nodes(tmp_path):
 
 
 @pytest.mark.parametrize("two_d_first", [False, True])
-def test_uniform_1d_and_2d_values_use_different_files(tmp_path, two_d_first):
+def test_uniform_1d_and_2d_values_use_different_files(tmp_path: Path, two_d_first: bool) -> None:
     # a uniform 1D value (field per branch) must not affect a uniform 2D value ([Global] file), in either order
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     if two_d_first:
         hydamo.external_forcings.set_initial_waterlevel(2.0, locationtype="2d")
         hydamo.external_forcings.set_initial_waterlevel(1.0)
@@ -426,16 +444,20 @@ def test_uniform_1d_and_2d_values_use_different_files(tmp_path, two_d_first):
 
     files = sorted(f.datafile.filepath.name for f in models.inifields)
     assert files == ["InitialWaterLevel.ini", "initialwaterlevel_2d.ini"]
-    assert OneDFieldModel(filepath=tmp_path / "initialwaterlevel_2d.ini").global_.value == 2.0
-    assert OneDFieldModel(filepath=tmp_path / "InitialWaterLevel.ini").global_.value == -999.0
+    two_d_global = OneDFieldModel(filepath=tmp_path / "initialwaterlevel_2d.ini").global_
+    one_d_global = OneDFieldModel(filepath=tmp_path / "InitialWaterLevel.ini").global_
+    assert two_d_global is not None
+    assert one_d_global is not None
+    assert two_d_global.value == 2.0
+    assert one_d_global.value == -999.0
 
 
 @pytest.mark.parametrize("quantity", ["waterlevel", "waterdepth"])
-def test_uniform_2d_value_unaffected_by_1d_fields(tmp_path, quantity):
+def test_uniform_2d_value_unaffected_by_1d_fields(tmp_path: Path, quantity: str) -> None:
     # existing 2D behaviour: a uniform 2D value is a [Global] block with locationType 2d in its own file,
     # also when 1D fields (uniform and per branch) are added before and after it
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     set_initial = getattr(hydamo.external_forcings, f"set_initial_{quantity}")
     set_initial(1.0)
     set_initial(2.0, locationtype="2d")
@@ -451,16 +473,18 @@ def test_uniform_2d_value_unaffected_by_1d_fields(tmp_path, quantity):
         f"initial{quantity}_2d.ini",
     )
     onedfield = OneDFieldModel(filepath=tmp_path / f"initial{quantity}_2d.ini")
+    assert onedfield.global_ is not None
     assert (onedfield.global_.quantity, onedfield.global_.value, onedfield.branch) == (quantity, 2.0, [])
 
     # the 2D value is not applied to the 1D nodes
     fm = FMModel()
+    assert isinstance(fm.geometry.netfile, NetworkModel)
     mesh.mesh1d_add_branches_from_gdf(fm.geometry.netfile.network, branches=hydamo.branches, branch_name_col="code", node_distance=5)
     nodes = models.initial_conditions_at_nodes(fm.geometry.netfile.network)
     assert f"initial{quantity}_2d.ini" not in set(nodes["source"].dropna())
 
 
-def test_initial_polygons_for_2d_raise():
+def test_initial_polygons_for_2d_raise() -> None:
     # spatially varying 2D values are not added via set_initial_*; this keeps 2D behaviour unchanged
     hydamo = HyDAMO()
     polygons = _polygons()
@@ -468,11 +492,11 @@ def test_initial_polygons_for_2d_raise():
         hydamo.external_forcings.set_initial_waterlevel(polygons, value_column="peil", locationtype="2d")
 
 
-def test_1d_fields_are_combined_per_quantity():
+def test_1d_fields_are_combined_per_quantity() -> None:
     # all 1D fields per branch are combined into one file per quantity, with the names the D-HYDRO GUI uses;
     # per branch the last field applies, as in D-Flow FM
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     first = gpd.GeoDataFrame({"peil": [1.0]}, geometry=[box(0, 0, 10, 10)], crs=28992)  # br1
     second = gpd.GeoDataFrame({"peil": [3.0]}, geometry=[box(20, 0, 25, 10)], crs=28992)  # br1, other part
     depth = gpd.GeoDataFrame({"diepte": [0.5]}, geometry=[box(29, 6, 31, 30)], crs=28992)  # br2
@@ -495,16 +519,16 @@ def test_1d_fields_are_combined_per_quantity():
     assert set(depths["br2"][1]) == {0.5}
 
 
-def test_uniform_1d_value_requires_branches():
+def test_uniform_1d_value_requires_branches() -> None:
     hydamo = HyDAMO()
     hydamo.external_forcings.set_initial_waterlevel(1.0)
     with pytest.raises(ValueError, match="requires the branches"):
         Df2HydrolibModel(hydamo)
 
 
-def test_field_without_values_on_branches_warns(caplog):
+def test_field_without_values_on_branches_warns(caplog: pytest.LogCaptureFixture) -> None:
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     far_away = gpd.GeoDataFrame({"peil": [1.0]}, geometry=[box(1000, 1000, 1010, 1010)], crs=28992)
     hydamo.external_forcings.set_spatial_field(far_away, "peil")
     with caplog.at_level(logging.WARNING):
@@ -513,10 +537,10 @@ def test_field_without_values_on_branches_warns(caplog):
     assert models.inifields == []
 
 
-def test_branch_field_of_other_quantity_is_written_separately():
+def test_branch_field_of_other_quantity_is_written_separately() -> None:
     # only initial water levels and depths are combined; other quantities per branch get their own file
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     hydamo.external_forcings.set_spatial_field(_polygons(), "peil", quantity="frictioncoefficient", kind="parameter")
     models = Df2HydrolibModel(hydamo)
 
@@ -525,10 +549,11 @@ def test_branch_field_of_other_quantity_is_written_separately():
     assert field.datafile.filepath.name == "parameter_frictioncoefficient_00.ini"
 
 
-def test_initial_conditions_at_nodes_from_samples_and_polygons():
+def test_initial_conditions_at_nodes_from_samples_and_polygons() -> None:
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
+    hydamo.branches.set_data(_branches())
     fm = FMModel()
+    assert isinstance(fm.geometry.netfile, NetworkModel)
     mesh.mesh1d_add_branches_from_gdf(fm.geometry.netfile.network, branches=hydamo.branches, branch_name_col="code", node_distance=5)
     # samples with a constant water level around br1, then a polygon file with a water level for part of br1
     points = gpd.GeoDataFrame({"value": [2.0] * 4}, geometry=[Point(-1, 0), Point(31, 0), Point(31, 10), Point(-1, 10)], crs=28992)
@@ -538,12 +563,12 @@ def test_initial_conditions_at_nodes_from_samples_and_polygons():
     nodes = Df2HydrolibModel(hydamo).initial_conditions_at_nodes(fm.geometry.netfile.network)
 
     on_br1 = nodes[nodes["branchid"] == "br1"].set_index("chainage")
-    assert on_br1.loc[5.0, "value"] == pytest.approx(2.0)  # samples (inside their convex hull)
-    assert on_br1.loc[15.0, "value"] == 3.0  # polygon file, added last
+    assert on_br1["value"].loc[5.0] == pytest.approx(2.0)  # samples (inside their convex hull)
+    assert on_br1["value"].loc[15.0] == 3.0  # polygon file, added last
     assert set(on_br1["quantity"]) == {"waterlevel"}
 
 
-def test_points_on_unknown_branches_are_left_out(caplog):
+def test_points_on_unknown_branches_are_left_out(caplog: pytest.LogCaptureFixture) -> None:
     points = gpd.GeoDataFrame(
         {"value": [1.0, 2.0], "branchid": ["br1", "unknown"], "chainage": [5.0, 5.0]},
         geometry=[Point(5, 5), Point(50, 50)],
@@ -555,7 +580,7 @@ def test_points_on_unknown_branches_are_left_out(caplog):
     assert any("not in the model" in message for message in caplog.messages)
 
 
-def test_write_raster_unsupported_extension(tmp_path):
+def test_write_raster_unsupported_extension(tmp_path: Path) -> None:
     from affine import Affine
     from hydrolib.dhydamo.io.rasterwriter import write_raster
 

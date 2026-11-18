@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import types
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 
@@ -23,8 +24,14 @@ from shapely.geometry import LineString, Point
 
 DATA_PATH = Path("hydrolib/sample_data/data").resolve()
 
+# A fake hydamo_validation.validator(**settings) returns this function, called as
+# validate(directory=..., raise_error=...)
+Validate = Callable[..., tuple[None, None, types.SimpleNamespace]]
 
-def _install_fake_validator(monkeypatch: pytest.MonkeyPatch, validator_factory) -> None:
+
+def _install_fake_validator(
+    monkeypatch: pytest.MonkeyPatch, validator_factory: Callable[..., Validate]
+) -> None:
     """Inject a fake hydamo_validation module; skip the schema scan, which needs the real package."""
     monkeypatch.setitem(
         sys.modules, "hydamo_validation", types.SimpleNamespace(validator=validator_factory)
@@ -125,13 +132,13 @@ def _make_minimal_25_gpkg(tmp_path: Path) -> Path:
     return gpkg_path
 
 
-def test_supported_damo_converter_versions():
+def test_supported_damo_converter_versions() -> None:
     assert SUPPORTED_HYDAMO_VERSIONS == ("2.2", "2.3", "2.4", "2.5")
     for version in SUPPORTED_HYDAMO_VERSIONS:
         assert get_damo_converter(version).hydamo_version == version
 
 
-def test_load_from_gpkg_uses_versioned_converter_for_damo_22():
+def test_load_from_gpkg_uses_versioned_converter_for_damo_22() -> None:
     gpkg_file = DATA_PATH / "Example_model.gpkg"
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.2")
 
@@ -143,7 +150,7 @@ def test_load_from_gpkg_uses_versioned_converter_for_damo_22():
 
 
 @pytest.mark.parametrize("version", ["2.3", "2.4"])
-def test_load_from_gpkg_passthrough_versions_behave_like_22(version):
+def test_load_from_gpkg_passthrough_versions_behave_like_22(version: str) -> None:
     gpkg_file = DATA_PATH / "Example_model.gpkg"
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
 
@@ -153,7 +160,7 @@ def test_load_from_gpkg_passthrough_versions_behave_like_22(version):
     assert len(hydamo.pumps) == 3
 
 
-def test_load_from_gpkg_maps_damo_25_to_canonical_internal_structure(tmp_path: Path):
+def test_load_from_gpkg_maps_damo_25_to_canonical_internal_structure(tmp_path: Path) -> None:
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
 
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
@@ -176,7 +183,7 @@ def test_load_from_gpkg_maps_damo_25_to_canonical_internal_structure(tmp_path: P
     assert hydamo.opening.loc[0, "regelmiddelid"] == "afsluit-guid"
 
 
-def test_damo_25_relations_resolve_expected_rows(tmp_path: Path):
+def test_damo_25_relations_resolve_expected_rows(tmp_path: Path) -> None:
     hydamo = HyDAMO().load_from_gpkg(
         _make_minimal_25_gpkg(tmp_path), hydamo_version="2.5"
     )
@@ -200,7 +207,7 @@ def test_damo_25_relations_resolve_expected_rows(tmp_path: Path):
     assert opening_from_device["globalid"].tolist() == ["opening-guid"]
 
 
-def test_drtc_resolves_canonical_damo_25_management_links(tmp_path: Path):
+def test_drtc_resolves_canonical_damo_25_management_links(tmp_path: Path) -> None:
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
     # No manual stuwid injection: the weir link is resolved from the static
@@ -220,14 +227,16 @@ def test_drtc_resolves_canonical_damo_25_management_links(tmp_path: Path):
 
 def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+) -> None:
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
     captured: dict[str, object] = {}
 
-    def _validator_factory(**kwargs):
+    def _validator_factory(**kwargs: object) -> Validate:
         captured["factory_kwargs"] = kwargs
 
-        def _run(directory, raise_error=False):
+        def _run(
+            directory: Path, raise_error: bool = False
+        ) -> tuple[None, None, types.SimpleNamespace]:
             rules = json.loads((Path(directory) / "validationrules.json").read_text())
             captured["rules"] = rules
             captured["dataset_files"] = sorted(
@@ -264,11 +273,13 @@ def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
 
 def test_load_from_gpkg_with_validation_strict_raises(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+) -> None:
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
 
-    def _validator_factory(**kwargs):
-        def _run(directory, raise_error=False):
+    def _validator_factory(**kwargs: object) -> Validate:
+        def _run(
+            directory: Path, raise_error: bool = False
+        ) -> tuple[None, None, types.SimpleNamespace]:
             return None, None, types.SimpleNamespace(
                 success=False, status="failed", error=["bad data"]
             )
@@ -286,13 +297,13 @@ def test_load_from_gpkg_with_validation_strict_raises(
         )
 
 
-def test_load_from_gpkg_raises_for_unsupported_version():
+def test_load_from_gpkg_raises_for_unsupported_version() -> None:
     hydamo = HyDAMO()
     with pytest.raises(ValueError, match="Unsupported"):
         hydamo.load_from_gpkg("irrelevant.gpkg", hydamo_version="9.9")
 
 
-def test_load_from_gpkg_v22_postprocess_copies_soortregelmiddel(tmp_path: Path):
+def test_load_from_gpkg_v22_postprocess_copies_soortregelmiddel(tmp_path: Path) -> None:
     gpkg_path = tmp_path / "v22_postprocess.gpkg"
     _write_layer(
         gpkg_path,
@@ -329,11 +340,13 @@ def test_load_from_gpkg_v22_postprocess_copies_soortregelmiddel(tmp_path: Path):
 
 def test_load_from_gpkg_validation_warn_failure_does_not_raise(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+) -> None:
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
 
-    def _validator_factory(**kwargs):
-        def _run(directory, raise_error=False):
+    def _validator_factory(**kwargs: object) -> Validate:
+        def _run(
+            directory: Path, raise_error: bool = False
+        ) -> tuple[None, None, types.SimpleNamespace]:
             return None, None, types.SimpleNamespace(
                 success=False, status="failed", error=["bad data"]
             )
@@ -354,11 +367,13 @@ def test_load_from_gpkg_validation_warn_failure_does_not_raise(
 
 def test_validate_gpkg_returns_result_and_stores_on_instance(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+) -> None:
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
 
-    def _validator_factory(**kwargs):
-        def _run(directory, raise_error=False):
+    def _validator_factory(**kwargs: object) -> Validate:
+        def _run(
+            directory: Path, raise_error: bool = False
+        ) -> tuple[None, None, types.SimpleNamespace]:
             return None, None, types.SimpleNamespace(
                 success=True, status="finished", error=[]
             )
@@ -380,7 +395,7 @@ def test_validate_gpkg_returns_result_and_stores_on_instance(
     sys.version_info[:2] != (3, 12),
     reason="hydamo-validation is only available for Python 3.12",
 )
-def test_load_from_gpkg_real_validation_succeeds(tmp_path: Path):
+def test_load_from_gpkg_real_validation_succeeds(tmp_path: Path) -> None:
     """Integration test: runs the real hydamo_validation library against Example_model.gpkg.
 
     Skipped unless hydamo-validation is installed (Python 3.12, pip install hydrolib[validation]).
