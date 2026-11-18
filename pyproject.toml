@@ -170,7 +170,7 @@ hydrolib = { path = ".", editable = true }
 test = "pytest -v -m 'not slow and not plot and not dll' --cov=hydrolib --cov-report=xml --cov-report=term"
 lint = "ruff format --check hydrolib/dhydamo tests && ruff check hydrolib/dhydamo tests"
 fix = "ruff format hydrolib/dhydamo tests && ruff check --fix hydrolib/dhydamo tests"
-typecheck = "mypy hydrolib/dhydamo"
+typecheck = "mypy hydrolib/dhydamo tests/dhydamo"
 
 [tool.pixi.feature.docs.tasks]
 docs-build = "mkdocs build"

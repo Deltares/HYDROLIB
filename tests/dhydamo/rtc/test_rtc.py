@@ -14,6 +14,7 @@ from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
 from netCDF4 import Dataset, chartostring
 from pydantic import ValidationError
 from shapely.geometry import Point
+
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
 
 # repository root, so the tests do not depend on the working directory

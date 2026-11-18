@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 from folium import GeoJson
 from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.core.dflowfm.net.models import NetworkModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh, viz
 from hydrolib.dhydamo.geometry.models import GeometryList
@@ -20,6 +21,7 @@ from shapely.geometry import (
     Polygon,
     box,
 )
+
 from tests.dhydamo.io import test_from_hydamo
 
 hydamo_data_path = (
@@ -455,6 +457,7 @@ def test_1d_add_branch_from_linestring(do_plot):
 def _prepare_1d2d_mesh(second_branch: bool = False):
     # Define polygon
     fmmodel = FMModel()
+    assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
     # Generate 1d

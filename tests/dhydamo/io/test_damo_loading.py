@@ -4,6 +4,7 @@ import json
 import sys
 import types
 from pathlib import Path
+from typing import Literal
 
 import geopandas as gpd
 import pandas as pd
@@ -32,7 +33,7 @@ def _install_fake_validator(monkeypatch: pytest.MonkeyPatch, validator_factory) 
 
 
 def _write_layer(gpkg_path: Path, layer_name: str, gdf: gpd.GeoDataFrame) -> None:
-    mode = "w" if not gpkg_path.exists() else "a"
+    mode: Literal["w", "a"] = "w" if not gpkg_path.exists() else "a"
     gdf.to_file(gpkg_path, layer=layer_name, driver="GPKG", mode=mode, engine="pyogrio")
 
 
@@ -254,9 +255,11 @@ def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
         "log_level": "INFO",
     }
     assert captured["dataset_files"] == [gpkg_file.name]
-    assert captured["rules"]["hydamo_version"] == "2.5"
-    assert captured["rules"]["schema"]  # version determined at runtime from installed package
-    assert any(obj["object"] == "hydroobject" for obj in captured["rules"]["objects"])
+    rules = captured["rules"]
+    assert isinstance(rules, dict)
+    assert rules["hydamo_version"] == "2.5"
+    assert rules["schema"]  # version determined at runtime from installed package
+    assert any(obj["object"] == "hydroobject" for obj in rules["objects"])
 
 
 def test_load_from_gpkg_with_validation_strict_raises(
@@ -389,15 +392,14 @@ def test_load_from_gpkg_real_validation_succeeds(tmp_path: Path):
     original = DATA_PATH / "Example_model.gpkg"
     clean_gpkg = tmp_path / "clean_for_validation.gpkg"
     placeholder = Point(0, 0)
-    mode = "w"
+    mode: Literal["w", "a"] = "w"
     for layer_name in gpd.list_layers(original).name.tolist():
         gdf = gpd.read_file(original, layer=layer_name, engine="pyogrio")
         if not isinstance(gdf, gpd.GeoDataFrame):
             continue  # non-spatial layers have no to_file; skip them
-        null_mask = gdf.geometry.isna()
-        if null_mask.any():
-            gdf = gdf.copy()
-            gdf.loc[null_mask, "geometry"] = placeholder
+        geometries = gdf.geometry.to_numpy()
+        geometries[pd.isna(geometries)] = placeholder
+        gdf.geometry = geometries
         gdf.to_file(clean_gpkg, layer=layer_name, driver="GPKG", mode=mode, engine="pyogrio")
         mode = "a"
 
