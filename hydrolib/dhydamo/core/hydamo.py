@@ -1435,16 +1435,11 @@ class CrossSections:
 
             # determine thalweg
             if branches is not None:
-                branche_geom = branches[branches.code == branch_id].geometry.to_numpy()
-
-                if geometry.intersection(branche_geom[0]).geom_type == "MultiPoint":
-                    thalweg_xyz = geometry.intersection(branche_geom[0]).geoms[0].coords[
-                        :
-                    ][0]
-                else:
-                    thalweg_xyz = geometry.intersection(branche_geom[0]).coords[:][
-                        0
-                    ]
+                branch_geom = branches.geometry[branches.code == branch_id].iloc[0]
+                crossing = geometry.intersection(branch_geom)
+                if crossing.geom_type == "MultiPoint":
+                    crossing = crossing.geoms[0]
+                thalweg_xyz = crossing.coords[0]
                 # and the Y-coordinate of the thalweg
                 thalweg = np.hypot(
                     thalweg_xyz[0] - xyz[0, 0], thalweg_xyz[1] - xyz[0, 1]
