@@ -9,12 +9,15 @@ from dataclasses import dataclass
 from datetime import datetime as dt
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+from netCDF4 import Dataset, chartostring
 from pydantic.v1 import ConfigDict, validate_arguments
 
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.core.relations import RelationsHyDAMO
+from hydrolib.dhydamo.io.netcdfreader import time_index
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +25,31 @@ TIMESERIES_IMPORT_XML = "timeseries_import.xml"
 RTC_DATA_CONFIG_XML = "rtcDataConfig.xml"
 RTC_TOOLS_CONFIG_XML = "rtcToolsConfig.xml"
 STATE_IMPORT_XML = "state_import.xml"
+
+# RTC steering variables (output of a controller to a structure)
+CREST_LEVEL = "Crest level (s)"
+GATE_LOWER_EDGE_LEVEL = "Gate lower edge level (s)"
+VALVE_OPENING = "Valve opening (s)"
+CAPACITY = "Capacity (p)"
 INPUT_PREFIX = "[Input]"
 OUTPUT_PREFIX = "[Output]"
+
+# Where the setting of a controlled structure is found, per steering variable. The first match is used.
+# - D-Flow FM his-file output: (structure type, quantity), read from the variable f"{type}_{quantity}" at
+#   the position of the structure in f"{type}_name". These names are defined by D-Flow FM, not by DAMO.
+HIS_SETTING_VARIABLES: dict[str, list[tuple[str, str]]] = {
+    CREST_LEVEL: [("weirgen", "crest_level"), ("orifice", "crest_level"), ("uniweir", "crest_level")],
+    GATE_LOWER_EDGE_LEVEL: [("orifice", "gate_lower_edge_level"), ("culvert", "gate_lower_edge_level")],
+    VALVE_OPENING: [("culvert", "gate_opening_height")],
+    CAPACITY: [("pump", "capacity")],
+}
+# - structure dataframes of HyDAMO.structures: (dataframe attribute, column), matched on the column 'id'.
+STRUCTURE_SETTING_COLUMNS: dict[str, list[tuple[str, str]]] = {
+    CREST_LEVEL: [("rweirs_df", "crestlevel"), ("orifices_df", "crestlevel"), ("uweirs_df", "crestlevel")],
+    GATE_LOWER_EDGE_LEVEL: [("orifices_df", "gateloweredgelevel")],
+    VALVE_OPENING: [("culverts_df", "valveopeningheight")],
+    CAPACITY: [("pumps_df", "capacity")],
+}
 
 
 @dataclass
@@ -89,6 +115,12 @@ class DRTCModel:
         self.pid_controllers = {}
         self.time_controllers = {}
         self.interval_controllers = {}
+
+        # initial state: from an earlier model run (set_state_from_file) and/or per structure (set_initial_state)
+        self.state_from_file: dict[str, str] | None = None
+        self.initial_state: dict[str, float] = {}
+        # ids of the time series in rtcDataConfig.xml, set by write_dataconfig
+        self._written_dataconfig_ids: set[str] | None = None
 
         # set up the output path
         base_output_path = Path(".") if output_path is None else Path(output_path)
@@ -178,11 +210,11 @@ class DRTCModel:
         if rtc_onlytimeseries:
             for name, data in rtc_timeseriesdata.items():
                 if name in hydamo.structures.rweirs_df.id.to_list():
-                    steering_var = "Crest level (s)"
+                    steering_var = CREST_LEVEL
                 if name in hydamo.structures.orifices_df.id.to_list():
-                    steering_var = 'Gate lower edge level (s)'
+                    steering_var = GATE_LOWER_EDGE_LEVEL
                 if name in hydamo.structures.pumps_df.id.to_list():
-                    steering_var = 'Capacity (p)'
+                    steering_var = CAPACITY
                 self.add_time_controller(
                     structure_id=name, steering_variable=steering_var, data=data
                 )
@@ -1040,13 +1072,13 @@ class DRTCModel:
                 continue
             structype, struc_id = resolved
             if structype == 'weir' and management.stuurvariabele == "bovenkant afsluitmiddel":
-                steering_variable = "Crest level (s)"
+                steering_variable = CREST_LEVEL
             elif structype == 'weir' and management.stuurvariabele == "hoogte opening":
-                steering_variable = "Gate lower edge level (s)"
+                steering_variable = GATE_LOWER_EDGE_LEVEL
             elif structype == 'pump' and management.stuurvariabele == "pompdebiet":
-                steering_variable = "Capacity (p)"
+                steering_variable = CAPACITY
             elif structype == 'culvert' and management.stuurvariabele == "hoogte opening":
-                steering_variable = "Valve opening (s)" 
+                steering_variable = VALVE_OPENING 
             else:
                 raise ValueError(
                     f"Invalid value for steering variable of {struc_id}: {management.stuurvariabele}. Allowed values are 'bovenkant afsluitmiddel' for weirs, 'hoogte opening' for oroficies and culverts, and 'pompdebiet' for pumps."
@@ -1247,6 +1279,150 @@ class DRTCModel:
             "interpolation_option": interpolation_option,
             "extrapolation_option": extrapolation_option,
         }
+
+    def set_state_from_file(
+        self, state_export: str | Path, check_time: bool = True
+    ) -> None:
+        """Use the RTC state of an earlier model run as initial state (warm start).
+
+        The state_export.xml of the earlier run is written as state_import.xml, including the internal
+        state of the rules (e.g. the integral term of PID controllers). This assumes that the RTC configuration
+        is the same as in the earlier run: state items that do not occur in the new rtcDataConfig.xml are
+        skipped, and controllers that are missing in the state keep their default initial setting. Both
+        are reported as a warning.
+
+        Args:
+            state_export (str | Path): path to state_export.xml, or the rtc-folder of the earlier run.
+            check_time (bool, optional): compare the time of the state (from statePI.xml next to the state
+                file) with the start time of this model, and warn if they differ. Defaults to True.
+        """
+        path = Path(state_export)
+        if path.is_dir():
+            path = path / "state_export.xml"
+        if not path.exists():
+            raise FileNotFoundError(f"RTC state file {path} not found.")
+
+        leaves = self._read_state_leaves(path)
+        if not leaves:
+            raise ValueError(f"No state items (treeVectorLeaf) found in {path}.")
+        self.state_from_file = leaves
+        logger.info(f"Read {len(leaves)} RTC state items from {path}.")
+
+        if not check_time:
+            return
+        statepi = path.parent / "statePI.xml"
+        state_time = self._read_state_time(statepi) if statepi.exists() else None
+        if state_time is None:
+            logger.info(f"No time found for the RTC state in {statepi}; the time of the state is not checked.")
+        elif state_time != self.time_settings["start"]:
+            logger.warning(
+                f"The RTC state is valid for {state_time}, but the model starts at {self.time_settings['start']}."
+            )
+
+    def set_state_from_modelrun(
+        self,
+        his_path: str | Path,
+        time: dt | pd.Timestamp | str | None = None,
+        netcdf_index: int | None = None,
+    ) -> dict[str, float]:
+        """Use the structure settings of an earlier model run (his-file) as initial setting of the controllers.
+
+        For every controlled structure, the steered variable (crest level, gate lower edge level, valve
+        opening or pump capacity) is read from the his-file at the given time and passed to set_initial_state.
+        Unlike set_state_from_file, any time step can be used, but the internal state of the rules (e.g. the
+        integral term of PID controllers) is not restored.
+
+        Args:
+            his_path (str | Path): path to the his-file of the earlier run
+            time (datetime | pd.Timestamp | str, optional): time of the settings; the nearest time step is used.
+            netcdf_index (int, optional): time index instead of a time. If neither time nor netcdf_index is
+                given, the last time step is used.
+
+        Returns:
+            dict[str, float]: initial setting per structure id
+        """
+        if time is not None and netcdf_index is not None:
+            raise ValueError("Provide either time or netcdf_index, not both.")
+        if time is None and netcdf_index is None:
+            logger.info(f"No time given; the last time step in {his_path} is used.")
+        controllers = {**self.time_controllers, **self.interval_controllers, **self.pid_controllers}
+        kinds = {kind for sources in HIS_SETTING_VARIABLES.values() for kind, _ in sources}
+
+        values, missing = {}, []
+        with Dataset(his_path) as his:
+            if time is not None:
+                index = time_index(his, time)
+            else:
+                index = -1 if netcdf_index is None else netcdf_index
+            names = {
+                kind: [n.strip() for n in chartostring(his[f"{kind}_name"][:])]
+                for kind in kinds
+                if f"{kind}_name" in his.variables
+            }
+            for structure_id, controller in controllers.items():
+                value = self._read_structure_setting(
+                    his, names, structure_id, controller["steering_variable"], index
+                )
+                if value is None:
+                    missing.append(structure_id)
+                else:
+                    values[structure_id] = value
+
+        if missing:
+            logger.warning(
+                f"No setting found in {his_path} for {len(missing)} controlled structure(s), "
+                f"these keep their default initial setting: {missing}"
+            )
+        logger.info(f"Initial setting of {len(values)} controlled structures read from {his_path}.")
+        self.set_initial_state(values)
+        return values
+
+    @staticmethod
+    def _read_structure_setting(
+        his: Dataset, names: dict[str, list[str]], structure_id: str, steering_variable: str, index: int
+    ) -> float | None:
+        """Read the setting of a structure for a steering variable from a his-file.
+
+        The first structure type in HIS_SETTING_VARIABLES that contains the structure is used. If its value is
+        missing (masked or not finite), None is returned; other structure types are not tried.
+
+        Parameters
+        ----------
+        his : Dataset
+            The opened his-file.
+        names : dict[str, list[str]]
+            Structure names per structure type in the his-file, e.g. {"weirgen": ["S_1", ...]}.
+        structure_id : str
+            Id of the structure.
+        steering_variable : str
+            Steering variable of the controller, e.g. CREST_LEVEL.
+        index : int
+            Time index.
+
+        Returns
+        -------
+        float | None
+            The setting, or None if the structure or its value is not found.
+        """
+        for kind, quantity in HIS_SETTING_VARIABLES.get(steering_variable, []):
+            variable = f"{kind}_{quantity}"
+            if kind in names and structure_id in names[kind] and variable in his.variables:
+                value = his[variable][index, names[kind].index(structure_id)]
+                if np.ma.is_masked(value) or not np.isfinite(value):
+                    return None
+                return float(value)
+        return None
+
+    def set_initial_state(self, values: dict[str, float]) -> None:
+        """Set the initial setting of controlled structures, e.g. {"S_96840": 16.2}.
+
+        The value is written to state_import.xml for the steered variable of the structure. It overrides the
+        default initial setting and a state read with set_state_from_file.
+
+        Args:
+            values (dict[str, float]): initial setting per structure id.
+        """
+        self.initial_state.update({str(key): float(value) for key, value in values.items()})
 
     @staticmethod
     @validate_arguments
@@ -1662,7 +1838,7 @@ class DRTCModel:
             j.text = controller["steering_variable"]
 
             k = ET.SubElement(g, gn_brackets + "unit")
-            k.text = m3unit if controller["steering_variable"] == 'Capacity (p)' else munit
+            k.text = m3unit if controller["steering_variable"] == CAPACITY else munit
 
         for ikey, key in enumerate(self.all_controllers.keys()):
             controller = self.all_controllers[key]
@@ -1694,6 +1870,7 @@ class DRTCModel:
             )
 
         self.finish_file(myroot, configfile, self.output_path / RTC_DATA_CONFIG_XML)
+        self._written_dataconfig_ids = {el.get("id") for el in myroot.iter() if el.get("id") is not None}
 
     def write_timeseries_import(self) -> None:
         """Function to write timeseries_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
@@ -1893,7 +2070,7 @@ class DRTCModel:
             a.attrib = {"id": OUTPUT_PREFIX + key + "/" + controller["steering_variable"]}
             b = ET.SubElement(a, gn_brackets + "vector")
             if controller['type'] == 'PID':
-                b.text = str(controller["upper_bound"])
+                b.text = str(self._initial_pid_setting(key, controller))
             elif controller['type'] == 'Interval':
                 b.text = str(max(controller['setting_above'], controller['setting_below'])) # Take the maximum value as a starting value
             else:
@@ -1908,4 +2085,185 @@ class DRTCModel:
                 file_label=STATE_IMPORT_XML,
             )
 
+        # a state from an earlier model run and user-defined initial settings override the defaults
+        self._apply_state_overrides(myroot[0], gn_brackets)
+
         self.finish_file(myroot, configfile, self.output_path / STATE_IMPORT_XML)
+
+    def _initial_pid_setting(self, structure_id: str, controller: dict) -> float:
+        """Initial setting of a PID controller: the current setting of the structure, limited to the bounds
+        of the controller. Falls back to the upper bound if the structure setting is not available."""
+        setting = self._structure_setting(structure_id, controller["steering_variable"])
+        if setting is None:
+            return controller["upper_bound"]
+        try:
+            lower, upper = float(controller["lower_bound"]), float(controller["upper_bound"])
+        except (TypeError, ValueError):
+            return setting
+        return min(max(setting, lower), upper)
+
+    def _structure_setting(
+        self, structure_id: str, steering_variable: str
+    ) -> float | None:
+        """Get the setting of a structure for a steering variable from the structure dataframes.
+
+        These are the columns of the HyDAMO structure tables; set_state_from_modelrun reads the corresponding
+        his-file variables, which also include values that are not in these tables (e.g. culvert gate levels).
+        """
+        for attribute, column in STRUCTURE_SETTING_COLUMNS.get(steering_variable, []):
+            df = getattr(self.hydamo.structures, attribute, None)
+            if df is None or df.empty or "id" not in df.columns or column not in df.columns:
+                continue
+            values = df.loc[df["id"] == structure_id, column]
+            if len(values) > 0 and pd.notna(values.iloc[0]):
+                try:
+                    return float(values.iloc[0])
+                except (TypeError, ValueError):
+                    return None
+        return None
+
+    def _apply_state_overrides(self, tree_vector: ET.Element, gn_brackets: str) -> None:
+        """Apply the state from set_state_from_file and the values from set_initial_state to the tree vector."""
+        leaf_tag = gn_brackets + "treeVectorLeaf"
+        vector_tag = gn_brackets + "vector"
+        if self.state_from_file is not None:
+            self._apply_state_from_file(self.state_from_file, tree_vector, leaf_tag, vector_tag)
+        self._apply_initial_state(tree_vector, leaf_tag, vector_tag)
+
+    def _apply_state_from_file(
+        self, state: dict[str, str], tree_vector: ET.Element, leaf_tag: str, vector_tag: str
+    ) -> None:
+        """Write the state read with set_state_from_file to the tree vector.
+
+        Items that are not part of this RTC model are skipped; leaves that are not in the state keep
+        their default value.
+
+        Parameters
+        ----------
+        state : dict[str, str]
+            Vector (as text) per leaf id, from set_state_from_file.
+        tree_vector : ET.Element
+            The treeVector element of state_import.xml.
+        leaf_tag : str
+            Tag of the treeVectorLeaf elements, including the namespace.
+        vector_tag : str
+            Tag of the vector elements, including the namespace.
+        """
+        valid_ids = self._dataconfig_ids()
+        current = self._leaves_by_id(tree_vector, leaf_tag)
+        skipped = []
+        for leaf_id, vector in state.items():
+            if valid_ids is not None and leaf_id not in valid_ids:
+                skipped.append(leaf_id)
+                continue
+            if leaf_id not in current:
+                current[leaf_id] = ET.SubElement(tree_vector, leaf_tag, {"id": leaf_id})
+            self._leaf_vector(current[leaf_id], vector_tag).text = vector
+
+        missing = [leaf_id for leaf_id in current if leaf_id not in state]
+        if skipped:
+            logger.warning(
+                f"{STATE_IMPORT_XML}: {len(skipped)} state item(s) are not part of this RTC model and are skipped: {skipped[:10]}"
+            )
+        if missing:
+            logger.warning(
+                f"{STATE_IMPORT_XML}: {len(missing)} item(s) are not in the state file and keep their default value: {missing[:10]}"
+            )
+
+    def _apply_initial_state(self, tree_vector: ET.Element, leaf_tag: str, vector_tag: str) -> None:
+        """Write the values from set_initial_state to the output leaves of the controlled structures.
+
+        Parameters
+        ----------
+        tree_vector : ET.Element
+            The treeVector element of state_import.xml.
+        leaf_tag : str
+            Tag of the treeVectorLeaf elements, including the namespace.
+        vector_tag : str
+            Tag of the vector elements, including the namespace.
+        """
+        current = self._leaves_by_id(tree_vector, leaf_tag)
+        for structure_id, value in self.initial_state.items():
+            prefix = f"{OUTPUT_PREFIX}{structure_id}/"
+            matches = [leaf_id for leaf_id in current if leaf_id.startswith(prefix)]
+            if not matches:
+                logger.warning(f"{STATE_IMPORT_XML}: no controlled structure {structure_id}, initial state not set.")
+            for leaf_id in matches:
+                self._leaf_vector(current[leaf_id], vector_tag).text = str(value)
+
+    @staticmethod
+    def _leaves_by_id(tree_vector: ET.Element, leaf_tag: str) -> dict[str, ET.Element]:
+        """The treeVectorLeaf elements of the tree vector by id; leaves without an id are skipped.
+
+        Parameters
+        ----------
+        tree_vector : ET.Element
+            The treeVector element of state_import.xml.
+        leaf_tag : str
+            Tag of the treeVectorLeaf elements, including the namespace.
+
+        Returns
+        -------
+        dict[str, ET.Element]
+            treeVectorLeaf element per id.
+        """
+        leaves = {}
+        for leaf in tree_vector.iter(leaf_tag):
+            leaf_id = leaf.get("id")
+            if leaf_id is not None:
+                leaves[leaf_id] = leaf
+        return leaves
+
+    @staticmethod
+    def _leaf_vector(leaf: ET.Element, vector_tag: str) -> ET.Element:
+        """The vector element of a treeVectorLeaf, created if it is missing.
+
+        Parameters
+        ----------
+        leaf : ET.Element
+            A treeVectorLeaf element.
+        vector_tag : str
+            Tag of the vector elements, including the namespace.
+
+        Returns
+        -------
+        ET.Element
+            The (new) vector element of the leaf.
+        """
+        vector = leaf.find(vector_tag)
+        if vector is None:
+            vector = ET.SubElement(leaf, vector_tag)
+        return vector
+
+    def _dataconfig_ids(self) -> set[str] | None:
+        """Ids of all time series in rtcDataConfig.xml, or None if it has not been written yet.
+
+        Uses the ids from write_dataconfig of this model; reads the file only if the data config was not written
+        by this model (e.g. write_state_import called on its own).
+        """
+        if self._written_dataconfig_ids is not None:
+            return self._written_dataconfig_ids
+        path = self.output_path / RTC_DATA_CONFIG_XML
+        if not path.exists():
+            return None
+        return {el.get("id") for el in ET.parse(path).getroot().iter() if el.get("id") is not None}
+
+    @staticmethod
+    def _read_state_leaves(path: Path) -> dict[str, str]:
+        """Read the id and vector of all treeVectorLeaf elements of an RTC state file."""
+        leaves = {}
+        for el in ET.parse(path).getroot().iter():
+            if DRTCModel._strip_namespace(el.tag) != "treeVectorLeaf":
+                continue
+            vector = next((c for c in el if DRTCModel._strip_namespace(c.tag) == "vector"), None)
+            if el.get("id") is not None and vector is not None and vector.text is not None:
+                leaves[el.get("id")] = " ".join(vector.text.split())
+        return leaves
+
+    @staticmethod
+    def _read_state_time(path: Path) -> pd.Timestamp | None:
+        """Read the time of an RTC state from a statePI.xml file."""
+        for el in ET.parse(path).getroot().iter():
+            if DRTCModel._strip_namespace(el.tag) == "dateTime" and el.get("date") is not None:
+                return pd.Timestamp(f"{el.get('date')} {el.get('time', '00:00:00')}")
+        return None

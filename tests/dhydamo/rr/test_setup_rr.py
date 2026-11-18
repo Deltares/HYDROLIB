@@ -1,8 +1,12 @@
+import copy
+import re
 from pathlib import Path
 
 import pytest
 from hydrolib.dhydamo.core.drr import DRRModel
+from hydrolib.dhydamo.io import drrwriter
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
+from hydrolib.dhydamo.io.drrwriter import DRRWriter
 from shapely.geometry import Point, Polygon, box
 from tests.dhydamo.io import test_from_hydamo
 
@@ -92,8 +96,14 @@ def _setup_rr_model(hydamo=None):
     return drrmodel
 
 
-def test_setup_rr_model():
-    drrmodel = _setup_rr_model()
+@pytest.fixture(scope="module")
+def rr_model():
+    """The RR model of the sample data, built once for this module (takes about a minute)."""
+    return _setup_rr_model()
+
+
+def test_setup_rr_model(rr_model):
+    drrmodel = rr_model
     assert len([i[1]['ga'] for i in drrmodel.unpaved.unp_nodes.items() if float(i[1]['ga']) > 0.0]) == 121
     assert len([i[1]['ar'] for i in drrmodel.paved.pav_nodes.items() if float(i[1]['ar']) > 0.0]) == 101
     assert len([i[1]['ar'] for i in drrmodel.greenhouse.gh_nodes.items() if float(i[1]['ar']) > 0.0]) == 1
@@ -160,3 +170,50 @@ def test_boundary_from_input_drops_zero_area_catchments_without_crash():
 
     assert len(catchments) == 0
     assert len(drrmodel.external_forcings.boundary_nodes) == 0
+
+
+def _fnm_input_files(fnm_path):
+    """File names of the input files (flag I) in a Sobek_3b.fnm file."""
+    names = []
+    for line in Path(fnm_path).read_text(encoding="latin-1").splitlines():
+        match = re.match(r"\s*'([^']+)'\s*\*.*\s(I|I/O)\s*$", line)
+        if match:
+            names.append(match.group(1))
+    return names
+
+
+def test_rr_file_names_match_fnm():
+    # File systems on Linux are case-sensitive: the names drrwriter uses must match Sobek_3b.fnm and the
+    # files copied from resources exactly. Checked on the source, so that it also fails on Windows.
+    resources = Path(drrwriter.__file__).parent.parent / "resources" / "RR"
+    fnm_text = (resources / "Sobek_3b.fnm").read_text(encoding="latin-1")
+    fnm_names = {name.lower(): name for name in re.findall(r"^\s*'([^']+)'", fnm_text, re.MULTILINE)}
+    resource_names = {path.name.lower(): path.name for path in resources.iterdir()}
+    source = Path(drrwriter.__file__).read_text(encoding="utf-8")
+    used = re.findall(r'os\.path\.join\(\s*self\.output_dir\s*,\s*["\']([^"\']+)["\']', source)
+    assert used
+
+    for name in used:
+        assert fnm_names.get(name.lower(), name) == name, f"drrwriter uses {name}, Sobek_3b.fnm {fnm_names[name.lower()]}"
+        assert resource_names.get(name.lower(), name) == name, f"drrwriter uses {name}, resources {resource_names[name.lower()]}"
+
+
+def test_rr_written_files_match_fnm(rr_model, tmp_path):
+    drrmodel = copy.deepcopy(rr_model)  # the time settings below should not leak into other tests
+    drrmodel.d3b_parameters["Timestepsize"] = "60"
+    drrmodel.d3b_parameters["StartTime"] = "'2016/06/01;00:00:00'"
+    drrmodel.d3b_parameters["EndTime"] = "'2016/06/03;00:00:00'"
+    DRRWriter(drrmodel, output_dir=tmp_path, wwtp=(199000.0, 396000.0)).write_all()
+
+    rr_dir = tmp_path / "rr"
+    written = [path.name for path in rr_dir.iterdir()]
+    by_lower = {}
+    for name in written:
+        by_lower.setdefault(name.lower(), []).append(name)
+    # no files that only differ in case (on Linux these would be two different files)
+    assert all(len(names) == 1 for names in by_lower.values()), by_lower
+
+    # every input file in Sobek_3b.fnm that is present has exactly that name
+    for name in _fnm_input_files(rr_dir / "Sobek_3b.fnm"):
+        if name.lower() in by_lower:
+            assert name in written, f"Sobek_3b.fnm refers to {name}, written as {by_lower[name.lower()][0]}"

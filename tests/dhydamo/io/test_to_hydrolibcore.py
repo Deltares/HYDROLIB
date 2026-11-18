@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import geopandas as gpd
@@ -5,17 +6,18 @@ import numpy as np
 import pandas as pd
 from hydrolib.core.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
 from hydrolib.core.dflowfm.friction.models import FrictionModel
-from hydrolib.core.dflowfm.inifield.models import DiskOnlyFileModel, IniFieldModel
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.core.dflowfm.obs.models import ObservationPointModel
-from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
 from hydrolib.core.dflowfm.structure.models import StructureModel
 
 # and from hydrolib-core
 from hydrolib.core.dimr.models import DIMR, FMComponent
 
 # Importing relevant classes from Hydrolib-dhydamo
-from hydrolib.dhydamo.converters.df2hydrolibmodel import EXT_FILE_VERSION, Df2HydrolibModel
+from hydrolib.dhydamo.converters.df2hydrolibmodel import (
+    EXT_FILE_VERSION,
+    Df2HydrolibModel,
+)
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
 from shapely.geometry import Point
@@ -26,10 +28,12 @@ data_path = Path("hydrolib/sample_data/data").resolve()
 assert data_path.exists()
 
 # path to write the models
-output_path = Path(__file__).parent / ".." / ".." / "model"
+output_path = (Path(__file__).parent / ".." / ".." / "model").resolve()
 output_path.mkdir(parents=False, exist_ok=True)
 
-def setup_model(hydamo_obj=None, full_test=False):
+def setup_model(hydamo_obj=None, full_test=False, model_path=None):
+    # model_path: folder to write the model to, defaults to the global output_path
+    model_path = output_path if model_path is None else Path(model_path)
     fm = FMModel()
     # Set start and stop time
     fm.time.refdate = 20160601
@@ -153,7 +157,7 @@ def setup_model(hydamo_obj=None, full_test=False):
         mesh.links1d2d_remove_1d_endpoints(network)
 
     # main filepath
-    fm.filepath = Path(output_path) / "dflowfm" / "DFM.mdu"
+    fm.filepath = model_path / "dflowfm" / "DFM.mdu"
     # we first need to set the forcing model, because it is referred to in the ext model components
     return hydamo, fm
 
@@ -166,8 +170,9 @@ def test_convert_to_hydrolibmodel():
     assert len(models.crossdefs) == 443
 
 
-def _add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False):
-    hydamo, fm = setup_model(hydamo_obj=hydamo_obj, full_test=full_test)
+def _add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False, model_path=None):
+    model_path = output_path if model_path is None else Path(model_path)
+    hydamo, fm = setup_model(hydamo_obj=hydamo_obj, full_test=full_test, model_path=model_path)
 
     if drrmodel is not None:
         hydamo.external_forcings.convert.laterals(
@@ -192,19 +197,8 @@ def _add_to_filestructure(drrmodel=None, hydamo_obj=None, full_test=False):
 
     fm.external_forcing.extforcefilenew = models.ext_model()
 
-    fm.geometry.inifieldfile = IniFieldModel(initial=models.inifields)
-
-    for ifield, onedfield in enumerate(models.onedfieldmodels):
-        # eventually this is the way, but it has not been implemented yet in Hydrolib core
-        # fm.geometry.inifieldfile.initial[ifield].datafile = OneDFieldModel(global_=onedfield)
-
-        # this is a workaround to do the same
-        onedfield_filepath = output_path / "dflowfm" / "initialwaterdepth.ini"
-        onedfieldmodel = OneDFieldModel(global_=onedfield)
-        onedfieldmodel.save(filepath=onedfield_filepath)
-        fm.geometry.inifieldfile.initial[ifield].datafile = DiskOnlyFileModel(
-            filepath=onedfield_filepath
-        )
+    # initial fields: writes the data files and links them in the initial field file
+    models.write_initial_fields(fm, model_path / "dflowfm")
 
     return fm
 
@@ -213,8 +207,11 @@ def test_add_to_filestructure():
     assert hasattr(fm, "geometry")
     assert hasattr(fm.geometry, "inifieldfile")
     
-def _write_model(drrmodel=None, hydamo_obj=None, full_test=False):
-    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test)
+def _write_model(drrmodel=None, hydamo_obj=None, full_test=False, model_path=None):
+    model_path = output_path if model_path is None else Path(model_path)
+    fm = _add_to_filestructure(
+        drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test, model_path=model_path
+    )
 
     fm.geometry.uniformwidth1d = 1.0            # default  breedte 
     fm.geometry.bedlevtype = 1                  # 1: at cell center (tiles xz,yz,bl,bob=max(bl)), 2: at face (tiles xu,yu,blu,bob=blu), 3: at face (using mean node values), 4: at face 
@@ -246,21 +243,21 @@ def _write_model(drrmodel=None, hydamo_obj=None, full_test=False):
     dimr.component.append(
         FMComponent(
             name="DFM",
-            workingDir=Path(output_path) / "dflowfm",
+            workingDir=model_path / "dflowfm",
             model=fm,
             inputfile=fm.filepath,
-        )        
+        )
     )
-    dimr.save(recurse=True)    
+    dimr.save(recurse=True)
 
-    return fm, output_path
+    return fm, model_path
 
 def test_write_model():
     _, output_path = _write_model()
     assert (output_path / "dflowfm" / "DFM.mdu").exists()
     assert (output_path / "dflowfm" / "crsdef.ini").exists()
     assert (output_path / "dflowfm" / "network.nc").exists()
-    assert (output_path / "dflowfm" / "initialwaterdepth.ini").exists()
+    assert (output_path / "dflowfm" / "InitialWaterDepth.ini").exists()
 
 
 def test_ext_model_file_version(tmp_path):
@@ -271,3 +268,25 @@ def test_ext_model_file_version(tmp_path):
 
     lines = (tmp_path / "bnd.ext").read_text().splitlines()
     assert any(line.split("#")[0].split() == ["fileVersion", "=", EXT_FILE_VERSION] for line in lines)
+
+
+def test_constant_and_qh_boundaries_write_time_interpolation(tmp_path):
+    # the D-HYDRO GUI (2026.02) requires timeInterpolation in every [Forcing] block, also for
+    # constant values and QH tables, where hydrolib-core does not write it
+    class _Mesh1D:
+        class _mesh1d:
+            mesh1d_node_id = np.array(["n1", "n2"])
+            mesh1d_node_x = np.array([0.0, 100.0])
+            mesh1d_node_y = np.array([0.0, 0.0])
+
+    hydamo = HyDAMO()
+    forcings = hydamo.external_forcings
+    forcings.add_boundary_condition("constant", (0.0, 0.0), "waterlevelbnd", 1.5, _Mesh1D())
+    forcings.add_boundary_condition("qh", (100.0, 0.0), "qhbnd", {"Q": [0.0, 1.0], "H": [1.0, 2.0]}, _Mesh1D())
+    models = Df2HydrolibModel(hydamo)
+    models.forcingmodel.save(tmp_path / "boundaryconditions.bc")
+
+    blocks = (tmp_path / "boundaryconditions.bc").read_text().split("[Forcing]")[1:]
+    functions = [re.search(r"function\s*=\s*(\w+)", block).group(1) for block in blocks]
+    assert functions == ["constant", "qhtable"]
+    assert all(re.search(r"timeInterpolation\s*=\s*linear", block) for block in blocks)
