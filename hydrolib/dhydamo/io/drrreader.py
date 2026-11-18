@@ -7,7 +7,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
-from pydantic.v1 import ConfigDict, StrictStr, validate_arguments
+from pydantic import ConfigDict, StrictStr, validate_call
 
 from hydrolib.dhydamo.core.relations import RelationsRR
 from hydrolib.dhydamo.geometry import zonal
@@ -52,7 +52,7 @@ class UnpavedIO:
     def __init__(self, unpaved):
         self.unpaved = unpaved
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def unpaved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
@@ -243,7 +243,7 @@ class UnpavedIO:
                 boundary_node=cat.boundary_node,
             )
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def ernst_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
@@ -280,7 +280,7 @@ class PavedIO:
     def __init__(self, paved):
         self.paved = paved
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def paved_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
@@ -581,7 +581,7 @@ class GreenhouseIO:
     def __init__(self, greenhouse):
         self.greenhouse = greenhouse
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def greenhouse_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
@@ -766,7 +766,7 @@ class OpenwaterIO:
     def __init__(self, openwater):
         self.openwater = openwater
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def openwater_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
@@ -821,7 +821,7 @@ class ExternalForcingsIO:
     def __init__(self, external_forcings):
         self.external_forcings = external_forcings
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def seepage_from_input(
         self,
         catchments: ExtendedGeoDataFrame,
@@ -883,7 +883,7 @@ class ExternalForcingsIO:
         [self.external_forcings.add_seepage(*sep) for sep in result.items()]
 
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def precip_from_input(
         self,
         areas: ExtendedGeoDataFrame,
@@ -926,7 +926,7 @@ class ExternalForcingsIO:
         else:
             self.external_forcings.precip = str(precip_file)
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def evap_from_input(
         self,
         areas: ExtendedGeoDataFrame,
@@ -972,7 +972,7 @@ class ExternalForcingsIO:
         else:
             self.external_forcings.evap = str(evap_file)
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def boundary_from_input(
         self,
         boundary_nodes: ExtendedGeoDataFrame,

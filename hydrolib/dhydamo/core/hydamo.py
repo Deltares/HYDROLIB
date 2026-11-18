@@ -2,13 +2,14 @@ import logging
 import numbers
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Annotated
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
 from netCDF4 import Dataset, Variable, chartostring
-from pydantic.v1 import ConfigDict, validate_arguments
+from pydantic import ConfigDict, Field, validate_call
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from tqdm.auto import tqdm
@@ -44,7 +45,7 @@ class HyDAMO:
     for network, structures, cross sections, observation points, storage nodes and external forcings.
     """
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def __init__(self, extent_file: Path | str | None = None) -> None:
         """Initiate subclasses and IO-methods
 
@@ -269,7 +270,7 @@ class HyDAMO:
             required_columns=["code", "geometry"],            
         )
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def validate_gpkg(
         self,
         gpkg_path: Path | str,
@@ -426,7 +427,7 @@ class HyDAMO:
         converter.load_into(self, gpkg_path, clip_layers=clip_layers, check_3d=check_3d)
         return self
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def list_to_str(self, lst: list | np.ndarray) -> str:
         """Converts list to string
 
@@ -442,7 +443,7 @@ class HyDAMO:
             string = " ".join([f"{number:6.3f}" for number in lst])
         return string
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def dict_to_dataframe(self, dictionary: dict) -> pd.DataFrame:
         """Converts a dictionary to dataframe, using index as rows
 
@@ -597,7 +598,7 @@ class Network:
         # Mesh 1d offsets
         self.offsets = {}
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def set_branch_order(self, branchids: list, idx: int | None = None) -> None:
         """
         Group branch ids so that the cross sections are
@@ -658,7 +659,7 @@ class Network:
             for n in self.mesh1d.description1d["network_node_ids"]
         }
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def generate_nodes_with_bedlevels(
         self,
         resolve_at_bifurcation_method: str = "min",
@@ -1011,7 +1012,7 @@ class Network:
         # save
         self.branch_groups = groups.copy()
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def get_node_idx_offset(
         self, branch_id: str, pt: shapely.geometry.Point, nnodes: int = 1
     ) -> tuple:
@@ -1360,7 +1361,7 @@ class CrossSections:
         )
         return gdf
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def crosssection_to_yzprofiles(
         self,
         crosssections: gpd.GeoDataFrame | ExtendedGeoDataFrame,
@@ -1441,7 +1442,7 @@ class CrossSections:
 
         return cssdct
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def parametrised_to_profiles(
         self,
         parametrised: ExtendedDataFrame,
@@ -2446,7 +2447,7 @@ class ExternalForcings:
             "bctype": bctype + "bnd",
         }
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_boundary_condition(
         self, name: str, pt, quantity: str, value, mesh1d=None
     ) -> None:
@@ -2537,7 +2538,7 @@ class ExternalForcings:
         }
 
         
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_rain_series(self, name: str, values: list, times: list) -> None:
         """
         Adds a rain series a boundary condition.
@@ -2565,13 +2566,13 @@ class ExternalForcings:
             "branchid": None,
         }
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_lateral(
         self,
         id: str,
         branchid: str,
         chainage: str,
-        discharge: pd.Series | float | str,
+        discharge: Annotated[pd.Series | float | str, Field(union_mode="left_to_right")],
     ) -> None:
         """Add a lateral to an FM model
 
@@ -2660,17 +2661,17 @@ class Structures:
                 f"Chainage {chainage} is outside the branch length (0.0 - {branch.length})."
             )
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_rweir(
         self,
         id: str | None = None,
-        name: str | float | None = None,
+        name: str | None = None,
         branchid: str | None = None,
         chainage: float | None = None,
         crestlevel: float | None = None,
         crestwidth: float | None = None,
         corrcoeff: float | None = None,
-        usevelocityheight: str = "true",
+        usevelocityheight: bool = True,
         allowedflowdir: str = "both",
     ) -> None:
         """
@@ -2695,22 +2696,22 @@ class Structures:
         )
         self.rweirs_df = pd.concat([self.rweirs_df, dct], ignore_index=True)
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_orifice(
         self,
         id: str | None = None,
-        name:  str | float | None = None,
+        name: str | None = None,
         branchid: str | None = None,
         chainage: float | None = None,
         crestlevel: float | None = None,
         crestwidth: float | None = None,
         corrcoeff: float | None = None,
-        usevelocityheight: str = "true",
+        usevelocityheight: bool = True,
         allowedflowdir: str = "both",
         gateloweredgelevel: float | None = None,
-        uselimitflowpos: str | None = None,
+        uselimitflowpos: bool | None = None,
         limitflowpos: float | None = None,
-        uselimitflowneg: str | None = None,
+        uselimitflowneg: bool | None = None,
         limitflowneg: float | None = None,
     ) -> None:
         """
@@ -2740,17 +2741,17 @@ class Structures:
         )
         self.orifices_df = pd.concat([self.orifices_df, dct], ignore_index=True)
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_uweir(
         self,
         id: str | None = None,
-        name:  str | float | None = None,
+        name: str | None = None,
         branchid: str | None = None,
         chainage: float | None = None,
         crestlevel: float | None = None,
         crestwidth: float | None = None,
         dischargecoeff: float | None = None,
-        usevelocityheight: str = "true",
+        usevelocityheight: bool = True,
         allowedflowdir: str = "both",
         numlevels: float | None = None,
         yvalues: str | None = None,
@@ -2779,11 +2780,11 @@ class Structures:
         )
         self.uweirs_df = pd.concat([self.uweirs_df, dct], ignore_index=True)
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_bridge(
         self,
         id: str | None = None,
-        name:  str | float | None = None,
+        name: str | None = None,
         branchid: str | None = None,
         chainage: float | None = None,
         length: float | None = None,
@@ -2820,11 +2821,11 @@ class Structures:
         )
         self.bridges_df = pd.concat([self.bridges_df, dct], ignore_index=True)
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_culvert(
         self,
         id: str | None = None,
-        name:  str | float | None = None,
+        name: str | None = None,
         branchid: str | None = None,
         chainage: float | None = None,
         leftlevel: float | None = None,
@@ -2891,11 +2892,11 @@ class Structures:
 
         self.culverts_df = pd.concat([self.culverts_df, dct], ignore_index=True)
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_pump(
         self,
         id: str | None = None,
-        name:  str | float | None = None,
+        name: str | None = None,
         branchid: str | None = None,
         chainage: float | None = None,
         orientation: str = "positive",
@@ -2929,8 +2930,8 @@ class Structures:
         )
         self.pumps_df = pd.concat([self.pumps_df, dct], ignore_index=True)
 
-    @validate_arguments
-    def add_compound(self, id:  str | float | None = None, structureids: list | None = None) -> None:
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    def add_compound(self, id: str | None = None, structureids: list | None = None) -> None:
         structurestring = ";".join([f"{s}" for s in structureids])
         numstructures = len(structureids)
         dct = pd.DataFrame(
@@ -2944,7 +2945,7 @@ class Structures:
         )
         self.compounds_df = pd.concat([self.compounds_df, dct], ignore_index=True)
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def as_dataframe(
         self,
         generalstructures: bool = False,
@@ -3008,7 +3009,7 @@ class ObservationPoints:
         self.hydamo = hydamo
         self.observation_points = gpd.GeoDataFrame().set_geometry([])
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_points(
         self, crds: list, names: list, locationTypes=None, snap_distance: float = 5.0
     ) -> None:

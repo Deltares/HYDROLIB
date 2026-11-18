@@ -8,11 +8,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime as dt
 from pathlib import Path
+from typing import Annotated
 
 import numpy as np
 import pandas as pd
 from netCDF4 import Dataset, chartostring
-from pydantic.v1 import ConfigDict, validate_arguments
+from pydantic import ConfigDict, Field, validate_call
 
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
@@ -62,7 +63,7 @@ class DRTCStructure:
 class DRTCModel:
     """Main class to generate RTC-module files."""
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def __init__(
         self,
         hydamo: HyDAMO,
@@ -221,7 +222,7 @@ class DRTCModel:
             self.check_timeseries(rtc_timeseriesdata)
             self.complex_controllers  = None
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def allow_struct(
         self,
         cc_id: str,
@@ -251,7 +252,7 @@ class DRTCModel:
         )
         return allow
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _allow_struct_with_reason(
         self,
         cc_id: str,
@@ -299,7 +300,7 @@ class DRTCModel:
 
         return True, None
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def check_timeseries(self, timeseries):
         all_management = self.hydamo.management
         # The resolver raises for rows referencing neither a pump nor a management device.
@@ -496,7 +497,7 @@ class DRTCModel:
 
         return weir_row["code"].to_numpy()[0]
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def parse_complex_controller(
         self, xml_folder: Path | str
     ) -> dict[str, list[str | ET.Element]]:
@@ -536,7 +537,7 @@ class DRTCModel:
 
         return savedict
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_cc_rtc_dataconfig(
         self, root: ET.Element, savedict: dict[str, list[str | ET.Element]]
     ) -> dict[str, list[str | ET.Element]]:
@@ -575,7 +576,7 @@ class DRTCModel:
 
         return savedict
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_cc_rtc_toolsconfig(
         self, root: ET.Element, savedict: dict[str, list[str | ET.Element]]
     ) -> dict[str, list[str | ET.Element]]:
@@ -609,7 +610,7 @@ class DRTCModel:
 
         return savedict
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_cc_timeseries(
         self, root: ET.Element, savedict: dict[str, list[str | ET.Element]]
     ) -> dict[str, list[str | ET.Element]]:
@@ -618,7 +619,7 @@ class DRTCModel:
 
         return savedict
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_cc_state(
         self, root: ET.Element, savedict: dict[str, list[str | ET.Element]]
     ) -> dict[str, list[str | ET.Element]]:
@@ -627,7 +628,7 @@ class DRTCModel:
 
         return savedict
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_cc_dimr_config(
         self, root: ET.Element, savedict: dict[str, list[str | ET.Element]]
     ) -> dict[str, list[str | ET.Element]]:
@@ -641,7 +642,7 @@ class DRTCModel:
 
         return savedict
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _filter_dimr_coupler_items(
         self, red_root: ET.Element, coupler_name: str, coupler_target: str
     ) -> None:
@@ -663,7 +664,7 @@ class DRTCModel:
                 coupler.remove(sub_el)
 
     @staticmethod
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def find_complex_controller_ids(
         complex_controllers_folder: list[str | Path] | str | Path,
         hydamo: HyDAMO,
@@ -682,7 +683,7 @@ class DRTCModel:
 
 
     @staticmethod
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _load_complex_controller_structs(
         complex_controllers_folder: list[str | Path] | str | Path,
         struct_ids_by_type: dict[str, set[str]],
@@ -704,7 +705,7 @@ class DRTCModel:
         return cc_structs, cc_ids, referenced_cc_ids
 
     @staticmethod
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _as_folder_list(
         complex_controllers_folder: list[str | Path] | str | Path
     ) -> list[str | Path]:
@@ -713,7 +714,7 @@ class DRTCModel:
         return [complex_controllers_folder]
 
     @staticmethod
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _collect_complex_controller_structs(
         folders: list[str | Path]
     ) -> list[DRTCStructure]:
@@ -728,7 +729,7 @@ class DRTCModel:
         return complex_controller_structs
 
     @staticmethod
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _deduplicate_complex_controller_structs(
         complex_controller_structs: list[DRTCStructure]
     ) -> tuple[list[DRTCStructure], set[str]]:
@@ -753,7 +754,7 @@ class DRTCModel:
         return deduplicated_structs, complex_controller_ids
 
     @staticmethod
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _validate_complex_controller_structs(
         complex_controller_structs: list[DRTCStructure],
         struct_ids_by_type: dict[str, set[str]],
@@ -775,7 +776,7 @@ class DRTCModel:
         return validated_cc_structs, validated_cc_ids
 
     @staticmethod
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _get_struct_ids_by_type(hydamo: HyDAMO) -> dict[str, set[str]]:
         return {
             "observations": set(hydamo.observationpoints.observation_points.get("name", [])),
@@ -788,7 +789,7 @@ class DRTCModel:
             "bridges": set(hydamo.structures.bridges_df.get("id", [])),
         }
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _load_complex_controllers(
         self, complex_controllers_folder: list[str | Path] | str | Path,
     ) -> dict[str, list[str | ET.Element]]:
@@ -820,7 +821,7 @@ class DRTCModel:
         return source.text, target.text
 
     @staticmethod
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _merge_dimr_config_roots(dimr_roots: list[ET.Element]) -> list[ET.Element]:
         """Merge multiple dimr_config roots into one by combining coupler items."""
         if len(dimr_roots) <= 1:
@@ -866,7 +867,7 @@ class DRTCModel:
 
         return [merged_root]
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_dataconfig_item(
         self, el: ET.Element
     ) -> tuple[bool, str | None, str | None]:
@@ -890,7 +891,7 @@ class DRTCModel:
 
         return allow, el_text, reason
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_toolsconfig_item(
         self, el: ET.Element
     ) -> tuple[bool, str | None, str | None]:
@@ -924,7 +925,7 @@ class DRTCModel:
         return allow, el_firstchild_text, reason
 
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_dimr_item(
         self, target: ET.Element | None
     ) -> tuple[bool, str | None, str | None]:
@@ -956,7 +957,7 @@ class DRTCModel:
 
 
     @staticmethod
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_referenced_structures(root: ET.Element) -> list[DRTCStructure]:
         structures = []
         rtc_to_flow = root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")
@@ -967,7 +968,7 @@ class DRTCModel:
         return structures
 
     @staticmethod
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_unique_children(root: ET.Element):
         # Store xml sections by tag, this function assumes unique children.
         children = {}
@@ -984,19 +985,19 @@ class DRTCModel:
         return children
 
     @staticmethod
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _strip_namespace(tag: str) -> str:
         return tag.split("}", 1)[-1] if tag.startswith("{") else tag
 
     @staticmethod
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _dataconfig_timeseries_key(el: ET.Element) -> str | None:
         if DRTCModel._strip_namespace(el.tag) != "timeSeries":
             return None
         return el.attrib.get("id")
 
     @staticmethod
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _timeseries_series_key(el: ET.Element) -> str | None:
         if DRTCModel._strip_namespace(el.tag) != "series":
             return None
@@ -1009,13 +1010,13 @@ class DRTCModel:
         return f"{location.text}|{parameter.text}"
 
     @staticmethod
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _state_leaf_key(el: ET.Element) -> str | None:
         if DRTCModel._strip_namespace(el.tag) != "treeVectorLeaf":
             return None
         return el.attrib.get("id")
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _append_unique_elements(
         self,
         parent: ET.Element,
@@ -1051,7 +1052,7 @@ class DRTCModel:
             seen_raw_xml.add(raw_xml)
             parent.append(element)
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def from_hydamo(
         self, pid_settings: dict | None=None, interval_settings: dict | None=None, timeseries: pd.DataFrame | None=None
     ) -> None:
@@ -1160,7 +1161,7 @@ class DRTCModel:
                     f"{management.typecontroller} is not a valid controller type - skipped."
                 )
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_time_controller(
         self,
         structure_id: str | None = None,
@@ -1186,15 +1187,15 @@ class DRTCModel:
             "extrapolation_option": extrapolation_option,
         }
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_pid_controller(
         self,
         structure_id: str | None = None,
         steering_variable: str | None = None,
         target_variable: str | None = None,
-        setpoint: float | str | pd.Series | None = None,
-        lower_bound: float | str | None = None,
-        upper_bound: float | str | None = None,
+        setpoint: Annotated[float | str | pd.Series | None, Field(union_mode="left_to_right")] = None,
+        lower_bound: Annotated[float | str | None, Field(union_mode="left_to_right")] = None,
+        upper_bound: Annotated[float | str | None, Field(union_mode="left_to_right")] = None,
         observation_location: str | None = None,
         ki: float = 0.001,
         kp: float = 0.0,
@@ -1236,17 +1237,17 @@ class DRTCModel:
             "extrapolation_option": extrapolation_option,
         }
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_interval_controller(
         self,
         structure_id: str | None = None,
         steering_variable: str | None = None,
         target_variable: str | None = None,
-        deadband: float | str | None = None,
-        setpoint: float | str | pd.Series | None = None,
-        setting_below: float | str | None = None,
-        setting_above: float | str | None = None,
-        max_speed: float | str | None = None,
+        deadband: Annotated[float | str | None, Field(union_mode="left_to_right")] = None,
+        setpoint: Annotated[float | str | pd.Series | None, Field(union_mode="left_to_right")] = None,
+        setting_below: Annotated[float | str | None, Field(union_mode="left_to_right")] = None,
+        setting_above: Annotated[float | str | None, Field(union_mode="left_to_right")] = None,
+        max_speed: Annotated[float | str | None, Field(union_mode="left_to_right")] = None,
         observation_location: str | None = None,
         interpolation_option: str = 'LINEAR',
         extrapolation_option: str = 'BLOCK',
@@ -1425,7 +1426,7 @@ class DRTCModel:
         self.initial_state.update({str(key): float(value) for key, value in values.items()})
 
     @staticmethod
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def finish_file(xmlroot, configfile, filename: Path | str) -> None:
         """Method to finish a XML file in the required namespace and format.
 

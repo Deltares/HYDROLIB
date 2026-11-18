@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 import rasterio
-from pydantic.v1 import ConfigDict, validate_arguments
+from pydantic import ConfigDict, validate_call
 
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.io import drrreader
@@ -42,7 +42,7 @@ class DRRModel:
         filename = os.path.split(path)[1]
         return pd.Timestamp(filename.split("_")[1].split(".")[0])
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def read_raster(self, file: str | Path, static: bool = False) -> tuple:
         """
         Method to read a raster. All rasterio types are accepted, plus IDF: in that case the iMod-package is used to read the IDF raster (IDF is cusomary for MODFLOW/SIMGRO models.)
@@ -93,19 +93,19 @@ class ExternalForcings:
         self.precip = {}
         self.evap = {}
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_precip(self, id: str, series: pd.Series):
         self.precip[id] = {"precip": series}
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_evap(self, id: str, series: pd.Series):
         self.evap[id] = {"evap": series}
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_seepage(self, id: str, series: pd.Series):
         self.seepage[id] = {"seepage": series}
 
-    @validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_boundary_node(self, id: str, px: str, py: str):
         self.boundary_nodes[id] = {"id": id, "px": px, "py": py}
 
@@ -125,7 +125,7 @@ class Unpaved:
         # couple input class
         self.io = drrreader.UnpavedIO(self)
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_unpaved(
         self,
         id: str,
@@ -180,7 +180,7 @@ class Unpaved:
             "boundary_node": boundary_node,
         }
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_ernst_def(self, id: str, cvo: str, lv: str, cvi: str, cvs: str) -> None:
         """Add properties to a datafframe containing an Ernst definition.
 
@@ -217,7 +217,7 @@ class Paved:
         self.link_geom = {}
 
     # PAVE id 'pav_Nde_n003' ar 16200 lv 1 sd '1' ss 0 qc 0 1.94E-05 0 qo 2 2 ms 'Station1' aaf 1 is 0 np 0 dw '1' ro 0 ru 0 qh '' pave#
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_paved(
         self,
         id: str,
@@ -278,7 +278,7 @@ class Greenhouse:
 
     #    GRHS id ’1’ na 10 ar 1000. 0. 0. 3000. 0. 0. 0. 0. 0. 0. sl 1.0 as 0. sd ’roofstor 1mm’ si
     #    ’silo typ1’ ms ’meteostat1’ is 50.0 grhs
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_greenhouse(
         self,
         id: str,
@@ -329,7 +329,7 @@ class Openwater:
         # Create the io class
         self.io = drrreader.OpenwaterIO(self)
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_openwater(
         self, id: str, area: str, meteo_area: str, px: str, py: str, boundary_node: str
     ) -> None:

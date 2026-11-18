@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import netCDF4 as nc
-from pydantic.v1 import validate_arguments
+from pydantic import ConfigDict, validate_call
 
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.drr import DRRModel
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class DIMRWriter:
     """Temporary files for DIMR-configuration - to be superseded by Hydrolib-core functionality."""
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def __init__(
         self, dimr_path: str | None = None, output_path: str | Path | None = None
     ) -> None:
@@ -39,7 +39,7 @@ class DIMRWriter:
 
         self.template_dir = Path(os.path.abspath("."))
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def write_runbat(self, debuglevel=6, runlog=None) -> None:
         """Generates a run.bat to run the model in DIMR. The path to the executable is provided by the user in the class initialization, or set to the default D-Hydro installation folder."""
 
@@ -51,7 +51,7 @@ class DIMRWriter:
             else:
                 f.write('call "' + str(self.run_dimr) + '" -d ' + str(debuglevel) + ' > ' + str(runlog) + '\n')
 
-    @validate_arguments
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_crs(self, netcdf_path: str | Path | None = None) -> None:
         """Reads the Netcdf file and addes the required attributes for a valid CRS."""        
         if netcdf_path is None:
@@ -125,7 +125,7 @@ class DIMRWriter:
                 blocks.append(block)
         return blocks
 
-    #@validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    #@validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def write_dimrconfig(
         self, fm: FMModel, rr_model: DRRModel | None = None, rtc_model: DRTCModel | None = None
     ) -> None:
