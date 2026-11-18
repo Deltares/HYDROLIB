@@ -39,6 +39,7 @@ dependencies:
   - certifi==2026.10.23
   - jupyterlab-widgets==3.0.17
   - widgetsnbextension==4.0.16
+  - tornado==6.6.1
   - pyparsing==3.3.3
   - exactextract==0.3.0
   - pydantic-settings==2.16.2
@@ -98,7 +99,6 @@ dependencies:
   - folium==0.20.0
   - pytz==2026.6
   - mypy==2.4.1
-  - tornado==6.6
   - pyproj==3.8.0
   - meshkernel==8.4.0
   - ipython==9.18.1
