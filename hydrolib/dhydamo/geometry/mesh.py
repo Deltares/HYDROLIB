@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Hashable
 from enum import Enum
 from pathlib import Path
 
@@ -105,7 +106,7 @@ def mesh2d_from_netcdf(network: Network, path: Path | str) -> None:
         network (Network): Network object to which the mesh is added
         path (Path | str): Path to the UGRID netCDF file
     """
-    reader = UgridReader(path)
+    reader = UgridReader(Path(path))
     reader.read_mesh2d(network._mesh2d)
 
 
@@ -154,22 +155,24 @@ def mesh2d_clip(
         inside (bool, optional): Whether to clip inside or outside the polygon. Defaults to True.
     """
 
+    polygons: GeometryList
     if isinstance(polygon, GeometryList):
         geo = polygon.to_geometry()
         if not isinstance(geo, (Polygon, MultiPolygon)):
             raise TypeError(
                 f"Expected to provided geometrylist to be interpreted as Polygon or MultiPolygon, not a {type(geo)}."
             )
-    elif isinstance(polygon, (Polygon, MultiPolygon)):
-        polygon = GeometryList.from_geometry(polygon)
+        polygons = polygon
+    else:
+        polygons = GeometryList.from_geometry(polygon)
 
     if inside:
         # Clip each single polygon
-        for part in polygon.geoms:
+        for part in polygons.geoms:
             network.mesh2d_clip_mesh(_geomlist_from_polygon(part), deletemeshoption, inside)
     else:
         # Keep exterior
-        clip_pol_ext = _geomlist_from_multipolygon(polygon, "exterior")
+        clip_pol_ext = _geomlist_from_multipolygon(polygons, "exterior")
         if clip_pol_ext.x_coordinates.size > 0:
             network._mesh2d.meshkernel.mesh2d_delete(
                 geometry_list=clip_pol_ext,
@@ -177,7 +180,7 @@ def mesh2d_clip(
                 invert_deletion=True,
             )
         # # Clip interior
-        clip_pol_int = _geomlist_from_multipolygon(polygon, "interior")
+        clip_pol_int = _geomlist_from_multipolygon(polygons, "interior")
         if clip_pol_int.x_coordinates.size > 0:
             network._mesh2d.meshkernel.mesh2d_delete(
                 geometry_list=clip_pol_int,
@@ -189,11 +192,11 @@ def mesh2d_clip(
     network._mesh2d.meshkernel.mesh2d_delete_hanging_edges()    
     network._mesh2d.meshkernel.mesh2d_get()
 
-def _geomlist_from_polygon(polygon: Polygon) -> mk.GeometryList:
-    """Convert a shapely Polygon to a meshkernel GeometryList.
+def _geomlist_from_polygon(polygon: Polygon | MultiPolygon) -> mk.GeometryList:
+    """Convert a shapely Polygon or MultiPolygon to a meshkernel GeometryList.
 
     Args:
-        polygon (Polygon): Polygon to convert
+        polygon (Polygon | MultiPolygon): Polygon to convert
     """
     gl = GeometryList()
     gl = gl.from_geometry(polygon)
@@ -208,7 +211,8 @@ def _geomlist_from_multipolygon(polygons: GeometryList, mode: str) -> mk.Geometr
         mode (str): Either "exterior" or "interior", selecting which rings to convert
     """
     poly_separator = -999
-    x_crds, y_crds = [], []
+    x_crds: list[float] = []
+    y_crds: list[float] = []
     for polygon in polygons.geoms:
         x_geom, y_geom = [], []
         if mode == "exterior":
@@ -225,14 +229,11 @@ def _geomlist_from_multipolygon(polygons: GeometryList, mode: str) -> mk.Geometr
 
         for xc, yc in zip(x_geom, y_geom):
             if len(x_crds) > 0:
-                x_crds.append([poly_separator])
-                y_crds.append([poly_separator])
-            x_crds.append(xc)
-            y_crds.append(yc)
+                x_crds.append(poly_separator)
+                y_crds.append(poly_separator)
+            x_crds.extend(xc)
+            y_crds.extend(yc)
 
-    if len(x_crds) > 0 and len(y_crds) > 0:
-        x_crds = np.concatenate(x_crds)
-        y_crds = np.concatenate(y_crds)
     gl = mk.GeometryList(x_coordinates=x_crds, y_coordinates=y_crds, inner_outer_separator=-998)
 
     return gl
@@ -307,9 +308,9 @@ def mesh1d_add_branch_from_linestring(
         structure_chainage=structure_chainage,
         max_dist_to_struc=max_dist_to_struc,
     )
-    branchid = network.mesh1d_add_branch(branch, name=name)
-
-    return branchid
+    # hydrolib-core annotates mesh1d_add_branch with -> None, but it returns the branch name:
+    # https://github.com/Deltares/HYDROLIB-core/issues/1313
+    return network.mesh1d_add_branch(branch, name=name)  # type: ignore[func-returns-value, return-value]
 
 
 def mesh1d_add_branches_from_gdf(
@@ -332,7 +333,7 @@ def mesh1d_add_branches_from_gdf(
     """
 
     # Create empty dictionary for structure chainage
-    structure_chainage = {}
+    structure_chainage: dict[Hashable, list[float]] = {}
 
     # If structures are given, collect offsets per branch
     if structures is not None:
@@ -365,7 +366,7 @@ def mesh1d_add_branches_from_gdf(
                     ", ".join(str(v) for v in group.loc[group.chainage.isin(u[c > 1]), "id"].tolist()),
                 )
             # Add to dictionary
-            structure_chainage[branchid] = u
+            structure_chainage[branchid] = u.tolist()
 
     # Loop over all branches, and add structures
     for branchname, geometry in zip(
@@ -413,7 +414,7 @@ def mesh1d_order_numbers_from_attribute(
     for exception in exceptions:
         branches.loc[branches.code == exception, 'order']  = -1
 
-    interpolation = []
+    interpolation: list[str] = []
     for ordernr in branches.order.unique():
         if ordernr > 0:
             mesh1d_set_branch_order(
@@ -425,7 +426,7 @@ def mesh1d_order_numbers_from_attribute(
                 interpolation + branches.code[branches.order == ordernr].to_list()
             )
     missing_after_interpolation = np.setdiff1d(missing, interpolation)
-    return missing_after_interpolation
+    return missing_after_interpolation.tolist()
 
 
 def mesh1d_set_branch_order(
@@ -500,7 +501,9 @@ def links1d2d_add_links_1d_to_2d(
     # Filter the newly generated links that are longer than the max distance.
     # Links that were already present are never subject to this filter.
     current_links = network._link1d2d.link1d2d
-    is_new = _new_link_mask(current_links, present_links)
+    # TODO: fix in hydrolib-core, link1d2d is annotated np.ndarray[np.int32] (int32 read as shape):
+    # https://github.com/Deltares/HYDROLIB-core/issues/1314
+    is_new = _new_link_mask(current_links, present_links)  # type: ignore[arg-type]
     id1d = current_links[is_new, 0]
     id2d = current_links[is_new, 1]
     nodes1d = np.stack(
@@ -515,7 +518,9 @@ def links1d2d_add_links_1d_to_2d(
     keep_mask = ~is_new
     keep_mask[is_new] = lengths < max_length
     keep = np.nonzero(keep_mask)[0]
-    _filter_links_on_idx(network, keep, present_links)
+    # TODO: fix in hydrolib-core, link1d2d is annotated np.ndarray[np.int32] (int32 read as shape):
+    # https://github.com/Deltares/HYDROLIB-core/issues/1314
+    _filter_links_on_idx(network, keep, present_links)  # type: ignore[arg-type]
 
 
 def _new_link_mask(current: np.ndarray, present_links: np.ndarray) -> np.ndarray:
@@ -551,7 +556,7 @@ def _new_link_mask(current: np.ndarray, present_links: np.ndarray) -> np.ndarray
 
 def _filter_links_on_idx(
     network: Network,
-    keep: np.ndarray,
+    keep: np.ndarray | list[int],
     present_links: np.ndarray | None = None,
 ) -> None:
     """Set the network's 1d2d contacts to `keep`, merged with `present_links`.
@@ -570,7 +575,7 @@ def _filter_links_on_idx(
 
     Args:
         network (Network): Network whose 1d2d contacts are set
-        keep (np.ndarray): Boolean mask or integer indices into the current contacts,
+        keep (np.ndarray | list[int]): Boolean mask or integer indices into the current contacts,
             selecting which of them to keep
         present_links (np.ndarray | None, optional): Snapshot of contacts to merge back
             in regardless of `keep`. Defaults to None.
@@ -629,11 +634,14 @@ def links1d2d_add_links_2d_to_1d_embedded(
 
     # Buffer the branches with the max cell distances
     mls = MultiLineString(nodes1d[network._mesh1d.mesh1d_edge_nodes].tolist())
-    area = mls.buffer(maxdiff)
+    area: Polygon | MultiPolygon = mls.buffer(maxdiff)
 
     # If a within polygon is provided, clip the buffered area with this polygon.
     if within is not None:
-        area = area.intersection(within)
+        clipped = area.intersection(within)
+        if not isinstance(clipped, (Polygon, MultiPolygon)):
+            raise TypeError(f"Expected the clipped area to be a Polygon or MultiPolygon, not a {clipped.geom_type}.")
+        area = clipped
 
     # Create an array with 2d facecenters and check which intersect the (clipped) area
     faces2d = np.stack([mesh2d_output.face_x, mesh2d_output.face_y], axis=1)
@@ -683,7 +691,9 @@ def links1d2d_add_links_2d_to_1d_embedded(
 
     # Nothing computed here is filtered on its own merits, so keep it all
     keep = np.arange(len(network._link1d2d.link1d2d))
-    _filter_links_on_idx(network, keep, present_links)
+    # TODO: fix in hydrolib-core, link1d2d is annotated np.ndarray[np.int32] (int32 read as shape):
+    # https://github.com/Deltares/HYDROLIB-core/issues/1314
+    _filter_links_on_idx(network, keep, present_links)  # type: ignore[arg-type]
 
 
 def links1d2d_add_links_2d_to_1d_lateral(
@@ -723,12 +733,16 @@ def links1d2d_add_links_2d_to_1d_lateral(
         # Note that the provided meshboundaries is a (list of) polygon(s). Holes are provided
         # as polygons as well, which dont make it a valid MultiPolygon
         if isinstance(mpboundaries, Polygon):
-            geom = MultiPolygon([mpboundaries.intersection(within)])
-            geometrylist = GeometryList.from_geometry(geom)
+            boundaries = [mpboundaries]
         else:
-            geom = [geom.intersection(within) for geom in mpboundaries.geoms]
-            geom = MultiPolygon(common.as_polygon_list(geom))
-            geometrylist = GeometryList.from_geometry(geom)
+            boundaries = list(mpboundaries.geoms)
+        clipped: list[Polygon | MultiPolygon] = []
+        for boundary in boundaries:
+            part = boundary.intersection(within)
+            if not isinstance(part, (Polygon, MultiPolygon)):
+                raise TypeError(f"Expected the clipped mesh boundary to be a Polygon or MultiPolygon, not a {part.geom_type}.")
+            clipped.append(part)
+        geometrylist = GeometryList.from_geometry(MultiPolygon(common.as_polygon_list(clipped)))
 
     # Get the nodes for the specific branch ids
     node_mask = network._mesh1d.get_node_mask(branchids)
@@ -803,7 +817,9 @@ def links1d2d_add_links_2d_to_1d_lateral(
             keep.append(i)
 
     # Select the remaining links
-    _filter_links_on_idx(network, keep, present_links=present_links)
+    # TODO: fix in hydrolib-core, link1d2d is annotated np.ndarray[np.int32] (int32 read as shape):
+    # https://github.com/Deltares/HYDROLIB-core/issues/1314
+    _filter_links_on_idx(network, keep, present_links=present_links)  # type: ignore[arg-type]
 
 
 def links1d2d_remove_within(
@@ -876,7 +892,9 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
     # Fetch the current 1d2d links once - like network._mesh2d.mesh2d_*, this
     # property re-fetches and re-validates the contacts from meshkernel on every access.
     link1d2d = network._link1d2d.link1d2d
-    if link1d2d.shape[0] == 0:
+    # TODO: fix in hydrolib-core, link1d2d is annotated np.ndarray[np.int32] (int32 read as shape):
+    # https://github.com/Deltares/HYDROLIB-core/issues/1314
+    if link1d2d.shape[0] == 0:  # type: ignore[index]
         logger.warning("No 1d2d-links present.")
         return
 

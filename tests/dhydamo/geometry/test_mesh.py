@@ -66,6 +66,29 @@ def test_create_2d_rectilinear(do_plot):
         m = viz.plot_network(network, background=False, crs=4326)
         m.save(test_figure_path / "test_create_2d_rectilinear_mk.html")        
 
+@pytest.mark.parametrize("path_type", [Path, str])
+def test_mesh2d_from_netcdf(tmp_path, path_type):
+    # write a small 2d mesh to a UGRID file, and read it into an empty network
+    fmmodel = FMModel()
+    mesh.mesh2d_add_rectilinear(
+        fmmodel.geometry.netfile.network,
+        box(0, 0, 10, 10),
+        dx=5,
+        dy=5,
+        deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
+    )
+    netfile = tmp_path / "net.nc"
+    fmmodel.geometry.netfile.save(filepath=netfile)
+
+    network = FMModel().geometry.netfile.network
+    mesh.mesh2d_from_netcdf(network, path_type(netfile))
+
+    mesh2d = network._mesh2d.get_mesh2d()
+    np.testing.assert_array_equal(mesh2d.node_x, [0.0, 5.0, 10.0, 0.0, 5.0, 10.0, 0.0, 5.0, 10.0])
+    np.testing.assert_array_equal(mesh2d.node_y, [0.0, 0.0, 0.0, 5.0, 5.0, 5.0, 10.0, 10.0, 10.0])
+    assert mesh2d.edge_nodes.size == 24
+
+
 def _get_circle_polygon(
     radius,
     n_points: int = 361,
@@ -530,6 +553,27 @@ def test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, m
         m.save(test_figure_path / f"test_links1d2d_add_links_2d_to_1d_lateral_within={b_within}_branchids={b_branchids}_refine={b_refine}_maxlength={max_length}_mk.html")
 
     assert len(network._link1d2d.link1d2d_id) == outcome
+
+
+def test_links1d2d_add_links_2d_to_1d_lateral_within_splits_single_mesh_boundary():
+    # A single 2d mesh area has one boundary Polygon. Clipping it with 'within' gives a
+    # MultiPolygon, which used to fail with "Sequences of multi-polygons are not valid arguments".
+    network = FMModel().geometry.netfile.network
+    mesh.mesh1d_add_branch_from_linestring(network, LineString([[-9, -3], [0, 4]]), node_distance=1)
+    mesh.mesh1d_add_branch_from_linestring(network, LineString([[0, 4], [9, 5]]), node_distance=1)
+    mesh.mesh2d_add_rectilinear(network, box(-8, -10, 8, 10), dx=0.5, dy=0.5)
+    within = box(-10, -10, 12, 10).difference(box(-10, -5.5, 12, -4))
+
+    mesh.links1d2d_add_links_2d_to_1d_lateral(network, within=within)
+
+    # without 'within' there are 10 links, on faces at x=-7.25 from y=-7.25 to -2.75;
+    # the 3 faces in the removed strip are no longer linked
+    links = network._link1d2d.link1d2d
+    np.testing.assert_array_equal(links, [[0, 120], [0, 150], [0, 180], [0, 210], [1, 330], [1, 360], [1, 390]])
+    mesh2d = network._mesh2d.get_mesh2d()
+    face_y = mesh2d.face_y[links[:, 1]]
+    np.testing.assert_array_equal(mesh2d.face_x[links[:, 1]], -7.25)
+    np.testing.assert_array_equal(face_y, [-7.25, -6.75, -6.25, -5.75, -3.75, -3.25, -2.75])
 
 
 @pytest.mark.parametrize(

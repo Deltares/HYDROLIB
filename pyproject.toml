@@ -141,9 +141,11 @@ module = [
 ignore_missing_imports = true
 
 # hydrolib-core is fully annotated but has no py.typed marker: read its type hints anyway.
+# It writes optional arguments as `name: str = None`, which implicit_optional reads as `str | None`.
 [[tool.mypy.overrides]]
 module = ["hydrolib.core.*"]
 follow_untyped_imports = true
+implicit_optional = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
