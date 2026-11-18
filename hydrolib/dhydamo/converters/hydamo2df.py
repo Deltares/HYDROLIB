@@ -122,7 +122,9 @@ class CrossSectionsIO:
         """
         dp_branches = None
         dp_structures = None
-        if profile_groups is not None:
+        if crosssections is not None and profile_groups is not None:
+            if profile_lines is None:
+                raise ValueError("profile_lines is required with profile_groups.")
             profile_group_bridge = RelationsHyDAMO.PROFILE_GROUP_BRIDGE
             profile_group_weir = RelationsHyDAMO.PROFILE_GROUP_WEIR
             # check for profile_groups items with valid brugid or stuwid. They need to be droppped from profiles.
@@ -146,7 +148,7 @@ class CrossSectionsIO:
             dp_branches = crosssections.drop(structure_profiles.index, axis=0)
 
             dp_structures = structure_profiles.copy(deep=True)
-        else:
+        elif crosssections is not None:
             dp_branches = crosssections.copy(deep=True)
 
         # Assign cross-sections to branches
@@ -298,21 +300,26 @@ class ExternalForcingsIO:
         # Read from Hydamo
         bcdct = {}
 
-        for bndcnd in boundary_conditions.itertuples():
-            if "waterstand" in bndcnd.typerandvoorwaarde:
+        boundary_columns = zip(
+            boundary_conditions["code"],
+            boundary_conditions["typerandvoorwaarde"],
+            boundary_conditions["waterstand"],
+            boundary_conditions["debiet"],
+            boundary_conditions.geometry,
+        )
+        for code, kind, waterstand, debiet, geometry in boundary_columns:
+            if "waterstand" in kind:
                 quantity = "waterlevelbnd"
-            elif "debiet" in bndcnd.typerandvoorwaarde:
+            elif "debiet" in kind:
                 quantity = "dischargebnd"
 
             # Add boundary condition
-            bcdct[bndcnd.code] = {
-                "code": bndcnd.code,
+            bcdct[code] = {
+                "code": code,
                 "quantity": quantity,
-                "value": bndcnd.waterstand
-                if not np.isnan(bndcnd.waterstand)
-                else bndcnd.debiet,
+                "value": waterstand if not np.isnan(waterstand) else debiet,
                 "time": None,
-                "geometry": bndcnd.geometry,
+                "geometry": geometry,
             }
 
         # Add all items
@@ -344,25 +351,29 @@ class ExternalForcingsIO:
         """
 
         if rr_boundaries is None:
-            rr_boundaries = []
+            rr_boundaries = {}
 
         locations.geometry = locations.geometry.force_2d()
         
-        latdct = {}
+        latdct: dict = {}
+        all_locations: pd.DataFrame = locations
         if overflows is not None:
-            locations = pd.concat([locations, overflows], ignore_index=True)
+            all_locations = pd.concat([all_locations, overflows], ignore_index=True)
         if greenhouse_laterals is not None:
-            locations = pd.concat([locations, greenhouse_laterals], ignore_index=True)
+            all_locations = pd.concat([all_locations, greenhouse_laterals], ignore_index=True)
 
         # Get time series and add to dictionary
         # for nidx, lateral in zip(nearest_idx, locations.itertuples()):
-        for lateral in locations.itertuples():
+        lateral_columns = zip(
+            all_locations["code"], all_locations["branch_id"], all_locations["branch_offset"]
+        )
+        for code, branch_id, branch_offset in lateral_columns:
             # Check if a time is provided for the lateral
-            if lateral.code in rr_boundaries:
+            if code in rr_boundaries:
                 # Add to dictionary
-                latdct[lateral.code] = {
-                    "branchid": lateral.branch_id,
-                    "chainage": str(lateral.branch_offset),
+                latdct[code] = {
+                    "branchid": branch_id,
+                    "chainage": str(branch_offset),
                     "discharge": "realtime",
                 }
 
@@ -370,34 +381,34 @@ class ExternalForcingsIO:
                 if lateral_discharges is None:
                     logger.warning(
                         "No lateral_discharges provided. %s expects them. Skipping.",
-                        lateral.code,
+                        code,
                     )
                 else:
                     if isinstance(lateral_discharges, pd.Series):
-                        series = lateral_discharges.loc[lateral.code]
+                        series = lateral_discharges.loc[code]
 
                         # Add to dictionary
-                        latdct[lateral.code] = {
-                            "branchid": lateral.branch_id,
-                            "chainage": str(lateral.branch_offset),
+                        latdct[code] = {
+                            "branchid": branch_id,
+                            "chainage": str(branch_offset),
                             "discharge": series,
                         }
 
                     else:
-                        if lateral.code not in lateral_discharges.columns:
+                        if code not in lateral_discharges.columns:
                             logger.warning(
                                 "No data found for %s. Skipping.",
-                                lateral.code,
+                                code,
                             )
                             continue
 
                         # Get timeseries
-                        series = lateral_discharges.loc[:, lateral.code]
+                        series = lateral_discharges.loc[:, code]
 
                         # Add to dictionary
-                        latdct[lateral.code] = {
-                            "branchid": lateral.branch_id,
-                            "chainage": str(lateral.branch_offset),
+                        latdct[code] = {
+                            "branchid": branch_id,
+                            "chainage": str(branch_offset),
                             "discharge": series,
                         }
 
@@ -633,8 +644,8 @@ class StructuresIO:
     def weirs(
         self,
         weirs: ExtendedGeoDataFrame | None = None,
-        profile_groups = None,
-        profile_lines = None,
+        profile_groups: ExtendedDataFrame | None = None,
+        profile_lines: ExtendedGeoDataFrame | None = None,
         profiles: ExtendedGeoDataFrame | None = None,
         opening: ExtendedDataFrame | None = None,
         management_device: ExtendedDataFrame | None = None,
@@ -652,6 +663,8 @@ class StructuresIO:
         profile_group_weir = RelationsHyDAMO.PROFILE_GROUP_WEIR
         profile_line_group = RelationsHyDAMO.PROFILE_LINE_GROUP
         profile_line = RelationsHyDAMO.PROFILE_LINE
+        if weirs is None or opening is None or management_device is None:
+            raise ValueError("weirs, opening and management_device are required.")
         index = np.zeros(len(weirs.code))
         if (
             profile_groups is not None
@@ -716,7 +729,8 @@ class StructuresIO:
                     # in core/hydamo.py.
                     weir_id = f'{weir.code}_{num_op+1}'
                     self.structures.compound_weir_structure_ids[weir_mandev.globalid.squeeze()] = weir_id
-                    if weir_mandev.overlaatonderlaat.squeeze().lower() == 'overlaat':
+                    kind = str(weir_mandev["overlaatonderlaat"].iloc[0]).lower()
+                    if kind == 'overlaat':
                         cmp_list.append(weir_id)
                         self.structures.add_rweir(id=weir_id,
                                                     name=name,
@@ -728,7 +742,7 @@ class StructuresIO:
                                                     allowedflowdir="both",
                                                     usevelocityheight=usevelocityheight,
                                                  )
-                    elif weir_mandev.overlaatonderlaat.squeeze().lower() == 'onderlaat':
+                    elif kind == 'onderlaat':
                         cmp_list.append(weir_id)
                         if "maximaaldebiet" not in weir_mandev or pd.isna(weir_mandev.maximaaldebiet.to_numpy()[0]):
                             limitflow = False
@@ -795,10 +809,7 @@ class StructuresIO:
                     )
                     weir_mandev = weir_mandev.iloc[[0]]
 
-                if isinstance(weir_mandev.overlaatonderlaat, pd.Series):
-                    overlaatonderlaat = weir_mandev.overlaatonderlaat.squeeze()
-                else:
-                    overlaatonderlaat = weir_mandev.overlaatonderlaat
+                overlaatonderlaat = str(weir_mandev["overlaatonderlaat"].iloc[0])
 
                 if (
                     overlaatonderlaat.lower()
@@ -859,10 +870,11 @@ class StructuresIO:
             else:
                 name = uweir.code
 
-            prof = np.empty(0)
+            prof = pd.DataFrame()
             if (
                 profiles is not None
                 and profile_groups is not None
+                and profile_lines is not None
                 and profile_group_weir.foreign_key in profile_groups
             ):
                 group = profile_group_weir.children_of(uweir_rows, profile_groups)
@@ -877,14 +889,14 @@ class StructuresIO:
                     ]
                     yzvalues = np.c_[length, xyz[:, -1] - np.min(xyz[:, -1])]
 
+            if len(prof) == 0:
+                # return an error it is still not found
+                raise ValueError(f"{uweir.code} is not found in any cross-section.")
+
             if not hasattr(uweir, 'laagstedoorstroomhoogte') or pd.isna(uweir.laagstedoorstroomhoogte):
                 kruinhoogte = np.min(xyz[:,-1])
             else:
                 kruinhoogte = uweir.laagstedoorstroomhoogte
-
-            if len(prof) == 0:
-                # return an error it is still not found
-                raise ValueError(f"{uweir.code} is not found in any cross-section.")
             self.structures.add_uweir(
                 id=uweir.code,
                 name=name,
@@ -958,6 +970,8 @@ class StructuresIO:
         profile_group_bridge = RelationsHyDAMO.PROFILE_GROUP_BRIDGE
         profile_line_group = RelationsHyDAMO.PROFILE_LINE_GROUP
         profile_line = RelationsHyDAMO.PROFILE_LINE
+        if profile_groups is None or profile_lines is None or profiles is None:
+            raise ValueError("profile_groups, profile_lines and profiles are required for bridges.")
         for bridge in bridges.itertuples():
             bridge_rows = bridges.loc[[bridge.Index]]
             # first search in yz-profiles
@@ -1025,15 +1039,10 @@ class StructuresIO:
         for culvert in culverts.itertuples():
             culvert_rows = culverts.loc[[culvert.Index]]
             # Generate cross section definition name
-            if culvert.vormkoker.lower() == "rond" or culvert.vormkoker.lower() == "ellipsvormig":
+            vormkoker = str(culvert.vormkoker).lower()
+            if vormkoker in {"rond", "ellipsvormig"}:
                 crosssection = {"shape": "circle", "diameter": culvert.hoogteopening}
-            elif (
-                culvert.vormkoker.lower() == "rechthoekig"
-                or culvert.vormkoker.lower() == "onbekend"
-                or culvert.vormkoker.lower() == "eivormig"
-                or culvert.vormkoker.lower() == "muilprofiel"
-                or culvert.vormkoker.lower() == "heulprofiel"
-            ):
+            elif vormkoker in {"rechthoekig", "onbekend", "eivormig", "muilprofiel", "heulprofiel"}:
                 crosssection = {
                     "shape": "rectangle",
                     "height": culvert.hoogteopening,
@@ -1061,7 +1070,7 @@ class StructuresIO:
             allowedflowdir = "both"
             valveonoff = 0
             numlosscoeff = None
-            valveopeningheight = 0
+            valveopeningheight: float = 0
             relopening = None
             losscoeff = None
             if not mandev.empty:
@@ -1072,7 +1081,7 @@ class StructuresIO:
                         valveonoff = 1
                         valveopeningheight = float(i["hoogteopening"])
                         numlosscoeff = 1
-                        relopening = [float(i["hoogteopening"]) / culvert.hoogteopening]
+                        relopening = [float(i["hoogteopening"]) / float(culvert_rows["hoogteopening"].to_numpy()[0])]
                         losscoeff = [float(i["afvoercoefficient"])]
                     else:
                         raise NotImplementedError(
@@ -1149,6 +1158,8 @@ class StructuresIO:
         """
         pump_pumpstation = RelationsHyDAMO.PUMP_PUMPSTATION
         management_pump = RelationsHyDAMO.MANAGEMENT_PUMP
+        if pumps is None or management is None:
+            raise ValueError("pumps and management are required.")
 
         # Add sturing to pumps
         for pumpstation in pumpstations.itertuples():
@@ -1202,7 +1213,7 @@ class StructuresIO:
                 if is_compound:
                     pumpid = f"{pumpstation.code}_{ipump + 1}"
                 else:
-                    pumpid = pumpstation.code
+                    pumpid = str(pumpstation.code)
                 cmp_list.append(pumpid)
                 self.structures.add_pump(
                     id=pumpid,
