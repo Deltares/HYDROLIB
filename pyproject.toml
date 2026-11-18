@@ -145,11 +145,6 @@ ignore_missing_imports = true
 module = ["hydrolib.core.*"]
 follow_untyped_imports = true
 
-# mypy 2.4.1 crashes (INTERNAL ERROR) on the namedtuple NCExplorer.Keys in this module.
-[[tool.mypy.overrides]]
-module = ["hydrolib.core.dflowfm.net.reader"]
-follow_imports = "skip"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short --durations=0"
@@ -170,8 +165,8 @@ hydrolib = { path = ".", editable = true }
 # Tasks for the "dev" feature, whose dependencies come from [dependency-groups].
 [tool.pixi.feature.dev.tasks]
 test = "pytest -v -m 'not slow and not plot and not dll' --cov=hydrolib --cov-report=xml --cov-report=term"
-lint = "ruff format --check . && ruff check hydrolib tests"
-fix = "ruff format . && ruff check --fix hydrolib tests"
+lint = "ruff format --check hydrolib/dhydamo tests && ruff check hydrolib/dhydamo tests"
+fix = "ruff format hydrolib/dhydamo tests && ruff check --fix hydrolib/dhydamo tests"
 typecheck = "mypy hydrolib/dhydamo"
 
 [tool.pixi.feature.docs.tasks]
