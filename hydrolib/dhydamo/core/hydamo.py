@@ -1,8 +1,9 @@
 import logging
 import numbers
+from collections.abc import Hashable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, no_type_check
 
 import geopandas as gpd
 import numpy as np
@@ -12,6 +13,7 @@ from netCDF4 import Dataset, Variable, chartostring
 from pydantic import ConfigDict, Field, validate_call
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
+from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
 
 from hydrolib import dhydamo
@@ -26,7 +28,7 @@ from hydrolib.dhydamo.core.relations import (
     RelationsHyDAMO,
     build_cascade_plan,
 )
-from hydrolib.dhydamo.geometry import common, zonal
+from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 from hydrolib.dhydamo.io.damo_converters import get_damo_converter
@@ -76,9 +78,10 @@ class HyDAMO:
         }
 
         # Dictionary for roughness definitions
-        self.roughness_definitions = {}
+        self.roughness_definitions: dict[str, dict] = {}
 
         # Read geometry to clip data
+        self.clipgeo: BaseGeometry | None
         if extent_file is not None:
             self.clipgeo = gpd.read_file(extent_file).union_all()
         else:
@@ -548,45 +551,64 @@ class HyDAMO:
 
         self.laterals = self.catchments.copy()
 
-        for num, cat in enumerate(self.catchments.itertuples()):
+        catchment_columns = zip(
+            self.catchments.index,
+            self.catchments.geometry,
+            self.catchments["code"],
+            self.catchments["lateraleknoopid"],
+        )
+        for num, (index, geometry, code, knoopid) in enumerate(catchment_columns):
             ## Koppelen van afvoeren met afwateringsgebieden
             if qspec_file is not None:
                 q = afvoer_per_gebied.iloc[num]["mean"] # mm/d
             else:
                 q = np.nan
 
-            area = cat.geometry.area           # m2
+            area = geometry.area           # m2
             q_m3s = q*area/(1000*86400)        # van mm/d naar m3/s
-            self.laterals.loc[cat.Index, 'afvoer'] = q_m3s          
-            knoopid = cat.lateraleknoopid
+            self.laterals.loc[index, 'afvoer'] = q_m3s          
         
         
             ## Afstand tussen watergang en afwateringsgebied. Als watergang in afwateringsgebied ligt is deze afstand 0.
-            distances = self.branches.distance(cat.geometry)
+            distances = self.branches.distance(geometry)
             ## EÃ©n of meer watergangen in afwateringsgebied:
             if sum(distances == 0) > 0:
                 ## Watergangen intersecten met afwateringsgebied
-                #wg = [watergang for watergang in watergangen.itertuples() if watergang.intersects(cat.geometry]
-                selectie = self.branches.intersection(cat.geometry)
+                #wg = [watergang for watergang in watergangen.itertuples() if watergang.intersects(geometry]
+                selectie = self.branches.intersection(geometry)
                 ## Index van de watergang waarop je wilt snappen. Dit is de watergang die in het gebied ligt Ã©n het dichtst bij de centroid van het afwateringsgebied is.
-                index_watergang = selectie.distance(cat.geometry.centroid).idxmin() 
+                index_watergang = selectie.distance(geometry.centroid).idxmin() 
                 ## Combineer de ge intersecte watergangen met de index om het stuk watergang te vinden waarop mag worden gesnapt.
                 watergang = selectie.loc[index_watergang]
             ## No intersects 
             else:
                 ## Vind de watergang die het dichtst bij de centroid van het gebied is
-                index_watergang = self.branches.distance(cat.geometry.centroid).idxmin()
+                index_watergang = self.branches.distance(geometry.centroid).idxmin()
                 ## Selecteer deze watergang om op te mogen snappen
-                watergang = self.branches.loc[index_watergang, 'geometry']
+                watergang = self.branches.geometry.loc[index_watergang]
         
             ## Snap de centroid van het afwateringsgebied op de geselecteerde watergang
-            lateral = watergang.interpolate(watergang.project(cat.geometry.centroid))
+            lateral = watergang.interpolate(watergang.project(geometry.centroid))
             ## Schrijf de snap-locatie weg in de geodataframe
-            self.laterals.loc[cat.Index, 'geometry'] = lateral
-            self.laterals.loc[cat.Index, 'globalid'] = knoopid
-            self.laterals.loc[cat.Index, 'code']= f'lat_{cat.code}'
+            # pandas-stubs does not accept a shapely geometry as value; pandas does
+            self.laterals.loc[index, 'geometry'] = lateral  # type: ignore[call-overload]
+            self.laterals.loc[index, 'globalid'] = knoopid
+            self.laterals.loc[index, 'code']= f'lat_{code}'
 
 class Network:
+    """Legacy 1D network helpers, taken over from delft3dfmpy. Not functional.
+
+    The methods use ``self.mesh1d``, ``self.branches``, ``self.schematised`` and
+    ``self.str2chars``, which came from the gridgeom-based network in delft3dfmpy and
+    are never set here: every method raises ``AttributeError``. Nothing in this package,
+    its tests or notebooks uses ``HyDAMO.network``; the 1D network is the hydrolib-core
+    ``Network`` (see ``hydrolib.dhydamo.geometry.mesh``).
+
+    The methods are marked ``@no_type_check``, so mypy skips them, like the deprecated
+    ``gridgeom`` module. Remove this class together with ``gridgeom``.
+    """
+
+    @no_type_check
     def __init__(self, hydamo: HyDAMO) -> None:
         """Set class variables
 
@@ -598,6 +620,7 @@ class Network:
         # Mesh 1d offsets
         self.offsets = {}
 
+    @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def set_branch_order(self, branchids: list, idx: int | None = None) -> None:
         """
@@ -625,6 +648,7 @@ class Network:
         # Save
         self.mesh1d.set_values("nbranchorder", branchorder)
 
+    @no_type_check
     def set_branch_interpolation_modelwide(self) -> None:
         """
         Set cross-section interpolation over nodes on all branches model-wide. I
@@ -640,6 +664,7 @@ class Network:
             if len(group) > 1:
                 self.set_branch_order(group)
 
+    @no_type_check
     def make_nodes_to_branch_map(self) -> None:
         """Map nodes connected to each branch"""
         # Note: first node is upstream, second node is downstream
@@ -651,6 +676,7 @@ class Network:
             )
         }
 
+    @no_type_check
     def make_branches_to_node_map(self) -> None:
         """Map branches connected to each node"""
         self.make_nodes_to_branch_map()
@@ -659,6 +685,7 @@ class Network:
             for n in self.mesh1d.description1d["network_node_ids"]
         }
 
+    @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def generate_nodes_with_bedlevels(
         self,
@@ -926,6 +953,7 @@ class Network:
         if return_reversed_branches:
             return list(np.unique(reserved_branches))
 
+    @no_type_check
     def get_grouped_branches(self) -> None:
         """
         Get grouped branch ids to use in set_branch_order function
@@ -1009,6 +1037,7 @@ class Network:
         # save
         self.branch_groups = groups.copy()
 
+    @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def get_node_idx_offset(
         self, branch_id: str, pt: shapely.geometry.Point, nnodes: int = 1
@@ -1052,13 +1081,13 @@ class CrossSections:
             hydamo (HyDAMO): input data structure
         """
         self.hydamo = hydamo
-        self.crosssections = []
+        self.crosssections: list = []
         self.default_definition = None
         self.default_definition_shift = 0.0
         self.default_location = ""
 
-        self.crosssection_loc = {}
-        self.crosssection_def = {}
+        self.crosssection_loc: dict[str, dict] = {}
+        self.crosssection_def: dict[str, dict] = {}
 
         self.get_roughnessname = self.get_roughness_description
 
@@ -1382,11 +1411,18 @@ class CrossSections:
         """
         cssdct = {}
 
-        for css in crosssections.itertuples():
+        css_columns = zip(
+            crosssections["code"],
+            crosssections.geometry,
+            crosssections["branch_id"],
+            crosssections["branch_offset"],
+            crosssections["globalid"],
+        )
+        for code, geometry, branch_id, branch_offset, globalid in css_columns:
             # The cross sections from hydamo are all yz profiles
 
             # Determine yz_values
-            xyz = np.vstack(css.geometry.coords[:])
+            xyz = np.vstack(geometry.coords[:])
             length = np.r_[
                 0, np.cumsum(np.hypot(np.diff(xyz[:, 0]), np.diff(xyz[:, 1])))
             ]
@@ -1399,14 +1435,14 @@ class CrossSections:
 
             # determine thalweg
             if branches is not None:
-                branche_geom = branches[branches.code == css.branch_id].geometry.to_numpy()
+                branche_geom = branches[branches.code == branch_id].geometry.to_numpy()
 
-                if css.geometry.intersection(branche_geom[0]).geom_type == "MultiPoint":
-                    thalweg_xyz = css.geometry.intersection(branche_geom[0]).geoms[0].coords[
+                if geometry.intersection(branche_geom[0]).geom_type == "MultiPoint":
+                    thalweg_xyz = geometry.intersection(branche_geom[0]).geoms[0].coords[
                         :
                     ][0]
                 else:
-                    thalweg_xyz = css.geometry.intersection(branche_geom[0]).coords[:][
+                    thalweg_xyz = geometry.intersection(branche_geom[0]).coords[:][
                         0
                     ]
                 # and the Y-coordinate of the thalweg
@@ -1418,21 +1454,21 @@ class CrossSections:
 
             if roughness_variant == RoughnessVariant.HIGH:
                 ruwheid = roughness[
-                    roughness["profielpuntid"] == css.globalid
+                    roughness["profielpuntid"] == globalid
                 ].ruwheidhoog
             if roughness_variant == RoughnessVariant.LOW:
                 ruwheid = roughness[
-                    roughness["profielpuntid"] == css.globalid
+                    roughness["profielpuntid"] == globalid
                 ].ruwheidlaag
 
             # Add to dictionary
-            cssdct[css.code] = {
-                "branchid": css.branch_id,
-                "chainage": css.branch_offset,
+            cssdct[code] = {
+                "branchid": branch_id,
+                "chainage": branch_offset,
                 "yz": yz,
                 "thalweg": thalweg,
                 "typeruwheid": roughness[
-                    roughness["profielpuntid"] == css.globalid
+                    roughness["profielpuntid"] == globalid
                 ].typeruwheid.to_numpy()[0],
                 "ruwheid": float(ruwheid.iloc[0]),
             }
@@ -1468,16 +1504,15 @@ class CrossSections:
         branch_relation = RelationsHyDAMO.PARAM_PROFILE_BRANCH
         values_relation = RelationsHyDAMO.PARAM_PROFILE_VALUES
 
-        branches_by_id = {}
+        # index label of the branch per branch id (the first matching branch)
+        branch_index: dict[str, Hashable] = {}
         for branch in branches:
-            branch_id = getattr(branch, branch_relation.parent_key)
-            # Preserve the previous behavior of using the first matching branch.
-            branches_by_id.setdefault(branch_id, branch)
+            branch_index.setdefault(getattr(branch, branch_relation.parent_key), branch.Index)
 
         for _, param in parametrised.iterrows():
             param_row = param.to_frame().T
             branch_id = param[branch_relation.foreign_key]
-            branch = branches_by_id[branch_id]
+            index = branch_index[branch_id]
             values = values_relation.children_of(param_row, parametrised_values)
 
             # Drop profiles for which not enough data is available to write (as rectangle)
@@ -1561,7 +1596,7 @@ class CrossSections:
                 )
             # Determine name for cross section
             if css_type == "trapezium":
-                cssdct[branch.Index] = {
+                cssdct[index] = {
                     "type": css_type,
                     "slope": round(slope, 2),
                     "maximumflowwidth": round(maxflowwidth, 1),
@@ -1579,7 +1614,7 @@ class CrossSections:
                     "bottomlevel_lower": botlev_lower,
                 }
             elif css_type == "rectangle":
-                cssdct[branch.Index] = {
+                cssdct[index] = {
                     "type": css_type,
                     "height": 5.0,
                     "width": round(
@@ -1628,7 +1663,7 @@ def _value_at_chainage(
     chainage: float,
     polygons: gpd.GeoDataFrame,
     value_column: str,
-    original: gpd.GeoDataFrame,
+    original: pd.DataFrame,
 ) -> float:
     """Value at a point on a branch: of the last polygon that contains it, otherwise of the model result.
 
@@ -1642,7 +1677,7 @@ def _value_at_chainage(
         Polygons with values that intersect the branch.
     value_column : str
         Column in polygons with the values.
-    original : gpd.GeoDataFrame
+    original : pd.DataFrame
         Model values on the branch, sorted by chainage, with columns 'chainage' and 'value'; interpolated
         linearly if the point is outside all polygons.
 
@@ -1765,6 +1800,8 @@ class ExternalForcings:
             )
         if value_column is None:
             raise ValueError(f"Provide value_column with the initial {quantity} per polygon.")
+        if not isinstance(initial_values, gpd.GeoDataFrame):
+            raise TypeError(f"initial_values must be a number or a GeoDataFrame, got {type(initial_values).__name__}.")
         self.set_spatial_field(initial_values, value_column, quantity=quantity, locationtype="1d")
 
     def _set_uniform_field(self, quantity: str, value: float) -> None:
@@ -1863,6 +1900,8 @@ class ExternalForcings:
             if branch_id not in branches.index:
                 continue
             line = branches.geometry.loc[branch_id]
+            if not isinstance(line, LineString):
+                raise TypeError(f"Branch {branch_id} is a {line.geom_type}, expected a LineString.")
             candidates = polygons.iloc[polygons.sindex.query(line, predicate="intersects")]
             if candidates.empty:
                 continue
@@ -2357,9 +2396,9 @@ class ExternalForcings:
                 "D-Flow FM uses the raster nodata value as data, which affects 1D nodes near polygon edges. "
                 "Consider filetype 'branch' for 1D."
             )
-        if filetype == "polygon" and any(
-            len(p.interiors) > 0 for geom in gdf.geometry for p in common.as_polygon_list(geom)
-        ):
+        if filetype == "polygon" and (
+            shapely.get_num_interior_rings(gdf.geometry.explode().to_numpy()) > 0
+        ).any():
             logger.warning("Polygon files do not support holes; interiors of the polygons are ignored.")
 
     @staticmethod
@@ -2479,8 +2518,8 @@ class ExternalForcings:
 
 
         if isinstance(value, pd.Series):
-            vec1 = ((value.index - value.index[0]).total_seconds() / 60.0).tolist()
-            vec2 = value.to_numpy().tolist()
+            vec1: list[float] | None = ((value.index - value.index[0]).total_seconds() / 60.0).tolist()
+            vec2: list[float] | float = value.to_numpy().tolist()
             startdate = value.index[0].strftime("%Y-%m-%d %H:%M:%S")
             unit1 =  f"minutes since {startdate}"
             unit2 = "m3/s" if quantity == "dischargebnd" else "m"            
@@ -2840,6 +2879,8 @@ class Structures:
         bedfrictiontype: str | None = None,
         bedfriction: float | None = None,
     ) -> None:
+        if crosssection is None:
+            raise ValueError("crosssection is required: a dict with the 'shape' and its dimensions.")
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
 
@@ -2929,6 +2970,8 @@ class Structures:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_compound(self, id: str | None = None, structureids: list | None = None) -> None:
+        if structureids is None:
+            raise ValueError("structureids is required: a list with the ids of the structures.")
         structurestring = ";".join([f"{s}" for s in structureids])
         numstructures = len(structureids)
         dct = pd.DataFrame(
@@ -2953,7 +2996,7 @@ class Structures:
         uweirs: bool = False,
         orifices: bool = False,
         compounds: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pd.DataFrame | None:
         """
         Returns a dataframe with the structures. Specify with the keyword arguments what structure types need to be returned.
         """
@@ -2999,6 +3042,7 @@ class Structures:
 
         if len(dfs) > 0:
             return pd.concat(dfs, sort=False, ignore_index=True)
+        return None
 
 
 class ObservationPoints:
