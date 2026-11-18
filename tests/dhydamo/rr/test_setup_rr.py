@@ -98,7 +98,7 @@ def _setup_rr_model(hydamo=None):
 
 @pytest.fixture(scope="module")
 def rr_model():
-    """The RR model of the sample data, built once for this module (takes about a minute)."""
+    """The RR model of the sample data, built once for this module (takes a few seconds)."""
     return _setup_rr_model()
 
 
@@ -131,6 +131,107 @@ def test_setup_rr_model(rr_model):
     assert drrmodel.external_forcings.seepage["sep_15.0"]["seepage"].iloc[1] == pytest.approx(
         -0.033760, abs=1e-6
     )
+
+
+def test_setup_rr_model_with_sewer_areas_and_greenhouses():
+    """RR model as in the example notebook: sewer areas with overflows, and greenhouse areas
+    with their own laterals. Expected values were checked against the code before the
+    mypy refactor of drrreader.py."""
+    data_path = Path("hydrolib/sample_data/data").resolve()
+    hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
+    lu_file = data_path / "rasters" / "sobek_landuse2.tif"
+    ahn_file = data_path / "rasters" / "AHN_2m_clipped_filled.tif"
+    soil_file = data_path / "rasters" / "sobek_soil.tif"
+    meteo_areas = hydamo.catchments
+
+    hydamo.greenhouse_areas.read_gpkg_layer(
+        data_path / "greenhouses.gpkg", layer_name="greenhouses", index_col="code"
+    )
+    hydamo.greenhouse_laterals.read_gpkg_layer(
+        data_path / "greenhouse_laterals.gpkg", layer_name="laterals"
+    )
+    hydamo.greenhouse_laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
+    hydamo.greenhouse_areas["roof_storage_mm"] = 5.0
+    hydamo.greenhouse_areas["basin_storage_class"] = range(1, len(hydamo.greenhouse_areas) + 1)
+    hydamo.sewer_areas.read_shp(
+        str(data_path / "rioleringsgebieden.shp"),
+        index_col="code",
+        column_mapping={"Code": "code", "Berging_mm": "riool_berging_mm", "POC_m3s": "riool_poc_m3s"},
+    )
+    hydamo.overflows.read_shp(
+        str(data_path / "overstorten.shp"), column_mapping={"codegerela": "codegerelateerdobject"}
+    )
+    hydamo.overflows.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
+
+    drrmodel = DRRModel()
+    drrmodel.unpaved.io.unpaved_from_input(
+        hydamo.catchments, lu_file, ahn_file, soil_file, 10.0, 100.0, 1.2, meteo_areas,
+        greenhouse_areas=hydamo.greenhouse_areas,
+    )
+    drrmodel.paved.io.paved_from_input(
+        catchments=hydamo.catchments,
+        landuse=lu_file,
+        surface_level=ahn_file,
+        sewer_areas=hydamo.sewer_areas,
+        overflows=hydamo.overflows,
+        street_storage=10.0,
+        sewer_storage=10.0,
+        pump_capacity=data_path / "rasters/pumpcap.tif",
+        meteo_areas=meteo_areas,
+    )
+    drrmodel.greenhouse.io.greenhouse_from_input(
+        catchments=hydamo.catchments,
+        landuse=lu_file,
+        surface_level=ahn_file,
+        greenhouse_areas=hydamo.greenhouse_areas,
+        greenhouse_laterals=hydamo.greenhouse_laterals,
+        roof_storage=5.0,
+        basin_storage_class=3,
+        meteo_areas=meteo_areas,
+    )
+    drrmodel.openwater.io.openwater_from_input(hydamo.catchments, lu_file, meteo_areas)
+    drrmodel.external_forcings.io.boundary_from_input(
+        hydamo.laterals,
+        hydamo.catchments,
+        drrmodel,
+        overflows=hydamo.overflows,
+        greenhouse_laterals=hydamo.greenhouse_laterals,
+    )
+    hydamo.external_forcings.convert.laterals(
+        hydamo.laterals,
+        overflows=hydamo.overflows,
+        greenhouse_laterals=hydamo.greenhouse_laterals,
+        lateral_discharges=None,
+        rr_boundaries=drrmodel.external_forcings.boundary_nodes,
+    )
+
+    # 121 catchments, plus 12 sewer areas (paved) and 5 greenhouse areas
+    assert len(drrmodel.paved.pav_nodes) == 133
+    assert len(drrmodel.greenhouse.gh_nodes) == 126
+    assert len(drrmodel.external_forcings.boundary_nodes) == 138
+    assert len(hydamo.external_forcings.lateral_nodes) == 138
+
+    # a sewer area, discharging through its overflow
+    sewer = drrmodel.paved.pav_nodes["BBB_de_Kuyper"]
+    assert float(sewer["ar"]) == pytest.approx(50786.4169, abs=1e-3)
+    assert sewer["lv"] == "15.95"
+    assert sewer["qc"] == "0.12113900"
+    assert sewer["ms"] == "ms_434.0"
+    assert sewer["boundary_node"] == "BBB_de_Kuyper"
+
+    # a greenhouse area with roof storage and basin storage class from its own columns
+    greenhouse = drrmodel.greenhouse.gh_nodes["kas_2"]
+    assert greenhouse["ar"] == "4788.29"
+    assert greenhouse["sd"] == "5.00"
+    assert greenhouse["basin_storage_class"] == "1"
+    assert greenhouse["ms"] == "ms_15.0"
+    assert greenhouse["boundary_node"] == "lat_kas_2"
+
+    # overflows and greenhouse laterals are RR boundaries, coupled to the FM laterals
+    assert "BBB_de_Kuyper" in drrmodel.external_forcings.boundary_nodes
+    assert "lat_kas_2" in drrmodel.external_forcings.boundary_nodes
+    assert hydamo.external_forcings.lateral_nodes["BBB_de_Kuyper"]["discharge"] == "realtime"
+    assert hydamo.external_forcings.lateral_nodes["lat_kas_2"]["discharge"] == "realtime"
 
 
 def test_boundary_from_input_drops_zero_area_catchments_without_crash():
