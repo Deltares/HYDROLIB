@@ -55,8 +55,16 @@ dev = [
   "pytest>=6.2",
   "pytest-cov>=2.11",
   "ruff>=0.12",
-  "mypy>=0.910",
+  "mypy>=2.4",
   "pre-commit>=3.7",
+  # type stubs for mypy; pandas-stubs follows the pandas major version
+  "pandas-stubs>=2,<3",
+  "types-geopandas",
+  "types-shapely",
+  # scipy-stubs requires Python >= 3.12; the py311 environment type-checks scipy as untyped
+  "scipy-stubs; python_version >= '3.12'",
+  "types-tqdm",
+  "types-python-dateutil",
 ]
 # update docs dependency versions https://github.com/Deltares/HYDROLIB/issues/246
 docs = [
@@ -97,9 +105,47 @@ changelog_file = "docs/changelog.md"
 line-length = 88
 target-version = "py311"
 src = ["hydrolib", "tests"]
+# deprecated, to be removed
+extend-exclude = [
+  "hydrolib/dhydamo/geometry/gridgeom",
+  "hydrolib/dhydamo/geometry/mesh2d_gridgeom.py",
+]
+# also exclude them when a file is passed explicitly (IDE, pre-commit)
+force-exclude = true
 
 [tool.ruff.lint]
 extend-select = ["I"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_ignores = true
+# understands pydantic models, e.g. hydrolib-core fields with camelCase aliases
+plugins = ["pydantic.mypy"]
+# deprecated, to be removed
+exclude = [
+  "hydrolib/dhydamo/geometry/gridgeom/",
+  "hydrolib/dhydamo/geometry/mesh2d_gridgeom.py",
+]
+
+# Packages without type hints (no py.typed marker) and without stub packages.
+[[tool.mypy.overrides]]
+module = [
+  "cftime.*",
+  "exactextract.*",
+  "meshkernel.*",
+  "rasterio.*",
+]
+ignore_missing_imports = true
+
+# hydrolib-core is fully annotated but has no py.typed marker: read its type hints anyway.
+[[tool.mypy.overrides]]
+module = ["hydrolib.core.*"]
+follow_untyped_imports = true
+
+# mypy 2.4.1 crashes (INTERNAL ERROR) on the namedtuple NCExplorer.Keys in this module.
+[[tool.mypy.overrides]]
+module = ["hydrolib.core.dflowfm.net.reader"]
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -123,7 +169,7 @@ hydrolib = { path = ".", editable = true }
 test = "pytest -v -m 'not slow and not plot and not dll' --cov=hydrolib --cov-report=xml --cov-report=term"
 lint = "ruff format --check . && ruff check hydrolib tests"
 fix = "ruff format . && ruff check --fix hydrolib tests"
-typecheck = "mypy hydrolib"
+typecheck = "mypy hydrolib/dhydamo"
 
 [tool.pixi.feature.docs.tasks]
 docs-build = "mkdocs build"
