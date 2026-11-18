@@ -8,7 +8,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime as dt
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import numpy as np
 import pandas as pd
@@ -40,19 +40,39 @@ OUTPUT_PREFIX = "[Output]"
 # - D-Flow FM his-file output: (structure type, quantity), read from the variable f"{type}_{quantity}" at
 #   the position of the structure in f"{type}_name". These names are defined by D-Flow FM, not by DAMO.
 HIS_SETTING_VARIABLES: dict[str, list[tuple[str, str]]] = {
-    CREST_LEVEL: [("weirgen", "crest_level"), ("orifice", "crest_level"), ("uniweir", "crest_level")],
-    GATE_LOWER_EDGE_LEVEL: [("orifice", "gate_lower_edge_level"), ("culvert", "gate_lower_edge_level")],
-    VALVE_OPENING: [("culvert", "gate_opening_height")],
-    CAPACITY: [("pump", "capacity")],
+    CREST_LEVEL: [
+        ("weirgen", "crest_level"),
+        ("orifice", "crest_level"),
+        ("uniweir", "crest_level"),
+    ],
+    GATE_LOWER_EDGE_LEVEL: [
+        ("orifice", "gate_lower_edge_level"),
+        ("culvert", "gate_lower_edge_level"),
+    ],
+    VALVE_OPENING: [
+        ("culvert", "gate_opening_height"),
+    ],
+    CAPACITY: [
+        ("pump", "capacity"),
+    ],
 }
 # - structure dataframes of HyDAMO.structures: (dataframe attribute, column), matched on the column 'id'.
 STRUCTURE_SETTING_COLUMNS: dict[str, list[tuple[str, str]]] = {
-    CREST_LEVEL: [("rweirs_df", "crestlevel"), ("orifices_df", "crestlevel"), ("uweirs_df", "crestlevel")],
-    GATE_LOWER_EDGE_LEVEL: [("orifices_df", "gateloweredgelevel")],
-    VALVE_OPENING: [("culverts_df", "valveopeningheight")],
-    CAPACITY: [("pumps_df", "capacity")],
+    CREST_LEVEL: [
+        ("rweirs_df", "crestlevel"),
+        ("orifices_df", "crestlevel"),
+        ("uweirs_df", "crestlevel"),
+    ],
+    GATE_LOWER_EDGE_LEVEL: [
+        ("orifices_df", "gateloweredgelevel"),
+    ],
+    VALVE_OPENING: [
+        ("culverts_df", "valveopeningheight"),
+    ],
+    CAPACITY: [
+        ("pumps_df", "capacity"),
+    ],
 }
-
 
 
 class ComplexControllers(TypedDict):
@@ -68,6 +88,58 @@ class ComplexControllers(TypedDict):
     timeseries: list[str]
     state: list[str]
     dimr_config: list[ET.Element]
+
+
+class TimeSettings(TypedDict):
+    """Start and end time of the model, and the RTC time step in seconds."""
+
+    start: pd.Timestamp
+    end: pd.Timestamp
+    step: float
+
+
+class TimeController(TypedDict):
+    """Time controller of a structure, added with ``DRTCModel.add_time_controller``."""
+
+    type: Literal["Time"]
+    data: pd.Series
+    steering_variable: str
+    interpolation_option: str
+    extrapolation_option: str
+
+
+class PIDController(TypedDict):
+    """PID controller of a structure, added with ``DRTCModel.add_pid_controller``."""
+
+    type: Literal["PID"]
+    steering_variable: str
+    target_variable: str
+    setpoint: float | str | pd.Series
+    observation_point: str
+    lower_bound: float | str | None
+    upper_bound: float | str | None
+    ki: float
+    kp: float
+    kd: float
+    max_speed: float
+    interpolation_option: str
+    extrapolation_option: str
+
+
+class IntervalController(TypedDict):
+    """Interval controller of a structure, added with ``DRTCModel.add_interval_controller``."""
+
+    type: Literal["Interval"]
+    steering_variable: str
+    target_variable: str
+    setpoint: float | str | pd.Series
+    observation_point: str
+    setting_below: float | str
+    setting_above: float | str
+    max_speed: float | str | None
+    deadband: float | str | None
+    interpolation_option: str
+    extrapolation_option: str
 
 
 @dataclass
@@ -123,16 +195,16 @@ class DRTCModel:
         """
         self.hydamo = hydamo
 
-        self.time_settings = {
+        self.time_settings: TimeSettings = {
             "start": pd.to_datetime(fm.time.refdate, format="%Y%m%d"),
             "end": pd.to_datetime(fm.time.refdate, format="%Y%m%d")
             + pd.to_timedelta(fm.time.tstop, unit="s"),
             "step": rtc_timestep,
         }
 
-        self.pid_controllers = {}
-        self.time_controllers = {}
-        self.interval_controllers = {}
+        self.pid_controllers: dict[str, PIDController] = {}
+        self.time_controllers: dict[str, TimeController] = {}
+        self.interval_controllers: dict[str, IntervalController] = {}
 
         # initial state: from an earlier model run (set_state_from_file) and/or per structure (set_initial_state)
         self.state_from_file: dict[str, str] | None = None
@@ -220,12 +292,13 @@ class DRTCModel:
 
         # copy files from the template RTC-folder
         self.template_dir = Path(__file__).resolve().parent / ".." / "resources" / "RTC"
-
-        generic_files = [p for p in self.template_dir.iterdir() if p.suffix in {".xsd", ".json"}]
-        for filepath in generic_files:
-            shutil.copy(filepath, self.output_path / filepath.name)
+        for filepath in self.template_dir.iterdir():
+            if filepath.suffix in {".xsd", ".json"}:
+                shutil.copy(filepath, self.output_path / filepath.name)
 
         if rtc_onlytimeseries:
+            if rtc_timeseriesdata is None:
+                raise ValueError("`rtc_timeseriesdata` is required when `rtc_onlytimeseries=True`.")
             for name, data in rtc_timeseriesdata.items():
                 if name in hydamo.structures.rweirs_df.id.to_list():
                     steering_var = CREST_LEVEL
@@ -234,7 +307,7 @@ class DRTCModel:
                 if name in hydamo.structures.pumps_df.id.to_list():
                     steering_var = CAPACITY
                 self.add_time_controller(
-                    structure_id=name, steering_variable=steering_var, data=data
+                    structure_id=str(name), steering_variable=steering_var, data=data
                 )
             self.check_timeseries(rtc_timeseriesdata)
             self.complex_controllers  = None
@@ -286,7 +359,7 @@ class DRTCModel:
         if allow_observations and cc_id in self.struct_ids_by_type["observations"]:
             return True, None
 
-        if self.cc_referenced_ids is None or self.cc_id_limit is None:
+        if self.cc_referenced_ids is None or self.cc_ids is None or self.cc_id_limit is None:
             return allow_if_filter_inactive, (
                 None
                 if allow_if_filter_inactive
@@ -850,14 +923,15 @@ class DRTCModel:
             merged_root.remove(coupler)
 
         # Merge couplers and items
-        seen_items_by_coupler = {}
+        merged_couplers: dict[str, ET.Element] = {}
+        seen_items: dict[str, set[tuple[str, str]]] = {}
         for root in dimr_roots:
             for coupler in root.findall("./{*}coupler"):
                 coupler_name = coupler.attrib.get("name")
                 if coupler_name is None:
                     continue
 
-                if coupler_name not in seen_items_by_coupler:
+                if coupler_name not in merged_couplers:
                     # Add this coupler without items
                     mc = copy.deepcopy(coupler)
                     for item in mc.findall("./{*}item"):
@@ -865,10 +939,8 @@ class DRTCModel:
                     merged_root.append(mc)
 
                     # Initialize tracking reference
-                    seen_items_by_coupler[coupler_name] = {
-                        "reference": mc,
-                        "items": set(),
-                    }
+                    merged_couplers[coupler_name] = mc
+                    seen_items[coupler_name] = set()
 
                 # Only add unseen coupler items
                 for item in coupler.findall("./{*}item"):
@@ -877,9 +949,9 @@ class DRTCModel:
                     if pair is None:
                         continue
 
-                    if pair not in seen_items_by_coupler[coupler_name]["items"]:
-                        seen_items_by_coupler[coupler_name]["items"].add(pair)
-                        seen_items_by_coupler[coupler_name]["reference"].append(mitem)
+                    if pair not in seen_items[coupler_name]:
+                        seen_items[coupler_name].add(pair)
+                        merged_couplers[coupler_name].append(mitem)
 
         return [merged_root]
 
@@ -894,7 +966,7 @@ class DRTCModel:
         # Check if this is a complex controller but not in the whitelist
         # Always allow observation points
         el_id = el.find(".//{*}elementId")
-        if el_id is not None:
+        if el_id is not None and el_id.text is not None:
             el_text = el_id.text
             # In complex-controller fragments: keep observation ids, keep all when no filter is configured,
             # but reject ids that are not part of referenced/validated complex-controller structures.
@@ -916,11 +988,15 @@ class DRTCModel:
         reason = None
 
         el_firstchild = next(iter(el), None)
+        if el_firstchild is None:
+            return allow, el_firstchild_text, reason
         el_tags = []
         for tag in ["input", "output", "trigger", "condition"]:
             el_tags += el.findall(".//{*}" + tag)
         for el_tag in el_tags:
             for child in el_tag:
+                if child.text is None:
+                    continue
                 if child.text.startswith(INPUT_PREFIX) or child.text.startswith(OUTPUT_PREFIX):
                     child_text = child.text.replace(INPUT_PREFIX, "").replace(OUTPUT_PREFIX, "")
                     child_text = child_text.split("/")[0]
@@ -979,6 +1055,8 @@ class DRTCModel:
         rtc_to_flow = root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")
         flow_to_rtc = root.findall(".//{*}coupler[@name='flow_to_rtc']/{*}item/{*}sourceName")
         for item in rtc_to_flow + flow_to_rtc:
+            if item.text is None:
+                continue
             structures.append(DRTCStructure(*item.text.split("/")))
 
         return structures
@@ -1180,9 +1258,9 @@ class DRTCModel:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_time_controller(
         self,
-        structure_id: str | None = None,
-        steering_variable: str | None = None,
-        data: pd.Series | None = None,
+        structure_id: str,
+        steering_variable: str,
+        data: pd.Series,
         interpolation_option: str = 'LINEAR',
         extrapolation_option: str = 'BLOCK',
     ) -> None:
@@ -1206,13 +1284,14 @@ class DRTCModel:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_pid_controller(
         self,
-        structure_id: str | None = None,
-        steering_variable: str | None = None,
-        target_variable: str | None = None,
-        setpoint: Annotated[float | str | pd.Series | None, Field(union_mode="left_to_right")] = None,
+        *,  # keyword-only, so required arguments can follow optional ones in the original order
+        structure_id: str,
+        steering_variable: str,
+        target_variable: str,
+        setpoint: Annotated[float | str | pd.Series, Field(union_mode="left_to_right")],
         lower_bound: Annotated[float | str | None, Field(union_mode="left_to_right")] = None,
         upper_bound: Annotated[float | str | None, Field(union_mode="left_to_right")] = None,
-        observation_location: str | None = None,
+        observation_location: str,
         ki: float = 0.001,
         kp: float = 0.0,
         kd: float = 0.0,
@@ -1256,15 +1335,16 @@ class DRTCModel:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_interval_controller(
         self,
-        structure_id: str | None = None,
-        steering_variable: str | None = None,
-        target_variable: str | None = None,
+        *,  # keyword-only, so required arguments can follow optional ones in the original order
+        structure_id: str,
+        steering_variable: str,
+        target_variable: str,
         deadband: Annotated[float | str | None, Field(union_mode="left_to_right")] = None,
-        setpoint: Annotated[float | str | pd.Series | None, Field(union_mode="left_to_right")] = None,
-        setting_below: Annotated[float | str | None, Field(union_mode="left_to_right")] = None,
-        setting_above: Annotated[float | str | None, Field(union_mode="left_to_right")] = None,
+        setpoint: Annotated[float | str | pd.Series, Field(union_mode="left_to_right")],
+        setting_below: Annotated[float | str, Field(union_mode="left_to_right")],
+        setting_above: Annotated[float | str, Field(union_mode="left_to_right")],
         max_speed: Annotated[float | str | None, Field(union_mode="left_to_right")] = None,
-        observation_location: str | None = None,
+        observation_location: str,
         interpolation_option: str = 'LINEAR',
         extrapolation_option: str = 'BLOCK',
     ) -> None:
@@ -1452,14 +1532,14 @@ class DRTCModel:
             filename (Union[Path, str]): filepath of the file to be written
         """
         configfile.write(filename)
-        xmlstring = (
+        xmlbytes = (
             bytes(
                 '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>',
                 encoding="utf-8",
             )
             + ET.tostring(xmlroot)
         )
-        xmlstring = xmlstring.decode("utf-8").replace('\n', '').replace("  ","")
+        xmlstring = xmlbytes.decode("utf-8").replace('\n', '').replace("  ","")
         with open(filename, "w+") as f:
             f.write(xmlstring)
         with open(filename) as f:
@@ -1498,11 +1578,11 @@ class DRTCModel:
 
         # replace start/stop dates and times in xml file
         for x in myroot.iter(gn_brackets + "startDate"):
-            x.set("date", dt.strftime(self.time_settings["start"], format="%Y-%m-%d"))
-            x.set("time", dt.strftime(self.time_settings["start"], format="%H:%M:%S"))
+            x.set("date", self.time_settings["start"].strftime("%Y-%m-%d"))
+            x.set("time", self.time_settings["start"].strftime("%H:%M:%S"))
         for x in myroot.iter(gn_brackets + "endDate"):
-            x.set("date", dt.strftime(self.time_settings["end"], format="%Y-%m-%d"))
-            x.set("time", dt.strftime(self.time_settings["end"], format="%H:%M:%S"))
+            x.set("date", self.time_settings["end"].strftime("%Y-%m-%d"))
+            x.set("time", self.time_settings["end"].strftime("%H:%M:%S"))
         for x in myroot.iter(gn_brackets + "timeStep"):
             x.set("unit", "second")
             x.set("divider", "1")
@@ -1525,9 +1605,11 @@ class DRTCModel:
         configfile = ET.parse(self.template_dir / "rtcToolsConfig_empty.xml")
         myroot = configfile.getroot()
 
-        self.all_controllers = self.time_controllers.copy()
-        self.all_controllers.update(self.pid_controllers)
-        self.all_controllers.update(self.interval_controllers)
+        self.all_controllers: dict[str, TimeController | PIDController | IntervalController] = {
+            **self.time_controllers,
+            **self.pid_controllers,
+            **self.interval_controllers,
+        }
 
         to_remove = []
         for key in self.all_controllers:
@@ -1887,7 +1969,7 @@ class DRTCModel:
             )
 
         self.finish_file(myroot, configfile, self.output_path / RTC_DATA_CONFIG_XML)
-        self._written_dataconfig_ids = {el.get("id") for el in myroot.iter() if el.get("id") is not None}
+        self._written_dataconfig_ids = self._element_ids(myroot)
 
     def write_timeseries_import(self) -> None:
         """Function to write timeseries_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
@@ -1949,20 +2031,24 @@ class DRTCModel:
                 i.text = "-999.0"
                 j = ET.SubElement(b, gn_brackets + "stationName")
                 j.text = ""
-                for i in range(len(controller["data"])):
+                for event_date, event_time, value in zip(dates, times, controller["data"].to_numpy()):
                     k = ET.SubElement(a, gn_brackets + "event")
-                    k.attrib = {
-                        "date": dates[i],
-                        "time": times[i],
-                        "value": str(controller["data"].to_numpy()[i]),
-                    }
+                    k.attrib = {"date": event_date, "time": event_time, "value": str(value)}
             elif controller['type'] == "Interval":
-                if isinstance(controller['setpoint'], float):
-                    controller['setpoint'] = pd.Series([controller['setpoint'],controller['setpoint']], index=[self.time_settings['start'],self.time_settings['end']])
+                setpoint = controller["setpoint"]
+                if isinstance(setpoint, float):
+                    setpoint = pd.Series(
+                        [setpoint, setpoint], index=[self.time_settings["start"], self.time_settings["end"]]
+                    )
+                    controller["setpoint"] = setpoint
+                if isinstance(setpoint, str):
+                    raise TypeError(
+                        f"Setpoint {setpoint!r} of interval controller {key} must be a number or a pd.Series."
+                    )
 
                 # te importeren data
-                dates = pd.to_datetime( controller["setpoint"].index).strftime("%Y-%m-%d")
-                times = pd.to_datetime(controller["setpoint"].index).strftime("%H:%M:%S")
+                dates = pd.to_datetime(setpoint.index).strftime("%Y-%m-%d")
+                times = pd.to_datetime(setpoint.index).strftime("%H:%M:%S")
                 timestep = (pd.to_datetime(f'{dates[1]} {times[1]}') - pd.to_datetime(f'{dates[0]} {times[0]}')).total_seconds()
 
                 a = ET.SubElement(myroot, gn_brackets + "series")
@@ -1987,13 +2073,9 @@ class DRTCModel:
                 h.attrib = {"date": dates[-1], "time": times[-1]}
                 i = ET.SubElement(b, gn_brackets + "missVal")
                 i.text = "-999.0"
-                for i in range(len(controller["setpoint"])):
+                for event_date, event_time, value in zip(dates, times, setpoint.to_numpy()):
                     k = ET.SubElement(a, gn_brackets + "event")
-                    k.attrib = {
-                        "date": dates[i],
-                        "time": times[i],
-                        "value": str(controller["setpoint"].to_numpy()[i]),
-                    }
+                    k.attrib = {"date": event_date, "time": event_time, "value": str(value)}
 
             # Create a timeseries import if a time-dependent setpoint is used
             elif controller['type'] == 'PID' and isinstance(controller['setpoint'], pd.Series):
@@ -2009,12 +2091,8 @@ class DRTCModel:
                 c = ET.SubElement(b, gn_brackets + "type")
                 c.text = "instantaneous"
 
-                if controller['type'] =='PID':
-                    d = ET.SubElement(b, gn_brackets + "locationId")
-                    d.text = f"[PID]Control group {key}/PID Rule"
-                elif controller['type'] == 'Interval':
-                    d = ET.SubElement(b, gn_brackets + "locationId")
-                    d.text = f"[IntervalRule]Control group {key}/Interval Rule"
+                d = ET.SubElement(b, gn_brackets + "locationId")
+                d.text = f"[PID]Control group {key}/PID Rule"
 
                 e = ET.SubElement(b, gn_brackets + "parameterId")
                 e.text = "SP"
@@ -2032,13 +2110,9 @@ class DRTCModel:
                 i.text = "-999.0"
                 j = ET.SubElement(b, gn_brackets + "stationName")
                 j.text = ""
-                for i in range(len(controller["setpoint"])):
+                for event_date, event_time, value in zip(dates, times, controller["setpoint"].to_numpy()):
                     k = ET.SubElement(a, gn_brackets + "event")
-                    k.attrib = {
-                        "date": dates[i],
-                        "time": times[i],
-                        "value": str(controller["setpoint"].to_numpy()[i]),
-                    }
+                    k.attrib = {"date": event_date, "time": event_time, "value": str(value)}
 
         if self.complex_controllers is not None:
             self._append_unique_elements(
@@ -2089,7 +2163,8 @@ class DRTCModel:
             if controller['type'] == 'PID':
                 b.text = str(self._initial_pid_setting(key, controller))
             elif controller['type'] == 'Interval':
-                b.text = str(max(controller['setting_above'], controller['setting_below'])) # Take the maximum value as a starting value
+                # Take the maximum value as a starting value
+                b.text = str(max(float(controller["setting_above"]), float(controller["setting_below"])))
             else:
                 b.text = str(controller["data"].to_numpy()[0])
 
@@ -2107,15 +2182,18 @@ class DRTCModel:
 
         self.finish_file(myroot, configfile, self.output_path / STATE_IMPORT_XML)
 
-    def _initial_pid_setting(self, structure_id: str, controller: dict) -> float:
+    def _initial_pid_setting(self, structure_id: str, controller: PIDController) -> float | str | None:
         """Initial setting of a PID controller: the current setting of the structure, limited to the bounds
         of the controller. Falls back to the upper bound if the structure setting is not available."""
         setting = self._structure_setting(structure_id, controller["steering_variable"])
         if setting is None:
             return controller["upper_bound"]
+        lower_bound, upper_bound = controller["lower_bound"], controller["upper_bound"]
+        if lower_bound is None or upper_bound is None:
+            return setting
         try:
-            lower, upper = float(controller["lower_bound"]), float(controller["upper_bound"])
-        except (TypeError, ValueError):
+            lower, upper = float(lower_bound), float(upper_bound)
+        except ValueError:
             return setting
         return min(max(setting, lower), upper)
 
@@ -2263,7 +2341,17 @@ class DRTCModel:
         path = self.output_path / RTC_DATA_CONFIG_XML
         if not path.exists():
             return None
-        return {el.get("id") for el in ET.parse(path).getroot().iter() if el.get("id") is not None}
+        return self._element_ids(ET.parse(path).getroot())
+
+    @staticmethod
+    def _element_ids(root: ET.Element) -> set[str]:
+        """Ids of all elements in an XML tree that have an id attribute."""
+        ids = set()
+        for el in root.iter():
+            el_id = el.get("id")
+            if el_id is not None:
+                ids.add(el_id)
+        return ids
 
     @staticmethod
     def _read_state_leaves(path: Path) -> dict[str, str]:
@@ -2273,8 +2361,9 @@ class DRTCModel:
             if DRTCModel._strip_namespace(el.tag) != "treeVectorLeaf":
                 continue
             vector = next((c for c in el if DRTCModel._strip_namespace(c.tag) == "vector"), None)
-            if el.get("id") is not None and vector is not None and vector.text is not None:
-                leaves[el.get("id")] = " ".join(vector.text.split())
+            leaf_id = el.get("id")
+            if leaf_id is not None and vector is not None and vector.text is not None:
+                leaves[leaf_id] = " ".join(vector.text.split())
         return leaves
 
     @staticmethod

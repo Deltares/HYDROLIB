@@ -12,6 +12,7 @@ from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.io.dimrwriter import DIMRWriter
 from netCDF4 import Dataset, chartostring
+from pydantic import ValidationError
 from shapely.geometry import Point
 from tests.dhydamo.io.test_to_hydrolibcore import setup_model
 
@@ -755,6 +756,89 @@ def test_initial_pid_setting_without_structure_setting(minimal_drtc):
     drtc, _ = minimal_drtc
     controller = {"steering_variable": "Crest level (s)", "lower_bound": 14.0, "upper_bound": 16.0}
     assert drtc._initial_pid_setting("S_UNKNOWN", controller) == 16.0
+
+
+@pytest.mark.parametrize(
+    ("lower_bound", "upper_bound"),
+    [
+        pytest.param(None, 16.0, id="no_lower_bound"),
+        pytest.param(14.0, None, id="no_upper_bound"),
+        pytest.param("not_a_number", 16.0, id="non_numeric_bound"),
+    ],
+)
+def test_initial_pid_setting_without_usable_bounds(minimal_drtc, lower_bound, upper_bound):
+    # without two numeric bounds the structure's own setting is used, not limited
+    drtc, hydamo = minimal_drtc
+    hydamo.structures.rweirs_df = pd.DataFrame({"id": ["S_TEST"], "crestlevel": [18.0]})
+    controller = {"steering_variable": "Crest level (s)", "lower_bound": lower_bound, "upper_bound": upper_bound}
+    assert drtc._initial_pid_setting("S_TEST", controller) == 18.0
+
+
+def test_pid_controller_with_setpoint_series(minimal_drtc, tmp_path):
+    drtc, _ = minimal_drtc
+    setpoint = pd.Series(
+        [13.0, 13.5, 14.0],
+        index=pd.date_range("2016-06-01 00:00", periods=3, freq="h"),
+    )
+    drtc.add_pid_controller(
+        structure_id="S_TEST",
+        steering_variable="Crest level (s)",
+        target_variable="Water level (op)",
+        setpoint=setpoint,
+        observation_location="Obs_TEST",
+        lower_bound=12.0,
+        upper_bound=15.0,
+    )
+    drtc.write_xml_v1()
+
+    namespace = {"pi": "http://www.wldelft.nl/fews/PI"}
+    series = ET.parse(tmp_path / "rtc" / "timeseries_import.xml").getroot().findall("pi:series", namespace)
+    assert len(series) == 1
+    header = series[0].find("pi:header", namespace)
+    assert header.find("pi:locationId", namespace).text == "[PID]Control group S_TEST/PID Rule"
+    assert header.find("pi:parameterId", namespace).text == "SP"
+    assert header.find("pi:timeStep", namespace).attrib == {"unit": "minute", "multiplier": "60", "divider": "1"}
+    assert header.find("pi:startDate", namespace).attrib == {"date": "2016-06-01", "time": "00:00:00"}
+    assert header.find("pi:endDate", namespace).attrib == {"date": "2016-06-01", "time": "02:00:00"}
+    events = [event.attrib for event in series[0].findall("pi:event", namespace)]
+    assert events == [
+        {"date": "2016-06-01", "time": "00:00:00", "value": "13.0"},
+        {"date": "2016-06-01", "time": "01:00:00", "value": "13.5"},
+        {"date": "2016-06-01", "time": "02:00:00", "value": "14.0"},
+    ]
+    # the tools config refers to the series instead of a fixed setpoint
+    tools = (tmp_path / "rtc" / "rtcToolsConfig.xml").read_text()
+    assert "<setpointSeries>[SP]Control group S_TEST/PID Rule</setpointSeries>" in tools
+
+
+def test_interval_controller_with_string_setpoint(minimal_drtc):
+    drtc, _ = minimal_drtc
+    drtc.add_interval_controller(
+        structure_id="O_TEST",
+        steering_variable="Gate lower edge level (s)",
+        target_variable="Discharge (op)",
+        setpoint="not_a_number",
+        observation_location="Obs_TEST",
+        setting_below=12.8,
+        setting_above=13.4,
+    )
+    with pytest.raises(TypeError, match="must be a number or a pd.Series"):
+        drtc.write_xml_v1()
+
+
+def test_add_controller_keyword_only(minimal_drtc):
+    # the arguments are keyword-only, so required arguments can follow optional ones in the original order
+    drtc, _ = minimal_drtc
+    with pytest.raises(ValidationError, match="Unexpected positional argument"):
+        drtc.add_pid_controller("S_TEST", "Crest level (s)", "Water level (op)", 13.0, "Obs_TEST")
+
+
+def test_only_timeseries_without_data(tmp_path):
+    fm = FMModel()
+    fm.time.refdate = 20160601
+    fm.time.tstop = 3600
+    with pytest.raises(ValueError, match="`rtc_timeseriesdata` is required"):
+        DRTCModel(HyDAMO(), fm, output_path=tmp_path, rtc_onlytimeseries=True)
 
 
 def test_state_from_file_missing(minimal_drtc, tmp_path):
