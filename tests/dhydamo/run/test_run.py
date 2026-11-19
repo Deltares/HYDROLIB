@@ -1,11 +1,10 @@
-
 import pathlib
 import shutil
 import subprocess
 
 import matplotlib
 
-matplotlib.use('Agg')  # Use non-interactive backend for headless environments
+matplotlib.use("Agg")  # Use non-interactive backend for headless environments
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
@@ -41,6 +40,7 @@ def _find_dimr(dhydro_path: str | pathlib.Path = "C:/Program Files/Deltares", ve
                 dimr_path = str(installs[0].joinpath("plugins/DeltaShell.Dimr/kernels/x64/bin/run_dimr.bat"))
     return dimr_path
 
+
 # reference model and figures are located in the tests folder
 tests_path = pathlib.Path(__file__).parents[2]
 his_reference = tests_path / "reference_model" / "dflowfm" / "output" / "DFM_his.nc"
@@ -49,9 +49,7 @@ figure_path = tests_path / "figures"
 # change version here to get test a different DHYDRO version
 DIMR_VERSION = None
 
-skip_without_dimr = pytest.mark.skipif(
-    _find_dimr() is None, reason="D-Hydro not installed or run_dimr.bat not found"
-)
+skip_without_dimr = pytest.mark.skipif(_find_dimr() is None, reason="D-Hydro not installed or run_dimr.bat not found")
 
 
 @pytest.fixture(scope="module")
@@ -81,7 +79,7 @@ def _run_model(output_path: pathlib.Path, version: str | None = None) -> subproc
     )
 
     # write RR
-    drrmodel.d3b_parameters["Timestepsize"] = "60" 
+    drrmodel.d3b_parameters["Timestepsize"] = "60"
     drrmodel.d3b_parameters["StartTime"] = "'2016/06/01;00:00:00'"
     drrmodel.d3b_parameters["EndTime"] = "'2016/06/03;00:00:00'"
     drrmodel.d3b_parameters["UnsaturatedZone"] = 1
@@ -89,7 +87,7 @@ def _run_model(output_path: pathlib.Path, version: str | None = None) -> subproc
     drrmodel.d3b_parameters["VolumeCheckFactorToCF"] = 100000
     rr_writer = DRRWriter(drrmodel, output_dir=output_path, name="test", wwtp=(199000.0, 396000.0))
     rr_writer.write_all()
-    
+
     # Add RTC component
     drtcmodel = test_rtc._setup_rtc_model(hydamo=hydamo, fm=fm, output_path=output_path)
     drtcmodel.write_xml_v1()
@@ -102,12 +100,12 @@ def _run_model(output_path: pathlib.Path, version: str | None = None) -> subproc
     dimr = DIMRWriter(output_path=output_path, dimr_path=dimr_path)
     dimr.write_dimrconfig(fm, rr_model=drrmodel, rtc_model=drtcmodel)
     dimr.add_crs()
-    dimr.write_runbat(debuglevel=6, runlog='dimr.log')
+    dimr.write_runbat(debuglevel=6, runlog="dimr.log")
 
     # Call DIMR .bat file. Use the absolute path: with NoDefaultCurrentDirectoryInExePath set, cmd does not
     # search the working directory for 'run.bat'.
     runbat = pathlib.Path(output_path).resolve() / "run.bat"
-    result = subprocess.run(["cmd", "/c", str(runbat)], cwd=output_path, capture_output=True, text=True,  check=False)
+    result = subprocess.run(["cmd", "/c", str(runbat)], cwd=output_path, capture_output=True, text=True, check=False)
     return result
 
 
@@ -122,15 +120,16 @@ def test_run_model(model_run: tuple[pathlib.Path, subprocess.CompletedProcess[st
 @skip_without_dimr
 @pytest.mark.parametrize(
     ("location_type", "location_id", "variable"),
-     [  ('observation_point', 'ObsP_113GIS' , 'waterlevel'           ),
-        ('weir'             , 'S_96550'     , 'discharge'            ),
-        ('weir'             , 'S_96550'     , 'waterlevel_upstream'  ),
-        ('weir'             , 'S_96550'     , 'waterlevel_downstream'),
-        ('pump'             , '113GIS'      , 'discharge'            ),
-        ('uweir'            , 'uwtest'      , 'discharge'            ),
-        ('bridge'           , 'KBR_test'    , 'discharge'            ),
-        ('compound'         , 'cmp_S_97947' , 'discharge'            ),
-        ('culvert'          , 'D_25561'     , 'discharge'            ),
+    [
+        ("observation_point", "ObsP_113GIS", "waterlevel"),
+        ("weir", "S_96550", "discharge"),
+        ("weir", "S_96550", "waterlevel_upstream"),
+        ("weir", "S_96550", "waterlevel_downstream"),
+        ("pump", "113GIS", "discharge"),
+        ("uweir", "uwtest", "discharge"),
+        ("bridge", "KBR_test", "discharge"),
+        ("compound", "cmp_S_97947", "discharge"),
+        ("culvert", "D_25561", "discharge"),
     ],
 )
 def test_read_output(
@@ -145,26 +144,30 @@ def test_read_output(
 
     assert his_reference.exists(), f"Reference model output not found: {his_reference}"
 
-    his_test = output_path / 'dflowfm' / 'output' / 'DFM_his.nc'
+    his_test = output_path / "dflowfm" / "output" / "DFM_his.nc"
     assert his_test.exists()
- 
-    geom_test, series_test = hydamo.external_forcings.convert.timeseries_from_other_model(his_test, location_type, location_id, variable)
-    
-    geom_ref, series_ref = hydamo.external_forcings.convert.timeseries_from_other_model(his_reference, location_type, location_id, variable)
+
+    geom_test, series_test = hydamo.external_forcings.convert.timeseries_from_other_model(
+        his_test, location_type, location_id, variable
+    )
+
+    geom_ref, series_ref = hydamo.external_forcings.convert.timeseries_from_other_model(
+        his_reference, location_type, location_id, variable
+    )
 
     _, ax = plt.subplots()
-    ax.plot(series_ref.index, series_ref.to_numpy(), label='Reference', color='blue')
-    ax.plot(series_test.index, series_test.to_numpy(), label='New model', color='Red', linestyle='--')
+    ax.plot(series_ref.index, series_ref.to_numpy(), label="Reference", color="blue")
+    ax.plot(series_test.index, series_test.to_numpy(), label="New model", color="Red", linestyle="--")
     ax.set_ylabel(variable)
-    ax.set_title(f'{location_type} {location_id}: {variable}')
+    ax.set_title(f"{location_type} {location_id}: {variable}")
     ax.legend()
     ax.grid()
     figure_path.mkdir(exist_ok=True)
-    plt.savefig(figure_path / f'test_run_{location_type}_{location_id}_{variable}.png')
+    plt.savefig(figure_path / f"test_run_{location_type}_{location_id}_{variable}.png")
     plt.close()
 
     assert series_ref.shape[0] == series_test.shape[0]
-    assert series_test.notna().any(), f'No values for {variable} at {location_id}'
+    assert series_test.notna().any(), f"No values for {variable} at {location_id}"
     # D-Flow FM writes missing values (NaN) for structures without flow; max() skips them
     assert np.isclose(series_ref.max(), series_test.max(), atol=0.05, equal_nan=True)
 

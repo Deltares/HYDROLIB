@@ -62,12 +62,8 @@ def _structure_hydamo() -> HyDAMO:
             },
             index=["d1", "d2", "d3"],
         ),
-        culverts=pd.DataFrame(
-            {"globalid": ["culvert-1", "culvert-2"]}, index=["c1", "c2"]
-        ),
-        pumpstations=pd.DataFrame(
-            {"globalid": ["station-1", "station-2"]}, index=["ps1", "ps2"]
-        ),
+        culverts=pd.DataFrame({"globalid": ["culvert-1", "culvert-2"]}, index=["c1", "c2"]),
+        pumpstations=pd.DataFrame({"globalid": ["station-1", "station-2"]}, index=["ps1", "ps2"]),
         pumps=pd.DataFrame(
             {
                 "globalid": ["pump-1", "pump-2"],
@@ -93,9 +89,7 @@ def _rr_hydamo() -> HyDAMO:
             {"codegerelateerdobject": ["sewer-1", "sewer-2"]},
             index=["overflow1", "overflow2"],
         ),
-        sewer_areas=pd.DataFrame(
-            {"code": ["sewer-1", "sewer-2"]}, index=["sewer1", "sewer2"]
-        ),
+        sewer_areas=pd.DataFrame({"code": ["sewer-1", "sewer-2"]}, index=["sewer1", "sewer2"]),
         greenhouse_laterals=pd.DataFrame(
             {"codegerelateerdobject": ["greenhouse-1", "greenhouse-2"]},
             index=["greenhouse_lateral1", "greenhouse_lateral2"],
@@ -110,9 +104,7 @@ def _rr_hydamo() -> HyDAMO:
 def test_parents_of_selects_rows_referenced_by_children() -> None:
     hydamo = _profile_hydamo()
 
-    parents = RelationsHyDAMO.PROFILE_LINE.parents_of(
-        hydamo.profile.loc[["p1"]], hydamo.profile_line
-    )
+    parents = RelationsHyDAMO.PROFILE_LINE.parents_of(hydamo.profile.loc[["p1"]], hydamo.profile_line)
 
     assert parents.index.tolist() == ["l1"]
 
@@ -120,9 +112,7 @@ def test_parents_of_selects_rows_referenced_by_children() -> None:
 def test_children_of_selects_rows_referencing_parents() -> None:
     hydamo = _profile_hydamo()
 
-    children = RelationsHyDAMO.PROFILE_LINE.children_of(
-        hydamo.profile_line.loc[["l2"]], hydamo.profile
-    )
+    children = RelationsHyDAMO.PROFILE_LINE.children_of(hydamo.profile_line.loc[["l2"]], hydamo.profile)
 
     assert children.index.tolist() == ["p2"]
 
@@ -160,8 +150,12 @@ def test_relation_methods_ignore_null_keys() -> None:
             "profiellijnid",
         ),
     ],
-    ids=["parents-missing-source-key", "parents-missing-target-key",
-         "children-missing-source-key", "children-missing-target-key"],
+    ids=[
+        "parents-missing-source-key",
+        "parents-missing-target-key",
+        "children-missing-source-key",
+        "children-missing-target-key",
+    ],
 )
 def test_relation_methods_require_source_and_target_keys(
     method: str,
@@ -179,15 +173,11 @@ def test_follow_relation_dispatches_in_both_directions() -> None:
     hydamo = _profile_hydamo()
     relation = RelationsHyDAMO.PROFILE_LINE
 
-    target_table, target_rows = follow_relation(
-        hydamo, relation, "profile", hydamo.profile.loc[["p1"]]
-    )
+    target_table, target_rows = follow_relation(hydamo, relation, "profile", hydamo.profile.loc[["p1"]])
     assert target_table == "profile_line"
     assert target_rows.index.tolist() == ["l1"]
 
-    target_table, target_rows = follow_relation(
-        hydamo, relation, "profile_line", hydamo.profile_line.loc[["l2"]]
-    )
+    target_table, target_rows = follow_relation(hydamo, relation, "profile_line", hydamo.profile_line.loc[["l2"]])
     assert target_table == "profile"
     assert target_rows.index.tolist() == ["p2"]
 
@@ -262,9 +252,7 @@ def test_build_cascade_plan_follows_profile_line_paths_in_reverse() -> None:
 def test_build_cascade_plan_follows_structure_paths(
     source_table: str, source_index: str, expected: dict[str, list[str]]
 ) -> None:
-    plan = build_cascade_plan(
-        _structure_hydamo(), source_table, pd.Index([source_index])
-    )
+    plan = build_cascade_plan(_structure_hydamo(), source_table, pd.Index([source_index]))
 
     assert {table: index.tolist() for table, index in plan.items()} == expected
 

@@ -8,6 +8,7 @@ from typing import ClassVar, Literal
 
 DEFAULT_FORMAT = "%(asctime)s - %(name)s - %(module)s - %(levelname)s - %(message)s"
 
+
 class ColorFormatter(logging.Formatter):
     """Formatter that colors each message by its level, with ANSI escape codes."""
 
@@ -75,8 +76,7 @@ def configure_logging(
 
     # a FileHandler is also a StreamHandler, so leave those out when looking for a screen handler
     has_stream_handler = any(
-        isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
-        for h in logger.handlers
+        isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) for h in logger.handlers
     )
     if stream and not has_stream_handler:
         handler = logging.StreamHandler(sys.stdout)

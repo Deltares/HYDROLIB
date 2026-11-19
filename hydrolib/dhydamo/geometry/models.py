@@ -86,8 +86,7 @@ class GeometryList(GeometryListMK):
         x_crds = [x_ext]
         y_crds = [y_ext]
 
-        
-        if not hasattr(cls, 'inner_outer_separator'):
+        if not hasattr(cls, "inner_outer_separator"):
             cls.inner_outer_separator = -998
 
         # Add interiors, seperated by inner_outer_separator
@@ -97,9 +96,7 @@ class GeometryList(GeometryListMK):
             x_crds.append(x_int)
             y_crds.append([cls.inner_outer_separator])
             y_crds.append(y_int)
-        gl = cls(
-            x_coordinates=np.concatenate(x_crds), y_coordinates=np.concatenate(y_crds)
-        )
+        gl = cls(x_coordinates=np.concatenate(x_crds), y_coordinates=np.concatenate(y_crds))
         return gl
 
     @classmethod
@@ -119,9 +116,7 @@ class GeometryList(GeometryListMK):
             x_crds.append(gl.x_coordinates)
             y_crds.append(gl.y_coordinates)
 
-        gl = cls(
-            x_coordinates=np.concatenate(x_crds), y_coordinates=np.concatenate(y_crds)
-        )
+        gl = cls(x_coordinates=np.concatenate(x_crds), y_coordinates=np.concatenate(y_crds))
         return gl
 
     @classmethod
@@ -139,9 +134,7 @@ class GeometryList(GeometryListMK):
         """Create a GeometryList from a MultiPoint, with a separator between the points."""
         return cls._from_multigeometry(multipoint)
 
-    def _to_polygon(
-        self, geometries: list[GeometryListMK], is_multi: bool
-    ) -> Polygon | MultiPolygon:
+    def _to_polygon(self, geometries: list[GeometryListMK], is_multi: bool) -> Polygon | MultiPolygon:
         polygons = []
         for geometry in geometries:
             parts = [
@@ -154,25 +147,15 @@ class GeometryList(GeometryListMK):
         else:
             return polygons[0]
 
-    def _to_linestring(
-        self, geometries: list[GeometryListMK], is_multi: bool
-    ) -> LineString | MultiLineString:
-        linestrings = [
-            LineString(np.stack([p.x_coordinates, p.y_coordinates], axis=1))
-            for p in geometries
-        ]
+    def _to_linestring(self, geometries: list[GeometryListMK], is_multi: bool) -> LineString | MultiLineString:
+        linestrings = [LineString(np.stack([p.x_coordinates, p.y_coordinates], axis=1)) for p in geometries]
         if is_multi:
             return MultiLineString(linestrings)
         else:
             return linestrings[0]
 
-    def _to_points(
-        self, geometries: list[GeometryListMK], is_multi: bool
-    ) -> Point | MultiPoint:
-        points = [
-            Point(np.stack([p.x_coordinates, p.y_coordinates], axis=1))
-            for p in geometries
-        ]
+    def _to_points(self, geometries: list[GeometryListMK], is_multi: bool) -> Point | MultiPoint:
+        points = [Point(np.stack([p.x_coordinates, p.y_coordinates], axis=1)) for p in geometries]
         if is_multi:
             return MultiPoint(points)
         else:
@@ -190,11 +173,7 @@ class GeometryList(GeometryListMK):
         Polygon, MultiPolygon, LineString, MultiLineString, Point or MultiPoint
             The geometry.
         """
-        geometries = [
-            geo
-            for geo in split_by(self, self.geometry_separator)
-            if geo.x_coordinates.size > 0
-        ]
+        geometries = [geo for geo in split_by(self, self.geometry_separator) if geo.x_coordinates.size > 0]
         is_multi = len(geometries) > 1
 
         # The first geometry determines the type

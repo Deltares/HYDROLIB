@@ -39,7 +39,9 @@ STATIC = re.compile(r"^(time|(?!lateral).*_name|.*_input_geom_.*|station_[xy]_co
 def reduce_his(src_path, dst_path):
     with Dataset(src_path) as src, Dataset(dst_path, "w", format="NETCDF4") as dst:
         dst.setncatts({name: src.getncattr(name) for name in src.ncattrs()})
-        dst.setncattr("history", f"{datetime.now():%Y-%m-%d} reduced to the variables used by the tests (reduce_his.py)")
+        dst.setncattr(
+            "history", f"{datetime.now():%Y-%m-%d} reduced to the variables used by the tests (reduce_his.py)"
+        )
         names = [name for name in src.variables if STATIC.match(name) or name in TIME_SERIES]
         dimensions = {dim for name in names for dim in src[name].dimensions}
         for dim in dimensions:

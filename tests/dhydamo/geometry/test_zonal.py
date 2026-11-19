@@ -186,7 +186,12 @@ def test_zonal_stats_rejects_invalid_coverage(
     with pytest.raises(ValueError, match=message):
         # coverage_weight="area_cartesian" is invalid on purpose
         zonal_stats(
-            full_zone, VALUES, statistic, strategy=FS, affine=TRANSFORM, **kwargs  # type: ignore[arg-type]
+            full_zone,
+            VALUES,
+            statistic,
+            strategy=FS,
+            affine=TRANSFORM,
+            **kwargs,  # type: ignore[arg-type]
         )
 
 
@@ -339,7 +344,9 @@ def test_zonal_stats_rejects_mismatched_raster_crs_of_an_array(full_zone: gpd.Ge
         )
 
 
-def test_zonal_stats_accepts_an_open_rasterio_dataset(raster_factory: RasterFactory, full_zone: gpd.GeoDataFrame) -> None:
+def test_zonal_stats_accepts_an_open_rasterio_dataset(
+    raster_factory: RasterFactory, full_zone: gpd.GeoDataFrame
+) -> None:
     with rasterio.open(raster_factory(VALUES)) as dataset:
         result = zonal_stats(full_zone, dataset, "mean", strategy=FS)
 
@@ -356,7 +363,9 @@ def test_zonal_stats_applies_array_affine_transform() -> None:
 
 
 @pytest.mark.parametrize("affine", [None, Affine.identity(), Affine.rotation(10)])
-def test_zonal_stats_rejects_array_without_north_up_transform(full_zone: gpd.GeoDataFrame, affine: Affine | None) -> None:
+def test_zonal_stats_rejects_array_without_north_up_transform(
+    full_zone: gpd.GeoDataFrame, affine: Affine | None
+) -> None:
     with pytest.raises(ValueError, match="north-up affine transform"):
         zonal_stats(full_zone, VALUES, "mean", strategy=FS, affine=affine)
 
@@ -374,9 +383,7 @@ def test_zonal_stats_per_raster_matches_zonal_stats_in_raster_order(
     # Three rasters over two calls.
     monkeypatch.setattr(zonal, "_RASTERS_PER_CALL", 2)
     rasters = [raster_factory(VALUES * factor) for factor in (1, 10, 100)]
-    zones = gpd.GeoDataFrame(
-        geometry=[PARTIAL_ZONE, box(0, 0, 3, 3)], index=[42, 7], crs=CRS
-    )
+    zones = gpd.GeoDataFrame(geometry=[PARTIAL_ZONE, box(0, 0, 3, 3)], index=[42, 7], crs=CRS)
 
     result = zonal_stats_per_raster(zones, rasters, "mean", strategy=FS)
 
@@ -392,18 +399,14 @@ def test_zonal_stats_per_raster_reads_numpy_and_lazy_arrays(full_zone: gpd.GeoDa
     dask_array = pytest.importorskip("dask.array")
     rasters = [VALUES, dask_array.from_array(VALUES * 10)]
 
-    result = zonal_stats_per_raster(
-        full_zone, rasters, "mean", strategy=FS, affine=TRANSFORM
-    )
+    result = zonal_stats_per_raster(full_zone, rasters, "mean", strategy=FS, affine=TRANSFORM)
 
     assert result.iloc[0].tolist() == [5.0, 50.0]
 
 
 def test_zonal_category_counts_per_integer_class(raster_factory: RasterFactory) -> None:
     values = np.array([[1, 1, 2], [1, 2, 2]], dtype=np.int16)
-    zones = gpd.GeoDataFrame(
-        geometry=[box(2, 0, 3, 2), box(0, 0, 2, 2)], index=[42, 7], crs=CRS
-    )
+    zones = gpd.GeoDataFrame(geometry=[box(2, 0, 3, 2), box(0, 0, 2, 2)], index=[42, 7], crs=CRS)
 
     result = zonal_category_counts(
         zones,
@@ -418,9 +421,7 @@ def test_zonal_category_counts_per_integer_class(raster_factory: RasterFactory) 
 def test_zonal_category_counts_uses_int_keys_for_integer_float_classes() -> None:
     zones = gpd.GeoDataFrame(geometry=[box(0, 0, 3, 3)], crs=CRS)
 
-    result = zonal_category_counts(
-        zones, VALUES.astype(np.float32), strategy=FS, affine=TRANSFORM
-    )
+    result = zonal_category_counts(zones, VALUES.astype(np.float32), strategy=FS, affine=TRANSFORM)
 
     assert result.columns.tolist() == list(range(1, 10))
     assert all(dtype == np.float64 for dtype in result.dtypes)
@@ -583,7 +584,9 @@ def test_zonal_cache_does_not_cache_arrays(extract_calls: list[None], full_zone:
     assert len(cache) == 0
 
 
-def test_zonal_cache_clear(raster_factory: RasterFactory, extract_calls: list[None], full_zone: gpd.GeoDataFrame) -> None:
+def test_zonal_cache_clear(
+    raster_factory: RasterFactory, extract_calls: list[None], full_zone: gpd.GeoDataFrame
+) -> None:
     cache = ZonalCache()
     path = raster_factory(VALUES)
 

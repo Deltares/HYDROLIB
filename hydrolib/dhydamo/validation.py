@@ -181,9 +181,7 @@ def validate_or_raise(
     )
     if validation_mode == "strict" and not result.success:
         joined_errors = "; ".join(result.errors) if result.errors else "unknown error"
-        raise HyDAMOValidationError(
-            f"HyDAMO validation failed for DAMO {hydamo_version}: {joined_errors}"
-        )
+        raise HyDAMOValidationError(f"HyDAMO validation failed for DAMO {hydamo_version}: {joined_errors}")
     return result
 
 
@@ -208,9 +206,7 @@ def _schema_version_for_damo(hv_module: Any, hydamo_version: str) -> tuple[str, 
             best_version = schema_file.stem.split("_")[1]
             best_schema = schema
     if best_version is not None and best_schema is not None:
-        valid_objects: list[str] = (
-            best_schema.get("$defs", {}).get("hydamo_objects", {}).get("enum", [])
-        )
+        valid_objects: list[str] = best_schema.get("$defs", {}).get("hydamo_objects", {}).get("enum", [])
         return best_version, valid_objects
     raise ValueError(
         f"The installed hydamo-validation package does not support DAMO version "

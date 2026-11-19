@@ -385,19 +385,14 @@ class Df2HydrolibModel:
         default locations (or else to the branches without a cross section).
         """
         # Check which of the branches do not have a cross section. Add the default one to those
-        branchids = {
-            dct["branchid"]
-            for dct in self.hydamo.crosssections.crosssection_loc.values()
-        }
+        branchids = {dct["branchid"] for dct in self.hydamo.crosssections.crosssection_loc.values()}
 
         # check if there locations specified where a default profile should be added
         default_locs: list[str] | pd.Index
         if hasattr(self.hydamo.crosssections, "default_locations"):
             default_locs = self.hydamo.crosssections.default_locations
         else:
-            default_locs = self.hydamo.branches.index[
-                ~self.hydamo.branches["code"].isin(branchids)
-            ]
+            default_locs = self.hydamo.branches.index[~self.hydamo.branches["code"].isin(branchids)]
 
         # If any are missing, check if a default cross section definition has been defined
         if (len(default_locs) > 0) & (self.assign_default_profiles):
@@ -421,10 +416,7 @@ class Df2HydrolibModel:
                     )
 
         # Add cross sections to dhydro format
-        css = [
-            CrossSection(**cloc)
-            for cloc in self.hydamo.crosssections.crosssection_loc.values()
-        ]
+        css = [CrossSection(**cloc) for cloc in self.hydamo.crosssections.crosssection_loc.values()]
 
         self._clear_comments(css)
         self.crosslocs += css
@@ -435,9 +427,7 @@ class Df2HydrolibModel:
         def _get_cstype_part_of_dict(cstype: str) -> dict:
             """Return the cross section definitions of one type."""
             return {
-                key: dct
-                for key, dct in self.hydamo.crosssections.crosssection_def.items()
-                if dct["type"] == cstype
+                key: dct for key, dct in self.hydamo.crosssections.crosssection_def.items() if dct["type"] == cstype
             }
 
         # Circles
@@ -476,16 +466,14 @@ class Df2HydrolibModel:
                     unit=bound["unit2"],
                     datablock=[[bound["vec2"]]],
                 )
-            elif bound['unit1'].startswith('minutes'):
+            elif bound["unit1"].startswith("minutes"):
                 bnd_bc = TimeSeries(
                     name=bound["nodeid"],
                     function="timeseries",
                     timeinterpolation="linear",
                     quantityunitpair=[
                         QuantityUnitPair(quantity="time", unit=bound["unit1"]),
-                        QuantityUnitPair(
-                            quantity=bound["quantity"], unit=bound["unit2"]
-                        ),
+                        QuantityUnitPair(quantity=bound["quantity"], unit=bound["unit2"]),
                     ],
                     datablock=list(map(list, zip(bound["vec1"], bound["vec2"]))),
                 )
@@ -516,7 +504,7 @@ class Df2HydrolibModel:
             if isinstance(lateral["discharge"], str):
                 # realtime boundary
                 lat_ext = Lateral(
-                    id=key,                    
+                    id=key,
                     locationtype="1d",
                     branchid=lateral["branchid"],
                     chainage=lateral["chainage"],
@@ -532,9 +520,7 @@ class Df2HydrolibModel:
                         timeinterpolation="linear",
                         quantityunitpair=[
                             QuantityUnitPair(quantity="time", unit=lateral["time_unit"]),
-                            QuantityUnitPair(
-                                quantity="lateral_discharge", unit="m3/s"
-                            ),
+                            QuantityUnitPair(quantity="lateral_discharge", unit="m3/s"),
                         ],
                         datablock=list(map(list, zip(lateral["time"], lateral["value"]))),
                     )
@@ -550,7 +536,7 @@ class Df2HydrolibModel:
                     )
                 self.forcingmodel.forcing.append(lat_bc)
                 lat_ext = Lateral(
-                    id=key,                    
+                    id=key,
                     locationtype=lateral["locationtype"],
                     branchid=lateral["branchid"],
                     chainage=float(lateral["chainage"]),
@@ -560,25 +546,19 @@ class Df2HydrolibModel:
 
     def friction_definitions_to_dhydro(self) -> None:
         """Convert the friction definitions to FrictGlobal objects."""
-        frictdefs = [
-            FrictGlobal(**frictdef)
-            for frictdef in self.hydamo.roughness_definitions.values()
-        ]
+        frictdefs = [FrictGlobal(**frictdef) for frictdef in self.hydamo.roughness_definitions.values()]
         self._clear_comments(frictdefs)
         self.friction_defs += frictdefs
 
     def storagenodes_to_dhydro(self) -> None:
         """Convert the storage nodes to StorageNode objects."""
-        stornodes = [
-            StorageNode(**stornode)
-            for stornode in self.hydamo.storagenodes.storagenodes.values()
-        ]
+        stornodes = [StorageNode(**stornode) for stornode in self.hydamo.storagenodes.storagenodes.values()]
         self._clear_comments(stornodes)
         self.storagenodes += stornodes
 
     def observation_points_to_dhydro(self) -> None:
         """Convert the observation points to ObservationPoint objects."""
-        if hasattr(self.hydamo.observationpoints, 'observation_points'):
+        if hasattr(self.hydamo.observationpoints, "observation_points"):
             obspoints = [
                 ObservationPoint(**obs)
                 # into=dict: see compounds_to_dhydro
@@ -943,9 +923,7 @@ class Df2HydrolibModel:
         return footprint
 
     @staticmethod
-    def _covered_parts(
-        footprint: dict, branches: gpd.GeoDataFrame
-    ) -> dict[str, list[tuple[float, float]]]:
+    def _covered_parts(footprint: dict, branches: gpd.GeoDataFrame) -> dict[str, list[tuple[float, float]]]:
         """Parts of the branches covered by a footprint, as {branch id: [(start chainage, end chainage), ...]}.
 
         Chainage intervals are compared instead of line geometries, which is robust to rounding in intersections.
@@ -965,18 +943,12 @@ class Df2HydrolibModel:
         return covered
 
     @staticmethod
-    def _overlap_length(
-        intervals_i: list[tuple[float, float]], intervals_j: list[tuple[float, float]]
-    ) -> float:
+    def _overlap_length(intervals_i: list[tuple[float, float]], intervals_j: list[tuple[float, float]]) -> float:
         """Total length of the overlap between two lists of chainage intervals."""
-        return sum(
-            max(0.0, min(b_i, b_j) - max(a_i, a_j)) for a_i, b_i in intervals_i for a_j, b_j in intervals_j
-        )
+        return sum(max(0.0, min(b_i, b_j) - max(a_i, a_j)) for a_i, b_i in intervals_i for a_j, b_j in intervals_j)
 
     @classmethod
-    def _check_level_and_depth(
-        cls, fields: list[dict], branches: gpd.GeoDataFrame, tolerance: float = 0.01
-    ) -> None:
+    def _check_level_and_depth(cls, fields: list[dict], branches: gpd.GeoDataFrame, tolerance: float = 0.01) -> None:
         """Warn where a water level field and a water depth field both give values on the same part of a branch.
 
         D-Flow FM applies the fields in order, and the last field wins, also between water level and water
@@ -1142,7 +1114,7 @@ class Df2HydrolibModel:
                             branchid=str(branch_id), numlocations=len(chainage), chainage=chainage, values=values
                         )
                         for branch_id, (chainage, values) in data["branches"].items()
-                    ]
+                    ],
                 ).save(filepath=path)
             elif data["filetype"] == "polygon":
                 objects = []
@@ -1164,12 +1136,7 @@ class Df2HydrolibModel:
                     nodata=data["nodata"],
                 )
             else:
-                xyz = XYZModel(
-                    points=[
-                        XYZPoint(x=x, y=y, z=z)
-                        for x, y, z in zip(data["x"], data["y"], data["z"])
-                    ]
-                )
+                xyz = XYZModel(points=[XYZPoint(x=x, y=y, z=z) for x, y, z in zip(data["x"], data["y"], data["z"])])
                 xyz.save(filepath=path)
 
     def write_initial_fields(self, fm: FMModel, fm_dir: Path | str) -> IniFieldModel:

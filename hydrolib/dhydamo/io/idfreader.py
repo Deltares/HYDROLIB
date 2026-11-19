@@ -39,10 +39,12 @@ from rasterio.transform import from_origin
 
 f_open = open
 
+
 def _all_equal(seq, elem):
     """Raise an error if not all elements of a list are equal"""
     if seq.count(seq[0]) != len(seq):
         raise ValueError(f"All {elem} must be the same, found: {set(seq)}")
+
 
 def _check_cellsizes(cellsizes):
     """
@@ -63,7 +65,7 @@ def _check_cellsizes(cellsizes):
     if len(cellsizes) == 1:
         return
     try:
-        if (cellsizes.count(cellsizes[0]) != len(cellsizes)):
+        if cellsizes.count(cellsizes[0]) != len(cellsizes):
             raise ValueError(msg)
     except ValueError:  # contains ndarrays
         try:
@@ -89,6 +91,7 @@ def _check_cellsizes(cellsizes):
                 if not np.allclose(cellsize[1], dy):
                     raise ValueError(msg)
 
+
 def _to_nan(a, nodata):
     """Change all nodata values in the array to NaN"""
     # it needs to be NaN for xarray to deal with it properly
@@ -99,6 +102,7 @@ def _to_nan(a, nodata):
         isnodata = np.isclose(a, nodata)
         a[isnodata] = np.nan
         return a
+
 
 def _array_z_coord(coords, tops, bots, unique_indices):
     top = np.array(tops)[unique_indices]
@@ -249,7 +253,6 @@ def _ndconcat(arrays, ndim):
         return dask.array.stack(out, axis=0)
 
 
-
 def _xycoords(bounds, cellsizes):
     """Based on bounds and cellsizes, construct coords with spatial information"""
     # unpack tuples
@@ -276,6 +279,7 @@ def _xycoords(bounds, cellsizes):
             coords["dy"] = ("y", dy)
     return coords
 
+
 def _convert_datetimes(times, use_cftime):
     """
     Return times as np.datetime64[ns] or cftime.DatetimeProlepticGregorian
@@ -290,9 +294,7 @@ def _convert_datetimes(times, use_cftime):
 
     out_of_bounds = False
     if use_cftime:
-        converted = [
-            cftime.DatetimeProlepticGregorian(*time.timetuple()[:6]) for time in times
-        ]
+        converted = [cftime.DatetimeProlepticGregorian(*time.timetuple()[:6]) for time in times]
     else:
         for time in times:
             year = time.year
@@ -304,10 +306,7 @@ def _convert_datetimes(times, use_cftime):
             use_cftime = True
             msg = "Dates are outside of np.datetime64[ns] timespan. Converting to cftime.DatetimeProlepticGregorian."
             warnings.warn(msg)
-            converted = [
-                cftime.DatetimeProlepticGregorian(*time.timetuple()[:6])
-                for time in times
-            ]
+            converted = [cftime.DatetimeProlepticGregorian(*time.timetuple()[:6]) for time in times]
         else:
             converted = [np.datetime64(time, "ns") for time in times]
 
@@ -327,14 +326,10 @@ def _dims_coordinates(header_coords, bounds, cellsizes, tops, bots, use_cftime):
     for dim in list(header_coords.keys()):
         if dim == "layer":
             haslayer = True
-            coords["layer"], unique_indices = np.unique(
-                header_coords["layer"], return_index=True
-            )
+            coords["layer"], unique_indices = np.unique(header_coords["layer"], return_index=True)
         elif dim == "time":
             hastime = True
-            times, use_cftime = _convert_datetimes(
-                header_coords["time"], use_cftime
-            )
+            times, use_cftime = _convert_datetimes(header_coords["time"], use_cftime)
             if use_cftime:
                 coords["time"] = xr.CFTimeIndex(np.unique(times))
             else:
@@ -438,9 +433,7 @@ def _load(paths, use_cftime, pattern, _read, header):
     _all_equal(bounds, "bounding boxes")
     _check_cellsizes(cellsizes)
     # Generate coordinates
-    dims, coords = _dims_coordinates(
-        header_coords, bounds, cellsizes, tops, bots, use_cftime
-    )
+    dims, coords = _dims_coordinates(header_coords, bounds, cellsizes, tops, bots, use_cftime)
     # This part have makes use of recursion to deal with an arbitrary number
     # of dimensions. It may therefore be a little hard to read.
     groupbydims = dims[:-2]  # skip y and x
@@ -467,6 +460,7 @@ def _load(paths, use_cftime, pattern, _read, header):
 
     return out
 
+
 def _groupdict(stem, pattern):
     if pattern is not None:
         if isinstance(pattern, re.Pattern):
@@ -483,9 +477,7 @@ def _groupdict(stem, pattern):
             d = re_pattern.match(stem).groupdict()
     else:  # Default to "iMOD conventions": {name}_c{species}_{time}_l{layer}
         has_layer = bool(re.search(r"_l\d+$", stem))
-        has_species = bool(
-            re.search(r"conc_c\d{1,3}_\d{8,14}", stem)
-        )  # We are strict in recognizing species
+        has_species = bool(re.search(r"conc_c\d{1,3}_\d{8,14}", stem))  # We are strict in recognizing species
         try:  # try for time
             base_pattern = r"(?P<name>[\w-]+)"
             if has_species:
@@ -504,6 +496,7 @@ def _groupdict(stem, pattern):
             re_pattern = re.compile(base_pattern)
             d = re_pattern.match(stem).groupdict()
     return d
+
 
 DATETIME_FORMATS = {
     14: "%Y%m%d%H%M%S",
@@ -577,7 +570,7 @@ def decompose(path, pattern=None):
         d["name"] = "_".join(d.values())
     else:
         dims.remove("name")
-    
+
     # String -> type conversion
     if "layer" in d:
         d["layer"] = int(d["layer"])
@@ -595,7 +588,6 @@ def decompose(path, pattern=None):
     d["directory"] = path.parent
     d["dims"] = dims
     return d
-
 
 
 def header(path, pattern):
@@ -854,4 +846,3 @@ def affine_from_idf(dataset: xr.DataArray) -> Affine:
     west = float(dataset["x"].min()) - dx / 2.0
     north = float(dataset["y"].max()) - dy / 2.0
     return from_origin(west, north, dx, -dy)
-

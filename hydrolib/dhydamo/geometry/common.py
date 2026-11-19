@@ -15,7 +15,7 @@ from shapely.geometry import (
 
 
 def as_linestring_list(
-    linestring: LineString | MultiLineString | list[LineString | MultiLineString]
+    linestring: LineString | MultiLineString | list[LineString | MultiLineString],
 ) -> list[LineString]:
     """Return the LineStrings in a LineString, a MultiLineString or a list of those.
 
@@ -48,9 +48,7 @@ def as_linestring_list(
     return linestrings
 
 
-def as_polygon_list(
-    polygon: Polygon | MultiPolygon | list[Polygon | MultiPolygon]
-) -> list[Polygon]:
+def as_polygon_list(polygon: Polygon | MultiPolygon | list[Polygon | MultiPolygon]) -> list[Polygon]:
     """Return the Polygons in a Polygon, a MultiPolygon or a list of those.
 
     Useful to iterate over geometries that can be single or multi.
@@ -82,9 +80,7 @@ def as_polygon_list(
     return polygons
 
 
-def as_point_list(
-    point: Point | MultiPoint | list[Point | MultiPoint]
-) -> list[Point]:
+def as_point_list(point: Point | MultiPoint | list[Point | MultiPoint]) -> list[Point]:
     """Return the Points in a Point, a MultiPoint or a list of those.
 
     Useful to iterate over geometries that can be single or multi.

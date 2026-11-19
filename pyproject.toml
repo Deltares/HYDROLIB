@@ -106,7 +106,7 @@ version_files = [
 changelog_file = "docs/changelog.md"
 
 [tool.ruff]
-line-length = 88
+line-length = 120
 target-version = "py311"
 src = ["hydrolib", "tests"]
 # deprecated, to be removed

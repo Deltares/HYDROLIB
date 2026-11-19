@@ -215,9 +215,9 @@ def test_complex_controller_multiple_folders() -> None:
         "timeseries",
         "state",
     ):
-        assert len(rtcd1.complex_controllers[key]) + len(
-            rtcd2.complex_controllers[key]
-        ) == len(rtcd.complex_controllers[key])
+        assert len(rtcd1.complex_controllers[key]) + len(rtcd2.complex_controllers[key]) == len(
+            rtcd.complex_controllers[key]
+        )
 
 
 def test_complex_controller_multiple_folders_dimr_merged() -> None:
@@ -240,12 +240,7 @@ def test_complex_controller_multiple_folders_dimr_merged() -> None:
     )
     assert rtcd.complex_controllers is not None
     root = rtcd.complex_controllers["dimr_config"][0]
-    targets = {
-        el.text
-        for el in root.findall(
-            ".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName"
-        )
-    }
+    targets = {el.text for el in root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")}
     assert "weirs/S_96684/crestLevel" in targets
     assert "weirs/S_96789/crestLevel" in targets
 
@@ -329,9 +324,7 @@ def test_dimrwriter_flow_to_rtc_components_for_complex_only() -> None:
 
     # the control block must reference flow_to_rtc too, otherwise DIMR never
     # invokes the coupler even though it's defined below
-    control_coupler = root.find(
-        "./{*}control/{*}parallel/{*}startGroup/{*}coupler[@name='flow_to_rtc']"
-    )
+    control_coupler = root.find("./{*}control/{*}parallel/{*}startGroup/{*}coupler[@name='flow_to_rtc']")
     assert control_coupler is not None
 
 
@@ -357,25 +350,15 @@ def test_drtc_deduplicates_complex_fragments() -> None:
 
     # Inject duplicate complex snippets explicitly.
     assert rtcd.complex_controllers is not None
-    rtcd.complex_controllers["dataconfig_import"].append(
-        rtcd.complex_controllers["dataconfig_import"][0]
-    )
-    rtcd.complex_controllers["dataconfig_export"].append(
-        rtcd.complex_controllers["dataconfig_export"][0]
-    )
-    rtcd.complex_controllers["timeseries"].append(
-        rtcd.complex_controllers["timeseries"][0]
-    )
+    rtcd.complex_controllers["dataconfig_import"].append(rtcd.complex_controllers["dataconfig_import"][0])
+    rtcd.complex_controllers["dataconfig_export"].append(rtcd.complex_controllers["dataconfig_export"][0])
+    rtcd.complex_controllers["timeseries"].append(rtcd.complex_controllers["timeseries"][0])
     rtcd.complex_controllers["state"].append(rtcd.complex_controllers["state"][0])
 
     rtcd.write_xml_v1()
 
     rtc_data_root = ET.parse(output_path / "rtc" / "rtcDataConfig.xml").getroot()
-    dataconfig_ids = [
-        el.attrib["id"]
-        for el in rtc_data_root.findall(".//{*}timeSeries")
-        if "id" in el.attrib
-    ]
+    dataconfig_ids = [el.attrib["id"] for el in rtc_data_root.findall(".//{*}timeSeries") if "id" in el.attrib]
     assert len(dataconfig_ids) == len(set(dataconfig_ids))
 
     ts_root = ET.parse(output_path / "rtc" / "timeseries_import.xml").getroot()
@@ -389,11 +372,7 @@ def test_drtc_deduplicates_complex_fragments() -> None:
     assert len(ts_keys) == len(set(ts_keys))
 
     state_root = ET.parse(output_path / "rtc" / "state_import.xml").getroot()
-    state_ids = [
-        leaf.attrib["id"]
-        for leaf in state_root.findall(".//{*}treeVectorLeaf")
-        if "id" in leaf.attrib
-    ]
+    state_ids = [leaf.attrib["id"] for leaf in state_root.findall(".//{*}treeVectorLeaf") if "id" in leaf.attrib]
     assert len(state_ids) == len(set(state_ids))
 
 
@@ -484,12 +463,8 @@ def test_complex_controller_filters_dimr_items_missing_from_hydamo(caplog: pytes
     # reproduces cases where user-supplied RTC XML still contains an old/foreign
     # structure id, such as a DIMR target that is no longer present in HyDAMO.
     missing_structure_id = "S_96840"
-    hydamo.structures.rweirs_df = hydamo.structures.rweirs_df[
-        hydamo.structures.rweirs_df.id != missing_structure_id
-    ]
-    hydamo.structures.uweirs_df = hydamo.structures.uweirs_df[
-        hydamo.structures.uweirs_df.id != missing_structure_id
-    ]
+    hydamo.structures.rweirs_df = hydamo.structures.rweirs_df[hydamo.structures.rweirs_df.id != missing_structure_id]
+    hydamo.structures.uweirs_df = hydamo.structures.uweirs_df[hydamo.structures.uweirs_df.id != missing_structure_id]
 
     hydamo.observationpoints.add_points(
         [Point(200064, 395087), Point(199996, 393899), Point(199877, 393954)],
@@ -536,12 +511,7 @@ def test_complex_controller_filters_dimr_items_missing_from_hydamo(caplog: pytes
     # complex-controller id must not survive as an rtc_to_flow coupling target,
     # otherwise DIMR can reference an RTC output that no RTC XML defines.
     dimr_root = rtcd.complex_controllers["dimr_config"][0]
-    dimr_targets = {
-        el.text
-        for el in dimr_root.findall(
-            ".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName"
-        )
-    }
+    dimr_targets = {el.text for el in dimr_root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")}
     assert f"weirs/{missing_structure_id}/crestLevel" not in dimr_targets
 
 
@@ -609,7 +579,9 @@ def test_complex_controller_wrong(caplog: pytest.LogCaptureFixture) -> None:
 
     check_msg1 = "dimr_config.xml: Skipped rtc_to_flow element with 'targetName' 'weirs/S_96548/crestLevel': excluded by id_limit_complex_controllers."
     check_msg2 = "rtcDataConfig.xml: Skipped exportSeries item for elementId 'S_96548': excluded by id_limit_complex_controllers."
-    check_msg3 = "rtcToolsConfig.xml: Skipped rule element '[PID]PIDfout/PID Rule': excluded by id_limit_complex_controllers."
+    check_msg3 = (
+        "rtcToolsConfig.xml: Skipped rule element '[PID]PIDfout/PID Rule': excluded by id_limit_complex_controllers."
+    )
     check_msg4 = "RtcToolsConfig.xml: Skipped writing Time control for S_96840, complex controller already present"
 
     assert check_msg1 in caplog.messages
@@ -739,7 +711,9 @@ def test_resolve_management_structure_null_regelmiddelid_raises(minimal_drtc: tu
         drtc._resolve_management_structure(row)
 
 
-def test_resolve_management_structure_device_not_found_returns_none(minimal_drtc: tuple[DRTCModel, HyDAMO], caplog: pytest.LogCaptureFixture) -> None:
+def test_resolve_management_structure_device_not_found_returns_none(
+    minimal_drtc: tuple[DRTCModel, HyDAMO], caplog: pytest.LogCaptureFixture
+) -> None:
     drtc, hydamo = minimal_drtc
     hydamo.management_device = ExtendedDataFrame(data={"globalid": ["other-guid"], "duikersifonhevelid": [None]})
 
@@ -753,10 +727,12 @@ def test_resolve_management_structure_device_not_found_returns_none(minimal_drtc
 
 def test_resolve_management_structure_culvert(minimal_drtc: tuple[DRTCModel, HyDAMO]) -> None:
     drtc, hydamo = minimal_drtc
-    hydamo.management_device = ExtendedDataFrame(data={
-        "globalid": ["dev-guid"],
-        "duikersifonhevelid": ["culv-guid"],
-    })
+    hydamo.management_device = ExtendedDataFrame(
+        data={
+            "globalid": ["dev-guid"],
+            "duikersifonhevelid": ["culv-guid"],
+        }
+    )
     hydamo.culverts = ExtendedGeoDataFrame(
         geotype=LineString,
         required_columns=["globalid", "code", "geometry"],

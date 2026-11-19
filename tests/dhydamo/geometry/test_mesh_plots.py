@@ -2,7 +2,7 @@ import matplotlib
 import numpy as np
 import pytest
 
-matplotlib.use('Agg')  # Use non-interactive backend for headless environments
+matplotlib.use("Agg")  # Use non-interactive backend for headless environments
 
 from tests.dhydamo.geometry import test_mesh
 
@@ -59,7 +59,7 @@ def test_plot_1d_add_branch_from_linestring() -> None:
 
 @pytest.mark.plot
 @pytest.mark.parametrize(
-    ('b_within', 'b_branchids', 'b_refine', 'max_length', 'b_plot', 'outcome'),
+    ("b_within", "b_branchids", "b_refine", "max_length", "b_plot", "outcome"),
     [
         (False, False, False, np.inf, True, 15),
         (False, False, False, 1, True, 11),
@@ -76,13 +76,13 @@ def test_plot_links1d2d_add_links_1d_to_2d(
 
 @pytest.mark.plot
 @pytest.mark.parametrize(
-    ('b_within', 'b_branchids', 'b_refine', 'max_length', 'b_plot', 'outcome'),
+    ("b_within", "b_branchids", "b_refine", "max_length", "b_plot", "outcome"),
     [
         (False, False, False, np.inf, True, 38),
         (False, False, False, 1, True, 1),
         (True, False, False, np.inf, True, 30),
-        (False, True, False,  np.inf, True, 0),
-        (False, False, True,  np.inf, True, 39),
+        (False, True, False, np.inf, True, 0),
+        (False, False, True, np.inf, True, 39),
     ],
 )
 def test_plot_links1d2d_add_links_2d_to_1d_lateral(
@@ -93,7 +93,7 @@ def test_plot_links1d2d_add_links_2d_to_1d_lateral(
 
 @pytest.mark.plot
 @pytest.mark.parametrize(
-    ('b_within', 'b_branchids', 'b_refine', 'b_plot', 'outcome'),
+    ("b_within", "b_branchids", "b_refine", "b_plot", "outcome"),
     [
         (False, False, False, True, 24),
         (True, False, False, True, 11),
@@ -124,9 +124,7 @@ def test_plot_links1d2d_remove_1d_endpoints() -> None:
 
 @pytest.mark.plot
 def test_plot_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint() -> None:
-    test_mesh.test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(
-        do_plot=True
-    )
+    test_mesh.test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(do_plot=True)
 
 
 @pytest.mark.plot

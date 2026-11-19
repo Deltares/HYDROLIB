@@ -233,13 +233,9 @@ def build_cascade_plan(
         current_rows = current_source
 
         for relation in path:
-            current_table, current_rows = follow_relation(
-                hydamo, relation, current_table, current_rows
-            )
+            current_table, current_rows = follow_relation(hydamo, relation, current_table, current_rows)
             if current_table in planned:
-                planned[current_table] = planned[current_table].union(
-                    current_rows.index
-                )
+                planned[current_table] = planned[current_table].union(current_rows.index)
             else:
                 planned[current_table] = current_rows.index.copy()
 
@@ -394,18 +390,12 @@ class CascadeRelations:
         (RelationsHyDAMO.PROFILE_LINE_GROUP,),
         (RelationsHyDAMO.PROFILE_LINE, RelationsHyDAMO.PROFILE_ROUGHNESS),
     )
-    WEIRS: ClassVar[CascadePaths] = (
-        (RelationsHyDAMO.OPENING_WEIR, RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING),
-    )
-    PUMPSTATIONS: ClassVar[CascadePaths] = (
-        (RelationsHyDAMO.PUMP_PUMPSTATION, RelationsHyDAMO.MANAGEMENT_PUMP),
-    )
+    WEIRS: ClassVar[CascadePaths] = ((RelationsHyDAMO.OPENING_WEIR, RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING),)
+    PUMPSTATIONS: ClassVar[CascadePaths] = ((RelationsHyDAMO.PUMP_PUMPSTATION, RelationsHyDAMO.MANAGEMENT_PUMP),)
     CULVERTS: ClassVar[CascadePaths] = ((RelationsHyDAMO.MANAGEMENT_DEVICE_CULVERT,),)
     CATCHMENTS: ClassVar[CascadePaths] = ((RelationsRR.CATCHMENT_LATERAL,),)
     LATERALS: ClassVar[CascadePaths] = ((RelationsRR.CATCHMENT_LATERAL,),)
     OVERFLOWS: ClassVar[CascadePaths] = ((RelationsRR.OVERFLOW_SEWER_AREA,),)
     SEWER_AREAS: ClassVar[CascadePaths] = ((RelationsRR.OVERFLOW_SEWER_AREA,),)
     GREENHOUSE_AREAS: ClassVar[CascadePaths] = ((RelationsRR.GREENHOUSE_LATERAL_AREA,),)
-    GREENHOUSE_LATERALS: ClassVar[CascadePaths] = (
-        (RelationsRR.GREENHOUSE_LATERAL_AREA,),
-    )
+    GREENHOUSE_LATERALS: ClassVar[CascadePaths] = ((RelationsRR.GREENHOUSE_LATERAL_AREA,),)

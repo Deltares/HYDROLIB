@@ -20,4 +20,7 @@ def test_interp_polygon_multipolygon() -> None:
     result = common.interp_polygon(MultiPolygon(polygons), 2.0)
 
     assert isinstance(result, MultiPolygon)
-    assert [part.equals(common.interp_polygon(polygon, 2.0)) for part, polygon in zip(result.geoms, polygons)] == [True, True]
+    assert [part.equals(common.interp_polygon(polygon, 2.0)) for part, polygon in zip(result.geoms, polygons)] == [
+        True,
+        True,
+    ]

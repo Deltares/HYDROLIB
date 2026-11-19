@@ -226,15 +226,15 @@ class UnpavedIO:
             ms = _meteo_area(meteo_areas, cat_geometry.centroid)
             landuse_counts = lu_counts.iloc[num].copy()
             mapping = np.zeros(16, dtype=int)
-            
+
             # subtract greenhouse area from most occurring land use if no greenhouse area is in the landuse map
             if greenhouse_areas is not None and cat_geometry.intersects(greenhouse_areas.geometry).any():
                 intersection_area = greenhouse_areas.geometry.intersection(cat_geometry).area
-                intersection_area = intersection_area[intersection_area > 0.].to_numpy()[0]                    
+                intersection_area = intersection_area[intersection_area > 0.0].to_numpy()[0]
                 if landuse_counts.get(15, 0) > 0:
                     # divide area to subtract between greenhouses and the most occurring area
-                    remainder = np.max([0., intersection_area - float(landuse_counts[15] * px_area)])
-                else:    
+                    remainder = np.max([0.0, intersection_area - float(landuse_counts[15] * px_area)])
+                else:
                     remainder = intersection_area
                 maxind = landuse_counts.idxmax()
                 logger.info(
@@ -243,10 +243,8 @@ class UnpavedIO:
                     remainder,
                     maxind,
                 )
-                landuse_counts[maxind] = np.max(
-                    [0.0, landuse_counts[maxind] - np.round(remainder / px_area)]
-                )
-            
+                landuse_counts[maxind] = np.max([0.0, landuse_counts[maxind] - np.round(remainder / px_area)])
+
             for i in range(1, 13):
                 mapping[sobek_indices[i - 1] - 1] = landuse_counts.get(i, 0) * px_area
             lu_map = " ".join(map(str, mapping))
@@ -256,24 +254,22 @@ class UnpavedIO:
                 total_area=f"{cat_geometry.area:.0f}",
                 lu_areas=lu_map,
                 surface_level=f"{elev:.2f}",
-                soiltype=f'{soiltypes.iloc[num]["mode"] + 100.0:.0f}',
+                soiltype=f"{soiltypes.iloc[num]['mode'] + 100.0:.0f}",
                 surface_storage=(
                     f"{surface_storage:.3f}"
                     if isinstance(surface_storage, float)
-                    else f'{sstores.iloc[num]["mean"]:.3f}'
+                    else f"{sstores.iloc[num]['mean']:.3f}"
                 ),
                 infiltration_capacity=(
                     f"{infiltration_capacity:.3f}"
                     if isinstance(infiltration_capacity, float)
-                    else f'{infcaps.iloc[num]["mean"]:.3f}'
+                    else f"{infcaps.iloc[num]['mean']:.3f}"
                 ),
                 initial_gwd=(
-                    f"{initial_gwd:.2f}"
-                    if isinstance(initial_gwd, float)
-                    else f'{ini_gwds.iloc[num]["mean"]:.2f}'
+                    f"{initial_gwd:.2f}" if isinstance(initial_gwd, float) else f"{ini_gwds.iloc[num]['mean']:.2f}"
                 ),
                 meteo_area=str(ms),
-                px=f"{cat_geometry.centroid.coords[0][0]-10:.0f}",
+                px=f"{cat_geometry.centroid.coords[0][0] - 10:.0f}",
                 py=f"{cat_geometry.centroid.coords[0][1]:.0f}",
                 boundary_node=str(cat.boundary_node),
             )
@@ -306,15 +302,13 @@ class UnpavedIO:
             infiltration_resistance = 300.0
         if runoff_resistance is None:
             runoff_resistance = 1.0
-        
+
         cvo = " ".join([str(res) for res in resistance])
         lv = " ".join([str(depth) for depth in depths])
         cvi = f"{infiltration_resistance:.2f}"
         cvs = f"{runoff_resistance:.2f}"
         for cat in catchments.itertuples():
-            self.unpaved.add_ernst_def(
-                id=str(cat.code), cvo=cvo, lv=lv, cvi=cvi, cvs=cvs
-            )
+            self.unpaved.add_ernst_def(id=str(cat.code), cvo=cvo, lv=lv, cvi=cvi, cvs=cvs)
 
 
 class PavedIO:
@@ -335,9 +329,9 @@ class PavedIO:
         catchments: ExtendedGeoDataFrame,
         landuse: StrictStr | Path,
         surface_level: StrictStr | Path,
-        street_storage:StrictStr | Path | float,
-        sewer_storage:StrictStr | Path | float,
-        pump_capacity:StrictStr | Path | float,
+        street_storage: StrictStr | Path | float,
+        sewer_storage: StrictStr | Path | float,
+        pump_capacity: StrictStr | Path | float,
         meteo_areas: ExtendedGeoDataFrame,
         overflows: ExtendedGeoDataFrame | None = None,
         sewer_areas: ExtendedGeoDataFrame | None = None,
@@ -411,7 +405,7 @@ class PavedIO:
                 strategy="feature-sequential",
                 raster_crs=reference_crs,
             )
-        
+
         if isinstance(sewer_storage, (Path, str)):
             sew_stors = zonal.zonal_stats(
                 gpd.GeoDataFrame(catchments),
@@ -422,8 +416,8 @@ class PavedIO:
                 strategy="feature-sequential",
                 raster_crs=reference_crs,
             )
-        
-        if isinstance(pump_capacity,  (Path, str)):
+
+        if isinstance(pump_capacity, (Path, str)):
             # raster of POC in mm/h
             pump_caps = zonal.zonal_stats(
                 gpd.GeoDataFrame(catchments),
@@ -448,7 +442,7 @@ class PavedIO:
         ]
         if sewer_areas is not None:
             # if the parameters ara rasters, do the zonal statistics per sewage area as well.
-            if isinstance(street_storage,(Path, str)):
+            if isinstance(street_storage, (Path, str)):
                 str_stors_sa = zonal.zonal_stats(
                     gpd.GeoDataFrame(sewer_areas),
                     street_storage,
@@ -524,36 +518,48 @@ class PavedIO:
                     if isinstance(street_storage, float):
                         street_storage_val = f"{street_storage:.2f}"
                     elif isinstance(street_storage, (Path, str)):
-                        street_storage_val = f'{str_stors_sa.iloc[isew]["mean"]:.2f}'
+                        street_storage_val = f"{str_stors_sa.iloc[isew]['mean']:.2f}"
                     else:
-                        raise TypeError('Street_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int).')
+                        raise TypeError(
+                            "Street_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int)."
+                        )
 
                     # three options: it can be an attribute of a sewer area, a uniform value or a raster
                     riool_berging_mm = getattr(sew, "riool_berging_mm", None)
-                    if riool_berging_mm is None or np.isnan(riool_berging_mm) or not isinstance(riool_berging_mm, float):
+                    if (
+                        riool_berging_mm is None
+                        or np.isnan(riool_berging_mm)
+                        or not isinstance(riool_berging_mm, float)
+                    ):
                         if isinstance(sewer_storage, float):
                             sewer_storage_val = f"{sewer_storage:.2f}"
                         elif isinstance(sewer_storage, (Path, str)):
-                            sewer_storage_val = f'{sew_stors_sa.iloc[isew]["mean"]:.2f}'
+                            sewer_storage_val = f"{sew_stors_sa.iloc[isew]['mean']:.2f}"
                         else:
-                            raise TypeError('Sewer_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int).')
+                            raise TypeError(
+                                "Sewer_storage has the wrong datatype. It should be a filename (Path or string) or number (float or int)."
+                            )
                     else:
-                        sewer_storage_val = f'{riool_berging_mm:.2f}'
+                        sewer_storage_val = f"{riool_berging_mm:.2f}"
 
                     # three options: it can be an attribute of a sewer area, a uniform value or a raster
                     riool_poc_m3s = getattr(sew, "riool_poc_m3s", None)
                     if riool_poc_m3s is None or np.isnan(riool_poc_m3s) or not isinstance(riool_poc_m3s, float):
                         if isinstance(pump_capacity, float):
                             # convert the value from mm/h to m3/s
-                            pump_capacity_val = f"{pump_capacity * (float(sewer_pav_area) * ov.fractie) / (1000. * 3600.):.8f}"
+                            pump_capacity_val = (
+                                f"{pump_capacity * (float(sewer_pav_area) * ov.fractie) / (1000.0 * 3600.0):.8f}"
+                            )
                         elif isinstance(pump_capacity, (Path, str)):
                             # convert the value (extracted from the raster) from mm/h to m3/s
-                            pump_capacity_val = f'{pump_caps_sa.iloc[isew]["mean"] * (float(sewer_pav_area) * ov.fractie) / (1000. * 3600.):.8f}'
+                            pump_capacity_val = f"{pump_caps_sa.iloc[isew]['mean'] * (float(sewer_pav_area) * ov.fractie) / (1000.0 * 3600.0):.8f}"
                         else:
-                            raise TypeError('Pump_capacity has the wrong datatype. It should be a filename (Path or string) or number (float or int).')
+                            raise TypeError(
+                                "Pump_capacity has the wrong datatype. It should be a filename (Path or string) or number (float or int)."
+                            )
                     else:
                         # use the attribute value
-                        pump_capacity_val = f'{riool_poc_m3s * ov.fractie:.8f}'
+                        pump_capacity_val = f"{riool_poc_m3s * ov.fractie:.8f}"
 
                     # add prefix to the overflow id to create the paved-node id
                     self.paved.add_paved(
@@ -564,7 +570,7 @@ class PavedIO:
                         sewer_storage=sewer_storage_val,
                         pump_capacity=pump_capacity_val,
                         meteo_area=str(ms),
-                        px=f"{ov_geometry.coords[0][0]+10:.0f}",
+                        px=f"{ov_geometry.coords[0][0] + 10:.0f}",
                         py=f"{ov_geometry.coords[0][1]:.0f}",
                         boundary_node=ov.code,
                     )
@@ -601,9 +607,7 @@ class PavedIO:
             elif num in outside_counts.index:
                 pav_area = str(outside_counts.loc[num].get(14, 0) * px_area)
             else:
-                logger.info(
-                    f"No paved area outside sewer area in catchments {cat.code}."
-                )
+                logger.info(f"No paved area outside sewer area in catchments {cat.code}.")
                 pav_area = "0.0"
 
             # find corresponding meteo-station
@@ -612,19 +616,15 @@ class PavedIO:
             elev = stats_elev.iloc[num]["median"]
             # if a float is given, a standard value is passed. If a string is given, a rastername is assumed to zonal statistics are applied.
             street_storage_val = (
-                f"{street_storage:.2f}"
-                if isinstance(street_storage, float)
-                else f'{str_stors.iloc[num]["mean"]:.2f}'
+                f"{street_storage:.2f}" if isinstance(street_storage, float) else f"{str_stors.iloc[num]['mean']:.2f}"
             )
             sewer_storage_val = (
-                f"{sewer_storage:.2f}"
-                if isinstance(sewer_storage, float)
-                else f'{sew_stors.iloc[num]["mean"]:.2f}'
+                f"{sewer_storage:.2f}" if isinstance(sewer_storage, float) else f"{sew_stors.iloc[num]['mean']:.2f}"
             )
             pump_capacity_val = (
-                f'{(pump_capacity * float(pav_area)) / (1000. * 3600.):.8f}'
+                f"{(pump_capacity * float(pav_area)) / (1000.0 * 3600.0):.8f}"
                 if isinstance(pump_capacity, float)
-                else f'{pump_caps.iloc[num]["mean"] * (float(pav_area)) / (1000. * 3600.):.8f}'
+                else f"{pump_caps.iloc[num]['mean'] * (float(pav_area)) / (1000.0 * 3600.0):.8f}"
             )
             self.paved.add_paved(
                 id=str(cat.code),
@@ -634,7 +634,7 @@ class PavedIO:
                 sewer_storage=sewer_storage_val,
                 pump_capacity=pump_capacity_val,
                 meteo_area=str(ms),
-                px=f"{cat_geometry.centroid.coords[0][0]+10:.0f}",
+                px=f"{cat_geometry.centroid.coords[0][0] + 10:.0f}",
                 py=f"{cat_geometry.centroid.coords[0][1]:.0f}",
                 boundary_node=str(cat.boundary_node),
             )
@@ -660,8 +660,8 @@ class GreenhouseIO:
         surface_level: Path | str,
         roof_storage: StrictStr | float,
         meteo_areas: ExtendedGeoDataFrame,
-        greenhouse_areas: ExtendedGeoDataFrame | None=None,
-        greenhouse_laterals: ExtendedGeoDataFrame | None=None,
+        greenhouse_areas: ExtendedGeoDataFrame | None = None,
+        greenhouse_laterals: ExtendedGeoDataFrame | None = None,
         basin_storage_class: int = 2,
         *,
         min_coverage_frac: float = 0.0,
@@ -724,34 +724,34 @@ class GreenhouseIO:
         )
         if greenhouse_areas is not None:
             stats_elev_gh = zonal.zonal_stats(
-                 gpd.GeoDataFrame(greenhouse_areas),
-                 surface_level,
-                 statistics=("median",),
-                 min_coverage_frac=min_coverage_frac,
-                 coverage_weight=coverage_weight,
-                 strategy="feature-sequential",
+                gpd.GeoDataFrame(greenhouse_areas),
+                surface_level,
+                statistics=("median",),
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                strategy="feature-sequential",
             )
-            
+
         # optional rasters
         if isinstance(roof_storage, (Path, str)):
             roofstors = zonal.zonal_stats(
-                 gpd.GeoDataFrame(catchments),
-                 roof_storage,
-                 statistics=("mean",),
-                 min_coverage_frac=min_coverage_frac,
-                 coverage_weight=coverage_weight,
-                 strategy="feature-sequential",
-                 raster_crs=reference_crs,
+                gpd.GeoDataFrame(catchments),
+                roof_storage,
+                statistics=("mean",),
+                min_coverage_frac=min_coverage_frac,
+                coverage_weight=coverage_weight,
+                strategy="feature-sequential",
+                raster_crs=reference_crs,
             )
             if greenhouse_areas is not None:
                 roofstors_gh = zonal.zonal_stats(
-                     gpd.GeoDataFrame(greenhouse_areas),
-                     roof_storage,
-                     statistics=("mean",),
-                     min_coverage_frac=min_coverage_frac,
-                     coverage_weight=coverage_weight,
-                     strategy="feature-sequential",
-                     raster_crs=reference_crs,
+                    gpd.GeoDataFrame(greenhouse_areas),
+                    roof_storage,
+                    statistics=("mean",),
+                    min_coverage_frac=min_coverage_frac,
+                    coverage_weight=coverage_weight,
+                    strategy="feature-sequential",
+                    raster_crs=reference_crs,
                 )
 
         gh_columns = [
@@ -778,23 +778,21 @@ class GreenhouseIO:
 
                 elev = stats_elev_gh.iloc[num]["median"]
                 # optional columns: a missing column counts as no value
-                roof_storage_mm = getattr(gh, 'roof_storage_mm', np.nan)
-                gh_basin_storage_class = getattr(gh, 'basin_storage_class', np.nan)
+                roof_storage_mm = getattr(gh, "roof_storage_mm", np.nan)
+                gh_basin_storage_class = getattr(gh, "basin_storage_class", np.nan)
                 if not pd.isna(roof_storage_mm):
                     roof_storage_val = f"{roof_storage_mm:.2f}"
                 elif isinstance(roof_storage, float):
                     roof_storage_val = f"{roof_storage:.2f}"
                 else:
-                    roof_storage_val = f'{roofstors_gh.iloc[num]["mean"]:.2f}'
+                    roof_storage_val = f"{roofstors_gh.iloc[num]['mean']:.2f}"
                 if not pd.isna(gh_basin_storage_class):
                     basin_storage_class_val = f"{gh_basin_storage_class:g}"
                 else:
-                    basin_storage_class_val = f'{basin_storage_class:g}'
+                    basin_storage_class_val = f"{basin_storage_class:g}"
                 gh_area = RelationsRR.GREENHOUSE_LATERAL_AREA
                 area_id = getattr(gh, gh_area.parent_key)
-                related_laterals = greenhouse_laterals[
-                    greenhouse_laterals[gh_area.foreign_key] == area_id
-                ]
+                related_laterals = greenhouse_laterals[greenhouse_laterals[gh_area.foreign_key] == area_id]
                 latcode = related_laterals.code.to_numpy()[0]
                 self.greenhouse.add_greenhouse(
                     id=str(gh.code),
@@ -820,10 +818,10 @@ class GreenhouseIO:
 
             if greenhouse_areas is not None and cat_geometry.intersects(greenhouse_areas.geometry).any():
                 intersection_area = greenhouse_areas.geometry.intersection(cat_geometry).area
-                intersection_area = intersection_area[intersection_area > 0.].to_numpy()[0]                    
+                intersection_area = intersection_area[intersection_area > 0.0].to_numpy()[0]
                 landuse_counts = lu_counts.iloc[num]
                 if landuse_counts.get(15, 0) > 0:
-                    # divide area to subtract between greenhouses and the most occurring area                                                
+                    # divide area to subtract between greenhouses and the most occurring area
                     logger.info(
                         "Catchment: %s: subtracting %s m2 from greenhouse area in landuse map.",
                         cat.code,
@@ -832,26 +830,23 @@ class GreenhouseIO:
                     lu_counts.loc[lu_counts.index[num], 15] = np.max(
                         [0.0, landuse_counts[15] - np.round(intersection_area / px_area)]
                     )
-            
+
             elev = stats_elev.iloc[num]["median"]
             roof_storage_val = (
-                f"{roof_storage:.2f}"
-                if isinstance(roof_storage, float)
-                else f'{roofstors.iloc[num]["mean"]:.2f}'
+                f"{roof_storage:.2f}" if isinstance(roof_storage, float) else f"{roofstors.iloc[num]['mean']:.2f}"
             )
             self.greenhouse.add_greenhouse(
                 id=str(cat.code),
-                area=(
-                    str(lu_counts.iloc[num].get(15, 0) * px_area)
-                ),
+                area=(str(lu_counts.iloc[num].get(15, 0) * px_area)),
                 surface_level=f"{elev:.2f}",
                 roof_storage=roof_storage_val,
                 basin_storage_class=f"{basin_storage_class:g}",
                 meteo_area=str(ms),
-                px=f"{cat_geometry.centroid.coords[0][0]+20:.0f}",
+                px=f"{cat_geometry.centroid.coords[0][0] + 20:.0f}",
                 py=f"{cat_geometry.centroid.coords[0][1]:.0f}",
                 boundary_node=str(cat.boundary_node),
             )
+
 
 class OpenwaterIO:
     """Fill the open water nodes of an RR model from catchments and a land use raster.
@@ -911,7 +906,7 @@ class OpenwaterIO:
                 id=str(cat.code),
                 area=str(lu_counts.iloc[num].get(13, 0) * px_area),
                 meteo_area=str(ms),
-                px=f"{cat_geometry.centroid.coords[0][0]-20:.0f}",
+                px=f"{cat_geometry.centroid.coords[0][0] - 20:.0f}",
                 py=f"{cat_geometry.centroid.coords[0][1]:.0f}",
                 boundary_node=str(cat.boundary_node),
             )
@@ -961,7 +956,7 @@ class ExternalForcingsIO:
         affine = raster_crs = nodata = None
         for file in sorted(os.listdir(seepage_folder)):
             path = os.path.join(seepage_folder, file)
-            if file.endswith('.idf'):
+            if file.endswith(".idf"):
                 # Lazy: zonal_stats_per_raster reads it when its turn comes.
                 dataset = idfreader.open(path).squeeze()
                 if affine is None:
@@ -995,12 +990,9 @@ class ExternalForcingsIO:
         )
         if affine is not None:
             # if an NHI model (IDF files) is used, convert units from m3 to mm/d
-            result = (result / (1e-3 * (affine[0] * -affine[4]))) / (
-                    (times[2] - times[1]).total_seconds() / 86400.0
-            )
+            result = (result / (1e-3 * (affine[0] * -affine[4]))) / ((times[2] - times[1]).total_seconds() / 86400.0)
         for column, series in result.items():
             self.external_forcings.add_seepage(str(column), series)
-
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def precip_from_input(
@@ -1039,10 +1031,7 @@ class ExternalForcingsIO:
             if precip_folder is None:
                 raise ValueError("Provide precip_folder or precip_file.")
             warnings.filterwarnings("ignore")
-            paths = [
-                os.path.join(precip_folder, file)
-                for file in sorted(os.listdir(precip_folder))
-            ]
+            paths = [os.path.join(precip_folder, file) for file in sorted(os.listdir(precip_folder))]
             stats = zonal.zonal_stats_per_raster(
                 gpd.GeoDataFrame(areas),
                 paths,
@@ -1102,10 +1091,7 @@ class ExternalForcingsIO:
             # aggregated evap
             # areas['dissolve'] = 1
             # agg_areas = areas.iloc[0:len(areas),:].dissolve(by='dissolve',aggfunc='mean')
-            paths = [
-                os.path.join(evap_folder, file)
-                for file in sorted(os.listdir(evap_folder))
-            ]
+            paths = [os.path.join(evap_folder, file) for file in sorted(os.listdir(evap_folder))]
             stats = zonal.zonal_stats_per_raster(
                 gpd.GeoDataFrame(areas),
                 paths,
@@ -1133,7 +1119,7 @@ class ExternalForcingsIO:
         catchments: ExtendedGeoDataFrame,
         drrmodel: drr.DRRModel,
         overflows: ExtendedGeoDataFrame | None = None,
-        greenhouse_laterals: ExtendedGeoDataFrame | None=None
+        greenhouse_laterals: ExtendedGeoDataFrame | None = None,
     ) -> None:
         """Add the RR boundary nodes, which link the RR nodes to the FM laterals.
 
@@ -1169,7 +1155,6 @@ class ExternalForcingsIO:
         # the catchments that have no area attached and no nodes that will be attached to the boundary
         not_occurring = [node for node in catchments["boundary_node"] if node not in nodes_with_area]
 
-     
         drop_idx = catchments[catchments.boundary_node.isin(not_occurring)].index.to_list()
         if drop_idx:
             logger.warning(
@@ -1182,13 +1167,9 @@ class ExternalForcingsIO:
         catchment_lat = RelationsRR.CATCHMENT_LATERAL
         for cat in catchments.itertuples():
             lateral_id = getattr(cat, catchment_lat.foreign_key)
-            lat = boundary_nodes[
-                boundary_nodes[catchment_lat.parent_key] == lateral_id
-            ]
+            lat = boundary_nodes[boundary_nodes[catchment_lat.parent_key] == lateral_id]
             if lat.empty:
-                logger.warning(
-                    f"{cat.code} not connected to a boundary node. Skipping."
-                )
+                logger.warning(f"{cat.code} not connected to a boundary node. Skipping.")
                 self.external_forcings.add_boundary_node(id="0.0", px="0.0", py="0.0")
                 continue
             self.external_forcings.add_boundary_node(

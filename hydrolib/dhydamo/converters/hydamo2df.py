@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 class RoughnessVariant(Enum):
     """Which roughness value of a DAMO profile to use: the high or the low value."""
 
@@ -52,9 +53,7 @@ class CrossSectionsIO:
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def from_datamodel(
-        self, crsdefs: pd.DataFrame | None = None, crslocs: pd.DataFrame | None = None
-    ) -> None:
+    def from_datamodel(self, crsdefs: pd.DataFrame | None = None, crslocs: pd.DataFrame | None = None) -> None:
         """Add cross sections from parsed data models (legacy from delft3dfmpy, untested)."""
         if crslocs is not None:
             for _, crsloc in crslocs.iterrows():
@@ -99,9 +98,7 @@ class CrossSectionsIO:
                     )
                 elif crsdef["type"] == "trapezium":
                     self.crosssections.add_trapezium_definition(
-                        slope=(crsdef["t_width"] - crsdef["width"])
-                        / 2
-                        / crsdef["height"],
+                        slope=(crsdef["t_width"] - crsdef["width"]) / 2 / crsdef["height"],
                         maximumflowwidth=crsdef["t_width"],
                         bottomwidth=crsdef["width"],
                         closed=crsdef["closed"],
@@ -126,8 +123,8 @@ class CrossSectionsIO:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def profiles(
         self,
-        branches: ExtendedGeoDataFrame, # = None,
-        roughness_variant: RoughnessVariant,# =None,
+        branches: ExtendedGeoDataFrame,  # = None,
+        roughness_variant: RoughnessVariant,  # =None,
         crosssections: ExtendedGeoDataFrame | None = None,
         crosssection_roughness: ExtendedDataFrame | None = None,
         profile_groups: ExtendedDataFrame | None = None,
@@ -172,9 +169,7 @@ class CrossSectionsIO:
             structure_group_mask = pd.Series(False, index=profile_groups.index)
             for relation in (profile_group_bridge, profile_group_weir):
                 if relation.foreign_key in profile_groups.columns:
-                    structure_group_mask |= profile_groups[
-                        relation.foreign_key
-                    ].notna()
+                    structure_group_mask |= profile_groups[relation.foreign_key].notna()
 
             structure_groups = profile_groups.loc[structure_group_mask]
             structure_lines = RelationsHyDAMO.PROFILE_LINE_GROUP.children_of(
@@ -194,9 +189,7 @@ class CrossSectionsIO:
 
         # Assign cross-sections to branches
         nnocross = len(self.crosssections.get_branches_without_crosssection())
-        logger.info(
-            f"Before adding the number of branches without cross section is: {nnocross}."
-        )
+        logger.info(f"Before adding the number of branches without cross section is: {nnocross}.")
 
         if dp_branches is not None:
             if crosssection_roughness is None:
@@ -225,14 +218,10 @@ class CrossSectionsIO:
 
         # Check the number of branches with cross sections
         no_crosssection_id = self.crosssections.get_branches_without_crosssection()
-        no_crosssection = [
-            b for b in branches.itertuples() if b.code in no_crosssection_id
-        ]
+        no_crosssection = [b for b in branches.itertuples() if b.code in no_crosssection_id]
 
         nnocross = len(no_crosssection)
-        logger.info(
-            f"After adding 'dwarsprofielen' the number of branches without cross section is: {nnocross}."
-        )
+        logger.info(f"After adding 'dwarsprofielen' the number of branches without cross section is: {nnocross}.")
         if nnocross == 0:
             logger.info("No further branches without a profile.")
         elif param_profile is None:
@@ -248,12 +237,9 @@ class CrossSectionsIO:
                 roughness_variant=roughness_variant,
             )
             # Get branch information
-            branchdata = self.crosssections.hydamo.branches.loc[
-                list(param_profiles_converted.keys())
-            ]
+            branchdata = self.crosssections.hydamo.branches.loc[list(param_profiles_converted.keys())]
             branchdata["chainage_upper"] = 0.05 * branchdata.length
             branchdata["chainage_lower"] = 0.95 * branchdata.length
-
 
             # Add cross sections
             for branchid, css in param_profiles_converted.items():
@@ -295,9 +281,7 @@ class CrossSectionsIO:
                 )
 
         nnocross = len(self.crosssections.get_branches_without_crosssection())
-        logger.info(
-            f"After adding 'normgeparametriseerd' the number of branches without cross section is: {nnocross}."
-        )
+        logger.info(f"After adding 'normgeparametriseerd' the number of branches without cross section is: {nnocross}.")
 
         if dp_structures is not None:
             if crosssection_roughness is None:
@@ -334,9 +318,7 @@ class ExternalForcingsIO:
         self.external_forcings = external_forcings
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def boundaries(
-        self, boundary_conditions: ExtendedGeoDataFrame, mesh1d: Network | None = None
-    ) -> None:
+    def boundaries(self, boundary_conditions: ExtendedGeoDataFrame, mesh1d: Network | None = None) -> None:
         """Add constant boundary conditions from the DAMO table randvoorwaarden.
 
         The table has no time series; to add one, use
@@ -387,7 +369,7 @@ class ExternalForcingsIO:
         locations: ExtendedGeoDataFrame,
         overflows: ExtendedGeoDataFrame | None = None,
         greenhouse_laterals: ExtendedGeoDataFrame | None = None,
-        lateral_discharges: pd.DataFrame | pd.Series | None=None,
+        lateral_discharges: pd.DataFrame | pd.Series | None = None,
         rr_boundaries: dict | None = None,
     ) -> None:
         """Add the laterals, with a discharge or coupled to RR.
@@ -414,7 +396,7 @@ class ExternalForcingsIO:
             rr_boundaries = {}
 
         locations.geometry = locations.geometry.force_2d()
-        
+
         latdct: dict = {}
         all_locations: pd.DataFrame = locations
         if overflows is not None:
@@ -424,9 +406,7 @@ class ExternalForcingsIO:
 
         # Get time series and add to dictionary
         # for nidx, lateral in zip(nearest_idx, locations.itertuples()):
-        lateral_columns = zip(
-            all_locations["code"], all_locations["branch_id"], all_locations["branch_offset"]
-        )
+        lateral_columns = zip(all_locations["code"], all_locations["branch_id"], all_locations["branch_offset"])
         for code, branch_id, branch_offset in lateral_columns:
             # Check if a time is provided for the lateral
             if code in rr_boundaries:
@@ -481,16 +461,16 @@ class ExternalForcingsIO:
                 discharge=item["discharge"],
             )
 
-            
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def timeseries_from_other_model(self,
-                                  his_file: Path | str,
-                                  location_type: str,
-                                  location_id: str, 
-                                  variable: str,
-                                  starttime: str | datetime | None = None,
-                                  endtime: str | datetime | None = None,
-                                ) -> tuple[Point | None, pd.Series]:
+    def timeseries_from_other_model(
+        self,
+        his_file: Path | str,
+        location_type: str,
+        location_id: str,
+        variable: str,
+        starttime: str | datetime | None = None,
+        endtime: str | datetime | None = None,
+    ) -> tuple[Point | None, pd.Series]:
         """Read a time series at a location from the his file of another model.
 
         Parameters
@@ -518,81 +498,87 @@ class ExternalForcingsIO:
         ValueError
             If the file has no data for the location and variable.
         """
-       # if timesteps are strings, convert them to datetime objects
+        # if timesteps are strings, convert them to datetime objects
         if starttime is not None:
             if isinstance(starttime, str):
                 starttime = pd.to_datetime(starttime)
             if isinstance(endtime, str):
                 endtime = pd.to_datetime(endtime)
         # read the contents of the his file
-        his = Dataset(his_file, 'r')
-        
-        his_time = his.variables['time'][:]
-        time_unit=his['time'].units.split(' ')
-        refdate = pd.to_datetime(time_unit[2] + ' ' + time_unit[3])
-        interval_seconds = his_time[1]-his_time[0]
-        times = pd.date_range(start=refdate, end=refdate+pd.Timedelta(hours=np.max(his_time)/3600.), freq=f'{interval_seconds}S')
-    
-        if location_type == 'weir':
-            dtype = 'weirgen'
-            loc_ids = chartostring(his[f'{dtype}_name'][:])
-            coord_string_x = 'weir_input_geom_node_coordx'
-            coord_string_y = 'weir_input_geom_node_coordy'
-         
-        elif location_type == 'observation_point':
-            dtype = 'station'
-            loc_ids = chartostring(his[f'{dtype}_name'][:])
-            coord_string_x = 'station_x_coordinate'
-            coord_string_y = 'station_y_coordinate'
-        elif location_type == 'pump':                 
-            coord_string_x = f'{location_type}_input_geom_node_coordx'
-            coord_string_y = f'{location_type}_input_geom_node_coordy'
-            loc_ids = chartostring(his[f'{location_type}_name'][:])       
-            if variable == 'discharge':
-                dtype = 'pump_structure'
+        his = Dataset(his_file, "r")
+
+        his_time = his.variables["time"][:]
+        time_unit = his["time"].units.split(" ")
+        refdate = pd.to_datetime(time_unit[2] + " " + time_unit[3])
+        interval_seconds = his_time[1] - his_time[0]
+        times = pd.date_range(
+            start=refdate, end=refdate + pd.Timedelta(hours=np.max(his_time) / 3600.0), freq=f"{interval_seconds}S"
+        )
+
+        if location_type == "weir":
+            dtype = "weirgen"
+            loc_ids = chartostring(his[f"{dtype}_name"][:])
+            coord_string_x = "weir_input_geom_node_coordx"
+            coord_string_y = "weir_input_geom_node_coordy"
+
+        elif location_type == "observation_point":
+            dtype = "station"
+            loc_ids = chartostring(his[f"{dtype}_name"][:])
+            coord_string_x = "station_x_coordinate"
+            coord_string_y = "station_y_coordinate"
+        elif location_type == "pump":
+            coord_string_x = f"{location_type}_input_geom_node_coordx"
+            coord_string_y = f"{location_type}_input_geom_node_coordy"
+            loc_ids = chartostring(his[f"{location_type}_name"][:])
+            if variable == "discharge":
+                dtype = "pump_structure"
             else:
                 dtype = location_type
-        elif location_type == 'uweir':
-            dtype = 'uniweir'
-            loc_ids = chartostring(his[f'{dtype}_name'][:])
-            coord_string_x = f'{dtype}_input_geom_node_coordx'
-            coord_string_y = f'{dtype}_input_geom_node_coordy'   
-        elif location_type == 'compound':
-            dtype = 'cmpstru'
-            loc_ids = chartostring(his[f'{dtype}_name'][:])            
+        elif location_type == "uweir":
+            dtype = "uniweir"
+            loc_ids = chartostring(his[f"{dtype}_name"][:])
+            coord_string_x = f"{dtype}_input_geom_node_coordx"
+            coord_string_y = f"{dtype}_input_geom_node_coordy"
+        elif location_type == "compound":
+            dtype = "cmpstru"
+            loc_ids = chartostring(his[f"{dtype}_name"][:])
         else:
             dtype = location_type
-            loc_ids = chartostring(his[f'{dtype}_name'][:])
-            coord_string_x = f'{dtype}_input_geom_node_coordx'
-            coord_string_y = f'{dtype}_input_geom_node_coordy'
+            loc_ids = chartostring(his[f"{dtype}_name"][:])
+            coord_string_x = f"{dtype}_input_geom_node_coordx"
+            coord_string_y = f"{dtype}_input_geom_node_coordy"
         try:
             loc_index = np.nonzero(loc_ids == location_id)[0][0]
         except IndexError as err:
-            raise ValueError(f'Location ID {location_id} of type {location_type} not found in {his_file}. Available IDs: {loc_ids}') from err
-                
-        if variable == 'waterlevel_upstream':
-            variable = 's1up'
-        elif variable == 'waterlevel_downstream':
-            variable = 's1dn'
-        if dtype != 'cmpstru':
+            raise ValueError(
+                f"Location ID {location_id} of type {location_type} not found in {his_file}. Available IDs: {loc_ids}"
+            ) from err
+
+        if variable == "waterlevel_upstream":
+            variable = "s1up"
+        elif variable == "waterlevel_downstream":
+            variable = "s1dn"
+        if dtype != "cmpstru":
             loc_x = his[coord_string_x][:][loc_index]
             loc_y = his[coord_string_y][:][loc_index]
-                    
+
             loc_geom = Point(loc_x, loc_y)
         else:
-            logger.warning('Geometry for compound structures not supported yet. Get the location of one of its structures.')
+            logger.warning(
+                "Geometry for compound structures not supported yet. Get the location of one of its structures."
+            )
             loc_geom = None
 
-        if location_type == 'observation_point':
-            timeseries = his['waterlevel'][:,loc_index]
+        if location_type == "observation_point":
+            timeseries = his["waterlevel"][:, loc_index]
         else:
-            timeseries = his[f'{dtype}_{variable}'][:, loc_index]
+            timeseries = his[f"{dtype}_{variable}"][:, loc_index]
         loc_series = pd.Series(timeseries, index=times, name=location_id)
         if starttime is not None:
-            loc_series = loc_series.loc[starttime:endtime]            
-            if loc_series.empty: 
-                logger.error(f'No data available for {location_id} between {starttime} and {endtime}.')
-        return loc_geom, loc_series       
+            loc_series = loc_series.loc[starttime:endtime]
+            if loc_series.empty:
+                logger.error(f"No data available for {location_id} between {starttime} and {endtime}.")
+        return loc_geom, loc_series
 
 
 class StructuresIO:
@@ -642,15 +628,9 @@ class StructuresIO:
                 upstream2level=generalstructure.upstream2level
                 if "upstream2level" in generalstructure.index
                 else np.nan,
-                crestwidth=generalstructure.crestwidth
-                if "crestwidth" in generalstructure.index
-                else np.nan,
-                crestlevel=generalstructure.crestlevel
-                if "crestlevel" in generalstructure.index
-                else np.nan,
-                crestlength=generalstructure.crestlength
-                if "crestlength" in generalstructure.index
-                else np.nan,
+                crestwidth=generalstructure.crestwidth if "crestwidth" in generalstructure.index else np.nan,
+                crestlevel=generalstructure.crestlevel if "crestlevel" in generalstructure.index else np.nan,
+                crestlength=generalstructure.crestlength if "crestlength" in generalstructure.index else np.nan,
                 downstream1width=generalstructure.downstream1width
                 if "downstream1width" in generalstructure.index
                 else np.nan,
@@ -699,9 +679,7 @@ class StructuresIO:
                 extraresistance=generalstructure.extraresistance
                 if "extraresistance" in generalstructure.index
                 else np.nan,
-                gateheight=generalstructure.gateheight
-                if "gateheight" in generalstructure.index
-                else np.nan,
+                gateheight=generalstructure.gateheight if "gateheight" in generalstructure.index else np.nan,
                 gateopeningwidth=generalstructure.gateopeningwidth
                 if "gateopeningwidth" in generalstructure.index
                 else np.nan,
@@ -752,10 +730,7 @@ class StructuresIO:
         if weirs is None or opening is None or management_device is None:
             raise ValueError("weirs, opening and management_device are required.")
         index = np.zeros(len(weirs.code))
-        if (
-            profile_groups is not None
-            and profile_group_weir.foreign_key in profile_groups
-        ):
+        if profile_groups is not None and profile_group_weir.foreign_key in profile_groups:
             index[
                 np.isin(
                     weirs[opening_weir.parent_key],
@@ -783,29 +758,27 @@ class StructuresIO:
                     weir_opening.shape[0],
                 )
                 cmp_list = []
-                for num_op, (op_index, op_row) in enumerate(
-                    weir_opening.iterrows()
-                ):
+                for num_op, (op_index, op_row) in enumerate(weir_opening.iterrows()):
                     opening_rows = weir_opening.loc[[op_index]]
                     weir_mandev = management_device_opening.children_of(
                         opening_rows,
                         management_device,
                     )
-                    
+
                     if weir_mandev.empty:
                         logger.warning(
                             "Skipping opening %s (weir %s) because there is no associated management device.",
                             op_row.code,
-                            weir.code
+                            weir.code,
                         )
                         continue
                     if weir_mandev.shape[0] > 1:
                         logger.warning(
                             "Multiple management devices associated to opening %s (weir %s). Taking the first one.",
                             op_row.code,
-                            weir.code
+                            weir.code,
                         )
-                        weir_mandev = weir_mandev.iloc[[0]]                    
+                        weir_mandev = weir_mandev.iloc[[0]]
 
                     # This weir has multiple openings, so its structure id gets an
                     # enumeration suffix that is invented right here and is not
@@ -813,22 +786,23 @@ class StructuresIO:
                     # can later resolve a management record's regelmiddelid to
                     # this structure id; see Structures.compound_weir_structure_ids
                     # in core/hydamo.py.
-                    weir_id = f'{weir.code}_{num_op+1}'
+                    weir_id = f"{weir.code}_{num_op + 1}"
                     self.structures.compound_weir_structure_ids[str(weir_mandev["globalid"].iloc[0])] = weir_id
                     kind = str(weir_mandev["overlaatonderlaat"].iloc[0]).lower()
-                    if kind == 'overlaat':
+                    if kind == "overlaat":
                         cmp_list.append(weir_id)
-                        self.structures.add_rweir(id=weir_id,
-                                                    name=name,
-                                                    branchid=weir.branch_id,
-                                                    chainage=weir.branch_offset,
-                                                    crestlevel=op_row.laagstedoorstroomhoogte,
-                                                    crestwidth=op_row.laagstedoorstroombreedte,
-                                                    corrcoeff=weir.afvoercoefficient,
-                                                    allowedflowdir="both",
-                                                    usevelocityheight=usevelocityheight,
-                                                 )
-                    elif kind == 'onderlaat':
+                        self.structures.add_rweir(
+                            id=weir_id,
+                            name=name,
+                            branchid=weir.branch_id,
+                            chainage=weir.branch_offset,
+                            crestlevel=op_row.laagstedoorstroomhoogte,
+                            crestwidth=op_row.laagstedoorstroombreedte,
+                            corrcoeff=weir.afvoercoefficient,
+                            allowedflowdir="both",
+                            usevelocityheight=usevelocityheight,
+                        )
+                    elif kind == "onderlaat":
                         cmp_list.append(weir_id)
                         if "maximaaldebiet" not in weir_mandev or pd.isna(weir_mandev.maximaaldebiet.to_numpy()[0]):
                             limitflow = False
@@ -859,7 +833,7 @@ class StructuresIO:
                             weir.code,
                             weir_mandev.overlaatonderlaat,
                         )
-                self.structures.add_compound(id=f'cmp_{weir.code}', structureids =cmp_list)
+                self.structures.add_compound(id=f"cmp_{weir.code}", structureids=cmp_list)
                 # self.structures.rweirs_df.drop(weir.code)
             else:
                 if weir_opening.empty:
@@ -884,23 +858,20 @@ class StructuresIO:
                     logger.warning(
                         "Skipping opening %s (weir %s) because there is no associated management device.",
                         weir_opening.code.squeeze(),
-                        weir_id
+                        weir_id,
                     )
                     continue
                 if weir_mandev.shape[0] > 1:
                     logger.warning(
                         "Multiple management devices associated to opening %s (weir %s). Taking the first one.",
                         weir_opening.code.squeeze(),
-                        weir_id
+                        weir_id,
                     )
                     weir_mandev = weir_mandev.iloc[[0]]
 
                 overlaatonderlaat = str(weir_mandev["overlaatonderlaat"].iloc[0])
 
-                if (
-                    overlaatonderlaat.lower()
-                    == "overlaat"
-                ):
+                if overlaatonderlaat.lower() == "overlaat":
                     self.structures.add_rweir(
                         id=weir_id,
                         name=name,
@@ -913,10 +884,7 @@ class StructuresIO:
                         usevelocityheight=usevelocityheight,
                     )
 
-                elif (
-                    overlaatonderlaat.lower()
-                    == "onderlaat"
-                ):
+                elif overlaatonderlaat.lower() == "onderlaat":
                     if "maximaaldebiet" not in weir_mandev or pd.isna(weir_mandev.maximaaldebiet.to_numpy()[0]):
                         limitflow = False
                         maxq = 0.0
@@ -979,8 +947,8 @@ class StructuresIO:
                 # return an error it is still not found
                 raise ValueError(f"{uweir.code} is not found in any cross-section.")
 
-            if not hasattr(uweir, 'laagstedoorstroomhoogte') or pd.isna(uweir.laagstedoorstroomhoogte):
-                kruinhoogte = np.min(xyz[:,-1])
+            if not hasattr(uweir, "laagstedoorstroomhoogte") or pd.isna(uweir.laagstedoorstroomhoogte):
+                kruinhoogte = np.min(xyz[:, -1])
             else:
                 kruinhoogte = uweir.laagstedoorstroomhoogte
             self.structures.add_uweir(
@@ -995,7 +963,7 @@ class StructuresIO:
                 yvalues=" ".join([f"{yz[0]:7.3f}" for yz in yzvalues]),
                 zvalues=" ".join([f"{yz[1]:7.3f}" for yz in yzvalues]),
             )
-        
+
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
@@ -1140,8 +1108,8 @@ class StructuresIO:
             DAMO management devices (regelmiddel). Defaults to None.
         """
         management_device_culvert = RelationsHyDAMO.MANAGEMENT_DEVICE_CULVERT
-        if management_device is not None and 'soortafsluitmiddel' not in management_device.columns:
-            management_device['soortafsluitmiddel'] = management_device['soortregelmiddel']
+        if management_device is not None and "soortafsluitmiddel" not in management_device.columns:
+            management_device["soortafsluitmiddel"] = management_device["soortregelmiddel"]
 
         for culvert in culverts.itertuples():
             culvert_rows = culverts.loc[[culvert.Index]]
@@ -1168,8 +1136,8 @@ class StructuresIO:
                     culvert_rows,
                     management_device,
                 )
-                if 'soortafsluitmiddel' not in mandev:
-                    mandev.loc[mandev.index,'soortafsluitmiddel'] = mandev['soortregelmiddel']
+                if "soortafsluitmiddel" not in mandev:
+                    mandev.loc[mandev.index, "soortafsluitmiddel"] = mandev["soortregelmiddel"]
             else:
                 mandev = pd.DataFrame()
 
@@ -1183,8 +1151,8 @@ class StructuresIO:
             if not mandev.empty:
                 for _, i in mandev.iterrows():
                     if i["soortafsluitmiddel"] == "terugslagklep":
-                        allowedflowdir = "positive"                        
-                    elif i["soortafsluitmiddel"] == "schuif":                        
+                        allowedflowdir = "positive"
+                    elif i["soortafsluitmiddel"] == "schuif":
                         valveonoff = 1
                         valveopeningheight = float(i["hoogteopening"])
                         numlosscoeff = 1
@@ -1235,9 +1203,7 @@ class StructuresIO:
                 leftlevel=culvert.leftlevel,
                 rightlevel=culvert.rightlevel,
                 crosssection=culvert.crosssectiondefinitionid,
-                length=culvert.geometry.length
-                if "geometry" in culvert.index
-                else culvert.length,
+                length=culvert.geometry.length if "geometry" in culvert.index else culvert.length,
                 inletlosscoeff=culvert.inletlosscoeff,
                 outletlosscoeff=culvert.outletlosscoeff,
                 allowedflowdir="both",
@@ -1350,9 +1316,7 @@ class StructuresIO:
                 )
 
             if is_compound:
-                self.structures.add_compound(
-                    id=f"cmp_{pumpstation.code}", structureids=cmp_list
-                )
+                self.structures.add_compound(id=f"cmp_{pumpstation.code}", structureids=cmp_list)
 
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
@@ -1397,9 +1361,7 @@ class StructuresIO:
         """
         branch2 = struc_dict[struc]["branchid"]
         if branch2 != branch:
-            logger.warning(
-                f"Structures of not on the same branche. Moving structure {struc} to branch {branch}."
-            )
+            logger.warning(f"Structures of not on the same branche. Moving structure {struc} to branch {branch}.")
         struc_dict[struc]["branchid"] = branch
         struc_dict[struc]["chainage"] = offset
         return struc_dict
@@ -1546,7 +1508,7 @@ class StorageNodesIO:
                 branchid=storagenode.branch_id,
                 chainage=storagenode.branch_offset,
                 usetable="true",
-                storagearea=' '.join(data.area.astype(str)),
-                levels=' '.join(data.level.astype(str)),
-                network=network
+                storagearea=" ".join(data.area.astype(str)),
+                levels=" ".join(data.level.astype(str)),
+                network=network,
             )

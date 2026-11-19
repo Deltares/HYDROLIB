@@ -51,9 +51,7 @@ def write_raster(
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix not in DRIVERS:
-        raise ValueError(
-            f"Unsupported raster extension '{path.suffix}', use one of {list(DRIVERS)}."
-        )
+        raise ValueError(f"Unsupported raster extension '{path.suffix}', use one of {list(DRIVERS)}.")
     driver = DRIVERS[suffix]
     profile = {
         "driver": driver,

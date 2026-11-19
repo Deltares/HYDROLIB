@@ -29,13 +29,9 @@ DATA_PATH = Path("hydrolib/sample_data/data").resolve()
 Validate = Callable[..., tuple[None, None, types.SimpleNamespace]]
 
 
-def _install_fake_validator(
-    monkeypatch: pytest.MonkeyPatch, validator_factory: Callable[..., Validate]
-) -> None:
+def _install_fake_validator(monkeypatch: pytest.MonkeyPatch, validator_factory: Callable[..., Validate]) -> None:
     """Inject a fake hydamo_validation module; skip the schema scan, which needs the real package."""
-    monkeypatch.setitem(
-        sys.modules, "hydamo_validation", types.SimpleNamespace(validator=validator_factory)
-    )
+    monkeypatch.setitem(sys.modules, "hydamo_validation", types.SimpleNamespace(validator=validator_factory))
     monkeypatch.setattr(validation, "_schema_version_for_damo", lambda _module, _version: ("1.4", []))
 
 
@@ -184,22 +180,14 @@ def test_load_from_gpkg_maps_damo_25_to_canonical_internal_structure(tmp_path: P
 
 
 def test_damo_25_relations_resolve_expected_rows(tmp_path: Path) -> None:
-    hydamo = HyDAMO().load_from_gpkg(
-        _make_minimal_25_gpkg(tmp_path), hydamo_version="2.5"
-    )
+    hydamo = HyDAMO().load_from_gpkg(_make_minimal_25_gpkg(tmp_path), hydamo_version="2.5")
 
     opening = hydamo.opening.loc[[0]]
     management = hydamo.management.loc[["CTRL1"]]
     weir = RelationsHyDAMO.OPENING_WEIR.parents_of(opening, hydamo.weirs)
-    device_from_opening = RelationsHyDAMO.OPENING_MANAGEMENT_DEVICE.parents_of(
-        opening, hydamo.management_device
-    )
-    device_from_management = RelationsHyDAMO.MANAGEMENT_DEVICE.parents_of(
-        management, hydamo.management_device
-    )
-    opening_from_device = RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING.parents_of(
-        device_from_management, hydamo.opening
-    )
+    device_from_opening = RelationsHyDAMO.OPENING_MANAGEMENT_DEVICE.parents_of(opening, hydamo.management_device)
+    device_from_management = RelationsHyDAMO.MANAGEMENT_DEVICE.parents_of(management, hydamo.management_device)
+    opening_from_device = RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING.parents_of(device_from_management, hydamo.opening)
 
     assert weir["globalid"].tolist() == ["stuw-guid"]
     assert device_from_opening["globalid"].tolist() == ["afsluit-guid"]
@@ -234,17 +222,11 @@ def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
     def _validator_factory(**kwargs: object) -> Validate:
         captured["factory_kwargs"] = kwargs
 
-        def _run(
-            directory: Path, raise_error: bool = False
-        ) -> tuple[None, None, types.SimpleNamespace]:
+        def _run(directory: Path, raise_error: bool = False) -> tuple[None, None, types.SimpleNamespace]:
             rules = json.loads((Path(directory) / "validationrules.json").read_text())
             captured["rules"] = rules
-            captured["dataset_files"] = sorted(
-                p.name for p in (Path(directory) / "datasets").iterdir()
-            )
-            return None, None, types.SimpleNamespace(
-                success=True, status="finished", error=[]
-            )
+            captured["dataset_files"] = sorted(p.name for p in (Path(directory) / "datasets").iterdir())
+            return None, None, types.SimpleNamespace(success=True, status="finished", error=[])
 
         return _run
 
@@ -271,18 +253,12 @@ def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
     assert any(obj["object"] == "hydroobject" for obj in rules["objects"])
 
 
-def test_load_from_gpkg_with_validation_strict_raises(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_load_from_gpkg_with_validation_strict_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
 
     def _validator_factory(**kwargs: object) -> Validate:
-        def _run(
-            directory: Path, raise_error: bool = False
-        ) -> tuple[None, None, types.SimpleNamespace]:
-            return None, None, types.SimpleNamespace(
-                success=False, status="failed", error=["bad data"]
-            )
+        def _run(directory: Path, raise_error: bool = False) -> tuple[None, None, types.SimpleNamespace]:
+            return None, None, types.SimpleNamespace(success=False, status="failed", error=["bad data"])
 
         return _run
 
@@ -338,26 +314,18 @@ def test_load_from_gpkg_v22_postprocess_copies_soortregelmiddel(tmp_path: Path) 
     assert hydamo.management_device.loc[0, "soortafsluitmiddel"] == "schuif"
 
 
-def test_load_from_gpkg_validation_warn_failure_does_not_raise(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_load_from_gpkg_validation_warn_failure_does_not_raise(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
 
     def _validator_factory(**kwargs: object) -> Validate:
-        def _run(
-            directory: Path, raise_error: bool = False
-        ) -> tuple[None, None, types.SimpleNamespace]:
-            return None, None, types.SimpleNamespace(
-                success=False, status="failed", error=["bad data"]
-            )
+        def _run(directory: Path, raise_error: bool = False) -> tuple[None, None, types.SimpleNamespace]:
+            return None, None, types.SimpleNamespace(success=False, status="failed", error=["bad data"])
 
         return _run
 
     _install_fake_validator(monkeypatch, _validator_factory)
 
-    hydamo = HyDAMO().load_from_gpkg(
-        gpkg_file, hydamo_version="2.5", validation_mode="warn"
-    )
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5", validation_mode="warn")
 
     assert hydamo.validation_result is not None
     assert hydamo.validation_result.success is False
@@ -365,18 +333,12 @@ def test_load_from_gpkg_validation_warn_failure_does_not_raise(
     assert not hydamo.branches.empty
 
 
-def test_validate_gpkg_returns_result_and_stores_on_instance(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_validate_gpkg_returns_result_and_stores_on_instance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     gpkg_file = _make_minimal_25_gpkg(tmp_path)
 
     def _validator_factory(**kwargs: object) -> Validate:
-        def _run(
-            directory: Path, raise_error: bool = False
-        ) -> tuple[None, None, types.SimpleNamespace]:
-            return None, None, types.SimpleNamespace(
-                success=True, status="finished", error=[]
-            )
+        def _run(directory: Path, raise_error: bool = False) -> tuple[None, None, types.SimpleNamespace]:
+            return None, None, types.SimpleNamespace(success=True, status="finished", error=[])
 
         return _run
 

@@ -65,6 +65,7 @@ def point_layer(
         tooltip=name,
     ).add_to(m)
 
+
 class TitleControl(MacroElement):
     """Title in the top right corner of a folium map.
 
@@ -90,6 +91,7 @@ class TitleControl(MacroElement):
             {% endmacro %}
         """)
 
+
 def plot_network(
     network: Network,
     crs: int = 28992,
@@ -97,7 +99,7 @@ def plot_network(
     mesh2d_kwargs: dict | None = None,
     links1d2d_kwargs: dict | None = None,
     face_z_kwargs: dict | None = None,
-    background: bool=True
+    background: bool = True,
 ) -> folium.Map:
     """Show the 1D mesh, the 2D mesh, the 1D2D links and the 2D face levels on a folium map.
 
@@ -160,7 +162,8 @@ def plot_network(
             raise TypeError(f"Expected one MultiLineString, got {type(merged)}")
         merged = shapely.set_precision(merged, 1e-6, mode="pointwise")
         folium.GeoJson(
-            gpd.GeoDataFrame(geometry=[merged], crs=4326), name=name,
+            gpd.GeoDataFrame(geometry=[merged], crs=4326),
+            name=name,
             style_function=lambda _, c=color, w=weight: {"color": c, "weight": w},
         ).add_to(m)
         all_bounds.append(lines.total_bounds)
@@ -169,7 +172,9 @@ def plot_network(
         nodes1d = np.stack([network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1)
         add_lines(
             edges_to_lines(nodes1d, network._mesh1d.mesh1d_edge_nodes),
-            "Mesh 1D", mesh1d_kwargs["color"], mesh1d_kwargs["weight"],
+            "Mesh 1D",
+            mesh1d_kwargs["color"],
+            mesh1d_kwargs["weight"],
         )
 
     if not network._mesh2d.is_empty():
@@ -178,7 +183,9 @@ def plot_network(
             # TODO: fix in hydrolib-core, mesh2d_edge_nodes is annotated np.ndarray[int, int] (like #1314):
             # https://github.com/Deltares/HYDROLIB-core/issues/1314
             edges_to_lines(nodes2d, network._mesh2d.mesh2d_edge_nodes),  # type: ignore[arg-type]
-            "Mesh 2D", mesh2d_kwargs["color"], mesh2d_kwargs["weight"],
+            "Mesh 2D",
+            mesh2d_kwargs["color"],
+            mesh2d_kwargs["weight"],
         )
         faces2d = np.stack([network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1)
 
@@ -187,12 +194,20 @@ def plot_network(
         coords = np.stack([nodes1d[link_idx[:, 0]], faces2d[link_idx[:, 1]]], axis=1)
         add_lines(
             shapely.linestrings(coords.reshape(-1, 2), indices=np.repeat(np.arange(len(link_idx)), 2)),
-            "Links 1D-2D", links1d2d_kwargs["color"], links1d2d_kwargs["weight"],
+            "Links 1D-2D",
+            links1d2d_kwargs["color"],
+            links1d2d_kwargs["weight"],
         )
 
     if face_z_kwargs is not None and not network._mesh2d.is_empty():
-        face_z_kwargs = {"vmin": None, "vmax": None, "cmap": "viridis",
-                         "label": "Face level [m+NAP]", "radius": 3, **face_z_kwargs}
+        face_z_kwargs = {
+            "vmin": None,
+            "vmax": None,
+            "cmap": "viridis",
+            "label": "Face level [m+NAP]",
+            "radius": 3,
+            **face_z_kwargs,
+        }
 
         face_x = network._mesh2d.mesh2d_face_x
         face_y = network._mesh2d.mesh2d_face_y
@@ -206,20 +221,28 @@ def plot_network(
         gdf_z = gpd.GeoDataFrame({"z": face_z}, geometry=pts, crs=crs).to_crs(4326)
         xs, ys = gdf_z.geometry.x.to_numpy(), gdf_z.geometry.y.to_numpy()
         lon0, lat0, lon1, lat1 = xs.min(), ys.min(), xs.max(), ys.max()
-        
+
         # render scatter to transparent PNG
         fig = Figure(figsize=(10, 10))
         ax = fig.add_axes((0, 0, 1, 1))  # axes fills entire figure — ensures bounds align exactly
-        ax.scatter(xs, ys, c=face_z, cmap=face_z_kwargs["cmap"],
-                   vmin=vmin, vmax=vmax, s=face_z_kwargs["radius"] ** 2, linewidths=0)
+        ax.scatter(
+            xs,
+            ys,
+            c=face_z,
+            cmap=face_z_kwargs["cmap"],
+            vmin=vmin,
+            vmax=vmax,
+            s=face_z_kwargs["radius"] ** 2,
+            linewidths=0,
+        )
         ax.set_xlim(lon0, lon1)
         ax.set_ylim(lat0, lat1)
         ax.set_axis_off()
-        
+
         buf = io.BytesIO()
         fig.savefig(buf, format="png", transparent=True, dpi=150)
         buf.seek(0)
-        
+
         folium.raster_layers.ImageOverlay(
             image=f"data:image/png;base64,{base64.b64encode(buf.read()).decode()}",
             bounds=[[lat0, lon0], [lat1, lon1]],
@@ -240,4 +263,3 @@ def plot_network(
         b = np.array(all_bounds)
         m.fit_bounds([[b[:, 1].min(), b[:, 0].min()], [b[:, 3].max(), b[:, 2].max()]])
     return m
-

@@ -67,7 +67,7 @@ def _make_index_unique(gdf: gpd.GeoDataFrame, index_col: str) -> None:
         list(gdf.loc[duplicated, index_col].unique()),
     )
     for dupe_id, group in gdf[duplicated].groupby(by=index_col, sort=False):
-        gdf.loc[group.index, index_col] = [f"{dupe_id}_{i+1}" for i in range(len(group))]
+        gdf.loc[group.index, index_col] = [f"{dupe_id}_{i + 1}" for i in range(len(group))]
 
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
@@ -141,7 +141,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if not self.empty:
             # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
             self.drop(self.index, inplace=True)  # noqa: PD002
-            
+
     def read_shp(
         self,
         path: str | Path,
@@ -193,9 +193,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         # Only keep required columns
         if filter_cols:
             logger.info("Filtering required column keys")
-            gdf = gdf.drop(
-                columns=gdf.columns[~gdf.columns.isin(self.required_columns)]
-            )
+            gdf = gdf.drop(columns=gdf.columns[~gdf.columns.isin(self.required_columns)])
 
         # filter out rows on key/value pairs if required
         if filter_rows is not None:
@@ -207,9 +205,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         total_features = len(gdf)
         gdf = gdf.drop(gdf.index[gdf.geometry.isna()])  # temporary fix
         missing_features = len(gdf.index[gdf.geometry.isna()])
-        logger.debug(
-            f"{missing_features} out of {total_features} do not have a geometry"
-        )
+        logger.debug(f"{missing_features} out of {total_features} do not have a geometry")
 
         # Rename columns:
         if column_mapping is not None:
@@ -341,9 +337,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             gpkg_path,
             len(layerlist),
         )
-        logger.info(
-            "\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS"
-        )
+        logger.info("\tINDEX\t|\tNAME                        \t|\tGEOM_TYPE      \t|\t NFEATURES\t|\t   NFIELDS")
         for laynum, layer_name in enumerate(layerlist):
             layer = gpd.read_file(gpkg_path, layer=layer_name)
             if layer.empty:
@@ -352,14 +346,14 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
             nfields = len(layer.columns)
             nfeatures = layer.shape[0]
-            
+
             if isinstance(layer, gpd.GeoDataFrame):
                 geom_type = layer.geom_type.iloc[0]
                 if geom_type is None:
-                    geom_type = "None"                
+                    geom_type = "None"
             else:
                 geom_type = "None"
-                
+
             logger.info(
                 "\t%5d\t|\t%30s\t|\t%s\t|\t%10d\t|\t%10d",
                 laynum,
@@ -433,7 +427,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if layer_name.lower() not in map(str.lower, gpd.list_layers(gpkg_path).name.tolist()):
             raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
 
-        layer = gpd.read_file(gpkg_path, layer=layer_name, engine='pyogrio')
+        layer = gpd.read_file(gpkg_path, layer=layer_name, engine="pyogrio")
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
 
@@ -487,7 +481,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if not isinstance(geometry, (Polygon, MultiPolygon)):
             raise TypeError("Expected geometry of type Polygon or MultiPolygon")
 
-        # Clip if needed          
+        # Clip if needed
         if cliptype == "clip":
             pre_geomtypes = self.geom_type.unique().tolist()
             if "Polygon" in pre_geomtypes and "MultiPolygon" not in pre_geomtypes:
@@ -496,7 +490,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                 pre_geomtypes.append("Polygon")
             gdf = gpd.clip(self, gpd.GeoDataFrame(geometry=[geometry], crs=self.crs))
             if clip_and_drop:
-                # Reduce to allowed 
+                # Reduce to allowed
                 gdf = gpd.GeoDataFrame(gdf, crs=gdf.crs)
                 rem = gdf[~gdf.geom_type.isin(pre_geomtypes)]
                 # Explode to deal with geometry collections
@@ -587,9 +581,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if rename_col is not None:
             try:
                 gdf_out["branch_id"] = gdf_out[rename_col]
-                gdf_out[rename_col] = [
-                    f"{prefix}{g[1][rename_col]}{suffix}" for g in self.iterrows()
-                ]
+                gdf_out[rename_col] = [f"{prefix}{g[1][rename_col]}{suffix}" for g in self.iterrows()]
             except KeyError as err:
                 raise ValueError(f"Column rename with '{rename_col}' did not succeed.") from err
 
@@ -615,15 +607,12 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         missing = [col for col in (col1, col2) if col not in self.columns]
         if missing:
             raise ValueError(
-                f"Cannot merge columns '{col1}' and '{col2}': "
-                f"{', '.join(repr(col) for col in missing)} not found."
+                f"Cannot merge columns '{col1}' and '{col2}': {', '.join(repr(col) for col in missing)} not found."
             )
         try:
             self[rename_col] = self[col1] + self[col2]
         except TypeError as err:
-            raise ValueError(
-                f"Merge of columns '{col1}' and '{col2}' did not succeed."
-            ) from err
+            raise ValueError(f"Merge of columns '{col1}' and '{col2}' did not succeed.") from err
 
     def snap_to_branch(self, branches: gpd.GeoDataFrame, snap_method: str, maxdist: float = 5) -> None:
         """Find the nearest branch for each geometry, see `spatial.find_nearest_branch`.
@@ -639,9 +628,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         maxdist : float, optional
             Maximum distance to a branch. Defaults to 5.
         """
-        spatial.find_nearest_branch(
-            branches=branches, geometries=self, method=snap_method, maxdist=maxdist
-        )
+        spatial.find_nearest_branch(branches=branches, geometries=self, method=snap_method, maxdist=maxdist)
 
 
 class ExtendedDataFrame(pd.DataFrame):
@@ -668,11 +655,7 @@ class ExtendedDataFrame(pd.DataFrame):
         if required_columns is None:
             required_columns = []
 
-        self.required_columns = (
-            required_columns[:]
-            if isinstance(required_columns, list)
-            else [required_columns]
-        )
+        self.required_columns = required_columns[:] if isinstance(required_columns, list) else [required_columns]
 
     def delete_all(self) -> None:
         """Remove all rows, in place."""
@@ -728,9 +711,7 @@ class ExtendedDataFrame(pd.DataFrame):
             If ``df`` has columns that this DataFrame does not have.
         """
         if not np.isin(df.columns, self.columns).all():
-            raise KeyError(
-                "The new df contains columns that are not present in the current df."
-            )
+            raise KeyError("The new df contains columns that are not present in the current df.")
 
         # Concatenate data
         current = pd.DataFrame(self.values, index=self.index, columns=self.columns)
@@ -801,10 +782,10 @@ class ExtendedDataFrame(pd.DataFrame):
         if layer_name.lower() not in map(str.lower, gpd.list_layers(gpkg_path).name.tolist()):
             raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
 
-        layer = gpd.read_file(gpkg_path, layer=layer_name, engine='pyogrio')
+        layer = gpd.read_file(gpkg_path, layer=layer_name, engine="pyogrio")
         columns = [col.lower() for col in layer.columns]
         layer.columns = columns
-        if 'geometry' in layer.columns:
+        if "geometry" in layer.columns:
             layer = layer.drop("geometry", axis=1)
 
         df = layer

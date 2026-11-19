@@ -38,6 +38,7 @@ assert data_path.exists()
 output_path = (Path(__file__).parent / ".." / ".." / "model").resolve()
 output_path.mkdir(parents=False, exist_ok=True)
 
+
 def setup_model(
     hydamo_obj: HyDAMO | None = None,
     full_test: bool = False,
@@ -49,25 +50,25 @@ def setup_model(
     assert isinstance(fm.geometry.netfile, NetworkModel)
     # Set start and stop time
     fm.time.refdate = 20160601
-    fm.time.tstop =  48*3600
+    fm.time.tstop = 48 * 3600
     hydamo = hydamo_obj
 
     if hydamo is None:
         hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
         hydamo = test_from_hydamo._convert_structures(hydamo_obj=hydamo)
-    
-    if full_test:        
+
+    if full_test:
         hydamo.observationpoints.add_points(
-            [Point(199617,394885), Point(199421,393769), Point(199398,393770)],
-            ["Obs_BV152054", "ObsS_96684","ObsO_test"],
+            [Point(199617, 394885), Point(199421, 393769), Point(199398, 393770)],
+            ["Obs_BV152054", "ObsS_96684", "ObsO_test"],
             locationTypes=["1d", "1d", "1d"],
             snap_distance=10.0,
         )
 
         hydamo.observationpoints.add_points(
-            [Point(200198,396489), Point(201129, 396269), Point(199996, 393899), Point(199665, 395323)],
-            ["ObsS_96544", "ObsP_113GIS", 'ObsS_96789', 'Obs_ORIF'],
-            locationTypes=["1d", "1d","1d", "1d"],
+            [Point(200198, 396489), Point(201129, 396269), Point(199996, 393899), Point(199665, 395323)],
+            ["ObsS_96544", "ObsP_113GIS", "ObsS_96789", "Obs_ORIF"],
+            locationTypes=["1d", "1d", "1d", "1d"],
             snap_distance=10.0,
         )
 
@@ -94,10 +95,10 @@ def setup_model(
     )
     assert structures is not None
     if full_test:
-        objects = pd.concat([structures, hydamo.observationpoints.observation_points], axis=0)    
+        objects = pd.concat([structures, hydamo.observationpoints.observation_points], axis=0)
     else:
         objects = structures
-    
+
     mesh.mesh1d_add_branches_from_gdf(
         fm.geometry.netfile.network,
         branches=hydamo.branches,
@@ -118,37 +119,32 @@ def setup_model(
         roughness_variant=RoughnessVariant.HIGH,
     )
     missing = hydamo.crosssections.get_branches_without_crosssection()
-    missing_after_interpolation = mesh.mesh1d_order_numbers_from_attribute(hydamo.branches, 
-            missing, 
-            order_attribute='naam', 
-            network=fm.geometry.netfile.network,  
-            exceptions=['W_1386_0'])
+    missing_after_interpolation = mesh.mesh1d_order_numbers_from_attribute(
+        hydamo.branches, missing, order_attribute="naam", network=fm.geometry.netfile.network, exceptions=["W_1386_0"]
+    )
 
     # Set a default cross section
-    profiel=np.array([[0,21],[2,19],[7,19],[9,21]])
-    default = hydamo.crosssections.add_yz_definition(yz=profiel, 
-                                                    thalweg = 4.5,
-                                                    roughnesstype='StricklerKs',
-                                                    roughnessvalue=25.0, 
-                                                    name='default'
-                                                    )
+    profiel = np.array([[0, 21], [2, 19], [7, 19], [9, 21]])
+    default = hydamo.crosssections.add_yz_definition(
+        yz=profiel, thalweg=4.5, roughnesstype="StricklerKs", roughnessvalue=25.0, name="default"
+    )
 
     hydamo.crosssections.set_default_definition(definition=default, shift=0.0)
-    hydamo.crosssections.set_default_locations(missing_after_interpolation)   
+    hydamo.crosssections.set_default_locations(missing_after_interpolation)
 
     if full_test:
         # storage node
-        hydamo.storagenodes.add_storagenode(       
-            id='sto_test',
-            xy=(141001, 395030),                
-            name='sto_test',
+        hydamo.storagenodes.add_storagenode(
+            id="sto_test",
+            xy=(141001, 395030),
+            name="sto_test",
             usetable="true",
-            levels=' '.join(np.arange(17.1, 19.6, 0.1).astype(str)),
-            storagearea=' '.join(np.arange(100, 1000, 900/25.).astype(str)),
+            levels=" ".join(np.arange(17.1, 19.6, 0.1).astype(str)),
+            storagearea=" ".join(np.arange(100, 1000, 900 / 25.0).astype(str)),
             interpolate="linear",
-            network=fm.geometry.netfile.network
-            )
-        
+            network=fm.geometry.netfile.network,
+        )
+
         # boundary conditions
     hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network)
     series = pd.Series(np.sin(np.linspace(2, 8, 120) * -1) + 1.0)
@@ -165,8 +161,10 @@ def setup_model(
         assert isinstance(extent, Polygon)
         network = fm.geometry.netfile.network
         mesh.mesh2d_add_rectilinear(network, extent, dx=20, dy=20)
-        mesh.mesh2d_clip(network, hydamo.branches.geometry['W_2646_0'].buffer(20.))
-        mesh.mesh2d_altitude_from_raster(network, data_path.joinpath("rasters/AHN_2m_clipped_filled.tif"), "face", "mean", fill_value=-999)
+        mesh.mesh2d_clip(network, hydamo.branches.geometry["W_2646_0"].buffer(20.0))
+        mesh.mesh2d_altitude_from_raster(
+            network, data_path.joinpath("rasters/AHN_2m_clipped_filled.tif"), "face", "mean", fill_value=-999
+        )
         mesh.links1d2d_add_links_1d_to_2d(network)
         mesh.links1d2d_remove_1d_endpoints(network)
 
@@ -195,13 +193,11 @@ def _add_to_filestructure(
 
     if drrmodel is not None:
         hydamo.external_forcings.convert.laterals(
-            hydamo.laterals,                        
-            rr_boundaries=drrmodel.external_forcings.boundary_nodes
+            hydamo.laterals, rr_boundaries=drrmodel.external_forcings.boundary_nodes
         )
 
-
     models = Df2HydrolibModel(hydamo, assign_default_profiles=True)
-    
+
     fm.geometry.structurefile = [StructureModel(structure=models.structures)]
     fm.geometry.crosslocfile = CrossLocModel(crosssection=models.crosslocs)
     fm.geometry.crossdeffile = CrossDefModel(definition=models.crossdefs)
@@ -221,11 +217,13 @@ def _add_to_filestructure(
 
     return fm
 
+
 def test_add_to_filestructure() -> None:
     fm = _add_to_filestructure()
     assert hasattr(fm, "geometry")
     assert hasattr(fm.geometry, "inifieldfile")
-    
+
+
 def _write_model(
     drrmodel: DRRModel | None = None,
     hydamo_obj: HyDAMO | None = None,
@@ -233,35 +231,39 @@ def _write_model(
     model_path: Path | str | None = None,
 ) -> tuple[FMModel, Path]:
     model_path = output_path if model_path is None else Path(model_path)
-    fm = _add_to_filestructure(
-        drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test, model_path=model_path
-    )
+    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test, model_path=model_path)
 
-    fm.geometry.uniformwidth1d = 1.0            # default  breedte 
-    fm.geometry.bedlevtype = 1                  # 1: at cell center (tiles xz,yz,bl,bob=max(bl)), 2: at face (tiles xu,yu,blu,bob=blu), 3: at face (using mean node values), 4: at face 
-    fm.geometry.changestructuredimensions = False  # Change the structure dimensions in case these are inconsistent with the channel dimensions.
+    fm.geometry.uniformwidth1d = 1.0  # default  breedte
+    fm.geometry.bedlevtype = 1  # 1: at cell center (tiles xz,yz,bl,bob=max(bl)), 2: at face (tiles xu,yu,blu,bob=blu), 3: at face (using mean node values), 4: at face
+    fm.geometry.changestructuredimensions = (
+        False  # Change the structure dimensions in case these are inconsistent with the channel dimensions.
+    )
 
     fm.sediment.sedimentmodelnr = 0
 
-    fm.numerics.cflmax = 0.7                    # Maximum Courant nr.
-    fm.numerics.advectype = 33                  # Adv type, 0=no, 33=Perot q(uio-u) fast, 3=Perot q(uio-u).
+    fm.numerics.cflmax = 0.7  # Maximum Courant nr.
+    fm.numerics.advectype = 33  # Adv type, 0=no, 33=Perot q(uio-u) fast, 3=Perot q(uio-u).
 
-    fm.volumetables.increment = 0.2             # parameter setting advised by Deltares for better performance
-    fm.volumetables.usevolumetables = True        # parameter setting advised by Deltares for better performance
+    fm.volumetables.increment = 0.2  # parameter setting advised by Deltares for better performance
+    fm.volumetables.usevolumetables = True  # parameter setting advised by Deltares for better performance
 
-    fm.restart.restartfile     = DiskOnlyFileModel(filepath=None)          # Restart file, only from netCDF-file, hence: either *_rst.nc or *_map.nc.
-    fm.restart.restartdatetime = None           # Restart time [YYYYMMDDHHMMSS], only relevant in case of restart from *_map.nc.
+    fm.restart.restartfile = DiskOnlyFileModel(
+        filepath=None
+    )  # Restart file, only from netCDF-file, hence: either *_rst.nc or *_map.nc.
+    fm.restart.restartdatetime = None  # Restart time [YYYYMMDDHHMMSS], only relevant in case of restart from *_map.nc.
     fm.sediment.sedimentmodelnr = 4
-    fm.output.mapformat=4                       # parameter setting advised by Deltares for better performance
-    fm.output.ncformat = 4                      # parameter setting advised by Deltares for better performance
-    fm.output.ncnoforcedflush = True              # parameter setting advised by Deltares for better performance
-    fm.output.ncnounlimited = True     
+    fm.output.mapformat = 4  # parameter setting advised by Deltares for better performance
+    fm.output.ncformat = 4  # parameter setting advised by Deltares for better performance
+    fm.output.ncnoforcedflush = True  # parameter setting advised by Deltares for better performance
+    fm.output.ncnounlimited = True
     fm.output.outputdir = Path("output")
-    fm.output.statsinterval            = [1]       # Interval [s] between screen step outputs in seconds simulation time, if negative in seconds wall clock time.
-    fm.output.timingsinterval          =  []    # Timings output interval TimingsInterval.
+    fm.output.statsinterval = [
+        1
+    ]  # Interval [s] between screen step outputs in seconds simulation time, if negative in seconds wall clock time.
+    fm.output.timingsinterval = []  # Timings output interval TimingsInterval.
 
-    if hasattr(fm, 'sediment'):
-        delattr(fm, 'sediment')
+    if hasattr(fm, "sediment"):
+        delattr(fm, "sediment")
 
     dimr = DIMR()
     dimr.component.append(
@@ -275,6 +277,7 @@ def _write_model(
     dimr.save(recurse=True)
 
     return fm, model_path
+
 
 def test_write_model() -> None:
     _, output_path = _write_model()

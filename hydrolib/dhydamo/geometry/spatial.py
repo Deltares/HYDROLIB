@@ -84,8 +84,9 @@ def minimum_bounds_fixed_rotation(polygon: Polygon, angle: float) -> tuple[tuple
 
     return (x0, y0), xsize, ysize
 
+
 def find_nearest_branch(
-    branches: gpd.GeoDataFrame, geometries: gpd.GeoDataFrame, method: str = 'overal', maxdist: float = 5
+    branches: gpd.GeoDataFrame, geometries: gpd.GeoDataFrame, method: str = "overal", maxdist: float = 5
 ) -> None:
     """Find the nearest branch for each geometry, in place.
 
@@ -118,17 +119,17 @@ def find_nearest_branch(
         If the method is not one of the above.
     """
     # Check if method is in allowed methods
-    allowed_methods = ['intersecting', 'overal', 'centroid', 'ends']
+    allowed_methods = ["intersecting", "overal", "centroid", "ends"]
     if method not in allowed_methods:
         raise NotImplementedError(f'Method "{method}" not implemented.')
 
     # Add columns if not present
-    if 'branch_id' not in geometries.columns:
-        geometries['branch_id'] = ''
-    if 'branch_offset' not in geometries.columns:
-        geometries['branch_offset'] = np.nan
+    if "branch_id" not in geometries.columns:
+        geometries["branch_id"] = ""
+    if "branch_offset" not in geometries.columns:
+        geometries["branch_offset"] = np.nan
 
-    if method == 'intersecting':
+    if method == "intersecting":
         # Determine intersection geometries per branch
         sindex = geometries.sindex
         for branch_id, branchgeo in zip(branches.index, branches.geometry):
@@ -137,34 +138,34 @@ def find_nearest_branch(
             # For each geometrie, determine offset along branch
             for geometry_id, geometry in zip(intersecting.index, intersecting.geometry):
                 # Determine distance of profile line along branch
-                geometries.at[geometry_id, 'branch_id'] = branch_id
+                geometries.at[geometry_id, "branch_id"] = branch_id
 
                 # Calculate offset
-                mindist = min(0.1, branchgeo.length / 2.)
+                mindist = min(0.1, branchgeo.length / 2.0)
                 offset = round(branchgeo.project(branchgeo.intersection(geometry).centroid), 3)
                 offset = max(mindist, min(branchgeo.length - mindist, offset))
-                geometries.at[geometry_id, 'branch_offset'] = offset
+                geometries.at[geometry_id, "branch_offset"] = offset
 
     else:
         sindex = branches.sindex
         # the code of each geometry, for the log messages
-        has_code = 'code' in geometries.columns
+        has_code = "code" in geometries.columns
         codes = [None] * len(geometries)
         if has_code:
-            codes = geometries['code'].tolist()
+            codes = geometries["code"].tolist()
         # In case of looking for the nearest, it is easier to iteratie over the geometries instead of the branches
         for geometry_id, geometry, code in zip(geometries.index, geometries.geometry, codes):
             # Find near branches
             nearidx = sindex.query(geometry, predicate="dwithin", distance=maxdist)
             selectie = branches.iloc[nearidx]
 
-            if method == 'overal':
+            if method == "overal":
                 # Determine distances to branches
                 dist = selectie.distance(geometry)
-            elif method == 'centroid':
+            elif method == "centroid":
                 # Determine distances to branches
                 dist = selectie.distance(geometry.centroid)
-            elif method == 'ends':
+            elif method == "ends":
                 # Since a culvert can cross a channel, it is
                 crds = geometry.coords[:]
                 dist = (selectie.distance(Point(*crds[0])) + selectie.distance(Point(*crds[-1]))) * 0.5
@@ -182,7 +183,7 @@ def find_nearest_branch(
             # Determine nearest
             if dist.min() < maxdist:
                 branchidxmin = dist.idxmin()
-                geometries.at[geometry_id, 'branch_id'] = branchidxmin
+                geometries.at[geometry_id, "branch_id"] = branchidxmin
 
                 nbranches = (dist < maxdist).sum()
                 if nbranches > 1:
@@ -197,9 +198,9 @@ def find_nearest_branch(
 
                 # Calculate offset
                 branchgeo = branches.geometry[branchidxmin]
-                mindist = min(0.1, branchgeo.length / 2.)
+                mindist = min(0.1, branchgeo.length / 2.0)
                 offset = max(mindist, min(branchgeo.length - mindist, round(branchgeo.project(geo), 3)))
-                geometries.at[geometry_id, 'branch_offset'] = offset
+                geometries.at[geometry_id, "branch_offset"] = offset
             else:
                 logger.info(
                     "Centroid %s has 0 branches with maxdist=%s and method=%s",
@@ -208,7 +209,8 @@ def find_nearest_branch(
                     method,
                 )
 
-def orthogonal_line(line: LineString, offset: float, width: float=1.0) -> list[tuple[float, float]]:
+
+def orthogonal_line(line: LineString, offset: float, width: float = 1.0) -> list[tuple[float, float]]:
     """Return a line perpendicular to a line, centered on a point along it.
 
     Parameters
@@ -226,18 +228,29 @@ def orthogonal_line(line: LineString, offset: float, width: float=1.0) -> list[t
         The two end points of the orthogonal line.
     """
     # Determine angle at offset
-    angle = np.angle(complex(*np.diff([
-        line.interpolate(offset - 0.001).coords[0][:2],
-        line.interpolate(offset + 0.001).coords[0][:2]
-    ], axis=0)[0])) + 0.5 * np.pi
+    angle = (
+        np.angle(
+            complex(
+                *np.diff(
+                    [line.interpolate(offset - 0.001).coords[0][:2], line.interpolate(offset + 0.001).coords[0][:2]],
+                    axis=0,
+                )[0]
+            )
+        )
+        + 0.5 * np.pi
+    )
 
     # Create new line
     pt = line.interpolate(offset).coords[0]
 
     f = 0.5 * width
-    orthogonal = [(pt[0] + np.cos(angle) * f, pt[1] + np.sin(angle) * f), (pt[0] - np.cos(angle) * f, pt[1] - np.sin(angle) * f)]
+    orthogonal = [
+        (pt[0] + np.cos(angle) * f, pt[1] + np.sin(angle) * f),
+        (pt[0] - np.cos(angle) * f, pt[1] - np.sin(angle) * f),
+    ]
 
     return orthogonal
+
 
 def extend_linestring(line: LineString, near_pt: Point, length: float) -> LineString:
     """Return a line that extends a line beyond the end nearest to a point.
@@ -265,11 +278,12 @@ def extend_linestring(line: LineString, near_pt: Point, length: float) -> LineSt
     coords = line.coords[:]
     x0, y0 = coords[nearest_end[0]]
     dx, dy = np.diff(np.vstack([coords[nearest_end[0]], coords[nearest_end[1]]]), axis=0)[0]
-    segmentlength = (dx**2 + dy**2)**0.5
+    segmentlength = (dx**2 + dy**2) ** 0.5
     dx *= length / segmentlength
     dy *= length / segmentlength
 
     return LineString([(x0, y0), (x0 - dx, y0 - dy)])
+
 
 def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """Return the Voronoi cells around the nodes, clipped to the faces.
@@ -418,9 +432,7 @@ def polygons_to_branch_values(
     return result
 
 
-def _polygon_intervals(
-    line: LineString, polygons: gpd.GeoDataFrame, step: float
-) -> list[tuple[float, float, int]]:
+def _polygon_intervals(line: LineString, polygons: gpd.GeoDataFrame, step: float) -> list[tuple[float, float, int]]:
     """Chainage intervals of the parts of a branch inside each polygon.
 
     Parameters
@@ -492,9 +504,7 @@ def _covering_segments(
     return segments
 
 
-def _segments_to_chainages(
-    segments: list[list[float]], length: float, step: float
-) -> tuple[list[float], list[float]]:
+def _segments_to_chainages(segments: list[list[float]], length: float, step: float) -> tuple[list[float], list[float]]:
     """Chainages and values for a 1dField file, with a stepwise change at segment ends.
 
     Segment ends inside the branch are moved half a `step` into the segment, so two
@@ -572,9 +582,7 @@ def points_to_branch_values(
         geometries = branches.geometry.to_numpy()
         data = points.iloc[point_idx][[column]].copy()
         data["branchid"] = branches.index.to_numpy()[branch_idx]
-        data["chainage"] = [
-            geometries[b].project(p) for b, p in zip(branch_idx, points.geometry.to_numpy()[point_idx])
-        ]
+        data["chainage"] = [geometries[b].project(p) for b, p in zip(branch_idx, points.geometry.to_numpy()[point_idx])]
 
     result: dict[Hashable, tuple[list[float], list[float]]] = {}
     for branch_id, group in data.groupby("branchid", sort=False):

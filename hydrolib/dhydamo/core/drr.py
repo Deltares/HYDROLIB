@@ -436,9 +436,7 @@ class Openwater:
         self.io = drrreader.OpenwaterIO(self)
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def add_openwater(
-        self, id: str, area: str, meteo_area: str, px: str, py: str, boundary_node: str
-    ) -> None:
+    def add_openwater(self, id: str, area: str, meteo_area: str, px: str, py: str, boundary_node: str) -> None:
         """Add an open water node.
 
         Parameters
