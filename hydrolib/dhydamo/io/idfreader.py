@@ -4,12 +4,23 @@ Functions for reading and writing iMOD Data Files (IDFs) to ``xarray`` objects.
 The primary functions to use are :func:`imod.idf.open` and
 :func:`imod.idf.save`, though lower level functions are also available.
 
-The function in this file are taken from the imod-python package version 0.10.1. 
+The function in this file are taken from the imod-python package version 0.10.1.
 
-The only functionality needed in dhydamo is the capability to read IDF files.
+The only functionality needed in dhydamo is the capability to read IDF files. imod itself is
+not a dependency: it needs Python >= 3.12 and brings gdal, numba, pymetis and more.
+
+Compared with imod 1.1.0 (November 2026), whose reading code was restructured but is
+otherwise the same, this copy:
+
+- takes ``.item()`` of the top and bottom in ``_scalar_z_coord``, as 1.1.0 does (numpy
+  deprecates ``float()`` of a one-element array);
+- has type hints only for ``open`` and ``affine_from_idf``, the functions dhydamo uses; mypy
+  does not require them for the rest of this module (see pyproject.toml);
+- adds ``affine_from_idf``.
 """
 
 import collections
+import datetime
 import functools
 import glob
 import itertools
@@ -23,6 +34,7 @@ import dask.array
 import dateutil.parser
 import numpy as np
 import xarray as xr
+from affine import Affine
 from rasterio.transform import from_origin
 
 f_open = open
@@ -109,6 +121,8 @@ def _scalar_z_coord(coords, tops, bots):
     top = np.unique(tops)
     bot = np.unique(bots)
     if top.size == bot.size == 1:
+        top = top.item()
+        bot = bot.item()
         dz = top - bot
         z = top - 0.5 * dz
         coords["dz"] = float(dz)  # cast from array
@@ -456,7 +470,7 @@ def _load(paths, use_cftime, pattern, _read, header):
 
 def _groupdict(stem, pattern):
     if pattern is not None:
-        if isinstance(pattern, pattern):
+        if isinstance(pattern, re.Pattern):
             d = pattern.match(stem).groupdict()
         else:
             pattern = pattern.lower()
@@ -492,11 +506,20 @@ def _groupdict(stem, pattern):
             d = re_pattern.match(stem).groupdict()
     return d
 
+DATETIME_FORMATS = {
+    14: "%Y%m%d%H%M%S",
+    12: "%Y%m%d%H%M",
+    10: "%Y%m%d%H",
+    8: "%Y%m%d",
+    4: "%Y",
+}
+
+
 def to_datetime(s):
-    # try:
-    #     time = datetime.datetime.strptime(s, DATETIME_FORMATS[len(s)])
-    # except (ValueError, KeyError):  # Try fullblown dateutil date parser
-    time = dateutil.parser.parse(s)
+    try:
+        time = datetime.datetime.strptime(s, DATETIME_FORMATS[len(s)])
+    except (ValueError, KeyError):  # Try fullblown dateutil date parser
+        time = dateutil.parser.parse(s)
     return time
 
 
@@ -719,7 +742,11 @@ def read(path, pattern=None):
 
 
 # Open IDFs for multiple times and/or layers into one DataArray
-def open(path, use_cftime=False, pattern=None):
+def open(
+    path: str | pathlib.Path | list[pathlib.Path],
+    use_cftime: bool = False,
+    pattern: str | re.Pattern[str] | None = None,
+) -> xr.DataArray:
     r"""
     Open one or more IDF files as an xarray.DataArray.
 
@@ -808,7 +835,7 @@ def open(path, use_cftime=False, pattern=None):
     return _load(paths, use_cftime, pattern, _read, header)
 
 
-def affine_from_idf(dataset):
+def affine_from_idf(dataset: xr.DataArray) -> Affine:
     """Build a rasterio affine transform from an opened IDF dataset.
 
     Parameters

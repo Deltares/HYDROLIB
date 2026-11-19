@@ -150,7 +150,7 @@ module = ["hydrolib.core.*"]
 follow_untyped_imports = true
 implicit_optional = true
 
-# Copied from imod-python 0.10.1: mypy does not require type hints here.
+# Copied from imod-python 0.10.1: only open() and affine_from_idf() have type hints.
 [[tool.mypy.overrides]]
 module = ["hydrolib.dhydamo.io.idfreader"]
 disallow_untyped_defs = false
