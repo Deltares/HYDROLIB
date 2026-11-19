@@ -996,3 +996,29 @@ def test_mesh1d_add_branches_from_gdf_logs_duplicate_structure_location(caplog: 
 
     assert "Structures 1.0, 2.0 have the same location." in caplog.text
     assert len(network._mesh1d.network1d_node_x) > 0
+
+def test_mesh1d_order_numbers_from_attribute() -> None:
+    # the first group used to get order 0, which was never written to the network
+    fm = FMModel()
+    assert isinstance(fm.geometry.netfile, NetworkModel)
+    network = fm.geometry.netfile.network
+    lines = {
+        "a1": LineString([(0, 0), (100, 0)]),
+        "a2": LineString([(100, 0), (200, 0)]),
+        "b1": LineString([(200, 0), (300, 0)]),
+        "b2": LineString([(300, 0), (400, 0)]),
+    }
+    for name, line in lines.items():
+        mesh.mesh1d_add_branch_from_linestring(network, line, node_distance=50, name=name)
+    branches = gpd.GeoDataFrame(
+        {"code": list(lines), "naam": ["A", "A", "B", "B"]}, geometry=list(lines.values())
+    )
+
+    # a2 and b2 have no cross section
+    missing = mesh.mesh1d_order_numbers_from_attribute(branches, ["a2", "b2"], "naam", network)
+
+    assert missing == []
+    assert branches["order"].tolist() == [1, 1, 2, 2]
+    branch_ids = list(network._mesh1d.network1d_branch_id)
+    orders = network._mesh1d.network1d_branch_order
+    assert [int(orders[branch_ids.index(name)]) for name in lines] == [1, 1, 2, 2]

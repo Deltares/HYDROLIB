@@ -43,7 +43,7 @@ def test_open_and_affine() -> None:
     affine = idfreader.affine_from_idf(dataset)
     assert (affine.a, affine.e) == (50.0, -50.0)
     # the centre of the first cell
-    assert affine * (0.5, 0.5) == (float(dataset.x[0]), float(dataset.y[0]))
+    assert affine @ (0.5, 0.5) == (float(dataset.x[0]), float(dataset.y[0]))
 
 
 def test_open_several_files_along_time() -> None:

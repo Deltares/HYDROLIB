@@ -1,6 +1,7 @@
 from typing import overload
 
 import numpy as np
+import shapely
 from shapely.geometry import (
     LineString,
     MultiLineString,
@@ -92,14 +93,10 @@ def interp_linestring(linestring: LineString | MultiLineString, dist: float) -> 
     if isinstance(linestring, MultiLineString):
         return MultiLineString([interp_linestring(ls, dist) for ls in linestring.geoms])
 
-    return LineString(
-        [
-            linestring.interpolate(x)
-            for x in np.linspace(
-                0, linestring.length, max(4, round(linestring.length / dist))
-            )
-        ]
-    )
+    n_points = max(4, round(linestring.length / dist))
+    distances = np.linspace(0, linestring.length, n_points)
+    points = shapely.line_interpolate_point(linestring, distances)
+    return LineString(points)
 
 
 @overload

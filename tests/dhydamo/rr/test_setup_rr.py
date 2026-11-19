@@ -150,10 +150,10 @@ def test_setup_rr_model_with_sewer_areas_and_greenhouses() -> None:
     soil_file = data_path / "rasters" / "sobek_soil.tif"
     meteo_areas = hydamo.catchments
 
-    hydamo.greenhouse_areas.read_gpkg_layer(
+    hydamo.greenhouse_areas._read_gpkg_layer(
         data_path / "greenhouses.gpkg", layer_name="greenhouses", index_col="code"
     )
-    hydamo.greenhouse_laterals.read_gpkg_layer(
+    hydamo.greenhouse_laterals._read_gpkg_layer(
         data_path / "greenhouse_laterals.gpkg", layer_name="laterals"
     )
     hydamo.greenhouse_laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)

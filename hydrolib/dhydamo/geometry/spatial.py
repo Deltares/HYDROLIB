@@ -212,13 +212,13 @@ def extend_linestring(line: LineString, near_pt: Point, length: float) -> LineSt
     # Get the nearest end
     nearest_end = (0, 1) if line.project(near_pt) < line.length / 2 else (-1, -2)
 
-    # Extrapolate the end 1 meter, and create a perpendicular line
+    # Extrapolate the end segment by the given length
     coords = line.coords[:]
     x0, y0 = coords[nearest_end[0]]
     dx, dy = np.diff(np.vstack([coords[nearest_end[0]], coords[nearest_end[1]]]), axis=0)[0]
     segmentlength = (dx**2 + dy**2)**0.5
-    dx /= (segmentlength * length)
-    dy /= (segmentlength * length)
+    dx *= length / segmentlength
+    dy *= length / segmentlength
 
     return LineString([(x0, y0), (x0 - dx, y0 - dy)])
 

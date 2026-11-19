@@ -1,8 +1,29 @@
 import geopandas as gpd
 import numpy as np
+import pytest
 import shapely
 from hydrolib.dhydamo.geometry import spatial
-from shapely.geometry import MultiPolygon, box
+from shapely.geometry import LineString, MultiPolygon, Point, box
+
+
+@pytest.mark.parametrize(
+    ("near_pt", "length", "expected"),
+    [
+        # near the start: continue the first segment backwards
+        (Point(-1, 0), 1.0, [(0.0, 0.0), (-1.0, 0.0)]),
+        (Point(-1, 0), 5.0, [(0.0, 0.0), (-5.0, 0.0)]),
+        (Point(-1, 0), 0.2, [(0.0, 0.0), (-0.2, 0.0)]),
+        # near the end: continue the last segment
+        (Point(10, 11), 5.0, [(10.0, 10.0), (10.0, 15.0)]),
+    ],
+)
+def test_extend_linestring(near_pt: Point, length: float, expected: list[tuple[float, float]]) -> None:
+    line = LineString([(0, 0), (10, 0), (10, 10)])
+
+    extension = spatial.extend_linestring(line, near_pt, length)
+
+    assert extension.length == pytest.approx(length)
+    assert np.allclose(extension.coords, expected)
 
 
 def test_voronoi_around_nodes_cells_cover_the_faces() -> None:

@@ -404,7 +404,8 @@ def mesh1d_order_numbers_from_attribute(
     if exceptions is None:
         exceptions = []
 
-    j = 0
+    # order numbers start at 1: only numbers > 0 are written to the network below
+    j = 1
     branches["order"] = np.nan
     for value in branches[order_attribute].unique():
         if value is not None and not all(x in missing for x in branches.loc[branches.loc[:, order_attribute] == value, "code"]):
