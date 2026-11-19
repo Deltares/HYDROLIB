@@ -398,8 +398,10 @@ def test_drtc_deduplicates_complex_fragments() -> None:
 
 
 def _build_fourtypes_rtc(caplog: pytest.LogCaptureFixture, folder: str, id_limit: list[str]) -> DRTCModel:
-    """Build an RTC model with the four observation points used by the
-    complex-controller fixtures, then add default simple control and write XML."""
+    """Build an RTC model with the four observation points of the complex-controller fixtures.
+
+    Then add the default simple control and write the XML files.
+    """
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
     output_path = Path("hydrolib/sample_data/model").resolve()

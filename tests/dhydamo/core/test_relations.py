@@ -11,7 +11,7 @@ from hydrolib.dhydamo.core.relations import (
 
 
 def _hydamo(**tables: pd.DataFrame) -> HyDAMO:
-    """A HyDAMO object with only the given tables filled in."""
+    """Return a HyDAMO object with only the given tables filled in."""
     hydamo = HyDAMO()
     for name, table in tables.items():
         setattr(hydamo, name, table)

@@ -1,3 +1,5 @@
+"""Converters that load a DAMO GeoPackage of a given version into a HyDAMO object."""
+
 from __future__ import annotations
 
 from hydrolib.dhydamo.io.damo_converters.base import BaseDamoConverter
@@ -17,6 +19,23 @@ SUPPORTED_HYDAMO_VERSIONS = tuple(_CONVERTERS)
 
 
 def get_damo_converter(version: str) -> BaseDamoConverter:
+    """Return the converter for a DAMO version.
+
+    Parameters
+    ----------
+    version : str
+        DAMO version, one of `SUPPORTED_HYDAMO_VERSIONS`, e.g. ``"2.4"``.
+
+    Returns
+    -------
+    BaseDamoConverter
+        A new converter for that version.
+
+    Raises
+    ------
+    ValueError
+        If the version is not supported.
+    """
     try:
         return _CONVERTERS[version]()
     except KeyError as exc:

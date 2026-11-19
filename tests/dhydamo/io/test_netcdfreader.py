@@ -9,7 +9,7 @@ from netCDF4 import Dataset
 
 @pytest.fixture
 def his_like() -> Iterator[Dataset]:
-    """An in-memory netCDF file with hourly time steps on 1 June 2016 (0, 1, ..., 5 h)."""
+    """Yield an in-memory netCDF file with hourly time steps on 1 June 2016 (0, 1, ..., 5 h)."""
     dataset = Dataset("in_memory.nc", "w", diskless=True)
     dataset.createDimension("time", None)
     time = dataset.createVariable("time", "f8", ("time",))

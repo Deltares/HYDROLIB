@@ -388,7 +388,6 @@ def _dask(path, attrs=None, pattern=None, _read=None, header=None):
     dict
         A dict with all metadata.
     """
-
     path = pathlib.Path(path)
 
     if attrs is None:
@@ -822,7 +821,6 @@ def open(
     remember. The website https://regex101.com is a nice help. Alternatively,
     the most pragmatic solution may be to just rename your files.
     """
-
     if isinstance(path, list):
         return _load(path, use_cftime, pattern, _read, header)
     elif isinstance(path, pathlib.Path):

@@ -1,3 +1,5 @@
+"""The D-RTC model: time, PID and interval controllers, complex controllers and their XML files."""
+
 import copy
 import logging
 import os
@@ -144,7 +146,8 @@ class IntervalController(TypedDict):
 
 @dataclass
 class DRTCStructure:
-    "Internal dataclass for flow structures referenced in complex controllers"
+    """A flow structure referenced in a complex controller."""
+
     struct_type: str
     struct_name: str
     struct_property: str
@@ -171,27 +174,29 @@ class DRTCModel:
         complex-controller XML is parsed, and RTC template files are copied to the
         output folder.
 
-        Args:
-            hydamo (instance of HyDAMO): data structure containing the HyDAMO DAMO2.2
-            fm (instance of FMModel): model structure setup for Hydrolib-core
-            output_path (str or Path, optional): base path where an `rtc` subfolder
-                is created for generated RTC files. Defaults to the current working
-                directory.
-            rtc_onlytimeseries (bool): if True, build RTC control from
-                `rtc_timeseriesdata` only. If True, `complex_controllers_folder` is
-                ignored. Defaults to False.
-            rtc_timeseriesdata (pd.DataFrame, optional): time series data used when
-                `rtc_onlytimeseries=True`. Column names are expected to match
-                structure IDs. Defaults to None.
-            complex_controllers_folder (list[Path or str] or Path or str, optional):
-                folder(s) with custom RTC XML files to import when
-                `rtc_onlytimeseries=False`. Defaults to None.
-            id_limit_complex_controllers (list[str], optional): whitelist of IDs that
-                may be coupled to complex controller logic. Required when
-                `complex_controllers_folder` is provided. An empty list means no IDs
-                are allowed.
-            rtc_timestep (float, optional): Time step of the RTC model.
-                Defaults to 60 seconds.
+        Parameters
+        ----------
+        hydamo : HyDAMO
+            The HyDAMO data, with the structures and management.
+        fm : FMModel
+            The FM model; its reference date and times set the RTC period.
+        output_path : str or Path, optional
+            Folder in which an ``rtc`` subfolder is created for the RTC files. Defaults to
+            None: the current working directory.
+        rtc_onlytimeseries : bool, optional
+            Build the RTC control from ``rtc_timeseriesdata`` only;
+            ``complex_controllers_folder`` is then ignored. Defaults to False.
+        rtc_timeseriesdata : pd.DataFrame, optional
+            Time series used with ``rtc_onlytimeseries``, with the structure ids as
+            columns. Defaults to None.
+        complex_controllers_folder : list[Path or str], Path or str, optional
+            Folder(s) with custom RTC XML files to import, without
+            ``rtc_onlytimeseries``. Defaults to None.
+        id_limit_complex_controllers : list[str], optional
+            Ids that may be coupled to complex controllers. Required with
+            ``complex_controllers_folder``; an empty list allows no ids. Defaults to None.
+        rtc_timestep : float, optional
+            Time step of the RTC model (s). Defaults to 60.
         """
         self.hydamo = hydamo
 
@@ -322,17 +327,24 @@ class DRTCModel:
     ) -> bool:
         """Return whether a structure id is allowed by the complex-controller filter.
 
-        Args:
-            cc_id (str): Structure or observation id to evaluate.
-            allow_observations (bool, optional): If True, pass through observation
-                ids that exist in the HyDAMO model. Defaults to False.
-            allow_if_filter_inactive (bool, optional): Return value when no complex
-                controller filter is active (`cc_referenced_ids` or `cc_id_limit`
-                is None).
-                Defaults to True.
-            allow_if_not_referenced (bool, optional): Return value when filtering is
-                active, but `cc_id` is not part of `cc_referenced_ids`. Defaults
-                to False.
+        Parameters
+        ----------
+        cc_id : str
+            Structure or observation id to evaluate.
+        allow_observations : bool, optional
+            Pass through observation ids that exist in the HyDAMO model. Defaults to
+            False.
+        allow_if_filter_inactive : bool, optional
+            Return value when no complex controller filter is active
+            (``cc_referenced_ids`` or ``cc_id_limit`` is None). Defaults to True.
+        allow_if_not_referenced : bool, optional
+            Return value when filtering is active, but ``cc_id`` is not in
+            ``cc_referenced_ids``. Defaults to False.
+
+        Returns
+        -------
+        bool
+            Whether the id is allowed.
         """
         allow, _ = self._allow_struct_with_reason(
             cc_id=cc_id,
@@ -392,6 +404,13 @@ class DRTCModel:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def check_timeseries(self, timeseries: pd.DataFrame) -> None:
+        """Warn for each structure with a controller in ``hydamo.management`` but no time series.
+
+        Parameters
+        ----------
+        timeseries : pd.DataFrame
+            Time series, with the structure ids as columns.
+        """
         all_management = self.hydamo.management
         # The resolver raises for rows referencing neither a pump nor a management device.
         hydamo_controllers = all_management[
@@ -429,24 +448,27 @@ class DRTCModel:
         irrelevant. Mapping a management record to a controllable structure is
         RTC-specific business logic, so it belongs in DRTCModel.
 
-        Args:
-            management (pd.Series): a single row from `hydamo.management`, in
-                canonical (post-`damo_converters`) column form. Must have
-                `pompid` and `regelmiddelid`, where exactly one of the two is
-                expected to be non-null.
+        Parameters
+        ----------
+        management : pd.Series
+            A single row from ``hydamo.management``, in canonical
+            (post-``damo_converters``) column form. Must have ``pompid`` and
+            ``regelmiddelid``, where exactly one of the two is expected to be non-null.
 
-        Returns:
-            tuple[str, str] | None: `(structure_type, structure_id)`, where
-            `structure_type` is one of `"pump"`, `"weir"` or `"culvert"` and
-            `structure_id` is the id of the built D-FlowFM structure. Returns
-            `None` when the referenced pump/management device/weir/culvert
-            cannot be resolved or is not present in the built D-FlowFM
+        Returns
+        -------
+        tuple[str, str] or None
+            ``(structure_type, structure_id)``, where ``structure_type`` is one of
+            ``"pump"``, ``"weir"`` or ``"culvert"`` and ``structure_id`` is the id of the
+            built D-FlowFM structure. None when the referenced pump, management device,
+            weir or culvert cannot be resolved or is not present in the built D-FlowFM
             structures; a warning is logged in that case.
 
-        Raises:
-            ValueError: if neither `pompid` nor `regelmiddelid` is set on
-                `management`, since a management record must reference one of
-                the two.
+        Raises
+        ------
+        ValueError
+            If neither ``pompid`` nor ``regelmiddelid`` is set on ``management``, since a
+            management record must reference one of the two.
         """
         management_pump = RelationsHyDAMO.MANAGEMENT_PUMP
         management_device = RelationsHyDAMO.MANAGEMENT_DEVICE
@@ -546,17 +568,20 @@ class DRTCModel:
         Those are looked up separately via
         `hydamo.structures.compound_weir_structure_ids` by the caller.
 
-        Args:
-            mandev (pd.DataFrame): the `hydamo.management_device` row(s) for
-                a single management record's `regelmiddelid` (as selected by
-                `_resolve_management_structure`). Expected to contain at most
-                one row; only the first row is used if there are more.
+        Parameters
+        ----------
+        mandev : pd.DataFrame
+            The ``hydamo.management_device`` row(s) for a single management record's
+            ``regelmiddelid`` (as selected by ``_resolve_management_structure``).
+            Expected to contain at most one row; only the first row is used if there are
+            more.
 
-        Returns:
-            str | None: the weir/orifice's HyDAMO `code` (equal to its
-            D-FlowFM structure id), or `None` if `mandev` has no
-            `kunstwerkopeningid`, the chain to `weirs` cannot be resolved, or
-            the weir turns out to be compound (multi-opening).
+        Returns
+        -------
+        str or None
+            The weir's or orifice's HyDAMO ``code`` (equal to its D-FlowFM structure id),
+            or None if ``mandev`` has no ``kunstwerkopeningid``, the chain to ``weirs``
+            cannot be resolved, or the weir turns out to be compound (multi-opening).
         """
         opening_relation = RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING
         if opening_relation.foreign_key not in mandev.columns:
@@ -591,13 +616,20 @@ class DRTCModel:
     def parse_complex_controller(
         self, xml_folder: Path | str
     ) -> ComplexControllers:
-        """Method to parse user-specified 'complex' controllers
+        """Read user-specified 'complex' controllers from the RTC XML files in a folder.
 
-        Args:
-            xml_folder (Union[Path, str]): Folder where the user located the custom XML files
+        Items that refer to structures that are not allowed (see `allow_struct`) are
+        skipped and logged.
 
-        Returns:
-            dict: dict of list with the data in the files. Every key is a RTC-file, including the DIMR-config.
+        Parameters
+        ----------
+        xml_folder : Path or str
+            Folder with the custom XML files.
+
+        Returns
+        -------
+        ComplexControllers
+            The XML fragments per RTC file, and the parsed DIMR config.
         """
         files = [p for p in Path(xml_folder).iterdir() if p.suffix == ".xml"]
         savedict: ComplexControllers = {
@@ -631,6 +663,7 @@ class DRTCModel:
     def _parse_cc_rtc_dataconfig(
         self, root: ET.Element, savedict: ComplexControllers
     ) -> ComplexControllers:
+        """Add the allowed import and export series of rtcDataConfig.xml to ``savedict``."""
         children = self._parse_unique_children(root)
         import_series = children.get("importSeries")
         if import_series is not None:
@@ -670,6 +703,7 @@ class DRTCModel:
     def _parse_cc_rtc_toolsconfig(
         self, root: ET.Element, savedict: ComplexControllers
     ) -> ComplexControllers:
+        """Add the allowed rules and triggers of rtcToolsConfig.xml to ``savedict``."""
         children = self._parse_unique_children(root)
 
         rules = children.get("rules")
@@ -704,6 +738,7 @@ class DRTCModel:
     def _parse_cc_timeseries(
         self, root: ET.Element, savedict: ComplexControllers
     ) -> ComplexControllers:
+        """Add all elements of timeseries_import.xml to ``savedict``."""
         for el in root:
             savedict["timeseries"].append(ET.tostring(el).decode())
 
@@ -713,6 +748,7 @@ class DRTCModel:
     def _parse_cc_state(
         self, root: ET.Element, savedict: ComplexControllers
     ) -> ComplexControllers:
+        """Add the elements of the tree vector of state_import.xml to ``savedict``."""
         for el in root[0]:
             savedict["state"].append(ET.tostring(el).decode())
 
@@ -722,6 +758,7 @@ class DRTCModel:
     def _parse_cc_dimr_config(
         self, root: ET.Element, savedict: ComplexControllers
     ) -> ComplexControllers:
+        """Add dimr_config.xml to ``savedict``, without the coupler items that are not allowed."""
         red_root = copy.deepcopy(root)
         for coupler_name, coupler_target in (
             ("rtc_to_flow", "targetName"),
@@ -736,6 +773,7 @@ class DRTCModel:
     def _filter_dimr_coupler_items(
         self, red_root: ET.Element, coupler_name: str, coupler_target: str
     ) -> None:
+        """Remove the items of a coupler that refer to structures that are not allowed, in place."""
         for coupler in list(red_root):
             if coupler.attrib.get("name") != coupler_name:
                 continue
@@ -759,6 +797,23 @@ class DRTCModel:
         complex_controllers_folder: list[str | Path] | str | Path,
         hydamo: HyDAMO,
     ) -> set[str]:
+        """Return the ids of the structures that the complex controllers refer to.
+
+        Only structures that exist in the HyDAMO model are returned; observation points
+        are left out.
+
+        Parameters
+        ----------
+        complex_controllers_folder : list[str or Path], str or Path
+            Folder(s) with the complex controllers (their ``dimr_config.xml``).
+        hydamo : HyDAMO
+            The HyDAMO data, with the structures.
+
+        Returns
+        -------
+        set[str]
+            Structure ids.
+        """
         # Do not log validation warnings in this method
         struct_ids_by_type = DRTCModel._get_struct_ids_by_type(hydamo)
         cc_structs, _, _ = DRTCModel._load_complex_controller_structs(
@@ -779,6 +834,11 @@ class DRTCModel:
         struct_ids_by_type: dict[str, set[str]],
         log_validation: bool = True,
     ) -> tuple[list[DRTCStructure], set[str], set[str]]:
+        """Return the structures referenced by the complex controllers that exist in HyDAMO.
+
+        Returns the valid structures, their ids, and the ids of all referenced
+        structures. Raises a ValueError for duplicate structure ids.
+        """
         folders = DRTCModel._as_folder_list(complex_controllers_folder)
         referenced_cc_structs = DRTCModel._collect_complex_controller_structs(folders)
         referenced_cc_structs, referenced_cc_ids = DRTCModel._deduplicate_complex_controller_structs(
@@ -799,6 +859,7 @@ class DRTCModel:
     def _as_folder_list(
         complex_controllers_folder: list[str | Path] | str | Path
     ) -> list[str | Path]:
+        """Return one folder, or a list of folders, as a list."""
         if isinstance(complex_controllers_folder, list):
             return complex_controllers_folder
         return [complex_controllers_folder]
@@ -808,6 +869,7 @@ class DRTCModel:
     def _collect_complex_controller_structs(
         folders: list[str | Path]
     ) -> list[DRTCStructure]:
+        """Return the structures referenced in the dimr_config.xml of each folder."""
         # Find complex controller structs and referred observation points.
         complex_controller_structs = []
         for folder in folders:
@@ -823,6 +885,10 @@ class DRTCModel:
     def _deduplicate_complex_controller_structs(
         complex_controller_structs: list[DRTCStructure]
     ) -> tuple[list[DRTCStructure], set[str]]:
+        """Return each structure once, and their ids; raise a ValueError for duplicate structures.
+
+        Observation points may occur more than once.
+        """
         # Observation points can be referenced multiple times, but we keep one entry.
         # Other structures can only be defined once.
         duplicates = []
@@ -850,6 +916,7 @@ class DRTCModel:
         struct_ids_by_type: dict[str, set[str]],
         log_validation: bool
     ) -> tuple[list[DRTCStructure], set[str]]:
+        """Return the structures that exist in HyDAMO, and their ids; log the others."""
         validated_cc_structs = []
         for fs in complex_controller_structs:
             if fs.struct_type not in struct_ids_by_type or fs.struct_name not in struct_ids_by_type[fs.struct_type]:
@@ -868,6 +935,7 @@ class DRTCModel:
     @staticmethod
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _get_struct_ids_by_type(hydamo: HyDAMO) -> dict[str, set[str]]:
+        """Return the ids of the observation points and structures of HyDAMO, per type."""
         return {
             "observations": set(hydamo.observationpoints.observation_points.get("name", [])),
             "weirs": set(hydamo.structures.rweirs_df.get("id", []))
@@ -903,6 +971,18 @@ class DRTCModel:
 
     @staticmethod
     def get_item_pair(item: ET.Element) -> tuple[str, str] | None:
+        """Return the source and target name of a DIMR coupler item.
+
+        Parameters
+        ----------
+        item : ET.Element
+            An ``item`` element of a coupler.
+
+        Returns
+        -------
+        tuple[str, str] or None
+            ``(sourceName, targetName)``, or None if one of them is missing.
+        """
         source = item.find(".//{*}sourceName")
         target = item.find(".//{*}targetName")
         if source is None or target is None or source.text is None or target.text is None:
@@ -959,6 +1039,7 @@ class DRTCModel:
     def _parse_dataconfig_item(
         self, el: ET.Element
     ) -> tuple[bool, str | None, str | None]:
+        """Return whether a data config item is allowed, its elementId, and why it is not."""
         allow = True
         el_text = None
         reason = None
@@ -983,6 +1064,11 @@ class DRTCModel:
     def _parse_toolsconfig_item(
         self, el: ET.Element
     ) -> tuple[bool, str | None, str | None]:
+        """Return whether a rule or trigger is allowed, its id, and why it is not.
+
+        It is allowed if all structures in its inputs, outputs, triggers and conditions
+        are allowed.
+        """
         allow = True
         el_firstchild_text = None
         reason = None
@@ -1021,6 +1107,7 @@ class DRTCModel:
     def _parse_dimr_item(
         self, target: ET.Element | None
     ) -> tuple[bool, str | None, str | None]:
+        """Return whether a coupler item is allowed, its name if not, and why it is not."""
         allow = True
         el_text = None
         reason = None
@@ -1051,6 +1138,7 @@ class DRTCModel:
     @staticmethod
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_referenced_structures(root: ET.Element) -> list[DRTCStructure]:
+        """Return the structures in the rtc_to_flow and flow_to_rtc couplers of a DIMR config."""
         structures = []
         rtc_to_flow = root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")
         flow_to_rtc = root.findall(".//{*}coupler[@name='flow_to_rtc']/{*}item/{*}sourceName")
@@ -1064,6 +1152,7 @@ class DRTCModel:
     @staticmethod
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _parse_unique_children(root: ET.Element) -> dict[str, ET.Element]:
+        """Return the children of an element by tag, without namespace; raise a KeyError for duplicates."""
         # Store xml sections by tag, this function assumes unique children.
         children: dict[str, ET.Element] = {}
         for child in root:
@@ -1081,11 +1170,13 @@ class DRTCModel:
     @staticmethod
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _strip_namespace(tag: str) -> str:
+        """Return a tag without its ``{namespace}``."""
         return tag.split("}", 1)[-1] if tag.startswith("{") else tag
 
     @staticmethod
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _dataconfig_timeseries_key(el: ET.Element) -> str | None:
+        """Return the id of a timeSeries element, or None for other elements."""
         if DRTCModel._strip_namespace(el.tag) != "timeSeries":
             return None
         return el.attrib.get("id")
@@ -1093,6 +1184,7 @@ class DRTCModel:
     @staticmethod
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _timeseries_series_key(el: ET.Element) -> str | None:
+        """Return ``location|parameter`` of a series element, or None for other elements."""
         if DRTCModel._strip_namespace(el.tag) != "series":
             return None
         location = el.find("./{*}header/{*}locationId")
@@ -1106,6 +1198,7 @@ class DRTCModel:
     @staticmethod
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def _state_leaf_key(el: ET.Element) -> str | None:
+        """Return the id of a treeVectorLeaf element, or None for other elements."""
         if DRTCModel._strip_namespace(el.tag) != "treeVectorLeaf":
             return None
         return el.attrib.get("id")
@@ -1118,6 +1211,11 @@ class DRTCModel:
         key_getter: Callable[[ET.Element], str | None],
         file_label: str,
     ) -> None:
+        """Append elements to a parent, skipping ids or XML that the parent already has, in place.
+
+        Elements with a key (from ``key_getter``) are compared by key, others by their XML.
+        Skipped elements are logged with ``file_label``.
+        """
         seen_keys = set()
         seen_raw_xml = set()
 
@@ -1150,16 +1248,25 @@ class DRTCModel:
     def from_hydamo(
         self, pid_settings: dict | None=None, interval_settings: dict | None=None, timeseries: pd.DataFrame | None=None
     ) -> None:
-        """Function to convert HyDAMO management data to controller-dictionaries. So far only time- and PID-controllers are implemented. PID settings can be specified globally or per structdure.
+        """Add the time, PID and interval controllers of ``hydamo.management``.
 
-        Args:
-            pid_settings (dict): RTC settings for PID controllers that are not in the HyDAMO format.
-            interval_settings (dict): RTC settings for interval controllers that are not in the HyDAMO format.
-            timeseries (pandas.Series): timeseries that are input to timecontrollers.
+        The settings that HyDAMO lacks are given per structure id, or for all other
+        structures under the key ``"global"``.
 
-        Raises:
-            ValueError: errors are raised for inconsistent input data.
+        Parameters
+        ----------
+        pid_settings : dict, optional
+            ``ki``, ``kp``, ``kd`` and ``maxspeed`` of the PID controllers. Defaults to None.
+        interval_settings : dict, optional
+            ``deadband`` and ``maxspeed`` of the interval controllers. Defaults to None.
+        timeseries : pd.DataFrame, optional
+            Time series of the time controllers, with the structure ids as columns.
+            Defaults to None.
 
+        Raises
+        ------
+        ValueError
+            For inconsistent input, e.g. a PID controller without ``pid_settings``.
         """
         for _, management in self.hydamo.management.iterrows():
             resolved = self._resolve_management_structure(management)
@@ -1264,14 +1371,20 @@ class DRTCModel:
         interpolation_option: str = 'LINEAR',
         extrapolation_option: str = 'BLOCK',
     ) -> None:
-        """Functon to add a time controller to a certain structure.
+        """Add a time controller to a structure.
 
-        Args:
-            structure_id (str): structure id.
-            steering_variable (str): variable that is controlled, usually crest level.
-            data (pd.Series): timeseries.
-            interpolation_option (str): interpolation option used.
-            extrapolation_option (str): extrapolation option used.
+        Parameters
+        ----------
+        structure_id : str
+            Structure id.
+        steering_variable : str
+            Variable that is controlled, usually the crest level.
+        data : pd.Series
+            Time series of the setting.
+        interpolation_option : str, optional
+            Interpolation option. Defaults to ``'LINEAR'``.
+        extrapolation_option : str, optional
+            Extrapolation option. Defaults to ``'BLOCK'``.
         """
         self.time_controllers[structure_id] = {
             "type": "Time",
@@ -1299,22 +1412,32 @@ class DRTCModel:
         interpolation_option: str = 'LINEAR',
         extrapolation_option: str = 'BLOCK',
     ) -> None:
-        """Function a add PID controller.
+        """Add a PID controller to a structure.
 
-        Args:
-            structure_id (str): structure iD.
-            steering_variable (str): variable to be controlled, usually crest level.
-            target_variable (str): target variable (usually water level)
-            setpoint (Union[float, str, pd.Series]): setpoint value or timeseries of setpointvalue
-            lower_bound (Union[float, str]): lowest value to be allowed
-            upper_bound (Union[float, str]): highest value to be allowed
-            observation_location (str): id of the observation point
-            ki (float): gain factor ki
-            kp (float): faimn factor kp
-            kd (float): gain factor kd
-            max_speed (float): maximum speed to change target variable
-            interpolation_option (str): interpolation option used
-            extrapolation_option (str): extrapolation option used
+        All arguments are keyword-only.
+
+        Parameters
+        ----------
+        structure_id : str
+            Structure id.
+        steering_variable : str
+            Variable that is controlled, usually the crest level.
+        target_variable : str
+            Target variable, usually the water level.
+        setpoint : float, str or pd.Series
+            Setpoint, or a time series of the setpoint.
+        lower_bound, upper_bound : float or str, optional
+            Lowest and highest allowed setting. Default to None.
+        observation_location : str
+            Id of the observation point.
+        ki, kp, kd : float, optional
+            Gain factors. Default to 0.001, 0.0 and 0.0.
+        max_speed : float, optional
+            Maximum speed of change of the setting. Defaults to 0.00033.
+        interpolation_option : str, optional
+            Interpolation option. Defaults to ``'LINEAR'``.
+        extrapolation_option : str, optional
+            Extrapolation option. Defaults to ``'BLOCK'``.
         """
         self.pid_controllers[structure_id] = {
             "type": "PID",
@@ -1348,20 +1471,32 @@ class DRTCModel:
         interpolation_option: str = 'LINEAR',
         extrapolation_option: str = 'BLOCK',
     ) -> None:
-        """Function to add an Interval controller.
+        """Add an interval controller to a structure.
 
-        Args:
-            structure_id (str): structure iD.
-            steering_variable (str): variable to be controlled, usually crest level.
-            target_variable (str): target variable (usually water level)
-            deadband (float): deadband around the setpoint
-            setpoint (Union[float, str, pd.Series]): setpoint value (or timeseries of setpointvalue)
-            setting_below (Union[float,str]): value of target variable below setpoint
-            setting_above (Union[float, str]): value of target variable above setpoint
-            max_speed (Union[float,str]): maximum speed to change target variable
-            observation_location (str): id of the observation point
-            interpolation_option (str): interpolation option used
-            extrapolation_option (str): extrapolation option used
+        All arguments are keyword-only.
+
+        Parameters
+        ----------
+        structure_id : str
+            Structure id.
+        steering_variable : str
+            Variable that is controlled, usually the crest level.
+        target_variable : str
+            Target variable, usually the water level.
+        deadband : float or str, optional
+            Dead band around the setpoint. Defaults to None.
+        setpoint : float, str or pd.Series
+            Setpoint, or a time series of the setpoint.
+        setting_below, setting_above : float or str
+            Setting when the target variable is below or above the setpoint.
+        max_speed : float or str, optional
+            Maximum speed of change of the setting. Defaults to None.
+        observation_location : str
+            Id of the observation point.
+        interpolation_option : str, optional
+            Interpolation option. Defaults to ``'LINEAR'``.
+        extrapolation_option : str, optional
+            Extrapolation option. Defaults to ``'BLOCK'``.
         """
         self.interval_controllers[structure_id] = {
             "type": 'Interval',
@@ -1388,10 +1523,13 @@ class DRTCModel:
         skipped, and controllers that are missing in the state keep their default initial setting. Both
         are reported as a warning.
 
-        Args:
-            state_export (str | Path): path to state_export.xml, or the rtc-folder of the earlier run.
-            check_time (bool, optional): compare the time of the state (from statePI.xml next to the state
-                file) with the start time of this model, and warn if they differ. Defaults to True.
+        Parameters
+        ----------
+        state_export : str or Path
+            Path to state_export.xml, or the rtc folder of the earlier run.
+        check_time : bool, optional
+            Compare the time of the state (from statePI.xml next to the state file) with
+            the start time of this model, and warn if they differ. Defaults to True.
         """
         path = Path(state_export)
         if path.is_dir():
@@ -1429,14 +1567,20 @@ class DRTCModel:
         Unlike set_state_from_file, any time step can be used, but the internal state of the rules (e.g. the
         integral term of PID controllers) is not restored.
 
-        Args:
-            his_path (str | Path): path to the his-file of the earlier run
-            time (datetime | pd.Timestamp | str, optional): time of the settings; the nearest time step is used.
-            netcdf_index (int, optional): time index instead of a time. If neither time nor netcdf_index is
-                given, the last time step is used.
+        Parameters
+        ----------
+        his_path : str or Path
+            Path to the his file of the earlier run.
+        time : datetime, pd.Timestamp or str, optional
+            Time of the settings; the nearest time step is used. Defaults to None.
+        netcdf_index : int, optional
+            Time index instead of a time. Defaults to None: without a time, the last
+            time step.
 
-        Returns:
-            dict[str, float]: initial setting per structure id
+        Returns
+        -------
+        dict[str, float]
+            Initial setting per structure id.
         """
         if time is not None and netcdf_index is not None:
             raise ValueError("Provide either time or netcdf_index, not both.")
@@ -1516,19 +1660,24 @@ class DRTCModel:
         The value is written to state_import.xml for the steered variable of the structure. It overrides the
         default initial setting and a state read with set_state_from_file.
 
-        Args:
-            values (dict[str, float]): initial setting per structure id.
+        Parameters
+        ----------
+        values : dict[str, float]
+            Initial setting per structure id.
         """
         self.initial_state.update({str(key): float(value) for key, value in values.items()})
 
     @staticmethod
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def finish_file(xmlroot: ET.Element, filename: Path | str) -> None:
-        """Method to finish a XML file in the required namespace and format.
+        """Write an XML tree to a file, with an XML declaration, pretty-printed.
 
-        Args:
-            xmlroot: Xml Tree
-            filename (Union[Path, str]): filepath of the file to be written
+        Parameters
+        ----------
+        xmlroot : ET.Element
+            Root of the XML tree.
+        filename : Path or str
+            File to write.
         """
         xmlbytes = (
             bytes(
@@ -1546,7 +1695,7 @@ class DRTCModel:
             f.write(temp.toprettyxml())
 
     def write_xml_v1(self) -> None:
-        """Wrapper function to write individual XML files."""
+        """Write all RTC XML files."""
         self.write_runtimeconfig()
         self.write_toolsconfig()
         self.write_timeseries_import()
@@ -1555,8 +1704,7 @@ class DRTCModel:
 
 
     def write_runtimeconfig(self) -> None:
-        """Function to write RtcRunTimeConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
-
+        """Write rtcRuntimeConfig.xml, from the template, with the model period and time step."""
         # namespaces for all other xml files
         generalname = "http://www.wldelft.nl/fews"
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
@@ -1590,7 +1738,7 @@ class DRTCModel:
         self.finish_file(myroot, self.output_path / "rtcRuntimeConfig.xml")
 
     def write_toolsconfig(self) -> None:
-        """Function to write RtcToolsConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
+        """Write rtcToolsConfig.xml, from the template, with the rules of all controllers."""
         generalname = "http://www.wldelft.nl/fews"
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
         gn_brackets = "{" + generalname + "}"
@@ -1767,7 +1915,7 @@ class DRTCModel:
 
 
     def write_dataconfig(self) -> None:
-        """Function to write RtcDataConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
+        """Write rtcDataConfig.xml, from the template, with the series of all controllers."""
         generalname = "http://www.wldelft.nl/fews"
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
         gn_brackets = "{" + generalname + "}"
@@ -1970,7 +2118,7 @@ class DRTCModel:
         self._written_dataconfig_ids = self._element_ids(myroot)
 
     def write_timeseries_import(self) -> None:
-        """Function to write timeseries_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
+        """Write timeseries_import.xml, from the template, with the time series of the controllers."""
         generalname = "http://www.wldelft.nl/fews/PI"
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
         gn_brackets = "{" + generalname + "}"
@@ -2123,7 +2271,7 @@ class DRTCModel:
         self.finish_file(myroot, self.output_path / TIMESERIES_IMPORT_XML)
 
     def write_state_import(self) -> None:
-        """Function to write state_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
+        """Write state_import.xml, from the template, with the initial state of the controllers."""
         generalname = "http://www.openda.org"
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
         gn_brackets = "{" + generalname + "}"
@@ -2181,8 +2329,11 @@ class DRTCModel:
         self.finish_file(myroot, self.output_path / STATE_IMPORT_XML)
 
     def _initial_pid_setting(self, structure_id: str, controller: PIDController) -> float | str | None:
-        """Initial setting of a PID controller: the current setting of the structure, limited to the bounds
-        of the controller. Falls back to the upper bound if the structure setting is not available."""
+        """Return the initial setting of a PID controller.
+
+        That is the current setting of the structure, limited to the bounds of the
+        controller. Falls back to the upper bound if the structure setting is not available.
+        """
         setting = self._structure_setting(structure_id, controller["steering_variable"])
         if setting is None:
             return controller["upper_bound"]
@@ -2286,7 +2437,7 @@ class DRTCModel:
 
     @staticmethod
     def _leaves_by_id(tree_vector: ET.Element, leaf_tag: str) -> dict[str, ET.Element]:
-        """The treeVectorLeaf elements of the tree vector by id; leaves without an id are skipped.
+        """Return the treeVectorLeaf elements of the tree vector by id; leaves without an id are skipped.
 
         Parameters
         ----------
@@ -2309,7 +2460,7 @@ class DRTCModel:
 
     @staticmethod
     def _leaf_vector(leaf: ET.Element, vector_tag: str) -> ET.Element:
-        """The vector element of a treeVectorLeaf, created if it is missing.
+        """Return the vector element of a treeVectorLeaf, created if it is missing.
 
         Parameters
         ----------
@@ -2329,7 +2480,7 @@ class DRTCModel:
         return vector
 
     def _dataconfig_ids(self) -> set[str] | None:
-        """Ids of all time series in rtcDataConfig.xml, or None if it has not been written yet.
+        """Return the ids of all time series in rtcDataConfig.xml, or None if it has not been written yet.
 
         Uses the ids from write_dataconfig of this model; reads the file only if the data config was not written
         by this model (e.g. write_state_import called on its own).

@@ -118,7 +118,16 @@ extend-exclude = [
 force-exclude = true
 
 [tool.ruff.lint]
-extend-select = ["I", "PD", "NPY", "PT"]
+extend-select = ["I", "PD", "NPY", "PT", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+# tests are documented by their names: no docstrings required for modules, classes and functions
+"tests/**" = ["D100", "D101", "D102", "D103", "D104"]
+# Copied from imod-python 0.10.1: docstrings kept as upstream
+"hydrolib/dhydamo/io/idfreader.py" = ["D"]
 
 [tool.mypy]
 python_version = "3.11"

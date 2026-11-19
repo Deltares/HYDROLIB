@@ -1,3 +1,5 @@
+"""Conversion between shapely geometries and meshkernel's GeometryList."""
+
 from collections.abc import Iterator
 from typing import Self
 
@@ -17,8 +19,32 @@ from hydrolib.core.dflowfm.net.models import split_by
 
 
 class GeometryList(GeometryListMK):
+    """meshkernel GeometryList that converts from and to shapely geometries.
+
+    The coordinates of all parts are stored in one array. Parts of a multi-geometry
+    are separated by ``geometry_separator`` (-999), the holes of a polygon by
+    ``inner_outer_separator`` (-998).
+    """
+
     @classmethod
     def from_geometry(cls, geometry: BaseGeometry) -> Self:
+        """Create a GeometryList from a shapely geometry.
+
+        Parameters
+        ----------
+        geometry : BaseGeometry
+            A Point, LineString or Polygon, or a multi-geometry of those.
+
+        Returns
+        -------
+        GeometryList
+            The coordinates of the geometry.
+
+        Raises
+        ------
+        TypeError
+            If the geometry is of another type, e.g. a GeometryCollection.
+        """
         if isinstance(geometry, Polygon):
             return cls.from_polygon(geometry)
         elif isinstance(geometry, MultiPolygon):
@@ -43,14 +69,17 @@ class GeometryList(GeometryListMK):
 
     @classmethod
     def from_linestring(cls, linestring: LineString) -> Self:
+        """Create a GeometryList from a LineString."""
         return cls._from_simple(linestring)
 
     @classmethod
     def from_point(cls, point: Point) -> Self:
+        """Create a GeometryList from a Point."""
         return cls._from_simple(point)
 
     @classmethod
     def from_polygon(cls, polygon: Polygon) -> Self:
+        """Create a GeometryList from a Polygon: the exterior, then each hole after a separator."""
         # Create a list of coordinate lists
         # Add exterior
         x_ext, y_ext = np.array(polygon.exterior.coords[:]).T
@@ -97,14 +126,17 @@ class GeometryList(GeometryListMK):
 
     @classmethod
     def from_multipolygon(cls, multipolygon: MultiPolygon) -> Self:
+        """Create a GeometryList from a MultiPolygon, with a separator between the polygons."""
         return cls._from_multigeometry(multipolygon)
 
     @classmethod
     def from_multilinestring(cls, multilinestring: MultiLineString) -> Self:
+        """Create a GeometryList from a MultiLineString, with a separator between the lines."""
         return cls._from_multigeometry(multilinestring)
 
     @classmethod
     def from_multipoint(cls, multipoint: MultiPoint) -> Self:
+        """Create a GeometryList from a MultiPoint, with a separator between the points."""
         return cls._from_multigeometry(multipoint)
 
     def _to_polygon(
@@ -147,6 +179,17 @@ class GeometryList(GeometryListMK):
             return points[0]
 
     def to_geometry(self) -> Polygon | MultiPolygon | LineString | MultiLineString | Point | MultiPoint:
+        """Convert the GeometryList to a shapely geometry.
+
+        The first part determines the type: a closed ring of at least 4 coordinates
+        is a polygon, more than one coordinate a line, otherwise a point. With more
+        than one part, the result is a multi-geometry.
+
+        Returns
+        -------
+        Polygon, MultiPolygon, LineString, MultiLineString, Point or MultiPoint
+            The geometry.
+        """
         geometries = [
             geo
             for geo in split_by(self, self.geometry_separator)
@@ -166,7 +209,7 @@ class GeometryList(GeometryListMK):
 
     @property
     def geoms(self) -> Iterator[Polygon | MultiPolygon | LineString | MultiLineString | Point | MultiPoint]:
-        """Returns GeometryList objects based on spliited by geometries"""
+        """Yield each part, split at the geometry separator, as a shapely geometry."""
         for geometrylist in split_by(self, self.geometry_separator):
             # yield as shapely geometry
             yield GeometryList(**geometrylist.__dict__).to_geometry()

@@ -1,3 +1,5 @@
+"""The HyDAMO data model: input data, cross sections, structures, forcings and storage nodes."""
+
 import logging
 import numbers
 from collections.abc import Hashable, Mapping
@@ -47,16 +49,21 @@ logger = logging.getLogger(__name__)
 
 
 class HyDAMO:
-    """Main data structure for both the HyDAMO input data and the intermediate dataframes. Contains subclasses
-    for network, structures, cross sections, observation points, storage nodes and external forcings.
+    """The HyDAMO input data and the model objects derived from it.
+
+    Holds the DAMO tables (branches, structures, profiles, management, catchments, ...)
+    and the cross sections, structures, observation points, storage nodes and external
+    forcings of the model.
     """
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def __init__(self, extent_file: Path | str | None = None) -> None:
-        """Initiate subclasses and IO-methods
+        """Create an empty HyDAMO object.
 
-        Args:
-            extent_file (Union[Path, str], optional): model extent, use to clip datsaets. Defaults to None.
+        Parameters
+        ----------
+        extent_file : Path or str, optional
+            Model extent, used to clip the data. Defaults to None.
         """
         self.network = Network(self)
 
@@ -436,13 +443,17 @@ class HyDAMO:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def list_to_str(self, lst: list | np.ndarray) -> str:
-        """Converts list to string
+        """Return numbers as a space separated string, with 3 decimals.
 
-        Args:
-            lst (list): The list
+        Parameters
+        ----------
+        lst : list or np.ndarray
+            Numbers.
 
-        Returns:
-            str: The output string
+        Returns
+        -------
+        str
+            The numbers, or ``str(lst)`` for a single number.
         """
         if len(lst) == 1:
             string = str(lst)
@@ -452,15 +463,18 @@ class HyDAMO:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def dict_to_dataframe(self, dictionary: dict) -> pd.DataFrame:
-        """Converts a dictionary to dataframe, using index as rows
+        """Return a dictionary of dictionaries as a DataFrame, with the keys as rows.
 
-        Args:
-            dictionary (dict): Input dictionary
+        Parameters
+        ----------
+        dictionary : dict
+            Input dictionary.
 
-        Returns:
-            pd.DataFrame: Output dataframe
+        Returns
+        -------
+        pd.DataFrame
+            Output DataFrame.
         """
-
         return pd.DataFrame.from_dict(dictionary, orient="index")
 
     def snap_to_branch_and_drop(
@@ -492,7 +506,6 @@ class HyDAMO:
             Supply this when ``extendedgdf`` is a dataframe copy; the named
             table must still exist as an attribute on this instance.
         """
-
         # Snap the extended geodataframe to branches
         extendedgdf.snap_to_branch(branches, snap_method, maxdist=maxdist)
 
@@ -537,10 +550,16 @@ class HyDAMO:
     ) -> None:
         """Create laterals at the catchments, with the mean specific discharge per catchment.
 
-        Args:
-            qspec_file (str, optional): raster of specific discharge (mm/d). Without it, the discharges are NaN.
-            min_coverage_frac (float, optional): smallest fraction of a pixel a catchment must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
-            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the catchment covers, "none" counts them fully. Defaults to "fraction".
+        Parameters
+        ----------
+        qspec_file : str, optional
+            Raster of specific discharge (mm/d). Without it, the discharges are NaN.
+        min_coverage_frac : float, optional
+            Smallest fraction of a pixel a catchment must cover for the pixel to count in
+            the zonal statistics. Defaults to 0: every touched pixel.
+        coverage_weight : str, optional
+            ``"fraction"`` counts pixels by the fraction of them the catchment covers,
+            ``"none"`` counts them fully. Defaults to ``"fraction"``.
         """
         ## Afvoer per gebied bepalen met zonal stats; nodata telt niet mee
         if qspec_file is not None:
@@ -614,11 +633,7 @@ class Network:
 
     @no_type_check
     def __init__(self, hydamo: HyDAMO) -> None:
-        """Set class variables
-
-        Args:
-            hydamo (HyDAMO): HyDAMO object containign all input data
-        """
+        """Create the legacy network helpers (not functional, see the class docstring)."""
         self.hydamo = hydamo
 
         # Mesh 1d offsets
@@ -627,9 +642,7 @@ class Network:
     @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def set_branch_order(self, branchids: list, idx: int | None = None) -> None:
-        """
-        Group branch ids so that the cross sections are
-        interpolated along the branch.
+        """Group branch ids so that the cross sections are interpolated along the branch.
 
         Parameters
         ----------
@@ -654,8 +667,7 @@ class Network:
 
     @no_type_check
     def set_branch_interpolation_modelwide(self) -> None:
-        """
-        Set cross-section interpolation over nodes on all branches model-wide. I
+        """Set cross-section interpolation over nodes on all branches model-wide.
 
         Note:
             - Interpolation will be set using branchorder property.
@@ -670,7 +682,7 @@ class Network:
 
     @no_type_check
     def make_nodes_to_branch_map(self) -> None:
-        """Map nodes connected to each branch"""
+        """Map nodes connected to each branch."""
         # Note: first node is upstream, second node is downstream
         self.nodes_to_branch_map = {
             b: [self.mesh1d.description1d["network_node_ids"][_idx - 1] for _idx in idx]
@@ -682,7 +694,7 @@ class Network:
 
     @no_type_check
     def make_branches_to_node_map(self) -> None:
-        """Map branches connected to each node"""
+        """Map branches connected to each node."""
         self.make_nodes_to_branch_map()
         self.branches_to_node_map = {
             n: [k for k, v in self.nodes_to_branch_map.items() if n in v]
@@ -696,9 +708,10 @@ class Network:
         resolve_at_bifurcation_method: str = "min",
         return_reversed_branches: bool = False,
     ):
-        """
-        Generate nodes with upstream and downstream bedlevels derived from set cross-sections on branch. It takes into
-        account whether or not branch order is specified (so interpolation over nodes is set).
+        """Generate nodes with upstream and downstream bed levels from the cross sections on a branch.
+
+        It takes into account whether or not branch order is specified (so interpolation
+        over nodes is set).
 
         Nodes in between cross-sections on same branch/branch-group are linearly interpolated. Outside are extrapolated
         constant (e.g. end points of branch).
@@ -959,9 +972,7 @@ class Network:
 
     @no_type_check
     def get_grouped_branches(self) -> None:
-        """
-        Get grouped branch ids to use in set_branch_order function
-        """
+        """Get grouped branch ids to use in set_branch_order function."""
         # Get all network data
         branch_ids = self.mesh1d.description1d["network_branch_ids"]
         # node_ids = self.mesh1d.description1d["network_node_ids"]
@@ -1046,11 +1057,7 @@ class Network:
     def get_node_idx_offset(
         self, branch_id: str, pt: shapely.geometry.Point, nnodes: int = 1
     ) -> tuple:
-        """
-        Get the index and offset of a node on a 1d branch.
-        The nearest node is looked for.
-        """
-
+        """Get the index and offset of the nearest node on a 1d branch."""
         # Project the point on the branch
         dist = self.schematised[branch_id].project(pt)
 
@@ -1078,12 +1085,16 @@ class Network:
 
 
 class CrossSections:
-    def __init__(self, hydamo: HyDAMO) -> None:
-        """Initiate class variables
+    """Cross section definitions and locations of the model.
 
-        Args:
-            hydamo (HyDAMO): input data structure
-        """
+    Parameters
+    ----------
+    hydamo : HyDAMO
+        The HyDAMO object they belong to.
+    """
+
+    def __init__(self, hydamo: HyDAMO) -> None:
+        """Create empty cross section definitions and locations."""
         self.hydamo = hydamo
         self.crosssections: list = []
         self.default_definition: str | None = None
@@ -1098,6 +1109,25 @@ class CrossSections:
         self.convert = CrossSectionsIO(self)
 
     def get_roughness_description(self, roughnesstype: str, value: float) -> str:
+        """Return the name of a roughness definition, added if it is new.
+
+        Parameters
+        ----------
+        roughnesstype : str
+            HyDAMO roughness type, mapped to the D-HYDRO type.
+        value : float
+            Roughness value.
+
+        Returns
+        -------
+        str
+            Name of the definition, e.g. ``"Manning_0.03"``.
+
+        Raises
+        ------
+        ValueError
+            If the value is NaN.
+        """
         if np.isnan(float(value)):
             raise ValueError("Roughness value should not be NaN.")
 
@@ -1121,6 +1151,22 @@ class CrossSections:
         return name
 
     def set_default_definition(self, definition: str, shift: float = 0.0) -> None:
+        """Set the cross section definition for branches without a cross section.
+
+        It is used by ``Df2HydrolibModel(assign_default_profiles=True)``.
+
+        Parameters
+        ----------
+        definition : str
+            Name of an existing cross section definition.
+        shift : float, optional
+            Vertical shift of the definition. Defaults to 0.0.
+
+        Raises
+        ------
+        KeyError
+            If the definition does not exist.
+        """
         if definition not in self.crosssection_def:
             raise KeyError(f'Cross section definition "{definition}" not found."')
 
@@ -1128,8 +1174,12 @@ class CrossSections:
         self.default_definition_shift = shift
 
     def set_default_locations(self, locations: list[str]) -> None:
-        """
-        Add default profile locations
+        """Set the branches that get the default cross section definition.
+
+        Parameters
+        ----------
+        locations : list[str]
+            Branch ids.
         """
         self.default_locations = locations
 
@@ -1141,8 +1191,7 @@ class CrossSections:
         roughnessvalue: float | None = None,
         name: str | None = None,
     ) -> str:
-        """
-        Add xyz crosssection
+        """Add a yz cross section definition.
 
         Parameters
         ----------
@@ -1156,7 +1205,6 @@ class CrossSections:
         crds : np.array
             Nx2 array with y, z coordinates
         """
-
         if yz is None or thalweg is None or roughnesstype is None or roughnessvalue is None:
             raise ValueError("yz, thalweg, roughnesstype and roughnessvalue are required.")
         # get coordinates
@@ -1185,9 +1233,10 @@ class CrossSections:
     def add_circle_definition(
         self, diameter: float, roughnesstype: str, roughnessvalue: float, name: str | None = None
     ) -> str:
-        """
-        Add circle cross section. The cross section name is derived from the shape and roughness,
-        so similar cross sections will result in a single definition.
+        """Add a circle cross section definition.
+
+        Without a name, the name is derived from the shape only, so a definition with the
+        same shape but another roughness replaces the earlier one.
         """
         # Get name if not given
         if name is None:
@@ -1216,9 +1265,10 @@ class CrossSections:
         roughnessvalue: float,
         name: str | None = None,
     ) -> str:
-        """
-        Add rectangle cross section. The cross section name is derived from the shape and roughness,
-        so similar cross sections will result in a single definition.
+        """Add a rectangle cross section definition.
+
+        Without a name, the name is derived from the shape only, so a definition with the
+        same shape but another roughness replaces the earlier one.
         """
         # Get name if not given
         if name is None:
@@ -1251,9 +1301,10 @@ class CrossSections:
         bottomlevel: float | None = None,
         name: str | None = None,
     ) -> str:
-        """
-        Add rectangle cross section. The cross section name is derived from the shape and roughness,
-        so similar cross sections will result in a single definition.
+        """Add a trapezium cross section definition.
+
+        Without a name, the name is derived from the shape only, so a definition with the
+        same shape but another roughness replaces the earlier one.
         """
         # Get name if not given
         if name is None:
@@ -1308,9 +1359,9 @@ class CrossSections:
         roughnessvalue: float,
         name: str | None = None,
     ) -> str:
-        """
-        Add zw cross section. The cross section name is derived from the shape and roughness,
-        so similar cross sections will result in a single definition.
+        """Add a zw cross section definition.
+
+        Give a name: without one, building the name raises an error.
         """
         # Get name if not given
         if name is None:
@@ -1338,6 +1389,21 @@ class CrossSections:
     def add_crosssection_location(
         self, branchid: str, chainage: float, definition: str, minz: float = np.nan, shift: float = 0.0
     ) -> None:
+        """Add a cross section location, with the id ``{branchid}_{chainage:.1f}``.
+
+        Parameters
+        ----------
+        branchid : str
+            Branch id.
+        chainage : float
+            Chainage on the branch.
+        definition : str
+            Name of the cross section definition.
+        minz : float, optional
+            Not used. Defaults to NaN.
+        shift : float, optional
+            Vertical shift of the definition. Defaults to 0.0.
+        """
         descr = f"{branchid}_{chainage:.1f}"
         # Add cross section location
         self.crosssection_loc[descr] = {
@@ -1349,6 +1415,7 @@ class CrossSections:
         }
 
     def get_branches_without_crosssection(self) -> list[str]:
+        """Return the ids of the branches without a cross section location."""
         # First find all branches that match a cross section
         branch_ids = {dct["branchid"] for _, dct in self.crosssection_loc.items()}
         # Select the branch-ids that do nog have a matching cross section
@@ -1358,6 +1425,7 @@ class CrossSections:
         return no_crosssection.tolist()
 
     def get_structures_without_crosssection(self) -> list[str]:
+        """Return the cross section definition ids of bridges and culverts that do not exist."""
         csdef_ids = [dct["id"] for _, dct in self.crosssection_def.items()]
         no_crosssection: list[str] = []
         bridge_ids = [
@@ -1379,8 +1447,7 @@ class CrossSections:
     # legacy from delft3dfmpy, not used and not working here (self.dflowfmmodel does not exist): mypy skips it
     @no_type_check
     def get_bottom_levels(self):
-        """Method to determine bottom levels from cross sections"""
-
+        """Determine bottom levels from cross sections (legacy from delft3dfmpy, not working)."""
         # Initialize lists
         data = []
         geometry = []
@@ -1416,9 +1483,7 @@ class CrossSections:
         branches: ExtendedGeoDataFrame | None,
         roughness_variant: RoughnessVariant | None = None,
     ) -> dict:
-        """
-        Function to convert hydamo cross sections 'dwarsprofiel' to
-        dflowfm input.
+        """Convert the HyDAMO cross sections (dwarsprofiel) to D-Flow FM input.
 
         Parameters
         ----------
@@ -1499,9 +1564,7 @@ class CrossSections:
         branches: list,
         roughness_variant: RoughnessVariant | None = None,
     ) -> dict:
-        """
-        Generate parametrised cross sections for all branches,
-        or the branches missing a cross section.
+        """Generate parametrised cross sections for all branches, or those without one.
 
         Parameters
         ----------
@@ -1515,7 +1578,6 @@ class CrossSections:
         dictionary
             Dictionary with attributes of cross sections, usable for dflowfm
         """
-
         cssdct = {}
         branch_relation = RelationsHyDAMO.PARAM_PROFILE_BRANCH
         values_relation = RelationsHyDAMO.PARAM_PROFILE_VALUES
@@ -1709,6 +1771,14 @@ def _value_at_chainage(
 
 
 class ExternalForcings:
+    """Boundary conditions, laterals and initial and parameter fields of the model.
+
+    Parameters
+    ----------
+    hydamo : HyDAMO
+        The HyDAMO object they belong to.
+    """
+
     def __init__(self, hydamo: HyDAMO) -> None:
         self.hydamo = hydamo
 
@@ -1747,19 +1817,23 @@ class ExternalForcings:
         Polygons (1D only) are passed on to set_spatial_field and written per branch. For other spatially varying
         input, such as a model result, use set_spatial_field directly.
 
-        Args:
-            initial_values (float | gpd.GeoDataFrame): uniform water level, or polygons with water levels
-            locationtype (str, optional): '1d', '2d' or 'all'. Defaults to "1d".
-            value_column (str | None, optional): column with the water levels, required for polygons. Defaults to None.
+        Parameters
+        ----------
+        initial_values : float or gpd.GeoDataFrame
+            Uniform water level, or polygons with water levels.
+        locationtype : str, optional
+            ``'1d'``, ``'2d'`` or ``'all'``. Defaults to ``"1d"``.
+        value_column : str, optional
+            Column with the water levels, required for polygons. Defaults to None.
         """
         self._set_initial("waterlevel", initial_values, locationtype, value_column)
 
     # legacy from delft3dfmpy, not used and not working here (self.mdu_parameters does not exist): mypy skips it
     @no_type_check
     def set_missing_waterlevel(self, missing):
-        """
-        Method to set the missing value for the water level.
-        this overwrites the water level at missing value in the mdu file.
+        """Set the missing value for the water level (legacy from delft3dfmpy, not working).
+
+        This overwrites the water level at missing value in the mdu file.
 
         Parameters
         ----------
@@ -1785,10 +1859,14 @@ class ExternalForcings:
         Polygons (1D only) are passed on to set_spatial_field and written per branch. For other spatially varying
         input, such as a model result, use set_spatial_field directly.
 
-        Args:
-            initial_values (float | gpd.GeoDataFrame): uniform water depth, or polygons with water depths
-            locationtype (str, optional): '1d', '2d' or 'all'. Defaults to "1d".
-            value_column (str | None, optional): column with the water depths, required for polygons. Defaults to None.
+        Parameters
+        ----------
+        initial_values : float or gpd.GeoDataFrame
+            Uniform water depth, or polygons with water depths.
+        locationtype : str, optional
+            ``'1d'``, ``'2d'`` or ``'all'``. Defaults to ``"1d"``.
+        value_column : str, optional
+            Column with the water depths, required for polygons. Defaults to None.
         """
         self._set_initial("waterdepth", initial_values, locationtype, value_column)
 
@@ -1857,24 +1935,32 @@ class ExternalForcings:
         value_column: str,
         boundary_step: float | None = 0.01,
     ) -> gpd.GeoDataFrame:
-        """
-        Replace values from a model result by the values of correction polygons, for all points within these polygons.
+        """Replace values from a model result by the values of correction polygons.
+
+        All points within the polygons get the value of the polygon.
 
         If the points have the columns 'branchid' and 'chainage' (as from read_values_from_modelrun) and the HyDAMO
         branches are available, two points are added where a polygon boundary crosses a branch, boundary_step apart:
         the point inside gets the polygon value, the point outside the model value interpolated along the branch.
         The value then changes at the polygon boundary instead of gradually between the nearest model points.
 
-        Args:
-            model_values (gpd.GeoDataFrame): points with a column 'value', e.g. from read_values_from_modelrun
-            correction_polygons (gpd.GeoDataFrame): polygons with the corrected values
-            value_column (str): column in correction_polygons with the corrected values
-            boundary_step (float | None, optional): distance between the two points at a polygon boundary. None: no
-                points are added. Defaults to 0.01.
+        Parameters
+        ----------
+        model_values : gpd.GeoDataFrame
+            Points with a column ``value``, e.g. from `read_values_from_modelrun`.
+        correction_polygons : gpd.GeoDataFrame
+            Polygons with the corrected values.
+        value_column : str
+            Column in ``correction_polygons`` with the corrected values.
+        boundary_step : float, optional
+            Distance between the two points at a polygon boundary; None adds no points.
+            Defaults to 0.01.
 
-        Returns:
-            gpd.GeoDataFrame: copy of model_values with corrected values (and the points at the polygon boundaries).
-                Where polygons overlap, the last polygon is used.
+        Returns
+        -------
+        gpd.GeoDataFrame
+            Copy of ``model_values`` with corrected values (and the points at the polygon
+            boundaries). Where polygons overlap, the last polygon is used.
         """
         model_values_corrected = model_values.copy(deep=True)
         if model_values_corrected.crs is None and correction_polygons.crs is not None:
@@ -1951,20 +2037,10 @@ class ExternalForcings:
         crs: CRS | str | int | None = None,
         time: datetime | pd.Timestamp | str | None = None,
     ) -> gpd.GeoDataFrame:
-        """
-        Read the values of a 1D variable from a model result (map- or fou-file).
+        """Read the values of a 1D variable from a model result (map or fou file).
 
         Variables on the 1D nodes (e.g. 'mesh1d_s1', 'mesh1d_waterdepth') are returned at the node locations,
         variables on the 1D edges/flow links (e.g. 'mesh1d_u1') at the edge locations.
-
-        Args:
-            netcdf_path (str | Path): path to the netcdf file
-            netcdf_field (str): variable to read, e.g. 'mesh1d_s1' (map) or 'mesh1d_fourier001_max' (fou)
-            netcdf_index (int, optional): time index, e.g. 0 for the first time step. If neither netcdf_index
-                nor time is given, the last time step is used. Defaults to None.
-            crs (optional): coordinate reference system of the model. Defaults to None.
-            time (datetime | pd.Timestamp | str, optional): time for which the values are read, e.g.
-                "2016-06-02 12:00"; the nearest time step is used. Defaults to None.
 
         If 'mesh1d_s1' is requested but the file only contains the water depth, the water level is computed
         as bed level + water depth.
@@ -1976,8 +2052,26 @@ class ExternalForcings:
         values can be written per branch with set_spatial_field(..., filetype="branch"). For edge variables,
         the column 'direction' (angle of the link in radians) is added, as used by set_initial_velocity.
 
-        Returns:
-            gpd.GeoDataFrame: points with columns x, y and value (and branchid, chainage and direction, if available)
+        Parameters
+        ----------
+        netcdf_path : str or Path
+            Path to the netCDF file.
+        netcdf_field : str
+            Variable to read, e.g. ``'mesh1d_s1'`` (map) or ``'mesh1d_fourier001_max'`` (fou).
+        netcdf_index : int, optional
+            Time index, e.g. 0 for the first time step. Defaults to None: without a
+            time, the last time step.
+        crs : CRS, str or int, optional
+            Coordinate reference system of the model. Defaults to None.
+        time : datetime, pd.Timestamp or str, optional
+            Time for which the values are read, e.g. ``"2016-06-02 12:00"``; the nearest
+            time step is used. Defaults to None.
+
+        Returns
+        -------
+        gpd.GeoDataFrame
+            Points with the columns x, y and value (and branchid, chainage and
+            direction, if available).
         """
         logger.info(f"Reading {netcdf_field} from {netcdf_path} ...")
         with Dataset(netcdf_path, "r") as results:  # Open file in read mode
@@ -2015,7 +2109,7 @@ class ExternalForcings:
     def _select_netcdf_variable(
         results: Dataset, netcdf_field: str, netcdf_path: str | Path
     ) -> tuple[Variable, bool]:
-        """The variable to read from a model result.
+        """Return the variable to read from a model result.
 
         If 'mesh1d_s1' is requested but the file only contains the water depth, the water depth is returned,
         to compute the water level as bed level + water depth.
@@ -2178,9 +2272,9 @@ class ExternalForcings:
     def set_initial_velocity(
         self, velocities: gpd.GeoDataFrame, column: str = "value"
     ) -> None:
-        """
-        Set the initial velocity on the 1D flow links from a model result, e.g. 'mesh1d_u1' read with
-        read_values_from_modelrun.
+        """Set the initial velocity on the 1D flow links from a model result.
+
+        E.g. ``'mesh1d_u1'`` read with `read_values_from_modelrun`.
 
         D-Flow FM (2026.02) does not accept 'initialvelocity' in the initial fields file, only the components
         'initialvelocityx' and 'initialvelocityy'. The velocity along each link is therefore decomposed with
@@ -2188,10 +2282,13 @@ class ExternalForcings:
         are in both models, the initial velocity equals the velocity of the model result within 1 cm/s.
         The effect of an initial velocity is short: the flow adapts within the first minutes.
 
-        Args:
-            velocities (gpd.GeoDataFrame): points at the link locations with the velocity and the column
-                'direction' (angle of the link in radians), as returned by read_values_from_modelrun.
-            column (str, optional): column with the velocity along the link. Defaults to "value".
+        Parameters
+        ----------
+        velocities : gpd.GeoDataFrame
+            Points at the link locations with the velocity and the column ``direction``
+            (angle of the link in radians), as returned by `read_values_from_modelrun`.
+        column : str, optional
+            Column with the velocity along the link. Defaults to ``"value"``.
         """
         if "direction" not in velocities.columns:
             raise ValueError(
@@ -2224,8 +2321,7 @@ class ExternalForcings:
         nodata: float = -999.0,
         max_snap_distance: float = 5.0,
     ) -> None:
-        """
-        Add a spatially varying field to the initial fields file (initialFields.ini).
+        """Add a spatially varying field to the initial fields file (initialFields.ini).
 
         By default, values are written per branch and chainage in a 1dField file (filetype 'branch'), for
         polygons and points. D-Flow FM interpolates them linearly along each branch only, and keeps them
@@ -2238,6 +2334,7 @@ class ExternalForcings:
 
         Advanced: the other file types are kept for special cases (e.g. 2D, or if a future D-Flow FM version
         does not accept 1dField files), but are not recommended for 1D:
+
         - 'sample': points as samples (.xyz) with triangulation, which fills the convex hull of the points, so
           values spread to other branches.
         - 'polygon': .pol files with interpolationMethod=constant, one file and block per distinct value.
@@ -2255,24 +2352,40 @@ class ExternalForcings:
 
         The data files are written by Df2HydrolibModel.write_initial_fields().
 
-        Args:
-            gdf (gpd.GeoDataFrame): polygons or points with values
-            column (str, optional): column with values. For points, None means the Z-coordinate is used.
-            quantity (str, optional): D-Flow FM quantity, e.g. 'waterlevel' or 'waterdepth'. For velocities, use
-                set_initial_velocity. Defaults to "waterlevel".
-            kind (str, optional): 'initial' ([Initial] block) or 'parameter' ([Parameter] block). Defaults to "initial".
-            filetype (str, optional): 'branch' (default), or the advanced types 'sample', 'polygon' or 'raster'.
-            cellsize (float, optional): raster cell size, required for filetype 'raster'.
-            locationtype (str, optional): '1d', '2d' or 'all'. Defaults to "1d".
-            interpolationmethod (str, optional): 'constant' (polygon), 'triangulation' or 'averaging'. Not used for
-                'branch'. Defaults to 'triangulation' for samples, 'constant' for polygon files, and 'averaging'
-                for rasters (2D) or 'triangulation' (1D).
-            averagingtype (str, optional): averaging type, if interpolationmethod is 'averaging'. Defaults to "nearestNb".
-            operand (str, optional): how the field is combined with previous fields. Defaults to "O" (override).
-            nodata (float, optional): nodata value for rasters, and the [Global] value of 1dField files (branch), which
-                D-Flow FM treats as no value. Defaults to -999.0.
-            max_snap_distance (float, optional): maximum distance to snap points to a branch for filetype 'branch'.
-                Defaults to 5.0.
+        Parameters
+        ----------
+        gdf : gpd.GeoDataFrame
+            Polygons or points with values.
+        column : str, optional
+            Column with the values. For points, None means the Z coordinate is used.
+        quantity : str, optional
+            D-Flow FM quantity, e.g. ``'waterlevel'`` or ``'waterdepth'``. For velocities,
+            use `set_initial_velocity`. Defaults to ``"waterlevel"``.
+        kind : str, optional
+            ``'initial'`` ([Initial] block) or ``'parameter'`` ([Parameter] block).
+            Defaults to ``"initial"``.
+        filetype : str, optional
+            ``'branch'`` (default), or the advanced types ``'sample'``, ``'polygon'`` or
+            ``'raster'``.
+        cellsize : float, optional
+            Raster cell size, required for filetype ``'raster'``.
+        locationtype : str, optional
+            ``'1d'``, ``'2d'`` or ``'all'``. Defaults to ``"1d"``.
+        interpolationmethod : str, optional
+            ``'constant'`` (polygon), ``'triangulation'`` or ``'averaging'``. Not used for
+            ``'branch'``. Defaults to ``'triangulation'`` for samples, ``'constant'`` for
+            polygon files, and ``'averaging'`` for rasters (2D) or ``'triangulation'`` (1D).
+        averagingtype : str, optional
+            Averaging type, if interpolationmethod is ``'averaging'``. Defaults to
+            ``"nearestNb"``.
+        operand : str, optional
+            How the field is combined with previous fields. Defaults to ``"O"`` (override).
+        nodata : float, optional
+            Nodata value for rasters, and the [Global] value of 1dField files (branch),
+            which D-Flow FM treats as no value. Defaults to -999.0.
+        max_snap_distance : float, optional
+            Maximum distance to snap points to a branch for filetype ``'branch'``. Defaults
+            to 5.0.
         """
         if kind not in ("initial", "parameter"):
             raise ValueError(f"kind should be 'initial' or 'parameter', not '{kind}'.")
@@ -2459,7 +2572,7 @@ class ExternalForcings:
         return gdf, column
 
     def _next_field_filename(self, kind: str, quantity: str, filetype: str) -> str:
-        """Generated file name, unique per field, e.g. initial_waterlevel_00.ini.
+        """Return a file name that is unique per field, e.g. initial_waterlevel_00.ini.
 
         Uniform values (set_initial_waterlevel/-depth) use other names.
 
@@ -2487,7 +2600,8 @@ class ExternalForcings:
     # legacy from delft3dfmpy, not used and not working here (self.boundaries does not exist): mypy skips it
     @no_type_check
     def add_rainfall_2D(self, fName, bctype="rainfall"):
-        """
+        """Add 2D rainfall from a netCDF file (legacy from delft3dfmpy, not working).
+
         Parameters
         ----------
         fName : str
@@ -2512,33 +2626,29 @@ class ExternalForcings:
         value: float | pd.Series | dict[str, list[float]],
         mesh1d: netmodels.Network | None = None,
     ) -> None:
-        """
-        Add boundary conditions to model:
-        - The boundary condition can be discharge or waterlevel, or a Q-H relation
-        - Is specified by a geographical location (pt) and a branchid
-        - If no branchid is given, the nearest is searched
-        - The boundary condition is added to the end of the given or nearest branch.
-        Value can be one of three options:
-        -  timeseries: a Pandas series with time as index should be given
-        -  constant:  a float should be given
-        -  Q-H boundary: a dictionary with Q-H 
-        
+        """Add a boundary condition at the 1D node nearest to a location.
+
         Parameters
         ----------
         name : str
-            ID of the boundary condition
-        pt : tuple or shapely.geometry.Point
-            Location of the boundary condition
-        bctype : str
-            Type of boundary condition. Currently only discharge and waterlevel are supported
-        series : pd.Series dict, or float
-            If a float, a constant in time boundary condition is used. If a pandas series,
-            the values per time step are used. Index should be in datetime format, if dict a Q-H table is assumed
-        branchid : str, optional
-            ID of the branch. If None, the branch nearest to the given location (pt) is
-            searched, by default None
-        """
+            Id of the boundary condition.
+        pt : tuple[float, float] or Point
+            Location of the boundary condition.
+        quantity : str
+            ``"dischargebnd"``, ``"waterlevelbnd"`` or ``"qhbnd"``.
+        value : float, pd.Series or dict[str, list[float]]
+            A constant, a time series with a datetime index, or a Q-H table
+            ``{"Q": [...], "H": [...]}``.
+        mesh1d : Network, optional
+            Network with the 1D mesh. Required; the default None raises a ValueError.
 
+        Raises
+        ------
+        KeyError
+            If a boundary condition with this name exists, or the network has no 1D mesh.
+        ValueError
+            If no network is given.
+        """
         assert quantity in ["dischargebnd", "waterlevelbnd", 'qhbnd']
 
 
@@ -2603,9 +2713,7 @@ class ExternalForcings:
         
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_rain_series(self, name: str, values: list, times: list) -> None:
-        """
-        Adds a rain series a boundary condition.
-        Specify name, values, and times
+        """Add a rain series as a boundary condition.
 
         Parameters
         ----------
@@ -2637,14 +2745,19 @@ class ExternalForcings:
         chainage: str,
         discharge: Annotated[pd.Series | float | str, Field(union_mode="left_to_right")],
     ) -> None:
-        """Add a lateral to an FM model
+        """Add a lateral.
 
-        Args:
-            id (str): Id of th lateral node
-            name (str): name of the node
-            branchid (str): branchid it is snapped to
-            chainage (str): chainage on the branch
-            discharge (str, float, or pd.Series): discharge type: REALTIME when linked to RR, or float (constant value) or a pd.Series with time index
+        Parameters
+        ----------
+        id : str
+            Id of the lateral.
+        branchid : str
+            Branch on which the lateral lies.
+        chainage : str
+            Chainage on the branch.
+        discharge : pd.Series, float or str
+            ``"realtime"`` when coupled to RR, a constant discharge, or a time series with
+            a datetime index.
         """
         # Convert time to minutes
         if isinstance(discharge, pd.Series):
@@ -2673,6 +2786,17 @@ class ExternalForcings:
 
 
 class Structures:
+    """Structures of the model, one DataFrame per type.
+
+    The ``add_*`` methods take keyword arguments only; they correspond to the keywords
+    of the D-Flow FM structure file.
+
+    Parameters
+    ----------
+    hydamo : HyDAMO
+        The HyDAMO object they belong to.
+    """
+
     def __init__(self, hydamo: HyDAMO) -> None:
         self.hydamo = hydamo
         self.generalstructures_df = pd.DataFrame()
@@ -2705,6 +2829,15 @@ class Structures:
         self.convert = StructuresIO(self)
 
     def check_branchid_chainage(self, branchid: str, chainage: float) -> None:
+        """Raise a ValueError if the branch does not exist or the chainage is outside it.
+
+        Parameters
+        ----------
+        branchid : str
+            Branch id.
+        chainage : float
+            Chainage on the branch.
+        """
         # Check if the ID exists
         if branchid not in self.hydamo.branches["code"]:
             raise ValueError(
@@ -2738,8 +2871,10 @@ class Structures:
         usevelocityheight: bool = True,
         allowedflowdir: str = "both",
     ) -> None:
-        """
-        Function to add a regular weir. Arguments correspond to the required input of DFlowFM.
+        """Add a regular weir.
+
+        ``id``, ``branchid`` and ``chainage`` are required; the other arguments correspond
+        to the D-Flow FM keywords of a weir.
         """
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
@@ -2779,8 +2914,10 @@ class Structures:
         uselimitflowneg: bool | None = None,
         limitflowneg: float | None = None,
     ) -> None:
-        """
-        Function to add a orifice. Arguments correspond to the required input of DFlowFM.
+        """Add an orifice.
+
+        ``id``, ``branchid`` and ``chainage`` are required; the other arguments correspond
+        to the D-Flow FM keywords of an orifice.
         """
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
@@ -2823,8 +2960,10 @@ class Structures:
         yvalues: str | None = None,
         zvalues: str | None = None,
     ) -> None:
-        """
-        Function to add a universalweir. Arguments correspond to the required input of DFlowFM.
+        """Add a universal weir.
+
+        ``id``, ``branchid`` and ``chainage`` are required; the other arguments correspond
+        to the D-Flow FM keywords of a universal weir.
         """
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
@@ -2863,6 +3002,12 @@ class Structures:
         frictiontype: str,
         friction: float | None = None,
     ) -> None:
+        """Add a bridge.
+
+        ``id``, ``branchid``, ``chainage`` and ``frictiontype`` (HyDAMO roughness type)
+        are required; the other arguments correspond to the D-Flow FM keywords of a
+        bridge. ``csdefid`` is the id of its cross section definition.
+        """
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
 
@@ -2911,6 +3056,19 @@ class Structures:
         bedfrictiontype: str,
         bedfriction: float,
     ) -> None:
+        """Add a culvert, and a cross section definition named after it.
+
+        ``id``, ``branchid``, ``chainage``, ``crosssection``, ``bedfrictiontype``
+        (HyDAMO roughness type) and ``bedfriction`` are required; the other arguments
+        correspond to the D-Flow FM keywords of a culvert. ``crosssection`` is
+        ``{"shape": "circle", "diameter": ...}`` or
+        ``{"shape": "rectangle", "height": ..., "width": ..., "closed": ...}``.
+
+        Raises
+        ------
+        NotImplementedError
+            For another cross section shape.
+        """
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
 
@@ -2977,6 +3135,11 @@ class Structures:
         startleveldeliveryside: list | None = None,
         stopleveldeliveryside: list | None = None,
     ) -> None:
+        """Add a pump.
+
+        ``id``, ``branchid`` and ``chainage`` are required; the other arguments correspond
+        to the D-Flow FM keywords of a pump.
+        """
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
 
@@ -3001,6 +3164,15 @@ class Structures:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_compound(self, *, id: str, structureids: list) -> None:
+        """Add a compound structure of existing structures.
+
+        Parameters
+        ----------
+        id : str
+            Id of the compound structure.
+        structureids : list
+            Ids of its structures.
+        """
         structurestring = ";".join([f"{s}" for s in structureids])
         numstructures = len(structureids)
         dct = pd.DataFrame(
@@ -3026,8 +3198,9 @@ class Structures:
         orifices: bool = False,
         compounds: bool = False,
     ) -> pd.DataFrame | None:
-        """
-        Returns a dataframe with the structures. Specify with the keyword arguments what structure types need to be returned.
+        """Return the structures of the given types in one DataFrame, with a column ``structype``.
+
+        Returns None if there are no such structures.
         """
         dfs = []
         for df, descr, add in zip(
@@ -3075,6 +3248,14 @@ class Structures:
 
 
 class ObservationPoints:
+    """Observation points of the model.
+
+    Parameters
+    ----------
+    hydamo : HyDAMO
+        The HyDAMO object they belong to.
+    """
+
     def __init__(self, hydamo: HyDAMO) -> None:
         self.hydamo = hydamo
         self.observation_points = gpd.GeoDataFrame().set_geometry([])
@@ -3087,8 +3268,7 @@ class ObservationPoints:
         locationTypes: str | list[str] | None = None,
         snap_distance: float = 5.0,
     ) -> None:
-        """
-        Method to add observation points to schematisation. Observation points can be of type '1d' or '2d'. 1d-points are snapped to the branch.
+        """Add observation points, of type '1d' or '2d'; 1d points are snapped to a branch.
 
         Parameters
         ----------
@@ -3155,6 +3335,14 @@ class ObservationPoints:
 
 
 class StorageNodes:
+    """Storage nodes of the model.
+
+    Parameters
+    ----------
+    hydamo : HyDAMO
+        The HyDAMO object they belong to.
+    """
+
     def __init__(self, hydamo: HyDAMO) -> None:
         self.storagenodes: dict[str, dict[str, object]] = {}
 
@@ -3184,7 +3372,19 @@ class StorageNodes:
         interpolate: str = "linear",
         network: netmodels.Network | None = None,
     ) -> None:
+        """Add a storage node, at a 1D node.
 
+        The node is ``nodeid``, or the 1D node nearest to ``xy`` or to ``branchid`` and
+        ``chainage``. The other arguments correspond to the D-Flow FM keywords of a
+        storage node; with ``usetable="true"``, ``levels`` and ``storagearea`` are space
+        separated numbers.
+
+        Raises
+        ------
+        ValueError
+            Without a ``nodeid``, a network or a location; or with a table but without
+            ``levels`` and ``storagearea``.
+        """
         if isinstance(xy, tuple):
             xy = Point(*xy)
         if xy is None and branchid is not None and chainage is not None:
@@ -3269,13 +3469,17 @@ class StorageNodes:
 
 
 def remove_nan_values(base: Mapping[str, object]) -> dict[str, object]:
-    """Remove nan values from object
+    """Return a copy of a mapping without the NaN values.
 
-    Args:
-        base (_type_): input data, containig nans
+    Parameters
+    ----------
+    base : Mapping[str, object]
+        Input data, with NaN values.
 
-    Returns:
-       base_copy : output data with nans-filtered
+    Returns
+    -------
+    dict[str, object]
+        Copy without the float NaN values.
     """
     base_copy = dict(base)
     for k, v in base.items():

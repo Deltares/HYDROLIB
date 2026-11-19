@@ -1,3 +1,5 @@
+"""Logging setup for hydrolib.dhydamo."""
+
 import logging
 import os
 import sys
@@ -19,6 +21,7 @@ class ColorFormatter(logging.Formatter):
     reset = "\033[0m"
 
     def format(self, record: logging.LogRecord) -> str:
+        """Format the record, colored by its level; INFO and unknown levels are not colored."""
         message = super().format(record)
         if record.levelno not in self.colors:
             return message

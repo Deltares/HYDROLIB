@@ -1,3 +1,5 @@
+"""Validate HyDAMO GeoPackages with the hydamo_validation package."""
+
 from __future__ import annotations
 
 import importlib
@@ -14,11 +16,25 @@ ValidationMode = Literal["off", "warn", "strict"]
 
 
 class HyDAMOValidationError(RuntimeError):
-    pass
+    """A HyDAMO GeoPackage failed validation in strict mode."""
 
 
 @dataclass
 class HydamoValidationResult:
+    """Result of validating a HyDAMO GeoPackage.
+
+    Attributes
+    ----------
+    success : bool
+        Whether the validation succeeded.
+    status : str or None
+        Status reported by hydamo_validation.
+    errors : list[str]
+        Error messages.
+    raw_result : Any
+        The result object of hydamo_validation.
+    """
+
     success: bool
     status: str | None
     errors: list[str]
@@ -129,6 +145,31 @@ def validate_or_raise(
     coverages: dict | None = None,
     validation_rules_path: str | Path | None = None,
 ) -> HydamoValidationResult | None:
+    """Validate a HyDAMO GeoPackage, depending on the validation mode.
+
+    Parameters
+    ----------
+    gpkg_path : str or Path
+        The GeoPackage.
+    hydamo_version : str
+        DAMO version, e.g. ``"2.4"``.
+    validation_mode : {"off", "warn", "strict"}
+        ``"off"`` skips the validation; ``"strict"`` raises when it fails.
+    coverages : dict, optional
+        Coverages for hydamo_validation. Defaults to None.
+    validation_rules_path : str or Path, optional
+        Rules file; see `validate_hydamo_package`. Defaults to None.
+
+    Returns
+    -------
+    HydamoValidationResult or None
+        The result, or None with ``"off"``.
+
+    Raises
+    ------
+    HyDAMOValidationError
+        With ``"strict"``, if the validation fails.
+    """
     if validation_mode == "off":
         return None
 

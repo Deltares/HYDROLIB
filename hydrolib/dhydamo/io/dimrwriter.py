@@ -1,4 +1,6 @@
 # coding: latin-1
+"""Write the DIMR configuration and a run.bat for a coupled FM, RR and RTC model."""
+
 import logging
 import os
 import xml.etree.ElementTree as ET
@@ -21,11 +23,20 @@ class DIMRWriter:
     def __init__(
         self, dimr_path: str | None = None, output_path: str | Path | None = None
     ) -> None:
-        """Class initialization for the DIMR writer. This is a temporary fix to include writers for RR and RTC, that are not yet fully included in Hydrolib-core, or have bugs. Eventually, this file should be redundant as this functionality is fully included in Hydrolib-core
+        """Create a DIMR writer.
 
-        Args:
-            dimr_path (Union[str, Path], optional): _description_. Defaults to None.
-            output_path (Union[str, Path], optional): _description_. Defaults to None.
+        This is a temporary fix to include writers for RR and RTC, which are not yet
+        fully included in HYDROLIB-core, or have bugs. Eventually this class should be
+        redundant, when HYDROLIB-core includes this functionality.
+
+        Parameters
+        ----------
+        dimr_path : str, optional
+            The ``run_dimr.bat`` script that `write_runbat` calls. Defaults to None: the
+            script of a D-HYDRO Suite 2022.04 installation.
+        output_path : str or Path, optional
+            Model folder in which the files are written. Defaults to None: the current
+            working directory.
         """
         if dimr_path is None:
             self.run_dimr = r"C:\Program Files\Deltares\D-HYDRO Suite 2022.04 1D2D\plugins\DeltaShell.Dimr\kernels\x64\dimr\scripts\run_dimr.bat"
@@ -41,8 +52,18 @@ class DIMRWriter:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def write_runbat(self, debuglevel: int = 6, runlog: str | Path | None = None) -> None:
-        """Generates a run.bat to run the model in DIMR. The path to the executable is provided by the user in the class initialization, or set to the default D-Hydro installation folder."""
+        """Write a run.bat that runs the model with DIMR.
 
+        The script calls the ``run_dimr.bat`` given when creating the writer.
+
+        Parameters
+        ----------
+        debuglevel : int, optional
+            DIMR debug level (``-d``). Defaults to 6.
+        runlog : str or Path, optional
+            File to which the output of DIMR is redirected. Defaults to None: no
+            redirection.
+        """
         with open(os.path.join(self.output_path, "run.bat"), "w") as f:
             f.write("@ echo off\n")
             f.write("set OMP_NUM_THREADS=2\n")
@@ -53,7 +74,19 @@ class DIMRWriter:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_crs(self, netcdf_path: str | Path | None = None) -> None:
-        """Reads the Netcdf file and addes the required attributes for a valid CRS."""        
+        """Add the coordinate reference system EPSG:28992 (RD New) to the network file, in place.
+
+        Parameters
+        ----------
+        netcdf_path : str or Path, optional
+            Network file, or a folder with it (the first ``*.nc`` file is used). Defaults
+            to None: the first ``*.nc`` file in the ``dflowfm`` folder of the output path.
+
+        Raises
+        ------
+        FileNotFoundError
+            If no netCDF file is found.
+        """
         if netcdf_path is None:
             netfile = next((self.output_path / 'dflowfm').glob('*.nc'), None)
             if netfile is None:
@@ -132,12 +165,16 @@ class DIMRWriter:
     def write_dimrconfig(
         self, fm: FMModel, rr_model: DRRModel | None = None, rtc_model: DRTCModel | None = None
     ) -> None:
-        """Construct the contents of a DIMR-config file, using elements from FM, RTC and RR models.
+        """Write ``dimr_config.xml`` for the FM model, coupled with RR and RTC if given.
 
-        Args:
-            fm (instance of class FM-model): Hydrolib-core model object. When only fm is set, only a 1d2d model is generated.
-            rr_model (instance of a DRRModel object, optional): Class containig all information from the RR-model. Defaults to None.
-            rtc_model (instance of a DRTCmodel, optional): Class containig all information from the RTC-model. Defaults to None.
+        Parameters
+        ----------
+        fm : FMModel
+            The D-Flow FM model. Without RR and RTC, only FM is run.
+        rr_model : DRRModel, optional
+            The RR model. Defaults to None.
+        rtc_model : DRTCModel, optional
+            The RTC model. Defaults to None.
         """
         generalname = "http://schemas.deltares.nl/dimr"  # Config
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"

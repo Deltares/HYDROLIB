@@ -1,3 +1,5 @@
+"""Base class for the DAMO converters: which GeoPackage layer goes into which HyDAMO attribute."""
+
 from __future__ import annotations
 
 import logging
@@ -127,7 +129,9 @@ class BaseDamoConverter(ABC):
         self.postprocess(hydamo)
 
     def postprocess(self, hydamo: HyDAMO) -> None:
-        """Hook for version-specific canonicalization after all layers are loaded.
+        """Adjust the loaded data to what the rest of dhydamo expects, per DAMO version.
+
+        Called after all layers are loaded.
 
         Override in subclasses to rename, copy, or derive columns on any
         ``HyDAMO`` attribute that requires post-load normalisation.

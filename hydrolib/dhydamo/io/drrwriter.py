@@ -1,4 +1,6 @@
 # coding: latin-1
+"""Write the files of a D-RR model."""
+
 import logging
 import os
 import re
@@ -20,7 +22,22 @@ logger = logging.getLogger(__name__)
 
 
 class DRRWriter:
-    """Writer for RR files"""
+    """Write the files of an RR model to the ``rr`` folder of a model.
+
+    An existing ``rr`` folder is removed when the writer is created.
+
+    Parameters
+    ----------
+    rrmodel : DRRModel
+        The RR model to write.
+    output_dir : str or Path
+        Model folder; the files are written to its ``rr`` subfolder.
+    name : str, optional
+        Deprecated, not used. Defaults to None.
+    wwtp : tuple[float, float], optional
+        Coordinates of the waste water treatment plant node, to which the paved nodes
+        are linked. Defaults to None: (100000, 500000).
+    """
 
     def __init__(
         self,
@@ -56,9 +73,7 @@ class DRRWriter:
             self.wwtp = Point((wwtp[0], wwtp[1]))
 
     def write_all(self) -> None:  # write all RR files
-        """
-        Wrapper method to write all components
-        """
+        """Write all RR files and set the parameters of ``delft_3b.ini``."""
         # copy all 'standard' files from the resources folder
         self.copyRRFiles()
 
@@ -79,14 +94,12 @@ class DRRWriter:
             self.change_d3b_parameter(parameter, value)
 
     def copyRRFiles(self) -> bool:
-        """
-        Method to copy the RR-files from resources.
+        """Copy the standard RR files from the resources folder to the output folder.
 
         Returns
         -------
         bool
-            Succesfull or not.
-
+            Always True.
         """
         srcRR = os.path.join(os.path.dirname(__file__), "..", "resources", "RR")
         targetRR = os.path.join(self.output_dir)
@@ -94,16 +107,14 @@ class DRRWriter:
         return True
 
     def write_topology(self) -> None:
-        """
-        Wrapper to write the topolgy files for RR. The following files are written:
-            3B_NOD.TP: IDs and coordinates of all nodes: unpaved, paved, greenhouse, open water and boundary. Only nodes with a total area of >0 are written. Nodes are placed up to 20 m to the east and west of the catchment centroid.
-            3B_LINK.TP: Links between all nodes and the correct boundaries.
-            BOUND3B.3B: coupling information for every RR boundary.
-            BoundaryConditions.bc: see bound3b.3b
-        Returns
-        -------
-        None.
+        """Write the topology files of the RR model.
 
+        - ``3B_NOD.TP``: ids and coordinates of all nodes: unpaved, paved, greenhouse,
+          open water and boundary. Only nodes with a total area > 0 are written. Nodes are
+          placed up to 20 m east and west of the catchment centroid.
+        - ``3B_LINK.TP``: links between all nodes and their boundaries.
+        - ``BOUND3B.3B``: coupling information for every RR boundary.
+        - ``BoundaryConditions.bc``: see ``BOUND3B.3B``.
         """
         filepath = os.path.join(self.output_dir, "3B_NOD.TP")
         with open(filepath, "w") as f:
@@ -305,13 +316,11 @@ class DRRWriter:
                 self._write_dict(f, temp, "Boundary", "    0\n\n")
 
     def write_unpaved(self) -> None:
-        """
-        Method to write all files associated with unpaved nodes: UNPAVED.3B, UNPAVED.ALF, UNPAVED.STO, UNPAVED.INF and UNPAVED.SEP. All files contain a definition for every node  because they may or may not be spatially distributed.
+        """Write the files of the unpaved nodes.
 
-        Returns
-        -------
-        None.
-
+        ``UNPAVED.3B``, ``UNPAVED.ALF``, ``UNPAVED.STO``, ``UNPAVED.INF`` and
+        ``UNPAVED.SEP``. All files have a definition for every node, because the values
+        may be spatially distributed.
         """
         if any(self.rrmodel.unpaved.unp_nodes):
             filepath = os.path.join(self.output_dir, "UNPAVED.3B")
@@ -434,13 +443,9 @@ class DRRWriter:
                         f.write("tble\nseep\n")
 
     def write_paved(self) -> None:
-        """
-        Method to write all files associated with paved nodes: PAVED.3B, PAVED.STO and PAVED.DWA. The latter contains only one definition.
+        """Write the files of the paved nodes.
 
-        Returns
-        -------
-        None.
-
+        ``PAVED.3B``, ``PAVED.STO`` and ``PAVED.DWA``. The latter has only one definition.
         """
         if any(self.rrmodel.paved.pav_nodes):
             filepath = os.path.join(self.output_dir, "PAVED.3B")
@@ -502,13 +507,10 @@ class DRRWriter:
                 f.write("\n")
 
     def write_greenhouse(self) -> None:
-        """
-        Method to write all files associated with greenhouse nodes: GREENHSE.3B, GREENHSE.RF and GREENHSE.SIL. The latter contains only one definition.
+        """Write the files of the greenhouse nodes.
 
-        Returns
-        -------
-        None.
-
+        ``GREENHSE.3B``, ``GREENHSE.RF`` and ``GREENHSE.SIL``. The latter has only one
+        definition.
         """
         if any(self.rrmodel.greenhouse.gh_nodes):
             filepath = os.path.join(self.output_dir, "GREENHSE.3B")
@@ -551,14 +553,7 @@ class DRRWriter:
                         )
 
     def write_openwater(self) -> None:
-        """
-         Method to write OPENWATE.3B file.
-
-        Returns
-        -------
-        None.
-
-        """
+        """Write ``OPENWATE.3B``, the file of the open water nodes."""
         # write openwater.3b
         if any(self.rrmodel.openwater.ow_nodes):
             filepath = os.path.join(self.output_dir, "OPENWATE.3B")
@@ -576,13 +571,10 @@ class DRRWriter:
                         )
 
     def write_meteo(self) -> None:
-        """
-        Method to write meteofiles (DEFAULT.BUI and DEFAULT.EVP) based on values per catchment.
+        """Write the meteo files ``DEFAULT.BUI`` and ``DEFAULT.EVP``.
 
-        Returns
-        -------
-        None.
-
+        From the time series per meteo area, or as a copy of the meteo file given to the
+        RR model.
         """
         # precip
         filepath = os.path.join(self.output_dir, "DEFAULT.BUI")
@@ -661,17 +653,21 @@ class DRRWriter:
                     f.write(f"{date}{sep}{float_format % val}\n")
 
     def _write_dict(self, f: TextIO, dct: dict[str, str], header: str, endline: str) -> None:
-        """
-        Write a dictionary to file, without transforming with mapping
-        """
+        """Write a dictionary as an INI section, without transforming the values."""
         # Write header
         f.write(f"[{header}]\n")
         f.writelines(f"    {key:20s} = {value:20s}\n" for key, value in dct.items())
         f.write(endline)
 
     def change_d3b_parameter(self, parameter: str, value: str | float) -> None:
-        """
-        Change parameter value in delft3b.ini file
+        """Change the value of a parameter in ``delft_3b.ini``, in place.
+
+        Parameters
+        ----------
+        parameter : str
+            Parameter name, case-insensitive.
+        value : str or float
+            New value.
         """
         with open(os.path.join(self.output_dir, "delft_3b.ini")) as f:
             lines = f.readlines()

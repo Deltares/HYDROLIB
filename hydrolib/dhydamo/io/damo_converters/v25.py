@@ -1,3 +1,5 @@
+"""Converter for DAMO 2.5."""
+
 from __future__ import annotations
 
 from hydrolib.dhydamo.io.damo_converters.base import LayerSpec, replace_layer_specs

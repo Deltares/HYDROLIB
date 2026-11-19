@@ -1,3 +1,5 @@
+"""Interactive folium maps of a D-Flow FM network."""
+
 import base64
 import io
 
@@ -26,6 +28,25 @@ def point_layer(
     size: int = 14,
     use_centroid: bool = False,
 ) -> None:
+    """Add points to a folium map as a layer of text symbols.
+
+    Parameters
+    ----------
+    m : folium.Map
+        Map to add the layer to.
+    gdf : gpd.GeoDataFrame
+        Geometries to show, in EPSG:28992 (RD New).
+    name : str
+        Layer name, also shown as tooltip.
+    color : str
+        CSS color of the symbols.
+    symbol : str
+        Text or HTML entity to show at each point, e.g. ``"&#9650;"``.
+    size : int, optional
+        Font size of the symbols in pixels. Defaults to 14.
+    use_centroid : bool, optional
+        Show the centroid of each geometry, e.g. for lines or polygons. Defaults to False.
+    """
     # One GeoJson layer with a shared marker template instead of a folium.Marker per point, keeps the HTML small.
     geoms = gdf.geometry.set_crs(28992)
     if use_centroid:
@@ -45,6 +66,14 @@ def point_layer(
     ).add_to(m)
 
 class TitleControl(MacroElement):
+    """Title in the top right corner of a folium map.
+
+    Parameters
+    ----------
+    title : str
+        Text of the title. It is inserted as HTML.
+    """
+
     def __init__(self, title: str) -> None:
         super().__init__()
         self.title = title
@@ -70,6 +99,33 @@ def plot_network(
     face_z_kwargs: dict | None = None,
     background: bool=True
 ) -> folium.Map:
+    """Show the 1D mesh, the 2D mesh, the 1D2D links and the 2D face levels on a folium map.
+
+    Each part is a separate layer; empty parts are left out. The map zooms to the
+    extent of all layers.
+
+    Parameters
+    ----------
+    network : Network
+        Network to show.
+    crs : int, optional
+        EPSG code of the network coordinates. Defaults to 28992 (RD New).
+    mesh1d_kwargs, mesh2d_kwargs, links1d2d_kwargs : dict, optional
+        Line style of each layer, with the keys ``color`` and ``weight`` (``lw`` is
+        accepted for ``weight``). Defaults to red, blue and black lines.
+    face_z_kwargs : dict, optional
+        Show the face levels of the 2D mesh as colored dots, with the keys ``vmin``,
+        ``vmax``, ``cmap``, ``label`` (legend caption) and ``radius`` (in points).
+        Missing keys get defaults; ``vmin`` and ``vmax`` default to the range of the
+        levels. Defaults to None: no face levels.
+    background : bool, optional
+        Show OpenStreetMap as background. Defaults to True.
+
+    Returns
+    -------
+    folium.Map
+        The map.
+    """
     if mesh1d_kwargs is None:
         mesh1d_kwargs = {"color": "#d62728", "weight": 1}
     if mesh2d_kwargs is None:

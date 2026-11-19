@@ -1,3 +1,5 @@
+"""Convert HyDAMO (DAMO) tables to the cross sections, structures, forcings and storage nodes of HyDAMO."""
+
 from __future__ import annotations
 
 import logging
@@ -29,11 +31,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 class RoughnessVariant(Enum):
+    """Which roughness value of a DAMO profile to use: the high or the low value."""
+
     HIGH = "High"
     LOW = "Low"
 
 
 class CrossSectionsIO:
+    """Add cross sections from DAMO tables.
+
+    Parameters
+    ----------
+    crosssections : CrossSections
+        The cross sections of a HyDAMO object, filled in place.
+    """
+
     def __init__(self, crosssections: CrossSections) -> None:
         self.crosssections = crosssections
 
@@ -43,10 +55,7 @@ class CrossSectionsIO:
     def from_datamodel(
         self, crsdefs: pd.DataFrame | None = None, crslocs: pd.DataFrame | None = None
     ) -> None:
-        """ "
-        From parsed data models of crsdefs and crslocs
-        """
-
+        """Add cross sections from parsed data models (legacy from delft3dfmpy, untested)."""
         if crslocs is not None:
             for _, crsloc in crslocs.iterrows():
                 # add location
@@ -126,14 +135,31 @@ class CrossSectionsIO:
         param_profile: ExtendedDataFrame | None = None,
         param_profile_values: ExtendedDataFrame | None = None,
     ) -> None:
-        """
-        Method to add cross section from hydamo files. Two files
-        can be handed to the function, the cross section file (dwarsprofiel) and the
-        parametrised file (normgeparametriseerd). The
-        hierarchical order is 1. dwarsprofiel, 2. normgeparametriseerd.
-        Each branch will be assigned a profile following this order. If parametrised
-        and standard are not given, branches can be wit hout cross section. In that case
-        a standard profile should be assigned
+        """Add the cross sections of the measured and the parametrised profiles.
+
+        Measured profiles (dwarsprofiel, with profile groups and lines) come first; branches
+        without one get the parametrised profile (normgeparametriseerd profiel), if any.
+        Branches without either have no cross section; give them a default profile, see
+        ``CrossSections.set_default_definition``.
+
+        Parameters
+        ----------
+        branches : ExtendedGeoDataFrame
+            The branches.
+        roughness_variant : RoughnessVariant
+            Use the high or the low roughness value of the profiles.
+        crosssections : ExtendedGeoDataFrame, optional
+            Measured profile points (profielpunt). Defaults to None.
+        crosssection_roughness : ExtendedDataFrame, optional
+            Roughness of the measured profiles. Defaults to None.
+        profile_groups : ExtendedDataFrame, optional
+            Profile groups, required with ``crosssections``. Defaults to None.
+        profile_lines : ExtendedGeoDataFrame, optional
+            Profile lines, required with ``crosssections``. Defaults to None.
+        param_profile : ExtendedDataFrame, optional
+            Parametrised profiles. Defaults to None.
+        param_profile_values : ExtendedDataFrame, optional
+            Values of the parametrised profiles. Defaults to None.
         """
         dp_branches = None
         dp_structures = None
@@ -296,6 +322,14 @@ class CrossSectionsIO:
 
 
 class ExternalForcingsIO:
+    """Add boundary conditions and laterals from DAMO tables.
+
+    Parameters
+    ----------
+    external_forcings : ExternalForcings
+        The external forcings of a HyDAMO object, filled in place.
+    """
+
     def __init__(self, external_forcings: ExternalForcings) -> None:
         self.external_forcings = external_forcings
 
@@ -303,20 +337,18 @@ class ExternalForcingsIO:
     def boundaries(
         self, boundary_conditions: ExtendedGeoDataFrame, mesh1d: Network | None = None
     ) -> None:
-        """
-        Generate boundary conditions from hydamo 'randvoorwaarden' file. The file format does not allow for timeseries.
+        """Add constant boundary conditions from the DAMO table randvoorwaarden.
 
-        To add a time series, use 'add_boundary' from the workflow.
+        The table has no time series; to add one, use
+        ``ExternalForcings.add_boundary_condition``.
 
         Parameters
         ----------
-        boundary_conditions: gpd.GeoDataFrame
-            geodataframe with the locations and properties of the boundary conditions
-
-        Returns
-        -------
-        dictionary
-            Dictionary with attributes of boundary conditions, usable for dflowfm
+        boundary_conditions : ExtendedGeoDataFrame
+            Locations and properties of the boundary conditions: ``code``,
+            ``typerandvoorwaarde`` (water level or discharge), ``waterstand`` and ``debiet``.
+        mesh1d : Network, optional
+            Network with the 1D mesh, to find the node of each boundary. Defaults to None.
         """
         # Read from Hydamo
         bcdct = {}
@@ -358,19 +390,26 @@ class ExternalForcingsIO:
         lateral_discharges: pd.DataFrame | pd.Series | None=None,
         rr_boundaries: dict | None = None,
     ) -> None:
-        """
-        Process laterals
+        """Add the laterals, with a discharge or coupled to RR.
+
+        Laterals in ``rr_boundaries`` get their discharge from the RR model (``realtime``);
+        the others from ``lateral_discharges``. Laterals without either are logged and left
+        out.
 
         Parameters
         ----------
-        locations: gpd.GeoDataFrame
-            GeoDataFrame with at least 'geometry' (Point) and the column 'code'
-        lateral_discharges: pd.DataFrame
-            DataFrame with lateral discharges. The index should be a time object (datetime or similar).
-        rr_boundaries: pd.DataFrame
-            DataFrame with RR-catchments that are coupled
+        locations : ExtendedGeoDataFrame
+            Lateral points, with the columns ``code``, ``branch_id`` and ``branch_offset``.
+        overflows : ExtendedGeoDataFrame, optional
+            Overflows, added as laterals as well. Defaults to None.
+        greenhouse_laterals : ExtendedGeoDataFrame, optional
+            Greenhouse outlets, added as laterals as well. Defaults to None.
+        lateral_discharges : pd.DataFrame or pd.Series, optional
+            A time series per lateral (columns by code, a time index), or a constant
+            discharge per lateral (index by code). Defaults to None.
+        rr_boundaries : dict, optional
+            Codes of the laterals that are coupled to RR boundary nodes. Defaults to None.
         """
-
         if rr_boundaries is None:
             rr_boundaries = {}
 
@@ -452,27 +491,33 @@ class ExternalForcingsIO:
                                   starttime: str | datetime | None = None,
                                   endtime: str | datetime | None = None,
                                 ) -> tuple[Point | None, pd.Series]:
+        """Read a time series at a location from the his file of another model.
+
+        Parameters
+        ----------
+        his_file : Path or str
+            The his file (``*_his.nc``) of the other model.
+        location_type : str
+            Type of location: ``'weir'``, ``'observation_point'``, ``'pump'``, ``'uweir'``,
+            ``'bridge'``, ``'culvert'`` or ``'compound'``.
+        location_id : str
+            Id of the location in the his file.
+        variable : str
+            ``'discharge'``, ``'waterlevel'``, ``'waterlevel_upstream'`` or
+            ``'waterlevel_downstream'``.
+        starttime, endtime : str or datetime, optional
+            Period of the output. Default to None: the whole period.
+
+        Returns
+        -------
+        tuple[Point or None, pd.Series]
+            The location (if the file has its coordinates) and the time series.
+
+        Raises
+        ------
+        ValueError
+            If the file has no data for the location and variable.
         """
-        Obtain timeseries from results from a different model. The HIS.nc file is read and a time series is extracted for the specified location/discharge combination.
-        Point geometry and timeseries (pd.Series) are returned. 
-        
-
-        Args:
-            his_file (Union[Path, str]): _description_.
-            location_type (str): type of location. One of ['weir', 'observation_point', 'pump', 'uweir', 'bridge', culvert']. 
-            location_id (str): ID of the location to read from the HIS-file
-            variable (str): variable to read. One of ['discharge', 'waterlevel', 'waterlevel_upstream', 'waterlevel_downstream']
-            starttime (Optional[Union[str, pd.Timestamp]], optional): start of selected time period for the output. Defaults to None.
-            endtime (Optional[Union[str, pd.Timestamp]], optional): end of selected time period for the output. Defaults to None.
-
-        Raises:
-            ValueError: if no data can be found for the specified location and variable.
-
-        Returns:
-            tuple[Optional[Point], pd.Series]: Point geometry of the location (if available) and the timeseries as a pandas Series.
-        """
-
-
        # if timesteps are strings, convert them to datetime objects
         if starttime is not None:
             if isinstance(starttime, str):
@@ -551,13 +596,23 @@ class ExternalForcingsIO:
 
 
 class StructuresIO:
+    """Add structures from DAMO tables.
+
+    Parameters
+    ----------
+    structures : Structures
+        The structures of a HyDAMO object, filled in place.
+    """
+
     def __init__(self, structures: Structures) -> None:
         self.structures = structures
 
     def _name_or_nan(self, row: pd.Series) -> Hashable:
+        """Return the index label of the row if it has a name column, otherwise NaN."""
         return row.name if "name" in row.index else np.nan
 
     def _common_structure_kwargs(self, row: pd.Series, id_attr: str = "id") -> dict[str, object]:
+        """Return the id, name, branch id and chainage of a structure row."""
         return {
             "id": getattr(row, id_attr),
             "name": self._name_or_nan(row),
@@ -569,12 +624,7 @@ class StructuresIO:
     @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def generalstructures_from_datamodel(self, generalstructures: pd.DataFrame) -> None:
-        """From parsed data model of orifices
-
-        Args:
-            generalstructures (pd.DataFrame): dataframe containing the data
-        """
-
+        """Add general structures from a parsed data model (legacy from delft3dfmpy, untested)."""
         for generalstructure_idx, generalstructure in generalstructures.iterrows():
             base = self._common_structure_kwargs(generalstructure)
             self.structures.add_generalstructure(
@@ -674,12 +724,25 @@ class StructuresIO:
         management_device: ExtendedDataFrame | None = None,
         usevelocityheight: bool = True,
     ) -> None:
-        """
-        Method to convert HyDAMO weirs to DFlowFM structures: regular weirs, orifices and universal weirs.
-        If a weir ID corresponds to a 'stuwid' in the profile_groups object, a universal weir is created.
-        If the management_device corresponding to a weir has the field "overlaatonderlaat" set to "onderlaat', an orifice is schematized. In all other cases, a regular (rectangular) weir is created.
+        """Add the DAMO weirs as regular weirs, orifices or universal weirs.
 
-        Parameters corrspond to the HyDAMO DAMO2.2 objects. DFlowFM keyword 'usevelocityheight' is a boolean, default True.
+        A weir with a profile group (``stuwid``) becomes a universal weir. A weir whose
+        management device has ``overlaatonderlaat`` set to ``"onderlaat"`` becomes an
+        orifice. Other weirs become regular (rectangular) weirs. A weir with more than one
+        opening becomes a compound structure.
+
+        Parameters
+        ----------
+        weirs : ExtendedGeoDataFrame, optional
+            DAMO weirs (stuw). Defaults to None.
+        profile_groups, profile_lines, profiles : optional
+            DAMO profile groups, lines and points, for universal weirs. Default to None.
+        opening : ExtendedDataFrame, optional
+            DAMO openings (kunstwerkopening). Defaults to None.
+        management_device : ExtendedDataFrame, optional
+            DAMO management devices (regelmiddel). Defaults to None.
+        usevelocityheight : bool, optional
+            D-Flow FM keyword ``usevelocityheight``. Defaults to True.
         """
         opening_weir = RelationsHyDAMO.OPENING_WEIR
         management_device_opening = RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING
@@ -937,7 +1000,7 @@ class StructuresIO:
     @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def weirs_from_datamodel(self, weirs: pd.DataFrame) -> None:
-        """ "From parsed data model of weirs"""
+        """Add weirs from a parsed data model (legacy from delft3dfmpy, untested)."""
         for weir_idx, weir in weirs.iterrows():
             base = self._common_structure_kwargs(weir)
             self.structures.add_weir(
@@ -951,7 +1014,7 @@ class StructuresIO:
     @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def orifices_from_datamodel(self, orifices: pd.DataFrame) -> None:
-        """ "From parsed data model of orifices"""
+        """Add orifices from a parsed data model (legacy from delft3dfmpy, untested)."""
         for orifice_idx, orifice in orifices.iterrows():
             base = self._common_structure_kwargs(orifice)
             self.structures.add_orifice(
@@ -971,7 +1034,7 @@ class StructuresIO:
     @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def uweirs_from_datamodel(self, uweirs: pd.DataFrame) -> None:
-        """ "From parsed data model of universal weirs"""
+        """Add universal weirs from a parsed data model (legacy from delft3dfmpy, untested)."""
         for uweir_idx, uweir in uweirs.iterrows():
             base = self._common_structure_kwargs(uweir)
             self.structures.add_uweir(
@@ -991,10 +1054,17 @@ class StructuresIO:
         profile_lines: ExtendedGeoDataFrame | None = None,
         profiles: ExtendedGeoDataFrame | None = None,
     ) -> None:
-        """
-        Method to convert HyDAMO bridges to DFlowFM bridges. Every bridge needs an associated YZ-profile through profile_groups ('brugid'), profile_lines and profiles.
+        """Add the DAMO bridges.
 
-        Parameters corrspond to the HyDAMO DAMO2.2 objects.
+        Every bridge needs a YZ profile, through ``profile_groups`` (``brugid``),
+        ``profile_lines`` and ``profiles``.
+
+        Parameters
+        ----------
+        bridges : ExtendedGeoDataFrame
+            DAMO bridges (brug).
+        profile_groups, profile_lines, profiles : optional
+            DAMO profile groups, lines and points. Default to None.
         """
         profile_group_bridge = RelationsHyDAMO.PROFILE_GROUP_BRIDGE
         profile_line_group = RelationsHyDAMO.PROFILE_LINE_GROUP
@@ -1036,7 +1106,7 @@ class StructuresIO:
     @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def bridges_from_datamodel(self, bridges: pd.DataFrame) -> None:
-        """ "From parsed data model of bridges"""
+        """Add bridges from a parsed data model (legacy from delft3dfmpy, untested)."""
         for bridge_idx, bridge in bridges.iterrows():
             base = self._common_structure_kwargs(bridge, id_attr="code")
             self.structures.add_bridge(
@@ -1057,11 +1127,17 @@ class StructuresIO:
         culverts: ExtendedGeoDataFrame,
         management_device: ExtendedDataFrame | None = None,
     ) -> None:
-        """
-        Method to convert HyDAMO culverts to DFlowFM culverts. Devices like a valve and a slide can be schematized from the management_device object.
-        According to HyDAMO DAMO2.2 a closing_device ('afsluitmiddel') could also be used but this is not supported.
+        """Add the DAMO culverts.
 
-        Parameters corrspond to the HyDAMO DAMO2.2 objects.
+        A valve or a slide can be schematized from ``management_device``. DAMO 2.2 also has
+        closing devices (afsluitmiddel), which are not supported.
+
+        Parameters
+        ----------
+        culverts : ExtendedGeoDataFrame
+            DAMO culverts (duikersifonhevel).
+        management_device : ExtendedDataFrame, optional
+            DAMO management devices (regelmiddel). Defaults to None.
         """
         management_device_culvert = RelationsHyDAMO.MANAGEMENT_DEVICE_CULVERT
         if management_device is not None and 'soortafsluitmiddel' not in management_device.columns:
@@ -1150,10 +1226,7 @@ class StructuresIO:
     @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def culverts_from_datamodel(self, culverts: pd.DataFrame) -> None:
-        """
-        From parsed model of culverts
-        """
-
+        """Add culverts from a parsed data model (legacy from delft3dfmpy, untested)."""
         # Add to dict
         for culvert_idx, culvert in culverts.iterrows():
             base = self._common_structure_kwargs(culvert)
@@ -1184,10 +1257,23 @@ class StructuresIO:
         pumps: ExtendedDataFrame | None = None,
         management: ExtendedDataFrame | None = None,
     ) -> None:
-        """
-        Method to convert HyDAMO pumps to DFlowFM pumps. Three objects are required: pumpstations, pumps and management ('sturing').
+        """Add the DAMO pumps.
 
-        Parameters corrspond to the HyDAMO DAMO2.2 objects.
+        A pump station with more than one pump becomes a compound structure.
+
+        Parameters
+        ----------
+        pumpstations : ExtendedGeoDataFrame
+            DAMO pump stations (gemaal).
+        pumps : ExtendedDataFrame
+            DAMO pumps (pomp). Required.
+        management : ExtendedDataFrame
+            DAMO control (sturing). Required.
+
+        Raises
+        ------
+        ValueError
+            If ``pumps`` or ``management`` is missing.
         """
         pump_pumpstation = RelationsHyDAMO.PUMP_PUMPSTATION
         management_pump = RelationsHyDAMO.MANAGEMENT_PUMP
@@ -1272,8 +1358,7 @@ class StructuresIO:
     @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def pumps_from_datamodel(self, pumps: pd.DataFrame) -> None:
-        """From parsed data model of pumps"""
-
+        """Add pumps from a parsed data model (legacy from delft3dfmpy, untested)."""
         for pump_idx, pump in pumps.iterrows():
             base = self._common_structure_kwargs(pump)
             self.structures.add_pump(
@@ -1292,24 +1377,23 @@ class StructuresIO:
     def move_structure(
         struc: str, struc_dict: dict[str, dict[str, str | float]], branch: str, offset: float
     ) -> dict[str, dict[str, str | float]]:
-        """
-        Function the move a structure if needed for a compound structure.
+        """Move a structure to the location of the first structure of its compound, in place.
 
         Parameters
         ----------
-        struc : string
-            current sub-structure id
+        struc : str
+            Id of the structure to move.
         struc_dict : dict
-            dict with all structures of a certain type
-        branch : string
-            branch id of the first structure in the compound
+            All structures of one type, by id.
+        branch : str
+            Branch id of the first structure in the compound.
         offset : float
-            chainage of the first structure in the compound
+            Chainage of the first structure in the compound.
 
         Returns
         -------
-        Dict with shifted coordinates.
-
+        dict
+            ``struc_dict``, with the moved structure.
         """
         branch2 = struc_dict[struc]["branchid"]
         if branch2 != branch:
@@ -1321,6 +1405,7 @@ class StructuresIO:
         return struc_dict
 
     def _structure_frames(self) -> tuple[pd.DataFrame, ...]:
+        """Return the tables of all structure types that can be part of a compound."""
         return (
             self.structures.pumps_df,
             self.structures.rweirs_df,
@@ -1331,6 +1416,7 @@ class StructuresIO:
         )
 
     def _get_structure_location(self, structure_id: str) -> tuple[str | None, float | None]:
+        """Return the branch id and chainage of a structure, or None if it is not found."""
         branch = None
         offset = None
         for df in self._structure_frames():
@@ -1343,6 +1429,7 @@ class StructuresIO:
         return branch, offset
 
     def _set_structure_location(self, structure_id: str, branch: str, offset: float) -> None:
+        """Set the branch id and chainage of a structure, in place."""
         for df in self._structure_frames():
             if df.empty:
                 continue
@@ -1352,6 +1439,15 @@ class StructuresIO:
                 df.loc[idx, "chainage"] = offset
 
     def compound_structures(self, idlist: list[str], structurelist: list[list[str]]) -> None:
+        """Add compound structures, and move their structures to the location of the first.
+
+        Parameters
+        ----------
+        idlist : list[str]
+            Id of each compound structure.
+        structurelist : list[list[str]]
+            Ids of the structures of each compound structure.
+        """
         # probably the coordinates should all be set to those of the first structure (still to do)
         for c_i, c_id in enumerate(idlist):
             branch = None
@@ -1370,13 +1466,21 @@ class StructuresIO:
 
 
 class StorageNodesIO:
+    """Add storage nodes from tables.
+
+    Parameters
+    ----------
+    storagenodes : StorageNodes
+        The storage nodes of a HyDAMO object, filled in place.
+    """
+
     def __init__(self, storagenodes: StorageNodes) -> None:
         self.storagenodes = storagenodes
 
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
     def storagenodes_from_datamodel(self, storagenodes):
-        """ "From parsed data model of storage nodes"""
+        """Add storage nodes from a parsed data model (legacy from delft3dfmpy, untested)."""
         for storagenode_idx, storagenode in storagenodes.iterrows():
             self.add_storagenode(
                 id=storagenode.id,
@@ -1401,7 +1505,28 @@ class StorageNodesIO:
         usestreetstorage: bool = True,
         network: Network | None = None,
     ) -> None:
-        """ "From parsed data model of storage nodes"""
+        """Add storage nodes with a level-area table.
+
+        Parameters
+        ----------
+        storagenodes : gpd.GeoDataFrame
+            Storage nodes, indexed by code, with ``branch_id`` and ``branch_offset``. Required.
+        nodeid : str, optional
+            Node id for all storage nodes. Defaults to None: the node at the chainage.
+        xy : tuple[float, float], optional
+            Location for all storage nodes. Defaults to None.
+        storagedata : pd.DataFrame
+            Level-area table, with the columns ``code``, ``level`` and ``area``. Required.
+        usestreetstorage : bool, optional
+            D-Flow FM keyword ``useStreetStorage``. Defaults to True.
+        network : Network, optional
+            Network with the 1D mesh, to find the node at the chainage. Defaults to None.
+
+        Raises
+        ------
+        ValueError
+            If ``storagenodes`` or ``storagedata`` is missing.
+        """
         if storagenodes is None or storagedata is None:
             raise ValueError("Provide storagenodes and storagedata.")
 

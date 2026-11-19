@@ -1,3 +1,5 @@
+"""Spatial operations on branches, polygons and points."""
+
 import itertools
 import logging
 from collections.abc import Hashable
@@ -22,8 +24,21 @@ logger = logging.getLogger(__name__)
 def rotate_coordinates(
     origin: tuple[float, float], theta: float, xcrds: np.ndarray, ycrds: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Rotate coordinates around origin (x0, y0) with a certain angle (radians)
+    """Rotate coordinates clockwise around an origin.
+
+    Parameters
+    ----------
+    origin : tuple[float, float]
+        Point (x0, y0) to rotate around.
+    theta : float
+        Angle in radians.
+    xcrds, ycrds : np.ndarray
+        Coordinates to rotate.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        The rotated x and y coordinates.
     """
     x0, y0 = origin
     xcrds_rot = x0 + (xcrds - x0) * np.cos(theta) + (ycrds - y0) * np.sin(theta)
@@ -37,14 +52,19 @@ def minimum_bounds_fixed_rotation(polygon: Polygon, angle: float) -> tuple[tuple
     Parameters
     ----------
     polygon : shapely.geometry.Polygon
-        Polygon that is rotated
-    angle : int or float
-        Rotation of the polygon in degrees
+        Polygon that is rotated.
+    angle : float
+        Rotation of the polygon in degrees.
 
     Returns
     -------
-    tuple
-        Tuple with origin (x, y), xsize and ysize
+    tuple[tuple[float, float], float, float]
+        Origin (x, y), xsize and ysize of the box.
+
+    Raises
+    ------
+    TypeError
+        If rotating the box back does not give a Polygon.
     """
     # Determine spinning point
     spinpt = (polygon.envelope.bounds[0], polygon.envelope.bounds[1])
@@ -67,23 +87,35 @@ def minimum_bounds_fixed_rotation(polygon: Polygon, angle: float) -> tuple[tuple
 def find_nearest_branch(
     branches: gpd.GeoDataFrame, geometries: gpd.GeoDataFrame, method: str = 'overal', maxdist: float = 5
 ) -> None:
-    """
-    Method to determine nearest branch for each geometry.
-    The nearest branch can be found by finding t from both ends (ends) or the nearest branch from the geometry
-    as a whole (overal), the centroid (centroid), or intersecting (intersect).
+    """Find the nearest branch for each geometry, in place.
+
+    The columns ``branch_id`` and ``branch_offset`` of ``geometries`` are filled in, and
+    added if missing. The offset is the chainage of the geometry along its branch, at
+    least 0.1 m (or half the branch length) from both branch ends. Geometries without a
+    branch within ``maxdist`` are logged and left as they are.
 
     Parameters
     ----------
     branches : geopandas.GeoDataFrame
-        Geodataframe with branches
+        Branches, with the branch id as index.
     geometries : geopandas.GeoDataFrame
-        Geodataframe with geometries to snap
-    method='overal' : str
-        Method for determine branch
-    maxdist=5 : int or float
-        Maximum distance for finding nearest geometry
-    minoffset : int or float
-        Minimum offset from the end of the corresponding branch in case of method=equal
+        Geometries to snap. With a ``code`` column, the code is used in the log messages.
+    method : str, optional
+        How the nearest branch is found. Defaults to ``'overal'``.
+
+        - ``'overal'``: the nearest branch to the geometry as a whole;
+        - ``'centroid'``: the nearest branch to the centroid;
+        - ``'ends'``: the smallest mean distance to both ends of a line;
+        - ``'intersecting'``: each branch that intersects the geometry; the offset is
+          at the centroid of the intersection, and a geometry intersecting more
+          branches gets the last one.
+    maxdist : float, optional
+        Maximum distance to a branch. Not used for ``'intersecting'``. Defaults to 5.
+
+    Raises
+    ------
+    NotImplementedError
+        If the method is not one of the above.
     """
     # Check if method is in allowed methods
     allowed_methods = ['intersecting', 'overal', 'centroid', 'ends']
@@ -177,22 +209,22 @@ def find_nearest_branch(
                 )
 
 def orthogonal_line(line: LineString, offset: float, width: float=1.0) -> list[tuple[float, float]]:
-    """
+    """Return a line perpendicular to a line, centered on a point along it.
+
     Parameters
     ----------
     line : shapely.geometry.LineString
-        Line geometry object on which the orthogonal line is drawn
+        Line on which the orthogonal line is drawn.
     offset : float
-        Offset of the orthogonal line along line
-    width : float
-        Width of the orthogonal line
+        Distance along the line of the center of the orthogonal line.
+    width : float, optional
+        Length of the orthogonal line. Defaults to 1.0.
 
     Returns
     -------
-    line : list
-        List with coordinate tuples
+    list[tuple[float, float]]
+        The two end points of the orthogonal line.
     """
-
     # Determine angle at offset
     angle = np.angle(complex(*np.diff([
         line.interpolate(offset - 0.001).coords[0][:2],
@@ -208,7 +240,24 @@ def orthogonal_line(line: LineString, offset: float, width: float=1.0) -> list[t
     return orthogonal
 
 def extend_linestring(line: LineString, near_pt: Point, length: float) -> LineString:
+    """Return a line that extends a line beyond the end nearest to a point.
 
+    The extension starts at that end and continues in the direction of the end segment.
+
+    Parameters
+    ----------
+    line : LineString
+        Line to extend.
+    near_pt : Point
+        Point that determines which end is extended.
+    length : float
+        Length of the extension.
+
+    Returns
+    -------
+    LineString
+        The extension, from the end of the line outward.
+    """
     # Get the nearest end
     nearest_end = (0, 1) if line.project(near_pt) < line.length / 2 else (-1, -2)
 
@@ -223,15 +272,21 @@ def extend_linestring(line: LineString, near_pt: Point, length: float) -> LineSt
     return LineString([(x0, y0), (x0 - dx, y0 - dy)])
 
 def get_voronoi_around_nodes(nodes: np.ndarray, facedata: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    """Voronoi cells around the nodes, clipped to the faces.
+    """Return the Voronoi cells around the nodes, clipped to the faces.
 
-    Args:
-        nodes (np.ndarray): xy coordinates of the nodes, shape (n, 2)
-        facedata (gpd.GeoDataFrame): the faces, which together form the area to clip the cells to
+    Parameters
+    ----------
+    nodes : np.ndarray
+        xy coordinates of the nodes, shape (n, 2).
+    facedata : gpd.GeoDataFrame
+        The faces, which together form the area to clip the cells to.
 
-    Returns:
-        gpd.GeoDataFrame: one cell per node, in the order of the nodes, with index 1..n. A cell that the
-            faces split into parts is a MultiPolygon; a node outside the faces gets an empty cell.
+    Returns
+    -------
+    gpd.GeoDataFrame
+        One cell per node, in the order of the nodes, with index 1..n. A cell that the
+        faces split into parts is a MultiPolygon; a node outside the faces gets an empty
+        cell.
     """
     # the model extent: the union of all faces, to which the cells are clipped
     clippoly = facedata.union_all()
@@ -260,14 +315,21 @@ def rasterize_polygons(
     The raster extent is aligned to a multiple of the cellsize. Where polygons
     overlap, the last polygon in the GeoDataFrame determines the value.
 
-    Args:
-        polygons (gpd.GeoDataFrame): (multi)polygons with values
-        column (str): column with the values to burn into the raster
-        cellsize (float): raster cell size
-        fill (float, optional): value for cells outside the polygons. Defaults to -999.0.
+    Parameters
+    ----------
+    polygons : gpd.GeoDataFrame
+        (Multi)polygons with values.
+    column : str
+        Column with the values to burn into the raster.
+    cellsize : float
+        Raster cell size.
+    fill : float, optional
+        Value for cells outside the polygons. Defaults to -999.0.
 
-    Returns:
-        tuple[np.ndarray, rasterio.Affine]: float32 array and its transform
+    Returns
+    -------
+    tuple[np.ndarray, rasterio.Affine]
+        float32 array and its transform.
     """
     xmin, ymin, xmax, ymax = polygons.total_bounds
     xmin = np.floor(xmin / cellsize) * cellsize
@@ -289,7 +351,20 @@ def rasterize_polygons(
 
 
 def line_parts(geometry: BaseGeometry) -> list[LineString]:
-    """All LineStrings in a geometry, including those in a GeometryCollection; points are ignored."""
+    """Return all LineStrings in a geometry, including those in a GeometryCollection.
+
+    Points and polygons are ignored.
+
+    Parameters
+    ----------
+    geometry : BaseGeometry
+        Geometry to search, e.g. the result of an intersection.
+
+    Returns
+    -------
+    list[LineString]
+        The LineStrings, in order; empty if there are none.
+    """
     if isinstance(geometry, LineString):
         return [geometry]
     if hasattr(geometry, "geoms"):
@@ -308,14 +383,26 @@ def polygons_to_branch_values(
     chainage: D-Flow FM interpolates linearly between the given chainages and keeps the value constant
     beyond the first and last chainage of a branch. Branches that do not intersect any polygon are left out.
 
-    Args:
-        branches (gpd.GeoDataFrame): branches, with the branch id as index
-        polygons (gpd.GeoDataFrame): (multi)polygons with values
-        column (str): column with the values
-        step (float, optional): distance between the two chainages at a polygon boundary. Defaults to 0.01.
+    Parameters
+    ----------
+    branches : gpd.GeoDataFrame
+        Branches, with the branch id as index.
+    polygons : gpd.GeoDataFrame
+        (Multi)polygons with values.
+    column : str
+        Column with the values.
+    step : float, optional
+        Distance between the two chainages at a polygon boundary. Defaults to 0.01.
 
-    Returns:
-        dict[Hashable, tuple[list[float], list[float]]]: chainages and values per branch id
+    Returns
+    -------
+    dict[Hashable, tuple[list[float], list[float]]]
+        Chainages and values per branch id.
+
+    Raises
+    ------
+    TypeError
+        If a branch is not a LineString.
     """
     polygons = polygons.reset_index(drop=True)
     values = polygons[column].astype(float).to_numpy()
@@ -450,16 +537,24 @@ def points_to_branch_values(
     chainage is the projection on that branch. D-Flow FM interpolates linearly between the chainages of a
     branch and keeps the value constant beyond the first and last chainage.
 
-    Args:
-        branches (gpd.GeoDataFrame): branches, with the branch id as index
-        points (gpd.GeoDataFrame): points with values
-        column (str): column with the values
-        max_distance (float, optional): maximum distance to snap a point to a branch. Defaults to 5.0.
-        junction_tolerance (float, optional): distance within which a point at a branch end is also used for the
-            other branches at that junction. Defaults to 0.1.
+    Parameters
+    ----------
+    branches : gpd.GeoDataFrame
+        Branches, with the branch id as index.
+    points : gpd.GeoDataFrame
+        Points with values.
+    column : str
+        Column with the values.
+    max_distance : float, optional
+        Maximum distance to snap a point to a branch. Defaults to 5.0.
+    junction_tolerance : float, optional
+        Distance within which a point at a branch end is also used for the other
+        branches at that junction. Defaults to 0.1.
 
-    Returns:
-        dict[Hashable, tuple[list[float], list[float]]]: chainages and values per branch id
+    Returns
+    -------
+    dict[Hashable, tuple[list[float], list[float]]]
+        Chainages and values per branch id.
     """
     if {"branchid", "chainage"} <= set(points.columns):
         data = points[["branchid", "chainage", column]].copy()

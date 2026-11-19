@@ -1,3 +1,5 @@
+"""Derive the RR nodes, meteo and boundaries of a D-RR model from catchments and rasters."""
+
 from __future__ import annotations
 
 import logging
@@ -53,7 +55,7 @@ def _raster_metadata(raster: Path | str) -> tuple[float, rasterio.crs.CRS]:
 
 
 def _meteo_area(meteo_areas: gpd.GeoDataFrame, point: Point) -> str:
-    """Code of the first meteo area that contains the point, otherwise the first value of the table."""
+    """Return the code of the first meteo area that contains the point, otherwise of the first area."""
     containing = meteo_areas.loc[meteo_areas.geometry.contains(point)]
     if containing.empty:
         return str(meteo_areas.iloc[0, 0])
@@ -61,6 +63,14 @@ def _meteo_area(meteo_areas: gpd.GeoDataFrame, point: Point) -> str:
 
 
 class UnpavedIO:
+    """Fill the unpaved nodes of an RR model from catchments and rasters.
+
+    Parameters
+    ----------
+    unpaved : drr.Unpaved
+        The unpaved nodes of the RR model, filled in place.
+    """
+
     def __init__(self, unpaved: drr.Unpaved) -> None:
         self.unpaved = unpaved
 
@@ -80,19 +90,37 @@ class UnpavedIO:
         min_coverage_frac: float = 0.0,
         coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
-        """Generate contents of an unpaved node from raster data
+        """Add an unpaved node per catchment, with values from rasters.
 
-        Args:
-            catchments (ExtendedGeoDataFrame): catchment areas
-            landuse (str): filename of land use raster
-            surface_level (str): file name of surface level raster
-            soiltype (str): file name of soiltype raster
-            surface_storage (Union): numeric for spatially uniform surface storage (mm), or raster for distributed values
-            infiltration_capacity (Union): numeric for spatially uniform infiltration capacity (mm/d), or raster for distributed values
-            initial_gwd (Union): numeric for spatially uniform initial groundwater levels (m), or raster for distributed values
-            meteo_areas (ExtendedGeoDataFrame): meteo areas, for each station a meteo time series is assigned
-            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
-            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
+        Parameters
+        ----------
+        catchments : ExtendedGeoDataFrame
+            Catchment areas.
+        landuse : str or Path
+            Land use raster.
+        surface_level : str or Path
+            Surface level raster.
+        soiltype : str or Path
+            Soil type raster.
+        surface_storage : str, Path or float
+            Surface storage (mm): a number for a uniform value, or a raster.
+        infiltration_capacity : str, Path or float
+            Infiltration capacity (mm/d): a number for a uniform value, or a raster.
+        initial_gwd : str, Path or float
+            Initial groundwater depth (m): a number for a uniform value, or a raster.
+        meteo_areas : ExtendedGeoDataFrame
+            Meteo areas; each catchment gets the meteo station of the area that contains
+            its centroid.
+        greenhouse_areas : ExtendedGeoDataFrame, optional
+            Greenhouse areas. Where they are not greenhouse in the land use raster, their
+            area is subtracted from the most common land use of the catchment. Defaults
+            to None.
+        min_coverage_frac : float, optional
+            Smallest fraction of a pixel a zone must cover for the pixel to count in the
+            zonal statistics. Defaults to 0: every touched pixel.
+        coverage_weight : str, optional
+            ``"fraction"`` counts pixels by the fraction of them the zone covers,
+            ``"none"`` counts them fully. Defaults to ``"fraction"``.
         """
         px_area, reference_crs = _raster_metadata(landuse)
 
@@ -259,14 +287,20 @@ class UnpavedIO:
         infiltration_resistance: float | None = None,
         runoff_resistance: float | None = None,
     ) -> None:
-        """Generate an Ernst definition for an unpaved node.
+        """Add the same Ernst definition for the unpaved node of each catchment.
 
-        Args:
-            catchments (ExtendedGeoDataFrame): Cahchment areas
-            depths (list): list of layer depths (m)
-            resistance (list): list of layer Ernst resistances (d-1)
-            infiltration_resistance (int or float, optional): resistance to infiltration. Defaults to 300 d-1.
-            runoff_resistance (int or float, optional): resistance to suface runoff. Defaults to 1 d-1.
+        Parameters
+        ----------
+        catchments : ExtendedGeoDataFrame
+            Catchment areas.
+        depths : list
+            Layer depths (m).
+        resistance : list
+            Ernst resistance of each layer (d).
+        infiltration_resistance : float, optional
+            Resistance to infiltration (d). Defaults to None: 300.
+        runoff_resistance : float, optional
+            Resistance to surface runoff (d). Defaults to None: 1.
         """
         if infiltration_resistance is None:
             infiltration_resistance = 300.0
@@ -284,6 +318,14 @@ class UnpavedIO:
 
 
 class PavedIO:
+    """Fill the paved nodes of an RR model from catchments, sewer areas and rasters.
+
+    Parameters
+    ----------
+    paved : drr.Paved
+        The paved nodes of the RR model, filled in place.
+    """
+
     def __init__(self, paved: drr.Paved) -> None:
         self.paved = paved
 
@@ -303,23 +345,43 @@ class PavedIO:
         min_coverage_frac: float = 0.0,
         coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
-        """Generate contents of RR paved nodes
+        """Add the paved nodes: one per overflow of each sewer area, and one per catchment.
 
-        Args:
-            catchments (ExtendedGeoDataFrame): catchment areas
-            landuse (str): filename of landuse raster
-            surface_level (str): file name of suface level raster
-            street_storage (Union): numeric for spatially uniform street storage (mm), or raster for distributed values
-            sewer_storage (Union): numeric for spatially uniform sewer storage (mm), or raster for distributed values
-            pump_capacity (Union): numeric for spatially uniform pump capaities (mm), or raster for distributed values
-            meteo_areas (ExtendedGeoDataFrame): meteo areas, for each station a meteo time series is assigned
-            overflows (ExtendedGeoDataFrame, optional): overflow locations. Defaults to None.
-            sewer_areas (ExtendedGeoDataFrame, optional): sewer area locations. Defaults to None.
-            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
-            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
+        The paved area of a catchment outside the sewer areas gets a node that drains to
+        the catchment's boundary node.
 
-        Returns:
-            _type_: _description_
+        Parameters
+        ----------
+        catchments : ExtendedGeoDataFrame
+            Catchment areas.
+        landuse : str or Path
+            Land use raster.
+        surface_level : str or Path
+            Surface level raster.
+        street_storage : str, Path or float
+            Street storage (mm): a number for a uniform value, or a raster.
+        sewer_storage : str, Path or float
+            Sewer storage (mm): a number for a uniform value, or a raster.
+        pump_capacity : str, Path or float
+            Pump capacity (mm/h): a number for a uniform value, or a raster.
+        meteo_areas : ExtendedGeoDataFrame
+            Meteo areas; each node gets the meteo station of the area that contains its
+            centroid.
+        overflows : ExtendedGeoDataFrame, optional
+            Overflow locations, required with ``sewer_areas``. Defaults to None.
+        sewer_areas : ExtendedGeoDataFrame, optional
+            Sewer areas. Defaults to None.
+        min_coverage_frac : float, optional
+            Smallest fraction of a pixel a zone must cover for the pixel to count in the
+            zonal statistics. Defaults to 0: every touched pixel.
+        coverage_weight : str, optional
+            ``"fraction"`` counts pixels by the fraction of them the zone covers,
+            ``"none"`` counts them fully. Defaults to ``"fraction"``.
+
+        Raises
+        ------
+        ValueError
+            If ``sewer_areas`` is given without ``overflows``.
         """
         px_area, reference_crs = _raster_metadata(landuse)
 
@@ -579,6 +641,14 @@ class PavedIO:
 
 
 class GreenhouseIO:
+    """Fill the greenhouse nodes of an RR model from catchments, greenhouse areas and rasters.
+
+    Parameters
+    ----------
+    greenhouse : drr.Greenhouse
+        The greenhouse nodes of the RR model, filled in place.
+    """
+
     def __init__(self, greenhouse: drr.Greenhouse) -> None:
         self.greenhouse = greenhouse
 
@@ -597,18 +667,43 @@ class GreenhouseIO:
         min_coverage_frac: float = 0.0,
         coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
-        """Generate contents of an RR greenhouse node
+        """Add the greenhouse nodes: one per greenhouse area, and one per catchment.
 
-        Args:
-            catchments (ExtendedGeoDataFrame): catchment areas
-            greenhouuse_areas (ExtendedGeoDataFrame): known set of greenhouse areas with attiributes
-            greenhouse_laterals (ExtendedGeoDataFrame) : known set of outlet points for greenhouses
-            landuse (str): filename of land use raster
-            surface_level (str): filename of surface level raster
-            roofstorage (Union): float for spatially uniform sewer storage (mm), or raster for distributed values
-            meteo_areas (ExtendedGeoDataFrame): meteo areas, for each station a meteo time series is assigned
-            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
-            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
+        The catchment node gets the greenhouse area of the land use raster, minus what
+        is already in the greenhouse areas.
+
+        Parameters
+        ----------
+        catchments : ExtendedGeoDataFrame
+            Catchment areas.
+        landuse : str or Path
+            Land use raster.
+        surface_level : str or Path
+            Surface level raster.
+        roof_storage : str or float
+            Roof storage (mm): a number for a uniform value, or a raster.
+        meteo_areas : ExtendedGeoDataFrame
+            Meteo areas; each node gets the meteo station of the area that contains its
+            centroid.
+        greenhouse_areas : ExtendedGeoDataFrame, optional
+            Known greenhouse areas, optionally with a ``basin_storage_class`` column.
+            Defaults to None.
+        greenhouse_laterals : ExtendedGeoDataFrame, optional
+            Outlet points of the greenhouse areas, required with ``greenhouse_areas``.
+            Defaults to None.
+        basin_storage_class : int, optional
+            Basin storage class of greenhouses without their own. Defaults to 2.
+        min_coverage_frac : float, optional
+            Smallest fraction of a pixel a zone must cover for the pixel to count in the
+            zonal statistics. Defaults to 0: every touched pixel.
+        coverage_weight : str, optional
+            ``"fraction"`` counts pixels by the fraction of them the zone covers,
+            ``"none"`` counts them fully. Defaults to ``"fraction"``.
+
+        Raises
+        ------
+        ValueError
+            If ``greenhouse_areas`` is given without ``greenhouse_laterals``.
         """
         px_area, reference_crs = _raster_metadata(landuse)
 
@@ -759,6 +854,14 @@ class GreenhouseIO:
             )
 
 class OpenwaterIO:
+    """Fill the open water nodes of an RR model from catchments and a land use raster.
+
+    Parameters
+    ----------
+    openwater : drr.Openwater
+        The open water nodes of the RR model, filled in place.
+    """
+
     def __init__(self, openwater: drr.Openwater) -> None:
         self.openwater = openwater
 
@@ -772,17 +875,23 @@ class OpenwaterIO:
         min_coverage_frac: float = 0.0,
         coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
-        """Generate contents of an RR open water node.
+        """Add an open water node per catchment, with the open water area of the land use raster.
 
-        Args:
-            catchments (ExtendedGeoDataFrame): catchment areas
-            landuse (str): filename of landuse raster
-            meteo_areas (ExtendedGeoDataFrame): meteo areas, for each station a meteo time series is assigned
-            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
-            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
-
-        Returns:
-            _type_: _description_
+        Parameters
+        ----------
+        catchments : ExtendedGeoDataFrame
+            Catchment areas.
+        landuse : str or Path
+            Land use raster.
+        meteo_areas : ExtendedGeoDataFrame
+            Meteo areas; each node gets the meteo station of the area that contains its
+            centroid.
+        min_coverage_frac : float, optional
+            Smallest fraction of a pixel a zone must cover for the pixel to count in the
+            zonal statistics. Defaults to 0: every touched pixel.
+        coverage_weight : str, optional
+            ``"fraction"`` counts pixels by the fraction of them the zone covers,
+            ``"none"`` counts them fully. Defaults to ``"fraction"``.
         """
         px_area, _ = _raster_metadata(landuse)
 
@@ -809,6 +918,14 @@ class OpenwaterIO:
 
 
 class ExternalForcingsIO:
+    """Fill the meteo, seepage and boundary nodes of an RR model.
+
+    Parameters
+    ----------
+    external_forcings : drr.ExternalForcings
+        The external forcings of the RR model, filled in place.
+    """
+
     def __init__(self, external_forcings: drr.ExternalForcings) -> None:
         self.external_forcings = external_forcings
 
@@ -821,13 +938,22 @@ class ExternalForcingsIO:
         min_coverage_frac: float = 0.0,
         coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
-        """Perform zonal statistics to derive seepage time series per catchment. Time steps are derived from the data
+        """Add a seepage time series per catchment, the mean of each raster in a folder.
 
-        Args:
-            catchments (ExtendedGeoDataFrame): catchment areas
-            seepage_folder (str): folder where the seepage rasters are stored
-            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
-            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
+        The time of each step is read from the raster (IDF or netCDF).
+
+        Parameters
+        ----------
+        catchments : ExtendedGeoDataFrame
+            Catchment areas.
+        seepage_folder : str or Path
+            Folder with the seepage rasters, one per time step.
+        min_coverage_frac : float, optional
+            Smallest fraction of a pixel a zone must cover for the pixel to count in the
+            zonal statistics. Defaults to 0: every touched pixel.
+        coverage_weight : str, optional
+            ``"fraction"`` counts pixels by the fraction of them the zone covers,
+            ``"none"`` counts them fully. Defaults to ``"fraction"``.
         """
         warnings.filterwarnings("ignore")
         rasters: list[zonal.Raster] = []
@@ -886,14 +1012,28 @@ class ExternalForcingsIO:
         min_coverage_frac: float = 0.0,
         coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
-        """Create time series of precipitation for every meteo_area, based on zonal statistics from rasters.
+        """Add a precipitation time series per meteo area, or use an existing meteo file.
 
-        Args:
-            areas (ExtendedGeoDataFrame): meteo areas for which time series are created
-            precip_folder (str, optional): folder where precipitation rasters are stored. Only used if no precip_file is given. Defaults to None.
-            precip_file (str, optional): existing meteo-file, which is used if available.
-            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
-            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
+        Parameters
+        ----------
+        areas : ExtendedGeoDataFrame
+            Meteo areas for which time series are created.
+        precip_folder : str or Path, optional
+            Folder with precipitation rasters, one per time step. Only used without
+            ``precip_file``. Defaults to None.
+        precip_file : str or Path, optional
+            Existing meteo file (``.bui``), used instead of the rasters. Defaults to None.
+        min_coverage_frac : float, optional
+            Smallest fraction of a pixel a zone must cover for the pixel to count in the
+            zonal statistics. Defaults to 0: every touched pixel.
+        coverage_weight : str, optional
+            ``"fraction"`` counts pixels by the fraction of them the zone covers,
+            ``"none"`` counts them fully. Defaults to ``"fraction"``.
+
+        Raises
+        ------
+        ValueError
+            If neither ``precip_folder`` nor ``precip_file`` is given.
         """
         if precip_file is None:
             if precip_folder is None:
@@ -932,14 +1072,28 @@ class ExternalForcingsIO:
         min_coverage_frac: float = 0.0,
         coverage_weight: zonal.CoverageWeight = "fraction",
     ) -> None:
-        """Create time series of evaporation for every meteo_area, based on zonal statistics from rasters.
+        """Add an evaporation time series per meteo area, or use an existing meteo file.
 
-        Args:
-            areas (ExtendedGeoDataFrame): meteo areas for which time series are created
-            evap_folder (str, optional): folder where precipitation rasters are stored. Only used if no precip_file is given. Defaults to None.
-            evap_file (str, optional): existing meteo-file, which is used if available.
-            min_coverage_frac (float, optional): smallest fraction of a pixel a zone must cover for the pixel to count in the zonal statistics. Defaults to 0, every touched pixel.
-            coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
+        Parameters
+        ----------
+        areas : ExtendedGeoDataFrame
+            Meteo areas for which time series are created.
+        evap_folder : str or Path, optional
+            Folder with evaporation rasters, one per time step. Only used without
+            ``evap_file``. Defaults to None.
+        evap_file : str or Path, optional
+            Existing meteo file (``.evp``), used instead of the rasters. Defaults to None.
+        min_coverage_frac : float, optional
+            Smallest fraction of a pixel a zone must cover for the pixel to count in the
+            zonal statistics. Defaults to 0: every touched pixel.
+        coverage_weight : str, optional
+            ``"fraction"`` counts pixels by the fraction of them the zone covers,
+            ``"none"`` counts them fully. Defaults to ``"fraction"``.
+
+        Raises
+        ------
+        ValueError
+            If neither ``evap_folder`` nor ``evap_file`` is given.
         """
         if evap_file is None:
             if evap_folder is None:
@@ -981,15 +1135,24 @@ class ExternalForcingsIO:
         overflows: ExtendedGeoDataFrame | None = None,
         greenhouse_laterals: ExtendedGeoDataFrame | None=None
     ) -> None:
-        """Generate RR-boundary nodes to link to RR-nodes and to FM-laterals.
+        """Add the RR boundary nodes, which link the RR nodes to the FM laterals.
 
-        Args:
-            boundary_nodes (ExtendedGeoDataFrame): boundary nodes
-            catchments (ExtendedGeoDataFrame): catchment areas associated with them
-            drrmodel (_type_): drrmodel object
-            overflows (ExtendedGeoDataFrame, optional): overflow locations, if applicable. Defaults to None.
-            greenhouse_laterals (ExtendedGeoDataFrame, optional): overflow locations, if applicable. Defaults to None.
+        Call this after the RR nodes are added. Catchments without any RR node with an
+        area are removed from ``catchments``, in place.
 
+        Parameters
+        ----------
+        boundary_nodes : ExtendedGeoDataFrame
+            Laterals, linked to the catchments by their key.
+        catchments : ExtendedGeoDataFrame
+            Catchment areas, with a ``boundary_node`` column.
+        drrmodel : drr.DRRModel
+            The RR model, with its nodes added.
+        overflows : ExtendedGeoDataFrame, optional
+            Overflow locations, each added as a boundary node. Defaults to None.
+        greenhouse_laterals : ExtendedGeoDataFrame, optional
+            Outlet points of greenhouse areas, each added as a boundary node. Defaults to
+            None.
         """
         # boundary nodes of the RR nodes with an area
         nodes_with_area = set()

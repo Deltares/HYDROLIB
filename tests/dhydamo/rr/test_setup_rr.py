@@ -101,7 +101,7 @@ def _setup_rr_model(hydamo: HyDAMO | None = None) -> DRRModel:
 
 @pytest.fixture(scope="module")
 def rr_model() -> DRRModel:
-    """The RR model of the sample data, built once for this module (takes a few seconds)."""
+    """Return the RR model of the sample data, built once for this module (takes a few seconds)."""
     return _setup_rr_model()
 
 
@@ -140,9 +140,11 @@ def test_setup_rr_model(rr_model: DRRModel) -> None:
 
 
 def test_setup_rr_model_with_sewer_areas_and_greenhouses() -> None:
-    """RR model as in the example notebook: sewer areas with overflows, and greenhouse areas
-    with their own laterals. Expected values were checked against the code before the
-    mypy refactor of drrreader.py."""
+    """RR model as in the example notebook: sewer areas, overflows, greenhouses and their laterals.
+
+    Expected values were checked against the code before the mypy refactor of
+    drrreader.py.
+    """
     data_path = Path("hydrolib/sample_data/data").resolve()
     hydamo, _ = test_from_hydamo._hydamo_object_from_gpkg()
     lu_file = data_path / "rasters" / "sobek_landuse2.tif"

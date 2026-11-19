@@ -117,10 +117,10 @@ class _ZoneSource(FeatureSource):
 
 
 class _PlainRasterioSource(RasterioRasterSource):
-    """Rasterio source that reads plain arrays and lets exactextract apply the
-    nodata value, instead of the masked arrays of exactextract's own reader.
-    Rasters masked otherwise than by a nodata value, or that are scaled, still go
-    through the masked reader.
+    """Rasterio source that reads plain arrays and lets exactextract apply the nodata value.
+
+    exactextract's own reader reads masked arrays instead. Rasters masked otherwise
+    than by a nodata value, or that are scaled, still go through the masked reader.
     """
 
     def __init__(self, dataset: DatasetReader) -> None:
@@ -354,10 +354,9 @@ def zonal_stats_per_raster(
 
 
 class ZonalCache:
-    """Reuses the results of identical :func:`zonal_stats` and
-    :func:`zonal_category_counts` calls on raster files.
+    """Reuse the results of identical :func:`zonal_stats` and :func:`zonal_category_counts` calls.
 
-    A result is reused only when the zones (index, CRS and geometries), the
+    Only calls on raster files are cached. A result is reused only when the zones (index, CRS and geometries), the
     raster file (path, size and modification time), and every argument that
     affects the result are the same. Arrays and open datasets are never cached.
     Results are copied in and out, so changing a returned result does not
@@ -373,6 +372,7 @@ class ZonalCache:
         self._results: dict[tuple[object, ...], pd.DataFrame] = {}
 
     def __len__(self) -> int:
+        """Return the number of cached results."""
         return len(self._results)
 
     def clear(self) -> None:
@@ -455,8 +455,10 @@ def _extract(
     max_cells_in_memory: int,
     progress: Progress,
 ) -> pd.DataFrame:
-    """Run exactextract on a list of rasters and return its results indexed like
-    ``zones``: the columns of each raster in turn."""
+    """Run exactextract on a list of rasters.
+
+    The results are indexed like ``zones``, with the columns of each raster in turn.
+    """
     if zones.empty:
         raise ValueError("zones must contain at least one geometry.")
     if not 0 <= min_coverage_frac <= 1:

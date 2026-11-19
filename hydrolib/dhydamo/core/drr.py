@@ -1,3 +1,5 @@
+"""The D-RR model: unpaved, paved, greenhouse and open water nodes, and their forcings."""
+
 import logging
 import os
 from pathlib import Path
@@ -13,12 +15,15 @@ logger = logging.getLogger(__name__)
 
 
 class DRRModel:
-    """Main data structure for RR-model in DflowFM. Contains subclasses
-    for unpaved, paved,greehouse and open water nodes and external forcings (seepage, precipitation, evaporation)
+    """The D-RR model.
+
+    Holds the unpaved, paved, greenhouse and open water nodes, and the external forcings
+    (seepage, precipitation, evaporation and boundary nodes). Write it with
+    ``DRRWriter``.
     """
 
     def __init__(self) -> None:
-        """Initialize RR instances and arrays"""
+        """Create an empty RR model."""
         self.d3b_parameters: dict[str, str | int | float] = {}
 
         # Land-use counts and surface levels shared by the RR node types.
@@ -38,26 +43,26 @@ class DRRModel:
 
     @staticmethod
     def _time_from_filename(path: str | Path) -> pd.Timestamp:
-        """Extract timestamp from filename following DRRModel.read_raster convention."""
+        """Return the time in a file name such as ``precip_20160601.tif``: the part after the first ``_``."""
         filename = os.path.split(path)[1]
         return pd.Timestamp(filename.split("_")[1].split(".")[0])
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def read_raster(self, file: str | Path, static: bool = False) -> tuple:
-        """
-        Method to read a raster. All rasterio types are accepted, plus IDF: in that case the iMod-package is used to read the IDF raster (IDF is cusomary for MODFLOW/SIMGRO models.)
+        """Read the first band of a raster with rasterio.
 
         Parameters
         ----------
-        file : raster
-
-        static : BOOL, optional
-            If static than no time information needs to be deduced.
+        file : str or Path
+            Raster file. Without ``static``, its name holds the time after the first
+            ``_``, e.g. ``precip_20160601.tif``.
+        static : bool, optional
+            The raster has no time. Defaults to False.
 
         Returns
         -------
-        rasterio grid and an affine object.
-
+        tuple
+            The array and its transform, and without ``static`` also the time.
         """
         if isinstance(file, str):
             filename = Path(file)
@@ -78,9 +83,12 @@ class DRRModel:
 
 
 class ExternalForcings:
-    """
-    Class for external forcings, which contains the boundary
-    conditions and the initial conditions.
+    """External forcings of the RR model: meteo, seepage and boundary nodes.
+
+    Parameters
+    ----------
+    drrmodel : DRRModel
+        The RR model they belong to.
     """
 
     def __init__(self, drrmodel: DRRModel) -> None:
@@ -96,28 +104,78 @@ class ExternalForcings:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_precip(self, id: str, series: pd.Series) -> None:
+        """Add the precipitation time series of a meteo area.
+
+        Parameters
+        ----------
+        id : str
+            Id of the meteo area.
+        series : pd.Series
+            Precipitation, with a time index.
+
+        Raises
+        ------
+        TypeError
+            If the precipitation is already read from a meteo file.
+        """
         if isinstance(self.precip, str):
             raise TypeError(f"The precipitation is already read from {self.precip}.")
         self.precip[id] = {"precip": series}
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_evap(self, id: str, series: pd.Series) -> None:
+        """Add the evaporation time series of a meteo area.
+
+        Parameters
+        ----------
+        id : str
+            Id of the meteo area.
+        series : pd.Series
+            Evaporation, with a time index.
+
+        Raises
+        ------
+        TypeError
+            If the evaporation is already read from a meteo file.
+        """
         if isinstance(self.evap, str):
             raise TypeError(f"The evaporation is already read from {self.evap}.")
         self.evap[id] = {"evap": series}
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_seepage(self, id: str, series: pd.Series) -> None:
+        """Add the seepage time series of a catchment.
+
+        Parameters
+        ----------
+        id : str
+            Id of the catchment.
+        series : pd.Series
+            Seepage, with a time index.
+        """
         self.seepage[id] = {"seepage": series}
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_boundary_node(self, id: str, px: str, py: str) -> None:
+        """Add a boundary node, which couples RR nodes to a lateral of the FM model.
+
+        Parameters
+        ----------
+        id : str
+            Id of the boundary node.
+        px, py : str
+            Coordinates of the node.
+        """
         self.boundary_nodes[id] = {"id": id, "px": px, "py": py}
 
 
 class Unpaved:
-    """
-    Class for unpaved nodes
+    """Unpaved nodes of the RR model, with their Ernst definitions.
+
+    Parameters
+    ----------
+    drrmodel : DRRModel
+        The RR model they belong to.
     """
 
     def __init__(self, drrmodel: DRRModel) -> None:
@@ -146,21 +204,32 @@ class Unpaved:
         py: str,
         boundary_node: str,
     ) -> None:
-        """Add elements of an unpaved node definition to a dataframe
+        """Add an unpaved node.
 
-        Args:
-            id (str): catchment id
-            total_area (str): total node area (m2)
-            lu_areas (str): area per land use class (space sepaated; m2)
-            surface_level (str): surface level (m)
-            soiltype (str): soiltype (class id)
-            surface_storage (str): surface storage (mm)
-            infiltration_capacity (str): iniltration capacity (mm/d)
-            initial_gwd (str): intial ground water level below surface (m, positve = below surface)
-            meteo_area (str): id of meteo area to which a station in the meteo-file is assigned
-            px (str): x-coordinate
-            py (str): y-coordinante
-            boundary_node (str): associated boundary node
+        Parameters
+        ----------
+        id : str
+            Catchment id.
+        total_area : str
+            Total node area (m2).
+        lu_areas : str
+            Area per land use class (m2), space separated.
+        surface_level : str
+            Surface level (m).
+        soiltype : str
+            Soil type (class id).
+        surface_storage : str
+            Surface storage (mm).
+        infiltration_capacity : str
+            Infiltration capacity (mm/d).
+        initial_gwd : str
+            Initial groundwater depth below the surface (m, positive is below the surface).
+        meteo_area : str
+            Id of the meteo area, to which a station in the meteo file is assigned.
+        px, py : str
+            Coordinates of the node.
+        boundary_node : str
+            Boundary node to which the node drains.
         """
         self.unp_nodes[id] = {
             "id": "unp_" + id,
@@ -187,14 +256,20 @@ class Unpaved:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_ernst_def(self, id: str, cvo: str, lv: str, cvi: str, cvs: str) -> None:
-        """Add properties to a datafframe containing an Ernst definition.
+        """Add an Ernst definition for the unpaved node of a catchment.
 
-        Args:
-            id (str): catchment id
-            cvo (str): Drainage resistance, space separated value per layer [d-1]
-            lv (str): Layer thickness, space separated value per layer [m]
-            cvi (str): Infiltration resistance [d-1]
-            cvs (str): Surface runoff resistance [d-1]
+        Parameters
+        ----------
+        id : str
+            Catchment id.
+        cvo : str
+            Drainage resistance per layer (d), space separated.
+        lv : str
+            Depth of each layer (m), space separated.
+        cvi : str
+            Infiltration resistance (d).
+        cvs : str
+            Surface runoff resistance (d).
         """
         self.ernst_defs[id] = {
             "id": "ernst_" + id,
@@ -206,8 +281,12 @@ class Unpaved:
 
 
 class Paved:
-    """
-    Class for paved nodes.
+    """Paved nodes of the RR model.
+
+    Parameters
+    ----------
+    drrmodel : DRRModel
+        The RR model they belong to.
     """
 
     def __init__(self, drrmodel: DRRModel) -> None:
@@ -233,21 +312,29 @@ class Paved:
         py: str,
         boundary_node: str,
     ) -> None:
-        """Add elements of a paved node definition to a dataframe
+        """Add a paved node.
 
-        Args:
-            id (str): catchment id
-            area (str): paved node area (m2)
-            surface_level (str): surface level (m)
-            street_storage (str): surface storage (mm)
-            sewer_storage (str): sewer storage (mm)
-            pump_capacity (str): pump capacity (mm/d)
-            meteo_area (str): id of meteo area to which a station in the meteo-file is assigned
-            px (str): x-coordinate
-            py (str): y-coordinante
-            boundary_node (str): associated boundary node
+        Parameters
+        ----------
+        id : str
+            Catchment or overflow id.
+        area : str
+            Paved area (m2).
+        surface_level : str
+            Surface level (m).
+        street_storage : str
+            Street storage (mm).
+        sewer_storage : str
+            Sewer storage (mm).
+        pump_capacity : str
+            Sewer pump capacity (m3/s); ``PavedIO`` computes it from mm/h and the area.
+        meteo_area : str
+            Id of the meteo area, to which a station in the meteo file is assigned.
+        px, py : str
+            Coordinates of the node.
+        boundary_node : str
+            Boundary node to which the node drains.
         """
-
         self.pav_nodes[id] = {
             "id": "pav_" + id,
             "ar": area,
@@ -267,8 +354,12 @@ class Paved:
 
 
 class Greenhouse:
-    """
-    Class for greenhouse nodes
+    """Greenhouse nodes of the RR model.
+
+    Parameters
+    ----------
+    drrmodel : DRRModel
+        The RR model they belong to.
     """
 
     def __init__(self, drrmodel: DRRModel) -> None:
@@ -293,17 +384,26 @@ class Greenhouse:
         py: str,
         boundary_node: str,
     ) -> None:
-        """Add elements of a greenhouse node definition to a dataframe
+        """Add a greenhouse node.
 
-        Args:
-            id (str): catchment id
-            area (str): greenhouse node area (m2)
-            surface_level (str): surface level (m)
-            roof_storage (str): roof storage (mm)
-            meteo_area (str): id of meteo area to which a station in the meteo-file is assigned
-            px (str): x-coordinate
-            py (str): y-coordinante
-            boundary_node (str): associated boundary node
+        Parameters
+        ----------
+        id : str
+            Catchment or greenhouse area id.
+        area : str
+            Greenhouse area (m2).
+        surface_level : str
+            Surface level (m).
+        roof_storage : str
+            Roof storage (mm).
+        basin_storage_class : str
+            Basin storage class.
+        meteo_area : str
+            Id of the meteo area, to which a station in the meteo file is assigned.
+        px, py : str
+            Coordinates of the node.
+        boundary_node : str
+            Boundary node to which the node drains.
         """
         self.gh_nodes[id] = {
             "id": "gh_" + id,
@@ -320,8 +420,12 @@ class Greenhouse:
 
 
 class Openwater:
-    """
-    Class for open water nodes
+    """Open water nodes of the RR model.
+
+    Parameters
+    ----------
+    drrmodel : DRRModel
+        The RR model they belong to.
     """
 
     def __init__(self, drrmodel: DRRModel) -> None:
@@ -335,15 +439,20 @@ class Openwater:
     def add_openwater(
         self, id: str, area: str, meteo_area: str, px: str, py: str, boundary_node: str
     ) -> None:
-        """Add elements of an open water node definition to a dataframe
+        """Add an open water node.
 
-        Args:
-            id (str): catchment id
-            area (str): greenhouse node area (m2)
-            meteo_area (str): id of meteo area to which a station in the meteo-file is assigned
-            px (str): x-coordinate
-            py (str): y-coordinante
-            boundary_node (str): associated boundary node
+        Parameters
+        ----------
+        id : str
+            Catchment id.
+        area : str
+            Open water area (m2).
+        meteo_area : str
+            Id of the meteo area, to which a station in the meteo file is assigned.
+        px, py : str
+            Coordinates of the node.
+        boundary_node : str
+            Boundary node to which the node drains.
         """
         self.ow_nodes[id] = {
             "id": "ow_" + id,

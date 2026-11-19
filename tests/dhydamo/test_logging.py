@@ -8,7 +8,7 @@ from hydrolib.dhydamo.logging import ColorFormatter, configure_logging
 
 @pytest.fixture
 def logger_name(request: pytest.FixtureRequest) -> Iterator[str]:
-    """A logger of its own for each test; its handlers are closed and removed afterwards."""
+    """Yield a logger name of its own for each test; its handlers are closed and removed afterwards."""
     name = f"hydrolib.dhydamo.test.{request.node.name}"
     yield name
     logger = logging.getLogger(name)

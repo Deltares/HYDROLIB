@@ -1,3 +1,5 @@
+"""Converter for DAMO 2.2."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -55,6 +57,12 @@ class Damo22Converter(BaseDamoConverter):
     )
 
     def postprocess(self, hydamo: HyDAMO) -> None:
+        """Fill the columns that DAMO 2.2 lacks or names differently, in place.
+
+        - ``management_device.soortafsluitmiddel``: copied from ``soortregelmiddel``;
+        - ``profile.code``: the profile line id, instead of the code of each point;
+        - ``catchments.boundary_node``: the code of the lateral of each catchment.
+        """
         device = hydamo.management_device
         if (
             not device.empty

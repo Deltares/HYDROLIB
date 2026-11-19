@@ -1,3 +1,5 @@
+"""Convert the HyDAMO data to HYDROLIB-core models (structures, cross sections, forcings, fields)."""
+
 import itertools
 import logging
 from collections.abc import Hashable, Iterator
@@ -216,6 +218,20 @@ class _CombinedOneDFields:
 
 
 class Df2HydrolibModel:
+    """HYDROLIB-core objects for everything in a HyDAMO object.
+
+    All conversions are done when the object is created; the results are in its
+    attributes, e.g. ``structures``, ``crossdefs``, ``crosslocs`` and ``inifields``.
+
+    Parameters
+    ----------
+    hydamo : HyDAMO
+        The HyDAMO data to convert.
+    assign_default_profiles : bool, optional
+        Give the branches without a cross section the default cross section definition
+        of ``hydamo.crosssections``, halfway along the branch. Defaults to False.
+    """
+
     def __init__(self, hydamo: HyDAMO, assign_default_profiles: bool = False) -> None:
         self.hydamo = hydamo
         self.structures: list[Structure] = []
@@ -244,7 +260,7 @@ class Df2HydrolibModel:
         self.write_all()
 
     def write_all(self) -> None:
-        """Wrapper function to convert all seperate objects"""
+        """Convert all objects; called when the object is created."""
         self.regular_weirs_to_dhydro()
         self.orifices_to_dhydro()
         self.universal_weirs_to_dhydro()
@@ -263,13 +279,16 @@ class Df2HydrolibModel:
         self.spatial_fields_to_dhydro()
 
     def ext_model(self) -> ExtModel:
-        """External forcings model (bnd.ext) with the boundaries and laterals, readable by D-HYDRO.
+        """Return the external forcings model (bnd.ext) with the boundaries and laterals.
 
-        Use as fm.external_forcing.extforcefilenew = models.ext_model(). The file version is set to
-        EXT_FILE_VERSION, as D-HYDRO 2026.02 does not read the default version of hydrolib-core 1.6.
+        Use as ``fm.external_forcing.extforcefilenew = models.ext_model()``. The file version
+        is set to ``EXT_FILE_VERSION``, as D-HYDRO 2026.02 does not read the default version of
+        hydrolib-core 1.6.
 
-        Returns:
-            ExtModel: external forcings model
+        Returns
+        -------
+        ExtModel
+            The external forcings model, readable by D-HYDRO.
         """
         extmodel = ExtModel(boundary=self.boundaries_ext, lateral=self.laterals_ext)
         extmodel.general.fileversion = EXT_FILE_VERSION
@@ -277,7 +296,7 @@ class Df2HydrolibModel:
 
     @staticmethod
     def _clear_comments(lst: INIBasedModel | list) -> None:
-        """Convenience function to remove comment statements in INI files"""
+        """Remove the comments of INI objects, in place."""
         if not isinstance(lst, list):
             lst = [lst]
         for item in lst:
@@ -287,7 +306,7 @@ class Df2HydrolibModel:
                 setattr(item.comments, field, "")
 
     def compounds_to_dhydro(self) -> None:
-        """Convert compound structures to Compound-model"""
+        """Convert the compound structures to Compound objects."""
         structs = [
             Compound(**struc)
             # into=dict only affects the type mypy sees, not the result:
@@ -300,7 +319,7 @@ class Df2HydrolibModel:
         self.structures += structs
 
     def regular_weirs_to_dhydro(self) -> None:
-        """Convert regular weirs to Weir-model"""
+        """Convert the regular weirs to Weir objects."""
         structs = [
             Weir(**struc)
             # into=dict: see compounds_to_dhydro
@@ -310,7 +329,7 @@ class Df2HydrolibModel:
         self.structures += structs
 
     def orifices_to_dhydro(self) -> None:
-        """Convert orifices to Orfice-models"""
+        """Convert the orifices to Orifice objects."""
         structs = [
             Orifice(**struc)
             # into=dict: see compounds_to_dhydro
@@ -320,7 +339,7 @@ class Df2HydrolibModel:
         self.structures += structs
 
     def universal_weirs_to_dhydro(self) -> None:
-        """Convert universal weirs to UniversalWeir-models"""
+        """Convert the universal weirs to UniversalWeir objects."""
         structs = [
             UniversalWeir(**struc)
             # into=dict: see compounds_to_dhydro
@@ -330,7 +349,7 @@ class Df2HydrolibModel:
         self.structures += structs
 
     def bridges_to_dhydro(self) -> None:
-        """Convert bridges to Bridge-models"""
+        """Convert the bridges to Bridge objects."""
         structs = [
             Bridge(**struc)
             # into=dict: see compounds_to_dhydro
@@ -340,7 +359,7 @@ class Df2HydrolibModel:
         self.structures += structs
 
     def culverts_to_dhydro(self) -> None:
-        """Convert culverts to Culvert-models"""
+        """Convert the culverts to Culvert objects."""
         structs = [
             Culvert(**struc)
             # into=dict: see compounds_to_dhydro
@@ -350,7 +369,7 @@ class Df2HydrolibModel:
         self.structures += structs
 
     def pumps_to_dhydro(self) -> None:
-        """Convert pumps to Pump-models"""
+        """Convert the pumps to Pump objects."""
         structs = [
             Pump(**struc)
             # into=dict: see compounds_to_dhydro
@@ -360,7 +379,11 @@ class Df2HydrolibModel:
         self.structures += structs
 
     def crosssection_locations_to_dhydro(self) -> None:
-        """Convert crosssection locations to CrossLoc models"""
+        """Convert the cross section locations to CrossSection objects.
+
+        With ``assign_default_profiles``, the default definition is first added to the
+        default locations (or else to the branches without a cross section).
+        """
         # Check which of the branches do not have a cross section. Add the default one to those
         branchids = {
             dct["branchid"]
@@ -407,10 +430,10 @@ class Df2HydrolibModel:
         self.crosslocs += css
 
     def crosssection_definitions_to_dhydro(self) -> None:
-        """Convert crosssection definitions to Crossdef models"""
+        """Convert the cross section definitions to CrossSectionDefinition objects."""
 
         def _get_cstype_part_of_dict(cstype: str) -> dict:
-            """Reorganize the csdef dict"""
+            """Return the cross section definitions of one type."""
             return {
                 key: dct
                 for key, dct in self.hydamo.crosssections.crosssection_def.items()
@@ -442,7 +465,7 @@ class Df2HydrolibModel:
         self.crossdefs += zw_profiles
 
     def boundaries_to_dhydro(self) -> None:
-        """Convert dataframe of boundaries to ext and bc models"""
+        """Convert the boundaries to [Boundary] blocks and forcings."""
         for bound in self.hydamo.external_forcings.boundary_nodes.values():
             bnd_bc: ConstantWithInterpolation | TimeSeries | QHTableWithInterpolation
             if bound["vec1"] is None:
@@ -488,8 +511,7 @@ class Df2HydrolibModel:
             self.boundaries_ext.append(bnd_ext)
 
     def laterals_to_dhydro(self) -> None:
-        """Convert dataframe of laterals to ext and bc models"""
-
+        """Convert the laterals to [Lateral] blocks and forcings."""
         for key, lateral in self.hydamo.external_forcings.lateral_nodes.items():
             if isinstance(lateral["discharge"], str):
                 # realtime boundary
@@ -537,7 +559,7 @@ class Df2HydrolibModel:
             self.laterals_ext.append(lat_ext)
 
     def friction_definitions_to_dhydro(self) -> None:
-        """Convert friction definitions to FrictGlobal-objects"""
+        """Convert the friction definitions to FrictGlobal objects."""
         frictdefs = [
             FrictGlobal(**frictdef)
             for frictdef in self.hydamo.roughness_definitions.values()
@@ -546,7 +568,7 @@ class Df2HydrolibModel:
         self.friction_defs += frictdefs
 
     def storagenodes_to_dhydro(self) -> None:
-        """Convert dataframe of storagenodes to StorageNode-objects"""
+        """Convert the storage nodes to StorageNode objects."""
         stornodes = [
             StorageNode(**stornode)
             for stornode in self.hydamo.storagenodes.storagenodes.values()
@@ -555,7 +577,7 @@ class Df2HydrolibModel:
         self.storagenodes += stornodes
 
     def observation_points_to_dhydro(self) -> None:
-        """Convert dataframe of observationpoints to ObserationPoint-objects"""
+        """Convert the observation points to ObservationPoint objects."""
         if hasattr(self.hydamo.observationpoints, 'observation_points'):
             obspoints = [
                 ObservationPoint(**obs)
@@ -661,7 +683,7 @@ class Df2HydrolibModel:
                 self._add_block_field(sf, filename, datafiletype, value)
 
     def _field_blocks(self, sf: dict) -> list[tuple[str, str, float | None]]:
-        """Data and blocks of a spatial field that is not combined with other fields.
+        """Return the data and blocks of a spatial field that is not combined with other fields.
 
         The data is stored in self.spatial_data, and written by write_spatial_fields().
 
@@ -747,7 +769,9 @@ class Df2HydrolibModel:
         return branch_values
 
     def _branch_blocks(self, sf: dict) -> list[tuple[str, str, float | None]]:
-        """A 1dField file and block for a field per branch that is not combined (e.g. a parameter field).
+        """Return a 1dField file and block for a field per branch that is not combined.
+
+        E.g. a parameter field.
 
         Parameters
         ----------
@@ -768,7 +792,7 @@ class Df2HydrolibModel:
         return [(sf["filename"], "1dField", None)]
 
     def _raster_blocks(self, sf: dict) -> list[tuple[str, str, float | None]]:
-        """A raster (GeoTIFF or ArcInfo grid) and block for a polygon field.
+        """Return a raster (GeoTIFF or ArcInfo grid) and block for a polygon field.
 
         Parameters
         ----------
@@ -793,7 +817,7 @@ class Df2HydrolibModel:
         return [(sf["filename"], datafiletype, None)]
 
     def _sample_blocks(self, sf: dict) -> list[tuple[str, str, float | None]]:
-        """A sample file (.xyz) and block for a point field.
+        """Return a sample file (.xyz) and block for a point field.
 
         Parameters
         ----------
@@ -1097,8 +1121,10 @@ class Df2HydrolibModel:
         The files are referenced relative to initialFields.ini, so output_dir should be the
         folder where the FMModel (and its initialFields.ini) is saved.
 
-        Args:
-            output_dir (Path | str): fm-folder of the model
+        Parameters
+        ----------
+        output_dir : Path or str
+            The fm folder of the model.
         """
         output_dir = Path(output_dir)
         for filename, data in self.spatial_data.items():
@@ -1152,12 +1178,17 @@ class Df2HydrolibModel:
         This writes the 1dField files (uniform values), rasters and sample files to fm_dir, and links them
         in initialFields.ini, using paths relative to the fm folder. Call this before saving the FM model.
 
-        Args:
-            fm (FMModel): the FM model
-            fm_dir (Path | str): folder where the FM model (mdu-file) is written
+        Parameters
+        ----------
+        fm : FMModel
+            The FM model.
+        fm_dir : Path or str
+            Folder where the FM model (mdu file) is written.
 
-        Returns:
-            IniFieldModel: the initial fields model, also set as fm.geometry.inifieldfile
+        Returns
+        -------
+        IniFieldModel
+            The initial fields model, also set as ``fm.geometry.inifieldfile``.
         """
         fm_dir = Path(fm_dir)
         fm_dir.mkdir(parents=True, exist_ok=True)
@@ -1178,13 +1209,15 @@ class Df2HydrolibModel:
     def initial_conditions_at_nodes(
         self, network: Network, output_file: Path | str | None = None, crs: CRS | str | None = None
     ) -> gpd.GeoDataFrame:
-        """Approximation of the initial water level or depth at the 1D computational nodes.
+        """Approximate the initial water level or depth at the 1D computational nodes.
 
         A diagnostic to check the initial conditions, e.g. in a GIS, since the D-HYDRO GUI hardly shows them.
         It is not computed by D-Flow FM: it reproduces how D-Flow FM applied the initial fields in tests with
         D-HYDRO 2026.02 (1404 to 1421 of the 1421 nodes of the test model matched the water level at t=0;
         differences at junctions and structures). Other D-Flow FM versions may behave differently. The fields
+        differences at junctions and structures). Other D-Flow FM versions may behave differently. The fields
         are applied in their order:
+
         - values per branch (1dField) are interpolated along the branch and kept constant beyond the first and
           last chainage; uniform values apply everywhere;
         - samples are interpolated linearly in triangles (inside their convex hull), polygon files apply inside
@@ -1194,15 +1227,21 @@ class Df2HydrolibModel:
         - a uniform water depth overrides spatial water levels.
         Nodes without a value keep the default water level of the MDU (WaterLevIni), shown as missing here.
 
-        Args:
-            network (Network): the network with the 1D mesh, e.g. fm.geometry.netfile.network
-            output_file (Path | str, optional): shapefile (.shp) or GeoPackage (.gpkg) to write. Defaults to None.
-            crs (optional): coordinate reference system. Defaults to the crs of the HyDAMO branches, or
-                EPSG:28992 (as written to the model by DIMRWriter.add_crs) if they have none.
+        Parameters
+        ----------
+        network : Network
+            The network with the 1D mesh, e.g. ``fm.geometry.netfile.network``.
+        output_file : Path or str, optional
+            Shapefile (.shp) or GeoPackage (.gpkg) to write. Defaults to None.
+        crs : optional
+            Coordinate reference system. Defaults to the crs of the HyDAMO branches, or
+            EPSG:28992 (as written to the model by ``DIMRWriter.add_crs``) if they have none.
 
-        Returns:
-            gpd.GeoDataFrame: one point per node with branchid, chainage, quantity ('waterlevel' or 'waterdepth'),
-                value and source (data file of the field that sets the value)
+        Returns
+        -------
+        gpd.GeoDataFrame
+            One point per node with branchid, chainage, quantity ('waterlevel' or
+            'waterdepth'), value and source (data file of the field that sets the value).
         """
         mesh1d = network._mesh1d
         x, y = np.asarray(mesh1d.mesh1d_node_x, dtype=float), np.asarray(mesh1d.mesh1d_node_y, dtype=float)

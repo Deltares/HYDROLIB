@@ -34,7 +34,7 @@ test_figure_path.mkdir(parents=True, exist_ok=True)
 
 @pytest.fixture
 def do_plot() -> bool:
-    """Plots are off in normal runs; test_mesh_plots.py passes do_plot=True."""
+    """Turn plots off in normal runs; test_mesh_plots.py passes do_plot=True."""
     return False
 
 
