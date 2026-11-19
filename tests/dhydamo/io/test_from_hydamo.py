@@ -167,7 +167,7 @@ def test_check_geotype_with_a_union_of_types() -> None:
     catchments = ExtendedGeoDataFrame(geotype=Polygon | MultiPolygon, required_columns=["code"])
     points = gpd.GeoDataFrame({"code": ["c1"]}, geometry=[Point(0, 0)])
 
-    with pytest.raises(TypeError, match="Polygon | .*MultiPolygon.* required"):
+    with pytest.raises(TypeError, match=r"Polygon \| .*MultiPolygon.* required"):
         catchments.set_data(points, index_col="code")
 
 

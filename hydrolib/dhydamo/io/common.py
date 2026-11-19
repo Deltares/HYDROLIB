@@ -305,11 +305,14 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
     def _check_geotype(self) -> None:
         """Raise a TypeError if a geometry is not of the required type."""
         if not all(isinstance(geo, self.geotype) for geo in self.geometry):
+            # a union like Polygon | MultiPolygon has no usable __name__ (Python 3.14 gives "Union")
+            if isinstance(self.geotype, type):
+                geotype_name = self.geotype.__name__
+            else:
+                geotype_name = str(self.geotype)
+            found_types = self.geometry.type.unique().tolist()
             raise TypeError(
-                'Geometrytype "{}" required. The input shapefile has geometry type(s) {}.'.format(
-                    getattr(self.geotype, "__name__", str(self.geotype)),
-                    self.geometry.type.unique().tolist(),
-                )
+                f'Geometrytype "{geotype_name}" required. The input shapefile has geometry type(s) {found_types}.'
             )
 
     def show_gpkg(self, gpkg_path: str | Path) -> None:
