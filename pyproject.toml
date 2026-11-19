@@ -187,6 +187,9 @@ test = "pytest -v -m 'not slow and not plot and not dll' --cov=hydrolib --cov-re
 lint = "ruff format --check hydrolib/dhydamo tests && ruff check hydrolib/dhydamo tests"
 fix = "ruff format hydrolib/dhydamo tests && ruff check --fix hydrolib/dhydamo tests"
 typecheck = "mypy hydrolib/dhydamo tests/dhydamo"
+install-hooks = "pre-commit install"
+lock-check = "pixi lock --check"
+export-conda-environments = "pixi workspace export conda-environment environment-win-64.yml --environment py312 --platform win-64 --name hydrolib --from-lock-file && pixi workspace export conda-environment environment-linux-64.yml --environment py312 --platform linux-64 --name hydrolib --from-lock-file"
 
 [tool.pixi.feature.docs.tasks]
 docs-build = "mkdocs build"
@@ -224,7 +227,3 @@ docs = ["docs", "py312"]
 # doesn't need the runtime stack from [project.dependencies].
 features = ["release", "py312"]
 no-default-feature = true
-
-[tool.pixi.tasks]
-lock-check = "pixi lock --check"
-export-conda-environments = "pixi workspace export conda-environment environment-win-64.yml --environment py312 --platform win-64 --name hydrolib --from-lock-file && pixi workspace export conda-environment environment-linux-64.yml --environment py312 --platform linux-64 --name hydrolib --from-lock-file"

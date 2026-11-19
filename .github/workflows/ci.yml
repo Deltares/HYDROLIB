@@ -40,8 +40,25 @@ jobs:
         env:
           CODECOV_TOKEN: ${{secrets.CODECOV_TOKEN}}
 
-      # - name: Lint
-      #   run: pixi run --environment ${{ matrix.environment }} --locked lint
+  # Once, not per matrix entry: ruff and mypy give the same result on every OS and Python
+  # version (mypy checks for python_version 3.11, see pyproject.toml).
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Pixi
+        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          pixi-version: v0.83.0
+          cache: true
+          environments: py312
+
+      - name: Lint (ruff format and ruff check)
+        run: pixi run --environment py312 --locked lint
+
+      - name: Type check (mypy)
+        run: pixi run --environment py312 --locked typecheck
 
   check-conda-exports:
     runs-on: ubuntu-latest
