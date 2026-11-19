@@ -541,7 +541,7 @@ hydamo.observationpoints.add_points(
 ```python
 hydamo.storagenodes.add_storagenode(
     "test",
-    "123_123",
+    nodeid="123_123",
     usestreetstorage="true",
     nodetype="unspecified",
     name=np.nan,

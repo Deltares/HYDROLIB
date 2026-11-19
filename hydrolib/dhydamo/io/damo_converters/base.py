@@ -4,8 +4,12 @@ import logging
 from abc import ABC
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import geopandas as gpd
+
+if TYPE_CHECKING:
+    from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +64,7 @@ class BaseDamoConverter(ABC):
 
     def load_into(
         self,
-        hydamo,
+        hydamo: HyDAMO,
         gpkg_path: str | Path,
         clip_layers: dict | None = None,
         check_3d: bool = True,
@@ -122,7 +126,7 @@ class BaseDamoConverter(ABC):
 
         self.postprocess(hydamo)
 
-    def postprocess(self, hydamo) -> None:
+    def postprocess(self, hydamo: HyDAMO) -> None:
         """Hook for version-specific canonicalization after all layers are loaded.
 
         Override in subclasses to rename, copy, or derive columns on any

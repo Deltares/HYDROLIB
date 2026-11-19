@@ -153,8 +153,8 @@ def test_read_output(
     geom_ref, series_ref = hydamo.external_forcings.convert.timeseries_from_other_model(his_reference, location_type, location_id, variable)
 
     _, ax = plt.subplots()
-    ax.plot(series_ref.index, series_ref.values, label='Reference', color='blue')
-    ax.plot(series_test.index, series_test.values, label='New model', color='Red', linestyle='--')
+    ax.plot(series_ref.index, series_ref.to_numpy(), label='Reference', color='blue')
+    ax.plot(series_test.index, series_test.to_numpy(), label='New model', color='Red', linestyle='--')
     ax.set_ylabel(variable)
     ax.set_title(f'{location_type} {location_id}: {variable}')
     ax.legend()

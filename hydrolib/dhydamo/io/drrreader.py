@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 import warnings
@@ -10,6 +12,7 @@ import rasterio
 from pydantic import ConfigDict, StrictStr, validate_call
 from shapely.geometry import Point
 
+from hydrolib.dhydamo.core import drr
 from hydrolib.dhydamo.core.relations import RelationsRR
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.io import idfreader
@@ -49,14 +52,16 @@ def _raster_metadata(raster: Path | str) -> tuple[float, rasterio.crs.CRS]:
     return metadata
 
 
-def _meteo_area(meteo_areas: gpd.GeoDataFrame, point: Point):
+def _meteo_area(meteo_areas: gpd.GeoDataFrame, point: Point) -> str:
     """Code of the first meteo area that contains the point, otherwise the first value of the table."""
     containing = meteo_areas.loc[meteo_areas.geometry.contains(point)]
-    return meteo_areas.iloc[0, 0] if containing.empty else containing["code"].iloc[0]
+    if containing.empty:
+        return str(meteo_areas.iloc[0, 0])
+    return str(containing["code"].iloc[0])
 
 
 class UnpavedIO:
-    def __init__(self, unpaved):
+    def __init__(self, unpaved: drr.Unpaved) -> None:
         self.unpaved = unpaved
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
@@ -74,7 +79,7 @@ class UnpavedIO:
         *,
         min_coverage_frac: float = 0.0,
         coverage_weight: zonal.CoverageWeight = "fraction",
-    ):
+    ) -> None:
         """Generate contents of an unpaved node from raster data
 
         Args:
@@ -242,7 +247,7 @@ class UnpavedIO:
                 meteo_area=str(ms),
                 px=f"{cat_geometry.centroid.coords[0][0]-10:.0f}",
                 py=f"{cat_geometry.centroid.coords[0][1]:.0f}",
-                boundary_node=cat.boundary_node,
+                boundary_node=str(cat.boundary_node),
             )
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
@@ -279,7 +284,7 @@ class UnpavedIO:
 
 
 class PavedIO:
-    def __init__(self, paved):
+    def __init__(self, paved: drr.Paved) -> None:
         self.paved = paved
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
@@ -569,12 +574,12 @@ class PavedIO:
                 meteo_area=str(ms),
                 px=f"{cat_geometry.centroid.coords[0][0]+10:.0f}",
                 py=f"{cat_geometry.centroid.coords[0][1]:.0f}",
-                boundary_node=cat.boundary_node,
+                boundary_node=str(cat.boundary_node),
             )
 
 
 class GreenhouseIO:
-    def __init__(self, greenhouse):
+    def __init__(self, greenhouse: drr.Greenhouse) -> None:
         self.greenhouse = greenhouse
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
@@ -729,7 +734,7 @@ class GreenhouseIO:
                         cat.code,
                         np.min([(landuse_counts[15] * px_area, intersection_area)]),
                     )
-                    lu_counts.iloc[num, lu_counts.columns.get_loc(15)] = np.max(
+                    lu_counts.loc[lu_counts.index[num], 15] = np.max(
                         [0.0, landuse_counts[15] - np.round(intersection_area / px_area)]
                     )
             
@@ -750,11 +755,11 @@ class GreenhouseIO:
                 meteo_area=str(ms),
                 px=f"{cat_geometry.centroid.coords[0][0]+20:.0f}",
                 py=f"{cat_geometry.centroid.coords[0][1]:.0f}",
-                boundary_node=cat.boundary_node,
+                boundary_node=str(cat.boundary_node),
             )
 
 class OpenwaterIO:
-    def __init__(self, openwater):
+    def __init__(self, openwater: drr.Openwater) -> None:
         self.openwater = openwater
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
@@ -799,12 +804,12 @@ class OpenwaterIO:
                 meteo_area=str(ms),
                 px=f"{cat_geometry.centroid.coords[0][0]-20:.0f}",
                 py=f"{cat_geometry.centroid.coords[0][1]:.0f}",
-                boundary_node=cat.boundary_node,
+                boundary_node=str(cat.boundary_node),
             )
 
 
 class ExternalForcingsIO:
-    def __init__(self, external_forcings):
+    def __init__(self, external_forcings: drr.ExternalForcings) -> None:
         self.external_forcings = external_forcings
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
@@ -825,8 +830,8 @@ class ExternalForcingsIO:
             coverage_weight (str, optional): "fraction" counts pixels by the fraction of them the zone covers, "none" counts them fully. Defaults to "fraction".
         """
         warnings.filterwarnings("ignore")
-        rasters = []
-        times = []
+        rasters: list[zonal.Raster] = []
+        times: list[pd.Timestamp] = []
         affine = raster_crs = nodata = None
         for file in sorted(os.listdir(seepage_folder)):
             path = os.path.join(seepage_folder, file)
@@ -840,7 +845,8 @@ class ExternalForcingsIO:
                 elif idfreader.affine_from_idf(dataset) != affine:
                     raise ValueError(f"IDF seepage file {file} differs in grid from the others.")
                 rasters.append(dataset)
-                times.append(pd.Timestamp(dataset["time"].values))
+                # the one time of the file
+                times.append(pd.DatetimeIndex(dataset["time"].to_numpy().ravel())[0])
             else:
                 rasters.append(path)
                 times.append(self.external_forcings.drrmodel._time_from_filename(path))
@@ -866,7 +872,8 @@ class ExternalForcingsIO:
             result = (result / (1e-3 * (affine[0] * -affine[4]))) / (
                     (times[2] - times[1]).total_seconds() / 86400.0
             )
-        [self.external_forcings.add_seepage(*sep) for sep in result.items()]
+        for column, series in result.items():
+            self.external_forcings.add_seepage(str(column), series)
 
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
@@ -910,7 +917,8 @@ class ExternalForcingsIO:
                 index=[self.external_forcings.drrmodel._time_from_filename(path) for path in paths],
                 columns=["ms_" + str(area) for area in areas.code],
             )
-            [self.external_forcings.add_precip(*prec) for prec in result.items()]
+            for column, series in result.items():
+                self.external_forcings.add_precip(str(column), series)
         else:
             self.external_forcings.precip = str(precip_file)
 
@@ -958,16 +966,18 @@ class ExternalForcingsIO:
                 index=[self.external_forcings.drrmodel._time_from_filename(path) for path in paths],
                 columns=["ms_" + str(area) for area in areas.code],
             )
-            [self.external_forcings.add_evap(*evap) for evap in result.items()]
+            for column, series in result.items():
+                self.external_forcings.add_evap(str(column), series)
         else:
             self.external_forcings.evap = str(evap_file)
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    # defer_build: drr.DRRModel does not exist yet when drr imports this module
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True, defer_build=True))
     def boundary_from_input(
         self,
         boundary_nodes: ExtendedGeoDataFrame,
         catchments: ExtendedGeoDataFrame,
-        drrmodel,
+        drrmodel: drr.DRRModel,
         overflows: ExtendedGeoDataFrame | None = None,
         greenhouse_laterals: ExtendedGeoDataFrame | None=None
     ) -> None:

@@ -9,10 +9,12 @@ import numpy as np
 import pandas as pd
 import shapely
 from pydantic import Field
+from pyproj import CRS
 from scipy.interpolate import LinearNDInterpolator
 
 from hydrolib.core.dflowfm.bc.models import (
     Constant,
+    ForcingBase,
     ForcingModel,
     QHTable,
     QuantityUnitPair,
@@ -22,17 +24,21 @@ from hydrolib.core.dflowfm.bc.models import (
 from hydrolib.core.dflowfm.crosssection.models import (
     CircleCrsDef,
     CrossSection,
+    CrossSectionDefinition,
     RectangleCrsDef,
     YZCrsDef,
     ZWCrsDef,
 )
 from hydrolib.core.dflowfm.ext.models import Boundary, ExtModel, Lateral
 from hydrolib.core.dflowfm.friction.models import FrictGlobal
+from hydrolib.core.dflowfm.ini.models import INIBasedModel
 from hydrolib.core.dflowfm.inifield.models import (
     IniFieldModel,
     InitialField,
     ParameterField,
 )
+from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.core.dflowfm.net.models import Network
 from hydrolib.core.dflowfm.obs.models import ObservationPoint
 from hydrolib.core.dflowfm.onedfield.models import (
     OneDFieldBranch,
@@ -48,10 +54,12 @@ from hydrolib.core.dflowfm.structure.models import (
     Culvert,
     Orifice,
     Pump,
+    Structure,
     UniversalWeir,
     Weir,
 )
 from hydrolib.core.dflowfm.xyz.models import XYZModel, XYZPoint
+from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import common
 from hydrolib.dhydamo.geometry.spatial import (
     line_parts,
@@ -208,34 +216,34 @@ class _CombinedOneDFields:
 
 
 class Df2HydrolibModel:
-    def __init__(self, hydamo, assign_default_profiles=False):
+    def __init__(self, hydamo: HyDAMO, assign_default_profiles: bool = False) -> None:
         self.hydamo = hydamo
-        self.structures = []
-        self.crossdefs = []
-        self.crosslocs = []
-        self.boundaries = []
-        self.boundaries_ext = []
-        self.boundaries_bc = []
-        self.laterals_ext = []
-        self.laterals_bc = []
-        self.friction_defs = []
-        self.obspoints = []
-        self.storagenodes = []
-        self.inifields = []
-        self.parameterfields = []
+        self.structures: list[Structure] = []
+        self.crossdefs: list[CrossSectionDefinition] = []
+        self.crosslocs: list[CrossSection] = []
+        self.boundaries: list[Boundary] = []
+        self.boundaries_ext: list[Boundary] = []
+        self.boundaries_bc: list[ForcingBase] = []
+        self.laterals_ext: list[Lateral] = []
+        self.laterals_bc: list[ForcingBase] = []
+        self.friction_defs: list[FrictGlobal] = []
+        self.obspoints: list[ObservationPoint] = []
+        self.storagenodes: list[StorageNode] = []
+        self.inifields: list[InitialField] = []
+        self.parameterfields: list[ParameterField] = []
         # data for the spatial fields, written by write_spatial_fields()
-        self.spatial_data = {}
+        self.spatial_data: dict[str, dict] = {}
 
         self.assign_default_profiles = assign_default_profiles
         self.forcingmodel = ForcingModel()
-        self.forcingmodel.filepath = "boundaryconditions.bc"
+        self.forcingmodel.filepath = Path("boundaryconditions.bc")
         self.forcingmodel.forcing = []
 
-        self.onedfieldmodels = []
+        self.onedfieldmodels: list[OneDFieldGlobal] = []
 
         self.write_all()
 
-    def write_all(self):
+    def write_all(self) -> None:
         """Wrapper function to convert all seperate objects"""
         self.regular_weirs_to_dhydro()
         self.orifices_to_dhydro()
@@ -268,78 +276,90 @@ class Df2HydrolibModel:
         return extmodel
 
     @staticmethod
-    def _clear_comments(lst):
+    def _clear_comments(lst: INIBasedModel | list) -> None:
         """Convenience function to remove comment statements in INI files"""
-        if isinstance(lst, list):
-            for item in lst:
-                [setattr(item.comments, field[0], "") for field in item.comments]
-        else:
-            [setattr(lst.comments, field[0], "") for field in lst.comments]
+        if not isinstance(lst, list):
+            lst = [lst]
+        for item in lst:
+            if item.comments is None:
+                continue
+            for field, _ in item.comments:
+                setattr(item.comments, field, "")
 
-    def compounds_to_dhydro(self):
+    def compounds_to_dhydro(self) -> None:
         """Convert compound structures to Compound-model"""
         structs = [
             Compound(**struc)
-            for struc in self.hydamo.structures.compounds_df.to_dict("records")
+            # into=dict only affects the type mypy sees, not the result:
+            # - without it, pandas-stubs gives dict[Hashable, Any], which mypy rejects for **struc;
+            # - into=dict[str, Any] would be exact, but pandas raises a TypeError on it;
+            # - the bare dict gives dict[Any, Any], which is safe: our column names are always strings.
+            for struc in self.hydamo.structures.compounds_df.to_dict("records", into=dict)
         ]
         self._clear_comments(structs)
         self.structures += structs
 
-    def regular_weirs_to_dhydro(self):
+    def regular_weirs_to_dhydro(self) -> None:
         """Convert regular weirs to Weir-model"""
         structs = [
             Weir(**struc)
-            for struc in self.hydamo.structures.rweirs_df.to_dict("records")
+            # into=dict: see compounds_to_dhydro
+            for struc in self.hydamo.structures.rweirs_df.to_dict("records", into=dict)
         ]
         self._clear_comments(structs)
         self.structures += structs
 
-    def orifices_to_dhydro(self):
+    def orifices_to_dhydro(self) -> None:
         """Convert orifices to Orfice-models"""
         structs = [
             Orifice(**struc)
-            for struc in self.hydamo.structures.orifices_df.to_dict("records")
+            # into=dict: see compounds_to_dhydro
+            for struc in self.hydamo.structures.orifices_df.to_dict("records", into=dict)
         ]
         self._clear_comments(structs)
         self.structures += structs
 
-    def universal_weirs_to_dhydro(self):
+    def universal_weirs_to_dhydro(self) -> None:
         """Convert universal weirs to UniversalWeir-models"""
         structs = [
             UniversalWeir(**struc)
-            for struc in self.hydamo.structures.uweirs_df.to_dict("records")
+            # into=dict: see compounds_to_dhydro
+            for struc in self.hydamo.structures.uweirs_df.to_dict("records", into=dict)
         ]
         self._clear_comments(structs)
         self.structures += structs
 
-    def bridges_to_dhydro(self):
+    def bridges_to_dhydro(self) -> None:
         """Convert bridges to Bridge-models"""
         structs = [
             Bridge(**struc)
-            for struc in self.hydamo.structures.bridges_df.to_dict("records")
+            # into=dict: see compounds_to_dhydro
+            for struc in self.hydamo.structures.bridges_df.to_dict("records", into=dict)
         ]
         self._clear_comments(structs)
         self.structures += structs
 
-    def culverts_to_dhydro(self):
+    def culverts_to_dhydro(self) -> None:
         """Convert culverts to Culvert-models"""
         structs = [
             Culvert(**struc)
-            for struc in self.hydamo.structures.culverts_df.to_dict("records")
+            # into=dict: see compounds_to_dhydro
+            for struc in self.hydamo.structures.culverts_df.to_dict("records", into=dict)
         ]
         self._clear_comments(structs)
         self.structures += structs
 
-    def pumps_to_dhydro(self):
+    def pumps_to_dhydro(self) -> None:
         """Convert pumps to Pump-models"""
         structs = [
             Pump(**struc)
-            for struc in self.hydamo.structures.pumps_df.to_dict("records")
+            # into=dict: see compounds_to_dhydro
+            for struc in self.hydamo.structures.pumps_df.to_dict("records", into=dict)
         ]
         self._clear_comments(structs)
         self.structures += structs
 
-    def crosssection_locations_to_dhydro(self):
+    def crosssection_locations_to_dhydro(self) -> None:
         """Convert crosssection locations to CrossLoc models"""
         # Check which of the branches do not have a cross section. Add the default one to those
         branchids = {
@@ -348,6 +368,7 @@ class Df2HydrolibModel:
         }
 
         # check if there locations specified where a default profile should be added
+        default_locs: list[str] | pd.Index
         if hasattr(self.hydamo.crosssections, "default_locations"):
             default_locs = self.hydamo.crosssections.default_locations
         else:
@@ -357,22 +378,24 @@ class Df2HydrolibModel:
 
         # If any are missing, check if a default cross section definition has been defined
         if (len(default_locs) > 0) & (self.assign_default_profiles):
-            if self.hydamo.crosssections.default_definition is None:
-                 logger.warning(
+            default_definition = self.hydamo.crosssections.default_definition
+            if default_definition is None:
+                logger.warning(
                     "Not all branches have a cross section appointed to them. We assume D-Hydro can interpolate over these branches, otherwise errors will occur."
                 )
-            logger.info(
-                f"Adding default cross section definition to branches with ids: {', '.join(list(default_locs))}"
-            )
-            half_lengths = self.hydamo.branches.geometry.length / 2
-            for branchid in default_locs:
-                self.hydamo.crosssections.add_crosssection_location(
-                    branchid=branchid,
-                    chainage=float(half_lengths.loc[branchid]),
-                    definition=self.hydamo.crosssections.default_definition,
-                    minz=np.nan,
-                    shift=self.hydamo.crosssections.default_definition_shift,
+            else:
+                logger.info(
+                    f"Adding default cross section definition to branches with ids: {', '.join(list(default_locs))}"
                 )
+                half_lengths = self.hydamo.branches.geometry.length / 2
+                for branchid in default_locs:
+                    self.hydamo.crosssections.add_crosssection_location(
+                        branchid=branchid,
+                        chainage=float(half_lengths.loc[branchid]),
+                        definition=default_definition,
+                        minz=np.nan,
+                        shift=self.hydamo.crosssections.default_definition_shift,
+                    )
 
         # Add cross sections to dhydro format
         css = [
@@ -513,7 +536,7 @@ class Df2HydrolibModel:
                 )
             self.laterals_ext.append(lat_ext)
 
-    def friction_definitions_to_dhydro(self):
+    def friction_definitions_to_dhydro(self) -> None:
         """Convert friction definitions to FrictGlobal-objects"""
         frictdefs = [
             FrictGlobal(**frictdef)
@@ -522,7 +545,7 @@ class Df2HydrolibModel:
         self._clear_comments(frictdefs)
         self.friction_defs += frictdefs
 
-    def storagenodes_to_dhydro(self):
+    def storagenodes_to_dhydro(self) -> None:
         """Convert dataframe of storagenodes to StorageNode-objects"""
         stornodes = [
             StorageNode(**stornode)
@@ -531,19 +554,20 @@ class Df2HydrolibModel:
         self._clear_comments(stornodes)
         self.storagenodes += stornodes
 
-    def observation_points_to_dhydro(self):
+    def observation_points_to_dhydro(self) -> None:
         """Convert dataframe of observationpoints to ObserationPoint-objects"""
         if hasattr(self.hydamo.observationpoints, 'observation_points'):
             obspoints = [
                 ObservationPoint(**obs)
+                # into=dict: see compounds_to_dhydro
                 for obs in self.hydamo.observationpoints.observation_points.drop(columns="geometry").to_dict(
-                    "records"
+                    "records", into=dict
                 )
             ]
             self._clear_comments(obspoints)
             self.obspoints += obspoints
 
-    def inifields_to_dhydro(self):
+    def inifields_to_dhydro(self) -> None:
         """Convert uniform initial water levels and depths to InitialField objects with a 1dField data file.
 
         The corresponding OneDFieldGlobal objects are stored in self.onedfieldmodels, in the same order as the
@@ -1122,7 +1146,7 @@ class Df2HydrolibModel:
                 )
                 xyz.save(filepath=path)
 
-    def write_initial_fields(self, fm, fm_dir: Path | str) -> IniFieldModel:
+    def write_initial_fields(self, fm: FMModel, fm_dir: Path | str) -> IniFieldModel:
         """Add all initial fields and parameter fields to the FM model and write their data files.
 
         This writes the 1dField files (uniform values), rasters and sample files to fm_dir, and links them
@@ -1140,6 +1164,8 @@ class Df2HydrolibModel:
 
         onedfield_inifields = [f for f in self.inifields if f.datafiletype == "1dField"]
         for inifield, onedfield in zip(onedfield_inifields, self.onedfieldmodels):
+            if inifield.datafile is None or inifield.datafile.filepath is None:
+                raise ValueError(f"The 1dField initial field for {inifield.quantity} has no data file.")
             onedfieldmodel = OneDFieldModel(global_=onedfield)
             onedfieldmodel.save(filepath=fm_dir / inifield.datafile.filepath.name)
 
@@ -1150,7 +1176,7 @@ class Df2HydrolibModel:
         return inifieldmodel
 
     def initial_conditions_at_nodes(
-        self, network, output_file: Path | str | None = None, crs=None
+        self, network: Network, output_file: Path | str | None = None, crs: CRS | str | None = None
     ) -> gpd.GeoDataFrame:
         """Approximation of the initial water level or depth at the 1D computational nodes.
 
@@ -1223,7 +1249,7 @@ class Df2HydrolibModel:
         return nodes
 
     def _inifield_at_nodes(
-        self, inifield, uniform_fields: Iterator, nodes: _Mesh1dNodes
+        self, inifield: InitialField, uniform_fields: Iterator, nodes: _Mesh1dNodes
     ) -> tuple[str, np.ndarray, str | None, str] | None:
         """Values of an initial field at the 1D nodes, if it sets a water level or depth there.
 
@@ -1245,7 +1271,9 @@ class Df2HydrolibModel:
         """
         filename = inifield.datafile.filepath.name if inifield.datafile and inifield.datafile.filepath else None
         kind = self._level_or_depth(inifield.quantity)
-        data = self.spatial_data.get(filename)
+        data = None
+        if filename is not None:
+            data = self.spatial_data.get(filename)
         if data is None and inifield.datafiletype == "1dField":
             onedfield = next(uniform_fields)
             values = self._uniform_values_at_nodes(inifield, kind, float(onedfield.value), len(nodes.x))
@@ -1260,7 +1288,7 @@ class Df2HydrolibModel:
         return kind, values, filename, filetype
 
     @staticmethod
-    def _uniform_values_at_nodes(inifield, kind: str | None, value: float, n: int) -> np.ndarray | None:
+    def _uniform_values_at_nodes(inifield: InitialField, kind: str | None, value: float, n: int) -> np.ndarray | None:
         """Values of a uniform 1D water level or depth at the nodes.
 
         Parameters
@@ -1285,7 +1313,7 @@ class Df2HydrolibModel:
 
     @staticmethod
     def _spatial_values_at_nodes(
-        inifield, filename: str | None, data: dict, nodes: _Mesh1dNodes
+        inifield: InitialField, filename: str | None, data: dict, nodes: _Mesh1dNodes
     ) -> np.ndarray | None:
         """Values of a spatial field at the nodes, as D-Flow FM applied them (D-HYDRO 2026.02).
 
@@ -1320,6 +1348,8 @@ class Df2HydrolibModel:
                 interpolator = LinearNDInterpolator(np.c_[data["x"], data["y"]], data["z"])
                 values = interpolator(np.c_[nodes.x, nodes.y])
         elif data["filetype"] == "polygon":
+            if inifield.value is None:
+                raise ValueError(f"The polygon field {filename} has no value.")
             inside = gpd.GeoSeries(nodes.points).intersects(shapely.union_all(data["polygons"]))
             values[inside.to_numpy()] = float(inifield.value)
         else:
@@ -1327,7 +1357,7 @@ class Df2HydrolibModel:
             return None
         return values
 
-    def _nodes_crs(self, crs):
+    def _nodes_crs(self, crs: CRS | str | None) -> CRS | str:
         """Coordinate reference system for the 1D nodes.
 
         Parameters

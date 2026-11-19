@@ -123,6 +123,8 @@ extend-select = ["I", "PD", "NPY", "PT"]
 [tool.mypy]
 python_version = "3.11"
 warn_unused_ignores = true
+# every function must have type hints: mypy skips the body of a function without them
+disallow_untyped_defs = true
 # understands pydantic models, e.g. hydrolib-core fields with camelCase aliases
 plugins = ["pydantic.mypy"]
 # deprecated, to be removed
@@ -148,11 +150,10 @@ module = ["hydrolib.core.*"]
 follow_untyped_imports = true
 implicit_optional = true
 
-# Every test function must have type hints: mypy skips the body of a function without them.
-# Only for the tests; not every function in hydrolib/dhydamo has type hints yet.
+# Copied from imod-python 0.10.1: mypy does not require type hints here.
 [[tool.mypy.overrides]]
-module = ["tests.*"]
-disallow_untyped_defs = true
+module = ["hydrolib.dhydamo.io.idfreader"]
+disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

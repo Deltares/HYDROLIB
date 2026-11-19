@@ -1,6 +1,6 @@
 import logging
 import numbers
-from collections.abc import Hashable
+from collections.abc import Hashable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, no_type_check
@@ -11,12 +11,16 @@ import pandas as pd
 import shapely
 from netCDF4 import Dataset, Variable, chartostring
 from pydantic import ConfigDict, Field, validate_call
+from pyproj import CRS
 from scipy.spatial import KDTree
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
 
 from hydrolib import dhydamo
+
+# the network of hydrolib-core; Network in this module is the legacy one of delft3dfmpy
+from hydrolib.core.dflowfm.net import models as netmodels
 from hydrolib.dhydamo.converters.hydamo2df import (
     CrossSectionsIO,
     ExternalForcingsIO,
@@ -526,11 +530,11 @@ class HyDAMO:
 
     def create_laterals(
         self,
-        qspec_file=None,
+        qspec_file: str | Path | None = None,
         *,
         min_coverage_frac: float = 0.0,
         coverage_weight: zonal.CoverageWeight = "fraction",
-    ):
+    ) -> None:
         """Create laterals at the catchments, with the mean specific discharge per catchment.
 
         Args:
@@ -1082,7 +1086,7 @@ class CrossSections:
         """
         self.hydamo = hydamo
         self.crosssections: list = []
-        self.default_definition = None
+        self.default_definition: str | None = None
         self.default_definition_shift = 0.0
         self.default_location = ""
 
@@ -1093,7 +1097,7 @@ class CrossSections:
 
         self.convert = CrossSectionsIO(self)
 
-    def get_roughness_description(self, roughnesstype, value):
+    def get_roughness_description(self, roughnesstype: str, value: float) -> str:
         if np.isnan(float(value)):
             raise ValueError("Roughness value should not be NaN.")
 
@@ -1116,22 +1120,27 @@ class CrossSections:
 
         return name
 
-    def set_default_definition(self, definition, shift=0.0):
+    def set_default_definition(self, definition: str, shift: float = 0.0) -> None:
         if definition not in self.crosssection_def:
             raise KeyError(f'Cross section definition "{definition}" not found."')
 
         self.default_definition = definition
         self.default_definition_shift = shift
 
-    def set_default_locations(self, locations):
+    def set_default_locations(self, locations: list[str]) -> None:
         """
         Add default profile locations
         """
         self.default_locations = locations
 
     def add_yz_definition(
-        self, yz=None, thalweg=None, roughnesstype=None, roughnessvalue=None, name=None
-    ):
+        self,
+        yz: np.ndarray | None = None,
+        thalweg: float | None = None,
+        roughnesstype: str | None = None,
+        roughnessvalue: float | None = None,
+        name: str | None = None,
+    ) -> str:
         """
         Add xyz crosssection
 
@@ -1148,6 +1157,8 @@ class CrossSections:
             Nx2 array with y, z coordinates
         """
 
+        if yz is None or thalweg is None or roughnesstype is None or roughnessvalue is None:
+            raise ValueError("yz, thalweg, roughnesstype and roughnessvalue are required.")
         # get coordinates
         length, z = yz.T
         if name is None:
@@ -1171,7 +1182,9 @@ class CrossSections:
 
         return name
 
-    def add_circle_definition(self, diameter, roughnesstype, roughnessvalue, name=None):
+    def add_circle_definition(
+        self, diameter: float, roughnesstype: str, roughnessvalue: float, name: str | None = None
+    ) -> str:
         """
         Add circle cross section. The cross section name is derived from the shape and roughness,
         so similar cross sections will result in a single definition.
@@ -1195,8 +1208,14 @@ class CrossSections:
         return name
 
     def add_rectangle_definition(
-        self, height, width, closed, roughnesstype, roughnessvalue, name=None
-    ):
+        self,
+        height: float,
+        width: float,
+        closed: bool | int,
+        roughnesstype: str,
+        roughnessvalue: float,
+        name: str | None = None,
+    ) -> str:
         """
         Add rectangle cross section. The cross section name is derived from the shape and roughness,
         so similar cross sections will result in a single definition.
@@ -1223,15 +1242,15 @@ class CrossSections:
 
     def add_trapezium_definition(
         self,
-        slope,
-        maximumflowwidth,
-        bottomwidth,
-        closed,
-        roughnesstype,
-        roughnessvalue,
-        bottomlevel=None,
-        name=None,
-    ):
+        slope: float,
+        maximumflowwidth: float,
+        bottomwidth: float,
+        closed: bool | int,
+        roughnesstype: str,
+        roughnessvalue: float,
+        bottomlevel: float | None = None,
+        name: str | None = None,
+    ) -> str:
         """
         Add rectangle cross section. The cross section name is derived from the shape and roughness,
         so similar cross sections will result in a single definition.
@@ -1281,14 +1300,14 @@ class CrossSections:
 
     def add_zw_definition(
         self,
-        numLevels,
-        levels,
-        flowWidths,
-        totalWidths,
-        roughnesstype,
-        roughnessvalue,
-        name=None,
-    ):
+        numLevels: int,
+        levels: str,
+        flowWidths: str,
+        totalWidths: str,
+        roughnesstype: str,
+        roughnessvalue: float,
+        name: str | None = None,
+    ) -> str:
         """
         Add zw cross section. The cross section name is derived from the shape and roughness,
         so similar cross sections will result in a single definition.
@@ -1317,8 +1336,8 @@ class CrossSections:
         return name
 
     def add_crosssection_location(
-        self, branchid, chainage, definition, minz=np.nan, shift=0.0
-    ):
+        self, branchid: str, chainage: float, definition: str, minz: float = np.nan, shift: float = 0.0
+    ) -> None:
         descr = f"{branchid}_{chainage:.1f}"
         # Add cross section location
         self.crosssection_loc[descr] = {
@@ -1329,7 +1348,7 @@ class CrossSections:
             "definitionId": definition,
         }
 
-    def get_branches_without_crosssection(self):
+    def get_branches_without_crosssection(self) -> list[str]:
         # First find all branches that match a cross section
         branch_ids = {dct["branchid"] for _, dct in self.crosssection_loc.items()}
         # Select the branch-ids that do nog have a matching cross section
@@ -1338,9 +1357,9 @@ class CrossSections:
 
         return no_crosssection.tolist()
 
-    def get_structures_without_crosssection(self):
+    def get_structures_without_crosssection(self) -> list[str]:
         csdef_ids = [dct["id"] for _, dct in self.crosssection_def.items()]
-        no_crosssection = []
+        no_crosssection: list[str] = []
         bridge_ids = [
             dct["csdefid"] for _, dct in self.hydamo.structures.bridges_df.iterrows()
         ]
@@ -1357,6 +1376,8 @@ class CrossSections:
         no_crosssection = no_crosssection + no_cross_culvert
         return no_crosssection
 
+    # legacy from delft3dfmpy, not used and not working here (self.dflowfmmodel does not exist): mypy skips it
+    @no_type_check
     def get_bottom_levels(self):
         """Method to determine bottom levels from cross sections"""
 
@@ -1688,7 +1709,7 @@ def _value_at_chainage(
 
 
 class ExternalForcings:
-    def __init__(self, hydamo):
+    def __init__(self, hydamo: HyDAMO) -> None:
         self.hydamo = hydamo
 
         self.initial_waterlevel_polygons = gpd.GeoDataFrame(
@@ -1698,12 +1719,12 @@ class ExternalForcings:
             columns=["waterdepth", "geometry", "locationtype"]
         )
         self.missing = None
-        self.spatial_fields = []
+        self.spatial_fields: list[dict] = []
         # number of the next spatial field, used in the generated file names
         self._next_field_number = 0
 
-        self.boundary_nodes = {}
-        self.lateral_nodes = {}
+        self.boundary_nodes: dict[str, dict] = {}
+        self.lateral_nodes: dict[str, dict] = {}
         self.pattern = "^[{]?[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}[}]?$"
 
         self.convert = ExternalForcingsIO(self)
@@ -1733,6 +1754,8 @@ class ExternalForcings:
         """
         self._set_initial("waterlevel", initial_values, locationtype, value_column)
 
+    # legacy from delft3dfmpy, not used and not working here (self.mdu_parameters does not exist): mypy skips it
+    @no_type_check
     def set_missing_waterlevel(self, missing):
         """
         Method to set the missing value for the water level.
@@ -1925,7 +1948,7 @@ class ExternalForcings:
         netcdf_path: str | Path,
         netcdf_field: str,
         netcdf_index: int | None = None,
-        crs=None,
+        crs: CRS | str | int | None = None,
         time: datetime | pd.Timestamp | str | None = None,
     ) -> gpd.GeoDataFrame:
         """
@@ -2461,6 +2484,8 @@ class ExternalForcings:
         return filename
 
 
+    # legacy from delft3dfmpy, not used and not working here (self.boundaries does not exist): mypy skips it
+    @no_type_check
     def add_rainfall_2D(self, fName, bctype="rainfall"):
         """
         Parameters
@@ -2480,7 +2505,12 @@ class ExternalForcings:
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_boundary_condition(
-        self, name: str, pt, quantity: str, value, mesh1d=None
+        self,
+        name: str,
+        pt: tuple[float, float] | Point,
+        quantity: str,
+        value: float | pd.Series | dict[str, list[float]],
+        mesh1d: netmodels.Network | None = None,
     ) -> None:
         """
         Add boundary conditions to model:
@@ -2518,7 +2548,7 @@ class ExternalForcings:
             startdate = value.index[0].strftime("%Y-%m-%d %H:%M:%S")
             unit1 =  f"minutes since {startdate}"
             unit2 = "m3/s" if quantity == "dischargebnd" else "m"            
-        elif isinstance(value, numbers.Real):
+        elif isinstance(value, float):
             vec1 = None
             vec2 = float(value)
             startdate = "0000-00-00 00:00:00"
@@ -2539,6 +2569,8 @@ class ExternalForcings:
             pt = Point(*pt)
 
         # Find the nearest node
+        if mesh1d is None:
+            raise ValueError("Provide the network with the 1d mesh (mesh1d).")
         if len(mesh1d._mesh1d.mesh1d_node_id) == 0:
             raise KeyError(
                 "To find the closest node a 1d mesh should be created first."
@@ -2641,7 +2673,7 @@ class ExternalForcings:
 
 
 class Structures:
-    def __init__(self, hydamo):
+    def __init__(self, hydamo: HyDAMO) -> None:
         self.hydamo = hydamo
         self.generalstructures_df = pd.DataFrame()
         self.rweirs_df = pd.DataFrame()
@@ -2672,7 +2704,7 @@ class Structures:
 
         self.convert = StructuresIO(self)
 
-    def check_branchid_chainage(self, branchid, chainage):
+    def check_branchid_chainage(self, branchid: str, chainage: float) -> None:
         # Check if the ID exists
         if branchid not in self.hydamo.branches["code"]:
             raise ValueError(
@@ -2680,7 +2712,7 @@ class Structures:
             )
 
         # Get the branch
-        branch = self.hydamo.branches.loc[branchid, "geometry"]
+        branch = self.hydamo.branches.geometry[branchid]
 
         # Check the limits
         if chainage < 0.0:
@@ -2695,10 +2727,11 @@ class Structures:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_rweir(
         self,
-        id: str | None = None,
+        *,  # keyword-only, so required arguments can follow optional ones in the original order
+        id: str,
         name: str | None = None,
-        branchid: str | None = None,
-        chainage: float | None = None,
+        branchid: str,
+        chainage: float,
         crestlevel: float | None = None,
         crestwidth: float | None = None,
         corrcoeff: float | None = None,
@@ -2730,10 +2763,11 @@ class Structures:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_orifice(
         self,
-        id: str | None = None,
+        *,  # keyword-only, so required arguments can follow optional ones in the original order
+        id: str,
         name: str | None = None,
-        branchid: str | None = None,
-        chainage: float | None = None,
+        branchid: str,
+        chainage: float,
         crestlevel: float | None = None,
         crestwidth: float | None = None,
         corrcoeff: float | None = None,
@@ -2775,10 +2809,11 @@ class Structures:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_uweir(
         self,
-        id: str | None = None,
+        *,  # keyword-only, so required arguments can follow optional ones in the original order
+        id: str,
         name: str | None = None,
-        branchid: str | None = None,
-        chainage: float | None = None,
+        branchid: str,
+        chainage: float,
         crestlevel: float | None = None,
         crestwidth: float | None = None,
         dischargecoeff: float | None = None,
@@ -2814,17 +2849,18 @@ class Structures:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_bridge(
         self,
-        id: str | None = None,
+        *,  # keyword-only, so required arguments can follow optional ones in the original order
+        id: str,
         name: str | None = None,
-        branchid: str | None = None,
-        chainage: float | None = None,
+        branchid: str,
+        chainage: float,
         length: float | None = None,
         inletlosscoeff: float | None = None,
         outletlosscoeff: float | None = None,
         csdefid: str | None = None,
         shift: float | None = None,
         allowedflowdir: str = "both",
-        frictiontype: str | None = None,
+        frictiontype: str,
         friction: float | None = None,
     ) -> None:
         # Check branchid chainage
@@ -2855,27 +2891,26 @@ class Structures:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_culvert(
         self,
-        id: str | None = None,
+        *,  # keyword-only, so required arguments can follow optional ones in the original order
+        id: str,
         name: str | None = None,
-        branchid: str | None = None,
-        chainage: float | None = None,
+        branchid: str,
+        chainage: float,
         leftlevel: float | None = None,
         rightlevel: float | None = None,
         length: float | None = None,
         inletlosscoeff: float | None = None,
         outletlosscoeff: float | None = None,
-        crosssection: dict | None = None,
+        crosssection: dict,
         allowedflowdir: str = "both",
         valveonoff: int = 0,
         numlosscoeff: int | None = None,
         valveopeningheight: float = 0,
         relopening: list | None = None,
         losscoeff: list | None = None,
-        bedfrictiontype: str | None = None,
-        bedfriction: float | None = None,
+        bedfrictiontype: str,
+        bedfriction: float,
     ) -> None:
-        if crosssection is None:
-            raise ValueError("crosssection is required: a dict with the 'shape' and its dimensions.")
         # Check branchid chainage
         self.check_branchid_chainage(branchid, chainage)
 
@@ -2928,10 +2963,11 @@ class Structures:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_pump(
         self,
-        id: str | None = None,
+        *,  # keyword-only, so required arguments can follow optional ones in the original order
+        id: str,
         name: str | None = None,
-        branchid: str | None = None,
-        chainage: float | None = None,
+        branchid: str,
+        chainage: float,
         orientation: str = "positive",
         numstages: int = 1,
         controlside: str = "suctionSide",
@@ -2964,9 +3000,7 @@ class Structures:
         self.pumps_df = pd.concat([self.pumps_df, dct], ignore_index=True)
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def add_compound(self, id: str | None = None, structureids: list | None = None) -> None:
-        if structureids is None:
-            raise ValueError("structureids is required: a list with the ids of the structures.")
+    def add_compound(self, *, id: str, structureids: list) -> None:
         structurestring = ";".join([f"{s}" for s in structureids])
         numstructures = len(structureids)
         dct = pd.DataFrame(
@@ -3041,13 +3075,17 @@ class Structures:
 
 
 class ObservationPoints:
-    def __init__(self, hydamo):
+    def __init__(self, hydamo: HyDAMO) -> None:
         self.hydamo = hydamo
         self.observation_points = gpd.GeoDataFrame().set_geometry([])
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def add_points(
-        self, crds: list, names: list, locationTypes=None, snap_distance: float = 5.0
+        self,
+        crds: list,
+        names: list,
+        locationTypes: str | list[str] | None = None,
+        snap_distance: float = 5.0,
     ) -> None:
         """
         Method to add observation points to schematisation. Observation points can be of type '1d' or '2d'. 1d-points are snapped to the branch.
@@ -3109,14 +3147,16 @@ class ObservationPoints:
 
         # Add to dataframe
         if self.observation_points.empty:
-            self.observation_points = obs
+            self.observation_points = gpd.GeoDataFrame(obs)
         else:
-            self.observation_points = pd.concat([self.observation_points, obs], ignore_index=True)
+            self.observation_points = gpd.GeoDataFrame(
+                pd.concat([self.observation_points, obs], ignore_index=True)
+            )
 
 
 class StorageNodes:
-    def __init__(self, hydamo):
-        self.storagenodes = {}
+    def __init__(self, hydamo: HyDAMO) -> None:
+        self.storagenodes: dict[str, dict[str, object]] = {}
 
         self.hydamo = hydamo
         
@@ -3124,36 +3164,38 @@ class StorageNodes:
     
     def add_storagenode(
         self,
-        id,
-        xy=None,
-        branchid=None,
-        chainage=None,
-        nodeid=None,
-        usestreetstorage="true",
-        nodetype="unspecified",
-        manholeid=None,
-        name=np.nan,
-        usetable="false",
-        bedlevel=np.nan,
-        area=np.nan,
-        streetlevel=np.nan,
-        streetstoragearea=np.nan,
-        storagetype="reservoir",
-        levels=np.nan,
-        storagearea=np.nan,
-        interpolate="linear",
-        network=None
-    ):
+        id: str,
+        xy: tuple[float, float] | Point | None = None,
+        branchid: str | None = None,
+        chainage: float | None = None,
+        nodeid: str | None = None,
+        usestreetstorage: str | bool = "true",
+        nodetype: str = "unspecified",
+        manholeid: str | None = None,
+        name: str | float = np.nan,
+        usetable: str = "false",
+        bedlevel: float = np.nan,
+        area: float = np.nan,
+        streetlevel: float = np.nan,
+        streetstoragearea: float = np.nan,
+        storagetype: str = "reservoir",
+        levels: str | float = np.nan,
+        storagearea: str | float = np.nan,
+        interpolate: str = "linear",
+        network: netmodels.Network | None = None,
+    ) -> None:
 
         if isinstance(xy, tuple):
             xy = Point(*xy)
-        if xy is None and chainage is not None:
-            xy = self.hydamo.branches.loc[branchid].geometry.interpolate(chainage)            
+        if xy is None and branchid is not None and chainage is not None:
+            xy = self.hydamo.branches.geometry[branchid].interpolate(chainage)
         
         # Find the nearest node
         if nodeid is not None and not isinstance(nodeid, str):
             raise ValueError('If a nodeid is provided, it should be of type string.')
         if nodeid is None:
+            if network is None or xy is None:
+                raise ValueError("Without a nodeid, provide the network and a location: xy, or branchid and chainage.")
             if len(network._mesh1d.network1d_node_id) == 0:
                 raise KeyError(
                     "To find the closest node a 1d mesh should be created first."
@@ -3201,6 +3243,8 @@ class StorageNodes:
                 "storageType": storagetype,
             }
         elif usetable == "true":
+            if not isinstance(levels, str) or not isinstance(storagearea, str):
+                raise ValueError("With usetable='true', provide levels and storagearea as strings of numbers.")
             assert len(levels.split()) == len(
                 storagearea.split()
             ), "Number of levels does not equal number of storagearea"
@@ -3224,7 +3268,7 @@ class StorageNodes:
         self.storagenodes[id] = remove_nan_values(out)
 
 
-def remove_nan_values(base):
+def remove_nan_values(base: Mapping[str, object]) -> dict[str, object]:
     """Remove nan values from object
 
     Args:
@@ -3233,7 +3277,7 @@ def remove_nan_values(base):
     Returns:
        base_copy : output data with nans-filtered
     """
-    base_copy = base.copy()
+    base_copy = dict(base)
     for k, v in base.items():
         if isinstance(v, float) and np.isnan(v):
             base_copy.pop(k)

@@ -156,24 +156,22 @@ def mesh2d_clip(
         inside (bool, optional): Whether to clip inside or outside the polygon. Defaults to True.
     """
 
-    polygons: GeometryList
     if isinstance(polygon, GeometryList):
         geo = polygon.to_geometry()
         if not isinstance(geo, (Polygon, MultiPolygon)):
             raise TypeError(
                 f"Expected to provided geometrylist to be interpreted as Polygon or MultiPolygon, not a {type(geo)}."
             )
-        polygons = polygon
     else:
-        polygons = GeometryList.from_geometry(polygon)
+        geo = polygon
 
     if inside:
         # Clip each single polygon
-        for part in polygons.geoms:
+        for part in common.as_polygon_list(geo):
             network.mesh2d_clip_mesh(_geomlist_from_polygon(part), deletemeshoption, inside)
     else:
         # Keep exterior
-        clip_pol_ext = _geomlist_from_multipolygon(polygons, "exterior")
+        clip_pol_ext = _geomlist_from_multipolygon(geo, "exterior")
         if clip_pol_ext.x_coordinates.size > 0:
             network._mesh2d.meshkernel.mesh2d_delete(
                 geometry_list=clip_pol_ext,
@@ -181,7 +179,7 @@ def mesh2d_clip(
                 invert_deletion=True,
             )
         # # Clip interior
-        clip_pol_int = _geomlist_from_multipolygon(polygons, "interior")
+        clip_pol_int = _geomlist_from_multipolygon(geo, "interior")
         if clip_pol_int.x_coordinates.size > 0:
             network._mesh2d.meshkernel.mesh2d_delete(
                 geometry_list=clip_pol_int,
@@ -204,17 +202,17 @@ def _geomlist_from_polygon(polygon: Polygon | MultiPolygon) -> mk.GeometryList:
     return mk.GeometryList(gl.x_coordinates, gl.y_coordinates, gl.values, gl.geometry_separator, gl.inner_outer_separator)
 
 
-def _geomlist_from_multipolygon(polygons: GeometryList, mode: str) -> mk.GeometryList:
-    """Convert a GeometryList's exterior or interior rings to a meshkernel GeometryList.
+def _geomlist_from_multipolygon(polygons: Polygon | MultiPolygon, mode: str) -> mk.GeometryList:
+    """Convert the exterior or interior rings of polygons to a meshkernel GeometryList.
 
     Args:
-        polygons (GeometryList): Polygon(s) to convert
+        polygons (Polygon | MultiPolygon): Polygon(s) to convert
         mode (str): Either "exterior" or "interior", selecting which rings to convert
     """
     poly_separator = -999
     x_crds: list[float] = []
     y_crds: list[float] = []
-    for polygon in polygons.geoms:
+    for polygon in common.as_polygon_list(polygons):
         x_geom, y_geom = [], []
         if mode == "exterior":
             x_ext, y_ext = np.array(polygon.exterior.coords[:]).T
@@ -729,17 +727,15 @@ def links1d2d_add_links_2d_to_1d_lateral(
 
     geometrylist = network.meshkernel.mesh2d_get_mesh_boundaries_as_polygons()
     mpboundaries = GeometryList(**geometrylist.__dict__).to_geometry()
+    if not isinstance(mpboundaries, (Polygon, MultiPolygon)):
+        raise TypeError(f"Expected the mesh boundaries to be polygons, not a {mpboundaries.geom_type}.")
     if within is not None:
         # If a 'within' polygon was provided, get the intersection with the meshboundaries
         # and convert it to a geometrylist
         # Note that the provided meshboundaries is a (list of) polygon(s). Holes are provided
         # as polygons as well, which dont make it a valid MultiPolygon
-        if isinstance(mpboundaries, Polygon):
-            boundaries = [mpboundaries]
-        else:
-            boundaries = list(mpboundaries.geoms)
         clipped: list[Polygon | MultiPolygon] = []
-        for boundary in boundaries:
+        for boundary in common.as_polygon_list(mpboundaries):
             part = boundary.intersection(within)
             if not isinstance(part, (Polygon, MultiPolygon)):
                 raise TypeError(f"Expected the clipped mesh boundary to be a Polygon or MultiPolygon, not a {part.geom_type}.")
@@ -763,10 +759,7 @@ def links1d2d_add_links_2d_to_1d_lateral(
         return
 
     # Create multilinestring
-    if isinstance(mpboundaries, Polygon):
-        multilinestring = MultiLineString([mpboundaries.exterior])
-    else:
-        multilinestring = MultiLineString([poly.exterior for poly in mpboundaries.geoms])
+    multilinestring = MultiLineString([poly.exterior for poly in common.as_polygon_list(mpboundaries)])
 
     # Find the links that intersect the boundary close to the origin    
     id1d = network._link1d2d.link1d2d[:, 0]

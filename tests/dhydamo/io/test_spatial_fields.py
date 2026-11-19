@@ -7,7 +7,11 @@ import numpy as np
 import pandas as pd
 import pytest
 import rasterio
-from hydrolib.core.dflowfm.inifield.models import IniFieldModel
+from hydrolib.core.dflowfm.inifield.models import (
+    IniFieldModel,
+    InitialField,
+    ParameterField,
+)
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.core.dflowfm.net.models import NetworkModel
 from hydrolib.core.dflowfm.onedfield.models import OneDFieldModel
@@ -20,6 +24,13 @@ from hydrolib.dhydamo.geometry.spatial import (
     polygons_to_branch_values,
 )
 from shapely.geometry import LineString, Point, Polygon, box
+
+
+def _datafile_name(field: InitialField | ParameterField) -> str:
+    """File name of the data file of an initial or parameter field."""
+    assert field.datafile is not None
+    assert field.datafile.filepath is not None
+    return field.datafile.filepath.name
 
 
 def _polygons() -> gpd.GeoDataFrame:
@@ -54,7 +65,7 @@ def test_polygon_field_written(tmp_path: Path) -> None:
     assert [f.datafiletype for f in models.inifields] == ["polygon", "polygon"]
     assert [f.interpolationmethod for f in models.inifields] == ["constant", "constant"]
     assert [f.value for f in models.inifields] == [1.0, 2.5]
-    assert [f.datafile.filepath.name for f in models.inifields] == ["initial_waterlevel_00_00.pol", "initial_waterlevel_00_01.pol"]
+    assert [_datafile_name(f) for f in models.inifields] == ["initial_waterlevel_00_00.pol", "initial_waterlevel_00_01.pol"]
 
     assert len(PolyFile(filepath=tmp_path / "initial_waterlevel_00_00.pol").objects) == 2
     assert len(PolyFile(filepath=tmp_path / "initial_waterlevel_00_01.pol").objects) == 1
@@ -73,7 +84,7 @@ def test_raster_field_written(tmp_path: Path) -> None:
     models = _write(hydamo, tmp_path)
 
     field = models.parameterfields[0]
-    assert (field.datafiletype, field.datafile.filepath.name) == ("GeoTIFF", "parameter_frictioncoefficient_00.tif")
+    assert (field.datafiletype, _datafile_name(field)) == ("GeoTIFF", "parameter_frictioncoefficient_00.tif")
     with rasterio.open(tmp_path / "parameter_frictioncoefficient_00.tif") as src:
         assert src.shape == (2, 6)
         np.testing.assert_array_equal(np.unique(src.read(1)), [1.0, 2.5])
@@ -197,7 +208,7 @@ def test_branch_field_written(tmp_path: Path) -> None:
     models = _write(hydamo, tmp_path)
 
     field = models.inifields[0]
-    assert (field.datafiletype, field.datafile.filepath.name) == ("1dField", "InitialWaterLevel.ini")
+    assert (field.datafiletype, _datafile_name(field)) == ("1dField", "InitialWaterLevel.ini")
     onedfield = OneDFieldModel(filepath=tmp_path / "InitialWaterLevel.ini")
     assert [b.branchid for b in onedfield.branch] == ["br1", "br2"]
     # a [Global] block with the nodata value, required by the D-HYDRO GUI
@@ -354,7 +365,7 @@ def test_uniform_1d_value_is_a_background_per_branch(caplog: pytest.LogCaptureFi
     overlap, order, uniform = _level_depth_warnings(hydamo, caplog)
     assert (overlap, order, uniform) == ([], [], [])
     models = Df2HydrolibModel(hydamo)
-    assert [(f.quantity, f.datafile.filepath.name) for f in models.inifields] == [
+    assert [(f.quantity, _datafile_name(f)) for f in models.inifields] == [
         ("waterdepth", "InitialWaterDepth.ini"),
     ]
     # the depth is added last and covers all branches, so no branch keeps the water level
@@ -442,7 +453,7 @@ def test_uniform_1d_and_2d_values_use_different_files(tmp_path: Path, two_d_firs
     models = Df2HydrolibModel(hydamo)
     models.write_initial_fields(FMModel(), tmp_path)
 
-    files = sorted(f.datafile.filepath.name for f in models.inifields)
+    files = sorted(_datafile_name(f) for f in models.inifields)
     assert files == ["InitialWaterLevel.ini", "initialwaterlevel_2d.ini"]
     two_d_global = OneDFieldModel(filepath=tmp_path / "initialwaterlevel_2d.ini").global_
     one_d_global = OneDFieldModel(filepath=tmp_path / "InitialWaterLevel.ini").global_
@@ -467,7 +478,7 @@ def test_uniform_2d_value_unaffected_by_1d_fields(tmp_path: Path, quantity: str)
 
     two_d = [f for f in models.inifields if str(f.locationtype).lower() == "2d"]
     assert len(two_d) == 1
-    assert (two_d[0].quantity, two_d[0].datafiletype, two_d[0].datafile.filepath.name) == (
+    assert (two_d[0].quantity, two_d[0].datafiletype, _datafile_name(two_d[0])) == (
         quantity,
         "1dField",
         f"initial{quantity}_2d.ini",
@@ -506,7 +517,7 @@ def test_1d_fields_are_combined_per_quantity() -> None:
     hydamo.external_forcings.set_spatial_field(depth, "diepte", quantity="waterdepth")
     models = Df2HydrolibModel(hydamo)
 
-    assert [(f.quantity, f.datafile.filepath.name) for f in models.inifields] == [
+    assert [(f.quantity, _datafile_name(f)) for f in models.inifields] == [
         ("waterlevel", "InitialWaterLevel.ini"),
         ("waterdepth", "InitialWaterDepth.ini"),
     ]
@@ -546,7 +557,7 @@ def test_branch_field_of_other_quantity_is_written_separately() -> None:
 
     field = models.parameterfields[0]
     assert (field.quantity, field.datafiletype) == ("frictioncoefficient", "1dField")
-    assert field.datafile.filepath.name == "parameter_frictioncoefficient_00.ini"
+    assert _datafile_name(field) == "parameter_frictioncoefficient_00.ini"
 
 
 def test_initial_conditions_at_nodes_from_samples_and_polygons() -> None:

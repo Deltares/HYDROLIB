@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import rasterio
+from rasterio.crs import CRS
 from rasterio.transform import Affine
 
 DRIVERS = {".tif": "GTiff", ".tiff": "GTiff", ".asc": "AAIGrid"}
@@ -11,7 +12,7 @@ def write_raster(
     path: Path | str,
     array: np.ndarray,
     transform: Affine,
-    crs=None,
+    crs: CRS | str | None = None,
     nodata: float = -999.0,
     compress: bool = True,
 ) -> Path:

@@ -391,7 +391,7 @@ class DRTCModel:
         return True, None
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def check_timeseries(self, timeseries):
+    def check_timeseries(self, timeseries: pd.DataFrame) -> None:
         all_management = self.hydamo.management
         # The resolver raises for rows referencing neither a pump nor a management device.
         hydamo_controllers = all_management[
@@ -1063,9 +1063,9 @@ class DRTCModel:
 
     @staticmethod
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def _parse_unique_children(root: ET.Element):
+    def _parse_unique_children(root: ET.Element) -> dict[str, ET.Element]:
         # Store xml sections by tag, this function assumes unique children.
-        children = {}
+        children: dict[str, ET.Element] = {}
         for child in root:
             # remove namespace from tag
             tag = child.tag
@@ -1523,15 +1523,13 @@ class DRTCModel:
 
     @staticmethod
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def finish_file(xmlroot, configfile, filename: Path | str) -> None:
+    def finish_file(xmlroot: ET.Element, filename: Path | str) -> None:
         """Method to finish a XML file in the required namespace and format.
 
         Args:
             xmlroot: Xml Tree
-            configfile : Xml file object
             filename (Union[Path, str]): filepath of the file to be written
         """
-        configfile.write(filename)
         xmlbytes = (
             bytes(
                 '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>',
@@ -1589,7 +1587,7 @@ class DRTCModel:
             x.set("multiplier", str(int(self.time_settings["step"])))
 
         # write new xml file
-        self.finish_file(myroot, configfile, self.output_path / "rtcRuntimeConfig.xml")
+        self.finish_file(myroot, self.output_path / "rtcRuntimeConfig.xml")
 
     def write_toolsconfig(self) -> None:
         """Function to write RtcToolsConfig.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
@@ -1765,7 +1763,7 @@ class DRTCModel:
                 else:
                     myroot[2].append(ET.fromstring(ctl))
 
-        self.finish_file(myroot, configfile, self.output_path / RTC_TOOLS_CONFIG_XML)
+        self.finish_file(myroot, self.output_path / RTC_TOOLS_CONFIG_XML)
 
 
     def write_dataconfig(self) -> None:
@@ -1968,7 +1966,7 @@ class DRTCModel:
                 file_label=RTC_DATA_CONFIG_XML,
             )
 
-        self.finish_file(myroot, configfile, self.output_path / RTC_DATA_CONFIG_XML)
+        self.finish_file(myroot, self.output_path / RTC_DATA_CONFIG_XML)
         self._written_dataconfig_ids = self._element_ids(myroot)
 
     def write_timeseries_import(self) -> None:
@@ -2122,7 +2120,7 @@ class DRTCModel:
                 file_label=TIMESERIES_IMPORT_XML,
             )
 
-        self.finish_file(myroot, configfile, self.output_path / TIMESERIES_IMPORT_XML)
+        self.finish_file(myroot, self.output_path / TIMESERIES_IMPORT_XML)
 
     def write_state_import(self) -> None:
         """Function to write state_import.xml from the created dictionaries. They are built from empty files in the template directory using the Etree-package."""
@@ -2180,7 +2178,7 @@ class DRTCModel:
         # a state from an earlier model run and user-defined initial settings override the defaults
         self._apply_state_overrides(myroot[0], gn_brackets)
 
-        self.finish_file(myroot, configfile, self.output_path / STATE_IMPORT_XML)
+        self.finish_file(myroot, self.output_path / STATE_IMPORT_XML)
 
     def _initial_pid_setting(self, structure_id: str, controller: PIDController) -> float | str | None:
         """Initial setting of a PID controller: the current setting of the structure, limited to the bounds

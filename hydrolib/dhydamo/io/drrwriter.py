@@ -3,11 +3,14 @@ import logging
 import os
 import re
 import shutil
+from pathlib import Path
+from typing import TextIO
 
 import numpy as np
 import pandas as pd
 from shapely.geometry import Point
 
+from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 # from delft3dfmpy.core.geometry import orthogonal_line
@@ -19,7 +22,13 @@ logger = logging.getLogger(__name__)
 class DRRWriter:
     """Writer for RR files"""
 
-    def __init__(self, rrmodel, output_dir, name=None, wwtp=None):
+    def __init__(
+        self,
+        rrmodel: DRRModel,
+        output_dir: str | Path,
+        name: str | None = None,
+        wwtp: tuple[float, float] | None = None,
+    ) -> None:
         self.rrmodel = rrmodel
         # self.geometries = parent.geometries
         # self.boundary_conditions = parent.boundary_conditions
@@ -38,7 +47,7 @@ class DRRWriter:
 
         self.d3b_parameters = rrmodel.d3b_parameters
 
-        self.precip_df = {}
+        self.precip_df = pd.DataFrame()
         self.run_dimrpad = rrmodel.dimr_path
 
         if wwtp is None:
@@ -46,7 +55,7 @@ class DRRWriter:
         else:
             self.wwtp = Point((wwtp[0], wwtp[1]))
 
-    def write_all(self):  # write all RR files
+    def write_all(self) -> None:  # write all RR files
         """
         Wrapper method to write all components
         """
@@ -69,7 +78,7 @@ class DRRWriter:
         for parameter, value in self.d3b_parameters.items():
             self.change_d3b_parameter(parameter, value)
 
-    def copyRRFiles(self):
+    def copyRRFiles(self) -> bool:
         """
         Method to copy the RR-files from resources.
 
@@ -84,7 +93,7 @@ class DRRWriter:
         shutil.copytree(srcRR, targetRR)
         return True
 
-    def write_topology(self):
+    def write_topology(self) -> None:
         """
         Wrapper to write the topolgy files for RR. The following files are written:
             3B_NOD.TP: IDs and coordinates of all nodes: unpaved, paved, greenhouse, open water and boundary. Only nodes with a total area of >0 are written. Nodes are placed up to 20 m to the east and west of the catchment centroid.
@@ -295,7 +304,7 @@ class DRRWriter:
                 }
                 self._write_dict(f, temp, "Boundary", "    0\n\n")
 
-    def write_unpaved(self):
+    def write_unpaved(self) -> None:
         """
         Method to write all files associated with unpaved nodes: UNPAVED.3B, UNPAVED.ALF, UNPAVED.STO, UNPAVED.INF and UNPAVED.SEP. All files contain a definition for every node  because they may or may not be spatially distributed.
 
@@ -420,11 +429,11 @@ class DRRWriter:
                         seepage = self.rrmodel.external_forcings.seepage[dct["sp"]]["seepage"]
                         f.writelines(
                             f"'{time.strftime('%Y/%m/%d;%H:%M:%S')}' {value:.5f} <\n"
-                            for time, value in seepage.items()
+                            for time, value in zip(pd.DatetimeIndex(seepage.index), seepage)
                         )
                         f.write("tble\nseep\n")
 
-    def write_paved(self):
+    def write_paved(self) -> None:
         """
         Method to write all files associated with paved nodes: PAVED.3B, PAVED.STO and PAVED.DWA. The latter contains only one definition.
 
@@ -492,7 +501,7 @@ class DRRWriter:
             with open(filepath, "w") as f:
                 f.write("\n")
 
-    def write_greenhouse(self):
+    def write_greenhouse(self) -> None:
         """
         Method to write all files associated with greenhouse nodes: GREENHSE.3B, GREENHSE.RF and GREENHSE.SIL. The latter contains only one definition.
 
@@ -541,7 +550,7 @@ class DRRWriter:
                             + " ik 0 stdf\n"
                         )
 
-    def write_openwater(self):
+    def write_openwater(self) -> None:
         """
          Method to write OPENWATE.3B file.
 
@@ -566,7 +575,7 @@ class DRRWriter:
                             + "' owrr\n"
                         )
 
-    def write_meteo(self):
+    def write_meteo(self) -> None:
         """
         Method to write meteofiles (DEFAULT.BUI and DEFAULT.EVP) based on values per catchment.
 
@@ -580,9 +589,10 @@ class DRRWriter:
         if isinstance(self.rrmodel.external_forcings.precip, str):
             shutil.copy(self.rrmodel.external_forcings.precip, filepath)
         else:
-            df = {}
-            for ii, ms in enumerate(self.rrmodel.external_forcings.precip.items()):
-                df[ms[0]] = pd.Series(ms[1]["precip"])
+            # the precipitation per meteo area, written below the header
+            self.precip_df = pd.DataFrame(
+                {name: pd.Series(series["precip"]) for name, series in self.rrmodel.external_forcings.precip.items()}
+            )
 
             with open(filepath, "w") as f:
                 f.write("*Name of this file: c:\\Result\\1058\\DEFAULT.BUI\n")
@@ -616,7 +626,6 @@ class DRRWriter:
                     + str(int(np.remainder(duration, 86400.0) / 3600.0))
                     + " 0 0\n"
                 )
-            self._dict_to_df()
             self.precip_df.to_csv(
                 filepath,
                 header=False,
@@ -647,34 +656,20 @@ class DRRWriter:
             float_format = "%.3f"
             sep = " "
             with open(filepath, "a") as f:
-                for ts, val in table.items():
+                for ts, val in zip(pd.DatetimeIndex(table.index), table):
                     date = ts.strftime(date_format)
                     f.write(f"{date}{sep}{float_format % val}\n")
 
-    def _dict_to_df(self):
-        """
-        Method to convert the precip dictionary to a dataframe
-        Returns
-        -------
-        None.
-
-        """
-        df = {}
-        for ii, stat in enumerate(self.rrmodel.external_forcings.precip.items()):
-            df[stat[0]] = pd.Series(stat[1]["precip"])
-        self.precip_df = pd.DataFrame(df)
-
-    def _write_dict(self, f, dct, header, endline):
+    def _write_dict(self, f: TextIO, dct: dict[str, str], header: str, endline: str) -> None:
         """
         Write a dictionary to file, without transforming with mapping
         """
         # Write header
         f.write(f"[{header}]\n")
-        for key, value in dct.items():
-            f.write(f"    {key:20s} = {value:20s}\n")
+        f.writelines(f"    {key:20s} = {value:20s}\n" for key, value in dct.items())
         f.write(endline)
 
-    def change_d3b_parameter(self, parameter, value):
+    def change_d3b_parameter(self, parameter: str, value: str | float) -> None:
         """
         Change parameter value in delft3b.ini file
         """

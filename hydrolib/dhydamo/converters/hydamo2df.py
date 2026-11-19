@@ -1,8 +1,13 @@
+from __future__ import annotations
+
 import logging
+from collections.abc import Hashable
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+from typing import TYPE_CHECKING, no_type_check
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 from netCDF4 import Dataset, chartostring
@@ -13,6 +18,14 @@ from hydrolib.dhydamo.core.relations import RelationsHyDAMO
 from hydrolib.dhydamo.geometry.mesh import Network
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
+if TYPE_CHECKING:
+    from hydrolib.dhydamo.core.hydamo import (
+        CrossSections,
+        ExternalForcings,
+        StorageNodes,
+        Structures,
+    )
+
 logger = logging.getLogger(__name__)
 
 class RoughnessVariant(Enum):
@@ -21,9 +34,11 @@ class RoughnessVariant(Enum):
 
 
 class CrossSectionsIO:
-    def __init__(self, crosssections):
+    def __init__(self, crosssections: CrossSections) -> None:
         self.crosssections = crosssections
 
+    # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
+    @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def from_datamodel(
         self, crsdefs: pd.DataFrame | None = None, crslocs: pd.DataFrame | None = None
@@ -147,7 +162,7 @@ class CrossSectionsIO:
             # make a copy and drop the profiles corresponding to a structure
             dp_branches = crosssections.drop(structure_profiles.index, axis=0)
 
-            dp_structures = structure_profiles.copy(deep=True)
+            dp_structures = gpd.GeoDataFrame(structure_profiles, copy=True)
         elif crosssections is not None:
             dp_branches = crosssections.copy(deep=True)
 
@@ -158,6 +173,8 @@ class CrossSectionsIO:
         )
 
         if dp_branches is not None:
+            if crosssection_roughness is None:
+                raise ValueError("crosssection_roughness is required with crosssections.")
             # 1. Collect cross sections from 'dwarsprofielen'
             yz_profiles = self.crosssections.crosssection_to_yzprofiles(
                 dp_branches,
@@ -195,6 +212,8 @@ class CrossSectionsIO:
         elif param_profile is None:
             logger.info("No parametrised crossections available for branches.")
         else:
+            if param_profile_values is None:
+                raise ValueError("param_profile_values is required with param_profile.")
             # Derive norm cross sections for norm parametrised
             param_profiles_converted = self.crosssections.parametrised_to_profiles(
                 param_profile,
@@ -255,6 +274,8 @@ class CrossSectionsIO:
         )
 
         if dp_structures is not None:
+            if crosssection_roughness is None:
+                raise ValueError("crosssection_roughness is required with crosssections.")
             # 1. Collect cross sections from 'dwarsprofielen'
             yz_profiles = self.crosssections.crosssection_to_yzprofiles(
                 dp_structures,
@@ -275,7 +296,7 @@ class CrossSectionsIO:
 
 
 class ExternalForcingsIO:
-    def __init__(self, external_forcings):
+    def __init__(self, external_forcings: ExternalForcings) -> None:
         self.external_forcings = external_forcings
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
@@ -530,13 +551,13 @@ class ExternalForcingsIO:
 
 
 class StructuresIO:
-    def __init__(self, structures):
+    def __init__(self, structures: Structures) -> None:
         self.structures = structures
 
-    def _name_or_nan(self, row):
+    def _name_or_nan(self, row: pd.Series) -> Hashable:
         return row.name if "name" in row.index else np.nan
 
-    def _common_structure_kwargs(self, row, id_attr="id"):
+    def _common_structure_kwargs(self, row: pd.Series, id_attr: str = "id") -> dict[str, object]:
         return {
             "id": getattr(row, id_attr),
             "name": self._name_or_nan(row),
@@ -544,6 +565,8 @@ class StructuresIO:
             "chainage": row.branch_offset,
         }
 
+    # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
+    @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def generalstructures_from_datamodel(self, generalstructures: pd.DataFrame) -> None:
         """From parsed data model of orifices
@@ -728,7 +751,7 @@ class StructuresIO:
                     # this structure id; see Structures.compound_weir_structure_ids
                     # in core/hydamo.py.
                     weir_id = f'{weir.code}_{num_op+1}'
-                    self.structures.compound_weir_structure_ids[weir_mandev.globalid.squeeze()] = weir_id
+                    self.structures.compound_weir_structure_ids[str(weir_mandev["globalid"].iloc[0])] = weir_id
                     kind = str(weir_mandev["overlaatonderlaat"].iloc[0]).lower()
                     if kind == 'overlaat':
                         cmp_list.append(weir_id)
@@ -910,6 +933,8 @@ class StructuresIO:
                 zvalues=" ".join([f"{yz[1]:7.3f}" for yz in yzvalues]),
             )
         
+    # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
+    @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def weirs_from_datamodel(self, weirs: pd.DataFrame) -> None:
         """ "From parsed data model of weirs"""
@@ -922,6 +947,8 @@ class StructuresIO:
                 corrcoeff=weir.corrcoeff,
             )
 
+    # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
+    @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def orifices_from_datamodel(self, orifices: pd.DataFrame) -> None:
         """ "From parsed data model of orifices"""
@@ -940,6 +967,8 @@ class StructuresIO:
                 limitflowneg=orifice.limitflowneg,
             )
 
+    # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
+    @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def uweirs_from_datamodel(self, uweirs: pd.DataFrame) -> None:
         """ "From parsed data model of universal weirs"""
@@ -982,27 +1011,29 @@ class StructuresIO:
             if len(prof) == 0:
                 raise ValueError(f"{bridge.code} is not found in any cross-section.")
 
-            if "naam" in bridges:
-                name = bridge.naam
-            else:
-                name = bridge.code
+            # the name, if present, otherwise the code
+            name = str(bridge.code)
+            if "naam" in bridges and pd.notna(bridge.naam):
+                name = str(bridge.naam)
 
             profile_id = prof.code.to_numpy()[0]
             self.structures.add_bridge(
-                id=bridge.code,
+                id=str(bridge.code),
                 name=name,
-                branchid=bridge.branch_id,
-                chainage=bridge.branch_offset,
+                branchid=str(bridge.branch_id),
+                chainage=pd.to_numeric(bridge.branch_offset),
                 csdefid=profile_id,
                 shift=0.0,
                 allowedflowdir="both",
-                inletlosscoeff=bridge.intreeverlies,
-                outletlosscoeff=bridge.uittreeverlies,
-                length=bridge.lengte,
-                frictiontype=bridge.typeruwheid,
-                friction=bridge.ruwheid,
+                inletlosscoeff=pd.to_numeric(bridge.intreeverlies),
+                outletlosscoeff=pd.to_numeric(bridge.uittreeverlies),
+                length=pd.to_numeric(bridge.lengte),
+                frictiontype=str(bridge.typeruwheid),
+                friction=pd.to_numeric(bridge.ruwheid),
             )
 
+    # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
+    @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def bridges_from_datamodel(self, bridges: pd.DataFrame) -> None:
         """ "From parsed data model of bridges"""
@@ -1089,21 +1120,21 @@ class StructuresIO:
                         )
 
             # check if a separate name field is present
-            if "naam" in culverts:
-                name = culvert.naam
-            else:
-                name = culvert.code
+            # the name, if present, otherwise the code
+            name = str(culvert.code)
+            if "naam" in culverts and pd.notna(culvert.naam):
+                name = str(culvert.naam)
 
             self.structures.add_culvert(
-                id=culvert.code,
+                id=str(culvert.code),
                 name=name,
-                branchid=culvert.branch_id,
-                chainage=culvert.branch_offset,
-                leftlevel=culvert.hoogtebinnenonderkantbov,
-                rightlevel=culvert.hoogtebinnenonderkantbene,
-                length=culvert.lengte,
-                inletlosscoeff=culvert.intreeverlies,
-                outletlosscoeff=culvert.uittreeverlies,
+                branchid=str(culvert.branch_id),
+                chainage=pd.to_numeric(culvert.branch_offset),
+                leftlevel=pd.to_numeric(culvert.hoogtebinnenonderkantbov),
+                rightlevel=pd.to_numeric(culvert.hoogtebinnenonderkantbene),
+                length=pd.to_numeric(culvert.lengte),
+                inletlosscoeff=pd.to_numeric(culvert.intreeverlies),
+                outletlosscoeff=pd.to_numeric(culvert.uittreeverlies),
                 crosssection=crosssection,
                 allowedflowdir=allowedflowdir,
                 valveonoff=valveonoff,
@@ -1111,10 +1142,12 @@ class StructuresIO:
                 valveopeningheight=valveopeningheight,
                 relopening=relopening,
                 losscoeff=losscoeff,
-                bedfrictiontype=culvert.typeruwheid,
-                bedfriction=culvert.ruwheid,
+                bedfrictiontype=str(culvert.typeruwheid),
+                bedfriction=pd.to_numeric(culvert.ruwheid),
             )
 
+    # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
+    @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def culverts_from_datamodel(self, culverts: pd.DataFrame) -> None:
         """
@@ -1217,9 +1250,9 @@ class StructuresIO:
                 cmp_list.append(pumpid)
                 self.structures.add_pump(
                     id=pumpid,
-                    name=name,
-                    branchid=pumpstation.branch_id,
-                    chainage=pumpstation.branch_offset,
+                    name=str(name),
+                    branchid=str(pumpstation.branch_id),
+                    chainage=pd.to_numeric(pumpstation.branch_offset),
                     orientation="positive",
                     numstages=1,
                     controlside="suctionside",
@@ -1235,6 +1268,8 @@ class StructuresIO:
                     id=f"cmp_{pumpstation.code}", structureids=cmp_list
                 )
 
+    # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
+    @no_type_check
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def pumps_from_datamodel(self, pumps: pd.DataFrame) -> None:
         """From parsed data model of pumps"""
@@ -1254,7 +1289,9 @@ class StructuresIO:
             )
 
     @staticmethod
-    def move_structure(struc, struc_dict, branch, offset):
+    def move_structure(
+        struc: str, struc_dict: dict[str, dict[str, str | float]], branch: str, offset: float
+    ) -> dict[str, dict[str, str | float]]:
         """
         Function the move a structure if needed for a compound structure.
 
@@ -1283,7 +1320,7 @@ class StructuresIO:
         struc_dict[struc]["chainage"] = offset
         return struc_dict
 
-    def _structure_frames(self):
+    def _structure_frames(self) -> tuple[pd.DataFrame, ...]:
         return (
             self.structures.pumps_df,
             self.structures.rweirs_df,
@@ -1293,7 +1330,7 @@ class StructuresIO:
             self.structures.orifices_df,
         )
 
-    def _get_structure_location(self, structure_id):
+    def _get_structure_location(self, structure_id: str) -> tuple[str | None, float | None]:
         branch = None
         offset = None
         for df in self._structure_frames():
@@ -1305,7 +1342,7 @@ class StructuresIO:
                 offset = match.chainage.to_numpy()[0]
         return branch, offset
 
-    def _set_structure_location(self, structure_id, branch, offset):
+    def _set_structure_location(self, structure_id: str, branch: str, offset: float) -> None:
         for df in self._structure_frames():
             if df.empty:
                 continue
@@ -1314,7 +1351,7 @@ class StructuresIO:
                 df.loc[idx, "branchid"] = branch
                 df.loc[idx, "chainage"] = offset
 
-    def compound_structures(self, idlist, structurelist):
+    def compound_structures(self, idlist: list[str], structurelist: list[list[str]]) -> None:
         # probably the coordinates should all be set to those of the first structure (still to do)
         for c_i, c_id in enumerate(idlist):
             branch = None
@@ -1333,9 +1370,11 @@ class StructuresIO:
 
 
 class StorageNodesIO:
-    def __init__(self, storagenodes):
+    def __init__(self, storagenodes: StorageNodes) -> None:
         self.storagenodes = storagenodes
 
+    # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
+    @no_type_check
     def storagenodes_from_datamodel(self, storagenodes):
         """ "From parsed data model of storage nodes"""
         for storagenode_idx, storagenode in storagenodes.iterrows():
@@ -1353,17 +1392,28 @@ class StorageNodesIO:
                 storagetype=storagenode.storagetype,
             )
 
-    def storagenodes_from_input(self, storagenodes=None, nodeid=None, xy=None, storagedata=None, usestreetstorage= True, network=None):
+    def storagenodes_from_input(
+        self,
+        storagenodes: gpd.GeoDataFrame | None = None,
+        nodeid: str | None = None,
+        xy: tuple[float, float] | None = None,
+        storagedata: pd.DataFrame | None = None,
+        usestreetstorage: bool = True,
+        network: Network | None = None,
+    ) -> None:
         """ "From parsed data model of storage nodes"""
+        if storagenodes is None or storagedata is None:
+            raise ValueError("Provide storagenodes and storagedata.")
 
         for storagenode_idx, storagenode in storagenodes.iterrows():
             data = storagedata[storagedata.code == storagenode_idx]
+            # the index label of the row, or the code when that is missing
             name = storagenode.name
-            if pd.isna(name):
+            if name is None or (isinstance(name, float) and np.isnan(name)):
                 name = storagenode.code
             self.storagenodes.add_storagenode(
-                id=storagenode_idx,
-                name=name,
+                id=str(storagenode_idx),
+                name=str(name),
                 usestreetstorage=usestreetstorage,
                 nodetype="unspecified",
                 nodeid=nodeid,

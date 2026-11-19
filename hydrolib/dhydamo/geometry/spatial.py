@@ -12,12 +12,16 @@ from shapely import affinity
 from shapely.geometry import (
     LineString,
     Point,
+    Polygon,
 )
+from shapely.geometry.base import BaseGeometry
 
 logger = logging.getLogger(__name__)
 
 
-def rotate_coordinates(origin, theta, xcrds, ycrds):
+def rotate_coordinates(
+    origin: tuple[float, float], theta: float, xcrds: np.ndarray, ycrds: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Rotate coordinates around origin (x0, y0) with a certain angle (radians)
     """
@@ -27,7 +31,7 @@ def rotate_coordinates(origin, theta, xcrds, ycrds):
     return xcrds_rot, ycrds_rot
 
 
-def minimum_bounds_fixed_rotation(polygon, angle):
+def minimum_bounds_fixed_rotation(polygon: Polygon, angle: float) -> tuple[tuple[float, float], float, float]:
     """Get the minimum box for a polygon with a given axes rotation.
 
     Parameters
@@ -54,11 +58,15 @@ def minimum_bounds_fixed_rotation(polygon, angle):
 
     # Rotate again, and get origin
     rotbox2 = affinity.rotate(rotbox1, angle=-angle, origin=spinpt)
-    origin = rotbox2.exterior.coords[0]
+    if not isinstance(rotbox2, Polygon):
+        raise TypeError(f"Expected a Polygon after rotating the envelope, got a {rotbox2.geom_type}")
+    x0, y0 = rotbox2.exterior.coords[0]
 
-    return origin, xsize, ysize
+    return (x0, y0), xsize, ysize
 
-def find_nearest_branch(branches, geometries, method='overal', maxdist=5):
+def find_nearest_branch(
+    branches: gpd.GeoDataFrame, geometries: gpd.GeoDataFrame, method: str = 'overal', maxdist: float = 5
+) -> None:
     """
     Method to determine nearest branch for each geometry.
     The nearest branch can be found by finding t from both ends (ends) or the nearest branch from the geometry
@@ -91,54 +99,58 @@ def find_nearest_branch(branches, geometries, method='overal', maxdist=5):
     if method == 'intersecting':
         # Determine intersection geometries per branch
         sindex = geometries.sindex
-        for branch in branches.itertuples():
-            intersecting = geometries.iloc[sindex.query(branch.geometry, predicate="intersects")]
+        for branch_id, branchgeo in zip(branches.index, branches.geometry):
+            intersecting = geometries.iloc[sindex.query(branchgeo, predicate="intersects")]
 
             # For each geometrie, determine offset along branch
-            for geometry in intersecting.itertuples():
+            for geometry_id, geometry in zip(intersecting.index, intersecting.geometry):
                 # Determine distance of profile line along branch
-                geometries.at[geometry.Index, 'branch_id'] = branch.Index
+                geometries.at[geometry_id, 'branch_id'] = branch_id
 
                 # Calculate offset
-                branchgeo = branch.geometry
                 mindist = min(0.1, branchgeo.length / 2.)
-                offset = round(branchgeo.project(branchgeo.intersection(geometry.geometry).centroid), 3)
+                offset = round(branchgeo.project(branchgeo.intersection(geometry).centroid), 3)
                 offset = max(mindist, min(branchgeo.length - mindist, offset))
-                geometries.at[geometry.Index, 'branch_offset'] = offset
+                geometries.at[geometry_id, 'branch_offset'] = offset
 
     else:
         sindex = branches.sindex
+        # the code of each geometry, for the log messages
+        has_code = 'code' in geometries.columns
+        codes = [None] * len(geometries)
+        if has_code:
+            codes = geometries['code'].tolist()
         # In case of looking for the nearest, it is easier to iteratie over the geometries instead of the branches
-        for geometry in geometries.itertuples():
+        for geometry_id, geometry, code in zip(geometries.index, geometries.geometry, codes):
             # Find near branches
-            nearidx = sindex.query(geometry.geometry, predicate="dwithin", distance=maxdist)
+            nearidx = sindex.query(geometry, predicate="dwithin", distance=maxdist)
             selectie = branches.iloc[nearidx]
 
             if method == 'overal':
                 # Determine distances to branches
-                dist = selectie.distance(geometry.geometry)
+                dist = selectie.distance(geometry)
             elif method == 'centroid':
                 # Determine distances to branches
-                dist = selectie.distance(geometry.geometry.centroid)
+                dist = selectie.distance(geometry.centroid)
             elif method == 'ends':
                 # Since a culvert can cross a channel, it is
-                crds = geometry.geometry.coords[:]
+                crds = geometry.coords[:]
                 dist = (selectie.distance(Point(*crds[0])) + selectie.distance(Point(*crds[-1]))) * 0.5
 
             # Enforce a point
-            geo = geometry.geometry
+            geo = geometry
             if not isinstance(geo, Point):
                 geo = geo.centroid
 
             # Log-friendly name with coordinates
             geom_name = f"at x={geo.x:.4f} and y={geo.y:.4f}"
-            if hasattr(geometry, "code"):
-                geom_name = f"for {geometry.code} {geom_name}"
+            if has_code:
+                geom_name = f"for {code} {geom_name}"
 
             # Determine nearest
             if dist.min() < maxdist:
                 branchidxmin = dist.idxmin()
-                geometries.at[geometry.Index, 'branch_id'] = branchidxmin
+                geometries.at[geometry_id, 'branch_id'] = branchidxmin
 
                 nbranches = (dist < maxdist).sum()
                 if nbranches > 1:
@@ -152,10 +164,10 @@ def find_nearest_branch(branches, geometries, method='overal', maxdist=5):
                     )
 
                 # Calculate offset
-                branchgeo = branches.at[branchidxmin, 'geometry']
+                branchgeo = branches.geometry[branchidxmin]
                 mindist = min(0.1, branchgeo.length / 2.)
                 offset = max(mindist, min(branchgeo.length - mindist, round(branchgeo.project(geo), 3)))
-                geometries.at[geometry.Index, 'branch_offset'] = offset
+                geometries.at[geometry_id, 'branch_offset'] = offset
             else:
                 logger.info(
                     "Centroid %s has 0 branches with maxdist=%s and method=%s",
@@ -276,7 +288,7 @@ def rasterize_polygons(
     return array, transform
 
 
-def line_parts(geometry) -> list[LineString]:
+def line_parts(geometry: BaseGeometry) -> list[LineString]:
     """All LineStrings in a geometry, including those in a GeometryCollection; points are ignored."""
     if isinstance(geometry, LineString):
         return [geometry]

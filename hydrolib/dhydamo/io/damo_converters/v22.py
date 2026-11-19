@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from hydrolib.dhydamo.core.relations import RelationsRR
 from hydrolib.dhydamo.io.damo_converters.base import BaseDamoConverter, LayerSpec
+
+if TYPE_CHECKING:
+    from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 
 class Damo22Converter(BaseDamoConverter):
@@ -49,7 +54,7 @@ class Damo22Converter(BaseDamoConverter):
         LayerSpec("laterals", "lateraleknoop"),
     )
 
-    def postprocess(self, hydamo) -> None:
+    def postprocess(self, hydamo: HyDAMO) -> None:
         device = hydamo.management_device
         if (
             not device.empty

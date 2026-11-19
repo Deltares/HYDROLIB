@@ -1,14 +1,18 @@
 import logging
-import re
 import warnings
+from collections.abc import Hashable
 from copy import deepcopy
 from pathlib import Path
+from types import ModuleType, UnionType
+from typing import Any
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
+from pyproj import CRS
 from shapely.geometry import LineString, MultiPolygon, Polygon
+from shapely.geometry.base import BaseGeometry
 
 from hydrolib.dhydamo.geometry import spatial
 
@@ -69,7 +73,16 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
     # _metadata exists at runtime, but types-geopandas does not declare it
     _metadata = ["required_columns", "geotype"] + gpd.GeoDataFrame._metadata  # type: ignore[attr-defined]
 
-    def __init__(self, geotype, required_columns=None, logger=logging, *args, **kwargs):
+    # args and kwargs are passed on to GeoDataFrame, which pandas also calls with its own arguments
+    def __init__(
+        self,
+        # a geometry class, or a union of them such as Polygon | MultiPolygon
+        geotype: type[BaseGeometry] | UnionType,
+        required_columns: str | list[str] | None = None,
+        logger: ModuleType | logging.Logger = logging,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         # Check type
         if required_columns is None:
             required_columns = []
@@ -88,7 +101,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         self.geotype = geotype
 
     # pandas-stubs marks DataFrame.copy as final; this override keeps the geotype and required columns
-    def copy(self, deep=True):  # type: ignore[misc]
+    def copy(self, deep: bool = True) -> "ExtendedGeoDataFrame":  # type: ignore[misc]
         """
         Create a copy
         """
@@ -107,7 +120,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         return edf
 
-    def delete_all(self):
+    def delete_all(self) -> None:
         """
         Empty the dataframe
         """
@@ -121,13 +134,13 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         index_col: str | None = None,
         column_mapping: dict | None = None,
         check_columns: bool = True,
-        proj_crs=None,
+        proj_crs: CRS | str | None = None,
         clip: Polygon | MultiPolygon | None = None,
         check_geotype: bool = True,
         id_col: str = "code",
         filter_cols: bool = False,
-        filter_rows=None,
-    ):
+        filter_rows: dict[str, object] | None = None,
+    ) -> None:
         """
         Import function, extended with type checks. Does not destroy reference to object.
         """
@@ -181,7 +194,13 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         else:
             logger.debug("No projected CRS is given in ini-file")
 
-    def set_data(self, gdf, index_col=None, check_columns=True, check_geotype=True):
+    def set_data(
+        self,
+        gdf: gpd.GeoDataFrame,
+        index_col: str | None = None,
+        check_columns: bool = True,
+        check_geotype: bool = True,
+    ) -> None:
         if not self.empty:
             self.delete_all()
 
@@ -209,7 +228,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         if check_geotype:
             self._check_geotype()
 
-    def _check_columns(self, gdf):
+    def _check_columns(self, gdf: pd.DataFrame) -> None:
         """
         Check presence of columns in geodataframe
         """
@@ -226,19 +245,19 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                     )
                 )
 
-    def _check_geotype(self):
+    def _check_geotype(self) -> None:
         """
         Check geometry type
         """
         if not all(isinstance(geo, self.geotype) for geo in self.geometry):
             raise TypeError(
                 'Geometrytype "{}" required. The input shapefile has geometry type(s) {}.'.format(
-                    re.findall("([A-Z].*)'", repr(self.geotype))[0],
+                    getattr(self.geotype, "__name__", str(self.geotype)),
                     self.geometry.type.unique().tolist(),
                 )
             )
 
-    def show_gpkg(self, gpkg_path: str | Path):
+    def show_gpkg(self, gpkg_path: str | Path) -> None:
         if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
 
@@ -293,7 +312,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         clip: Polygon | MultiPolygon | None = None,
         cliptype: str = "select",
         check_3d: bool = True,
-    ):
+    ) -> None:
         """Deprecated. Use ``HyDAMO.load_from_gpkg()`` for DAMO data loading."""
         warnings.warn(
             "read_gpkg_layer() is deprecated and will be removed in a future release. "
@@ -330,7 +349,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         clip: Polygon | MultiPolygon | None = None,
         cliptype: str = "select",
         check_3d: bool = True,
-    ):
+    ) -> None:
         if not Path(gpkg_path).exists():
             raise OSError(f'File not found: "{gpkg_path}"')
 
@@ -369,7 +388,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             self.clip(geometry=clip, cliptype=cliptype)
 
     # replaces GeoDataFrame.clip with an in-place clip or selection, with its own arguments
-    def clip(self, geometry: Polygon | MultiPolygon, cliptype: str = "select", clip_and_drop: bool = True):  # type: ignore[override]
+    def clip(self, geometry: Polygon | MultiPolygon, cliptype: str = "select", clip_and_drop: bool = True) -> None:  # type: ignore[override]
         """
         Clip geometry
         """
@@ -421,7 +440,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         self.set_data(gdf)
 
-    def check_projection(self, crs_out):
+    def check_projection(self, crs_out: CRS | str) -> None:
         """
         Check if reprojection is required
         """
@@ -432,19 +451,23 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             logger.info("OSM data has same projection as projected crs in ini-file")
 
     def branch_to_prof(
-        self, offset=0.0, vertex_end=False, rename_col=None, prefix="", suffix=""
-    ):
+        self,
+        offset: float = 0.0,
+        vertex_end: bool = False,
+        rename_col: str | None = None,
+        prefix: str = "",
+        suffix: str = "",
+    ) -> "ExtendedGeoDataFrame":
         """Create profiles on branches from branch data"""
 
         gdf_out = self.copy()
 
         # interpolate over feature geometries
+        # the offset from the end of each branch, or from its start
+        chainage: pd.Series | float = offset
         if vertex_end:
             chainage = self.length - offset
-            p = self.interpolate(chainage)
-        else:
-            chainage = offset
-            p = self.interpolate(chainage)
+        p = self.interpolate(chainage)
         gdf_out.geometry = p
         gdf_out["offset"] = chainage
 
@@ -489,7 +512,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
                 f"Merge of columns '{col1}' and '{col2}' did not succeed."
             ) from err
 
-    def snap_to_branch(self, branches, snap_method, maxdist=5):
+    def snap_to_branch(self, branches: gpd.GeoDataFrame, snap_method: str, maxdist: float = 5) -> None:
         """Snap the geometries to the branch"""
         spatial.find_nearest_branch(
             branches=branches, geometries=self, method=snap_method, maxdist=maxdist
@@ -500,7 +523,8 @@ class ExtendedDataFrame(pd.DataFrame):
     # _metadata exists at runtime, but pandas-stubs does not declare it
     _metadata = ["required_columns"] + pd.DataFrame._metadata  # type: ignore[attr-defined]
 
-    def __init__(self, required_columns=None, *args, **kwargs):
+    # args and kwargs are passed on to DataFrame, which pandas also calls with its own arguments
+    def __init__(self, required_columns: str | list[str] | None = None, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         if required_columns is None:
@@ -512,7 +536,7 @@ class ExtendedDataFrame(pd.DataFrame):
             else [required_columns]
         )
 
-    def delete_all(self):
+    def delete_all(self) -> None:
         """
         Empty the dataframe
         """
@@ -521,7 +545,7 @@ class ExtendedDataFrame(pd.DataFrame):
             # inplace: returning a copy of an ExtendedDataFrame gives a plain DataFrame
             self.dropna(inplace=True)  # noqa: PD002
 
-    def set_data(self, df, index_col):
+    def set_data(self, df: pd.DataFrame, index_col: Hashable | None) -> None:
         if not self.empty:
             self.delete_all()
 
@@ -540,7 +564,7 @@ class ExtendedDataFrame(pd.DataFrame):
         # Check columns and types
         self._check_columns()
 
-    def add_data(self, df):
+    def add_data(self, df: pd.DataFrame) -> None:
         if not np.isin(df.columns, self.columns).all():
             raise KeyError(
                 "The new df contains columns that are not present in the current df."
@@ -556,7 +580,7 @@ class ExtendedDataFrame(pd.DataFrame):
         # Add values again
         self.set_data(newdf, index_col=self.index.name)
 
-    def _check_columns(self):
+    def _check_columns(self) -> None:
         """
         Check presence of columns in geodataframe
         """
@@ -577,7 +601,7 @@ class ExtendedDataFrame(pd.DataFrame):
         layer_name: str,
         column_mapping: dict | None = None,
         index_col: str | None = None,
-    ):
+    ) -> None:
         """Deprecated. Use ``HyDAMO.load_from_gpkg()`` for DAMO data loading."""
         warnings.warn(
             "read_gpkg_layer() is deprecated and will be removed in a future release. "
@@ -598,8 +622,9 @@ class ExtendedDataFrame(pd.DataFrame):
         layer_name: str,
         column_mapping: dict | None = None,
         index_col: str | None = None,
-        **kwargs,
-    ):
+        # the arguments for geometry layers, which a table ignores
+        **kwargs: object,
+    ) -> None:
         """
         Read GML file to GeoDataFrame.
 

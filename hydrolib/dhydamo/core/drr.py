@@ -17,9 +17,9 @@ class DRRModel:
     for unpaved, paved,greehouse and open water nodes and external forcings (seepage, precipitation, evaporation)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize RR instances and arrays"""
-        self.d3b_parameters = {}
+        self.d3b_parameters: dict[str, str | int | float] = {}
 
         # Land-use counts and surface levels shared by the RR node types.
         self.zonal_cache = zonal.ZonalCache()
@@ -83,30 +83,35 @@ class ExternalForcings:
     conditions and the initial conditions.
     """
 
-    def __init__(self, drrmodel):
+    def __init__(self, drrmodel: DRRModel) -> None:
         # Point to relevant attributes from parent
         self.drrmodel = drrmodel
         self.io = drrreader.ExternalForcingsIO(self)
 
-        self.boundary_nodes = {}
-        self.seepage = {}
-        self.precip = {}
-        self.evap = {}
+        self.boundary_nodes: dict[str, dict[str, str]] = {}
+        self.seepage: dict[str, dict[str, pd.Series]] = {}
+        # a series per meteo area, or the path of an existing meteo file
+        self.precip: dict[str, dict[str, pd.Series]] | str = {}
+        self.evap: dict[str, dict[str, pd.Series]] | str = {}
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def add_precip(self, id: str, series: pd.Series):
+    def add_precip(self, id: str, series: pd.Series) -> None:
+        if isinstance(self.precip, str):
+            raise TypeError(f"The precipitation is already read from {self.precip}.")
         self.precip[id] = {"precip": series}
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def add_evap(self, id: str, series: pd.Series):
+    def add_evap(self, id: str, series: pd.Series) -> None:
+        if isinstance(self.evap, str):
+            raise TypeError(f"The evaporation is already read from {self.evap}.")
         self.evap[id] = {"evap": series}
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def add_seepage(self, id: str, series: pd.Series):
+    def add_seepage(self, id: str, series: pd.Series) -> None:
         self.seepage[id] = {"seepage": series}
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def add_boundary_node(self, id: str, px: str, py: str):
+    def add_boundary_node(self, id: str, px: str, py: str) -> None:
         self.boundary_nodes[id] = {"id": id, "px": px, "py": py}
 
 
@@ -115,13 +120,13 @@ class Unpaved:
     Class for unpaved nodes
     """
 
-    def __init__(self, drrmodel):
+    def __init__(self, drrmodel: DRRModel) -> None:
         # Point to relevant attributes from parent
         self.drrmodel = drrmodel
 
         # initialize a dataframe for every type of nodes related to 'unpaved'
-        self.unp_nodes = {}
-        self.ernst_defs = {}
+        self.unp_nodes: dict[str, dict[str, str]] = {}
+        self.ernst_defs: dict[str, dict[str, str]] = {}
         # couple input class
         self.io = drrreader.UnpavedIO(self)
 
@@ -205,16 +210,13 @@ class Paved:
     Class for paved nodes.
     """
 
-    def __init__(self, drrmodel):
+    def __init__(self, drrmodel: DRRModel) -> None:
         # Point to relevant attributes from parent
         self.drrmodel = drrmodel
-        self.pav_nodes = {}
+        self.pav_nodes: dict[str, dict[str, str]] = {}
 
         # Create the io class
         self.io = drrreader.PavedIO(self)
-
-        self.node_geom = {}
-        self.link_geom = {}
 
     # PAVE id 'pav_Nde_n003' ar 16200 lv 1 sd '1' ss 0 qc 0 1.94E-05 0 qo 2 2 ms 'Station1' aaf 1 is 0 np 0 dw '1' ro 0 ru 0 qh '' pave#
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
@@ -269,9 +271,9 @@ class Greenhouse:
     Class for greenhouse nodes
     """
 
-    def __init__(self, drrmodel):
+    def __init__(self, drrmodel: DRRModel) -> None:
         self.drrmodel = drrmodel
-        self.gh_nodes = {}
+        self.gh_nodes: dict[str, dict[str, str]] = {}
 
         # Create the io class
         self.io = drrreader.GreenhouseIO(self)
@@ -322,9 +324,9 @@ class Openwater:
     Class for open water nodes
     """
 
-    def __init__(self, drrmodel):
+    def __init__(self, drrmodel: DRRModel) -> None:
         self.drrmodel = drrmodel
-        self.ow_nodes = {}
+        self.ow_nodes: dict[str, dict[str, str]] = {}
 
         # Create the io class
         self.io = drrreader.OpenwaterIO(self)

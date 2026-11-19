@@ -14,6 +14,7 @@ from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 from netCDF4 import Dataset
+from pydantic import ValidationError
 from rasterio.transform import from_origin
 from shapely.geometry import (
     LineString,
@@ -170,6 +171,15 @@ def test_merge_columns_incompatible_types() -> None:
 
     with pytest.raises(ValueError, match="did not succeed"):
         geoms.merge_columns("x", "n", "merged")
+
+
+def test_check_geotype_with_a_union_of_types() -> None:
+    # catchments accept Polygon | MultiPolygon; a wrong type used to give an IndexError in the message
+    catchments = ExtendedGeoDataFrame(geotype=Polygon | MultiPolygon, required_columns=["code"])
+    points = gpd.GeoDataFrame({"code": ["c1"]}, geometry=[Point(0, 0)])
+
+    with pytest.raises(TypeError, match="Polygon | .*MultiPolygon.* required"):
+        catchments.set_data(points, index_col="code")
 
 
 def test_clip_and_drop_linestring_uses_first_with_warning(caplog: pytest.LogCaptureFixture) -> None:
@@ -382,17 +392,17 @@ def test_convert_pumps(
     hydamo.structures.convert.pumps(
         hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
     )
-    pumps = list(hydamo.structures.pumps_df.itertuples())
+    pumps = hydamo.structures.pumps_df.to_dict("records", into=dict)
     assert [
-        (pump.id, pump.capacity, pump.startlevelsuctionside, pump.stoplevelsuctionside)
+        (pump["id"], pump["capacity"], pump["startlevelsuctionside"], pump["stoplevelsuctionside"])
         for pump in pumps
     ] == expected
     for pump in pumps:
-        assert pump.startleveldeliveryside == pump.startlevelsuctionside
-        assert pump.stopleveldeliveryside == pump.stoplevelsuctionside
+        assert pump["startleveldeliveryside"] == pump["startlevelsuctionside"]
+        assert pump["stopleveldeliveryside"] == pump["stoplevelsuctionside"]
         # Catch the original list-of-Series regression, even for a single value.
-        assert np.isscalar(pump.startlevelsuctionside[0])
-        assert np.isscalar(pump.stoplevelsuctionside[0])
+        assert np.isscalar(pump["startlevelsuctionside"][0])
+        assert np.isscalar(pump["stoplevelsuctionside"][0])
 
     compounds = hydamo.structures.compounds_df
     if len(management_counts) > 1:
@@ -732,15 +742,12 @@ def test_add_boundaries() -> None:
 
 
 def test_add_boundary_condition_accepts_integer_value() -> None:
-    class _DummyMesh1DState:
-        def __init__(self) -> None:
-            self.mesh1d_node_id = np.array([1])
-            self.mesh1d_node_x = np.array([197464.0])
-            self.mesh1d_node_y = np.array([392130.0])
-
-    class _DummyMesh1D:
-        def __init__(self) -> None:
-            self._mesh1d = _DummyMesh1DState()
+    fm = FMModel()
+    assert isinstance(fm.geometry.netfile, NetworkModel)
+    network = fm.geometry.netfile.network
+    mesh.mesh1d_add_branch_from_linestring(
+        network, LineString([(197464.0, 392130.0), (197564.0, 392130.0)]), node_distance=100
+    )
 
     hydamo = HyDAMO()
     hydamo.external_forcings.add_boundary_condition(
@@ -748,7 +755,7 @@ def test_add_boundary_condition_accepts_integer_value() -> None:
         (197464.0, 392130.0),
         "dischargebnd",
         1,
-        _DummyMesh1D(),
+        network,
     )
 
     boundary = hydamo.external_forcings.boundary_nodes["RVW_INT"]
@@ -756,6 +763,31 @@ def test_add_boundary_condition_accepts_integer_value() -> None:
     assert isinstance(boundary["vec2"], float)
     assert int(boundary["vec2"]) == 1
     assert boundary["unit2"] == "m3/s"
+
+
+def test_add_boundary_condition_requires_a_network() -> None:
+    with pytest.raises(ValueError, match="Provide the network"):
+        HyDAMO().external_forcings.add_boundary_condition("RVW", (0.0, 0.0), "dischargebnd", 1.0)
+
+
+@pytest.mark.parametrize(
+    ("method", "kwargs"),
+    [
+        ("add_rweir", {}),
+        ("add_orifice", {}),
+        ("add_uweir", {}),
+        ("add_bridge", {"frictiontype": "Manning"}),
+        ("add_culvert", {"crosssection": {"shape": "circle", "diameter": 1.0}, "bedfrictiontype": "Manning", "bedfriction": 0.03}),
+        ("add_pump", {}),
+    ],
+)
+def test_add_structure_requires_keywords(method: str, kwargs: dict[str, object]) -> None:
+    # id, branchid and chainage are required, and all arguments are keyword-only
+    add = getattr(HyDAMO().structures, method)
+    with pytest.raises(ValidationError, match="Missing required"):
+        add(**kwargs)
+    with pytest.raises(ValidationError, match="Unexpected positional argument"):
+        add("S1", None, "branch", 10.0)
 
 
 def test_add_initialfields_uniform_depth() -> None:

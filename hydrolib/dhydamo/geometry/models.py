@@ -1,3 +1,6 @@
+from collections.abc import Iterator
+from typing import Self
+
 import numpy as np
 from meshkernel import GeometryList as GeometryListMK
 from shapely.geometry import (
@@ -8,16 +11,14 @@ from shapely.geometry import (
     Point,
     Polygon,
 )
+from shapely.geometry.base import BaseGeometry
 
 from hydrolib.core.dflowfm.net.models import split_by
 
 
 class GeometryList(GeometryListMK):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     @classmethod
-    def from_geometry(cls, geometry):
+    def from_geometry(cls, geometry: BaseGeometry) -> Self:
         if isinstance(geometry, Polygon):
             return cls.from_polygon(geometry)
         elif isinstance(geometry, MultiPolygon):
@@ -34,22 +35,22 @@ class GeometryList(GeometryListMK):
             raise TypeError(f"Geometry type {type(geometry)} not understood.")
 
     @classmethod
-    def _from_simple(cls, geometry: LineString | Point):
+    def _from_simple(cls, geometry: LineString | Point) -> Self:
         # Extract coordinates from geometry
         x_crds, y_crds = np.array(geometry.coords[:]).T
         gl = cls(x_coordinates=x_crds, y_coordinates=y_crds)
         return gl
 
     @classmethod
-    def from_linestring(cls, linestring: LineString):
+    def from_linestring(cls, linestring: LineString) -> Self:
         return cls._from_simple(linestring)
 
     @classmethod
-    def from_point(cls, point: Point):
+    def from_point(cls, point: Point) -> Self:
         return cls._from_simple(point)
 
     @classmethod
-    def from_polygon(cls, polygon: Polygon):
+    def from_polygon(cls, polygon: Polygon) -> Self:
         # Create a list of coordinate lists
         # Add exterior
         x_ext, y_ext = np.array(polygon.exterior.coords[:]).T
@@ -73,7 +74,7 @@ class GeometryList(GeometryListMK):
         return gl
 
     @classmethod
-    def _from_multigeometry(cls, multigeometry: MultiLineString | MultiPolygon | MultiPoint):
+    def _from_multigeometry(cls, multigeometry: MultiLineString | MultiPolygon | MultiPoint) -> Self:
         x_crds = []
         y_crds = []
         cls.inner_outer_separator = -998
@@ -95,15 +96,15 @@ class GeometryList(GeometryListMK):
         return gl
 
     @classmethod
-    def from_multipolygon(cls, multipolygon: MultiPolygon):
+    def from_multipolygon(cls, multipolygon: MultiPolygon) -> Self:
         return cls._from_multigeometry(multipolygon)
 
     @classmethod
-    def from_multilinestring(cls, multilinestring: MultiLineString):
+    def from_multilinestring(cls, multilinestring: MultiLineString) -> Self:
         return cls._from_multigeometry(multilinestring)
 
     @classmethod
-    def from_multipoint(cls, multipoint: MultiPoint):
+    def from_multipoint(cls, multipoint: MultiPoint) -> Self:
         return cls._from_multigeometry(multipoint)
 
     def _to_polygon(
@@ -145,7 +146,7 @@ class GeometryList(GeometryListMK):
         else:
             return points[0]
 
-    def to_geometry(self):
+    def to_geometry(self) -> Polygon | MultiPolygon | LineString | MultiLineString | Point | MultiPoint:
         geometries = [
             geo
             for geo in split_by(self, self.geometry_separator)
@@ -164,7 +165,7 @@ class GeometryList(GeometryListMK):
         return self._to_points(geometries, is_multi)
 
     @property
-    def geoms(self):
+    def geoms(self) -> Iterator[Polygon | MultiPolygon | LineString | MultiLineString | Point | MultiPoint]:
         """Returns GeometryList objects based on spliited by geometries"""
         for geometrylist in split_by(self, self.geometry_separator):
             # yield as shapely geometry

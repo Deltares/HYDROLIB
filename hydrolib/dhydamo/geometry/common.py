@@ -1,3 +1,4 @@
+from typing import overload
 
 import numpy as np
 from shapely.geometry import (
@@ -8,35 +9,6 @@ from shapely.geometry import (
     Point,
     Polygon,
 )
-
-
-def _as_geometry_list(geometry, singletype, multitype):
-    """Convenience method to return a list with one or more
-
-    Polygons/LineString/Point from a given Polygon/LineString/Point
-    or MultiPolygon/MultiLineString/MultiPoint.
-
-    Parameters
-    ----------
-    polygon : list or Polygon or MultiPolygon
-        Object to be converted
-
-    Returns
-    -------
-    list
-        list of Polygons
-    """
-    if isinstance(geometry, singletype):
-        return [geometry]
-    elif isinstance(geometry, multitype):
-        return [p for p in geometry.geoms]
-    elif isinstance(geometry, list):
-        lst = []
-        for item in geometry:
-            lst.extend(_as_geometry_list(item, singletype, multitype))
-        return lst
-    else:
-        raise TypeError(f'Expected {singletype} or {multitype}. Got "{type(geometry)}"')
 
 
 def as_linestring_list(
@@ -51,7 +23,16 @@ def as_linestring_list(
     Returns:
         List[LineString]: list of shapely geometry LineString objects
     """
-    return _as_geometry_list(linestring, LineString, MultiLineString)
+    if isinstance(linestring, LineString):
+        return [linestring]
+    if isinstance(linestring, MultiLineString):
+        return list(linestring.geoms)
+    if not isinstance(linestring, list):
+        raise TypeError(f'Expected LineString or MultiLineString. Got "{type(linestring)}"')
+    linestrings: list[LineString] = []
+    for item in linestring:
+        linestrings.extend(as_linestring_list(item))
+    return linestrings
 
 
 def as_polygon_list(
@@ -66,7 +47,16 @@ def as_polygon_list(
     Returns:
         List[Polygon]: list of shapely geometry Polygon objects
     """
-    return _as_geometry_list(polygon, Polygon, MultiPolygon)
+    if isinstance(polygon, Polygon):
+        return [polygon]
+    if isinstance(polygon, MultiPolygon):
+        return list(polygon.geoms)
+    if not isinstance(polygon, list):
+        raise TypeError(f'Expected Polygon or MultiPolygon. Got "{type(polygon)}"')
+    polygons: list[Polygon] = []
+    for item in polygon:
+        polygons.extend(as_polygon_list(item))
+    return polygons
 
 
 def as_point_list(
@@ -81,13 +71,26 @@ def as_point_list(
     Returns:
         List[Point]: list of shapely geometry Point objects
     """
-    return _as_geometry_list(point, Point, MultiPoint)
+    if isinstance(point, Point):
+        return [point]
+    if isinstance(point, MultiPoint):
+        return list(point.geoms)
+    if not isinstance(point, list):
+        raise TypeError(f'Expected Point or MultiPoint. Got "{type(point)}"')
+    points: list[Point] = []
+    for item in point:
+        points.extend(as_point_list(item))
+    return points
 
 
-def interp_linestring(linestring, dist):
+@overload
+def interp_linestring(linestring: LineString, dist: float) -> LineString: ...
+@overload
+def interp_linestring(linestring: MultiLineString, dist: float) -> MultiLineString: ...
+def interp_linestring(linestring: LineString | MultiLineString, dist: float) -> LineString | MultiLineString:
     # In case of multilinestring
     if isinstance(linestring, MultiLineString):
-        return MultiLineString([interp_linestring(ls, dist) for ls in linestring])
+        return MultiLineString([interp_linestring(ls, dist) for ls in linestring.geoms])
 
     return LineString(
         [
@@ -99,12 +102,18 @@ def interp_linestring(linestring, dist):
     )
 
 
-def interp_polygon(polygon, dist):
+@overload
+def interp_polygon(polygon: Polygon, dist: float) -> Polygon: ...
+@overload
+def interp_polygon(polygon: MultiPolygon, dist: float) -> MultiPolygon: ...
+def interp_polygon(polygon: Polygon | MultiPolygon, dist: float) -> Polygon | MultiPolygon:
     # In case of multipolygon
     if isinstance(polygon, MultiPolygon):
-        return MultiPolygon([interp_polygon(p, dist) for p in polygon])
+        return MultiPolygon([interp_polygon(p, dist) for p in polygon.geoms])
 
     simplified = polygon.simplify(dist)
+    if not isinstance(simplified, Polygon):
+        raise TypeError(f"Simplifying a Polygon gave a {simplified.geom_type}")
     polygon = Polygon(
         shell=interp_linestring(simplified.exterior, dist),
         holes=[interp_linestring(intr, dist) for intr in simplified.interiors],

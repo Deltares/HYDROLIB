@@ -1,9 +1,11 @@
+import logging
 import re
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import pytest
 from hydrolib.core.base.models import DiskOnlyFileModel
 from hydrolib.core.dflowfm.crosssection.models import CrossDefModel, CrossLocModel
 from hydrolib.core.dflowfm.friction.models import FrictionModel
@@ -24,7 +26,7 @@ from hydrolib.dhydamo.converters.hydamo2df import RoughnessVariant
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
-from shapely.geometry import Point, Polygon
+from shapely.geometry import LineString, Point, Polygon
 
 from tests.dhydamo.io import test_from_hydamo
 
@@ -282,6 +284,20 @@ def test_write_model() -> None:
     assert (output_path / "dflowfm" / "InitialWaterDepth.ini").exists()
 
 
+def test_default_profiles_without_a_default_definition(caplog: pytest.LogCaptureFixture) -> None:
+    # without a default definition no locations are added; they used to get the definition None
+    hydamo = HyDAMO()
+    branches = gpd.GeoDataFrame({"code": ["b1"]}, geometry=[LineString([(0, 0), (100, 0)])])
+    hydamo.branches.set_data(branches, index_col="code")
+    hydamo.crosssections.set_default_locations(["b1"])
+
+    with caplog.at_level(logging.WARNING):
+        models = Df2HydrolibModel(hydamo, assign_default_profiles=True)
+
+    assert models.crosslocs == []
+    assert any("Not all branches have a cross section" in message for message in caplog.messages)
+
+
 def test_ext_model_file_version(tmp_path: Path) -> None:
     # D-HYDRO 2026.02 refuses the default version 3.00 of hydrolib-core 1.6 (issue #248)
     models = Df2HydrolibModel(HyDAMO())
@@ -295,16 +311,15 @@ def test_ext_model_file_version(tmp_path: Path) -> None:
 def test_constant_and_qh_boundaries_write_time_interpolation(tmp_path: Path) -> None:
     # the D-HYDRO GUI (2026.02) requires timeInterpolation in every [Forcing] block, also for
     # constant values and QH tables, where hydrolib-core does not write it
-    class _Mesh1D:
-        class _mesh1d:
-            mesh1d_node_id = np.array(["n1", "n2"])
-            mesh1d_node_x = np.array([0.0, 100.0])
-            mesh1d_node_y = np.array([0.0, 0.0])
+    fm = FMModel()
+    assert isinstance(fm.geometry.netfile, NetworkModel)
+    network = fm.geometry.netfile.network
+    mesh.mesh1d_add_branch_from_linestring(network, LineString([(0.0, 0.0), (100.0, 0.0)]), node_distance=100)
 
     hydamo = HyDAMO()
     forcings = hydamo.external_forcings
-    forcings.add_boundary_condition("constant", (0.0, 0.0), "waterlevelbnd", 1.5, _Mesh1D())
-    forcings.add_boundary_condition("qh", (100.0, 0.0), "qhbnd", {"Q": [0.0, 1.0], "H": [1.0, 2.0]}, _Mesh1D())
+    forcings.add_boundary_condition("constant", (0.0, 0.0), "waterlevelbnd", 1.5, network)
+    forcings.add_boundary_condition("qh", (100.0, 0.0), "qhbnd", {"Q": [0.0, 1.0], "H": [1.0, 2.0]}, network)
     models = Df2HydrolibModel(hydamo)
     models.forcingmodel.save(tmp_path / "boundaryconditions.bc")
 

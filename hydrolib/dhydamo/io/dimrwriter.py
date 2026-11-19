@@ -40,7 +40,7 @@ class DIMRWriter:
         self.template_dir = Path(os.path.abspath("."))
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def write_runbat(self, debuglevel=6, runlog=None) -> None:
+    def write_runbat(self, debuglevel: int = 6, runlog: str | Path | None = None) -> None:
         """Generates a run.bat to run the model in DIMR. The path to the executable is provided by the user in the class initialization, or set to the default D-Hydro installation folder."""
 
         with open(os.path.join(self.output_path, "run.bat"), "w") as f:
@@ -528,4 +528,4 @@ class DIMRWriter:
 
             myroot.append(couplerrrfm)
         # use the function from DRTC to finish the file with the correct namespace
-        DRTCModel.finish_file(myroot, configfile, self.output_path / "dimr_config.xml")
+        DRTCModel.finish_file(myroot, self.output_path / "dimr_config.xml")

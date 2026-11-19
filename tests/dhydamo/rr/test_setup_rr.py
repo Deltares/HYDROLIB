@@ -2,6 +2,7 @@ import copy
 import re
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
@@ -121,6 +122,9 @@ def test_setup_rr_model(rr_model: DRRModel) -> None:
     assert drrmodel.greenhouse.gh_nodes["15.0"]["sl"] == "16.93"
     assert drrmodel.openwater.ow_nodes["15.0"]["ar"] == "900.0"
 
+    # series per meteo area, not the path of a meteo file
+    assert isinstance(drrmodel.external_forcings.precip, dict)
+    assert isinstance(drrmodel.external_forcings.evap, dict)
     assert drrmodel.external_forcings.precip["ms_15.0"]["precip"].iloc[2] == pytest.approx(
         0.08, abs=1e-7
     )
@@ -320,3 +324,11 @@ def test_rr_written_files_match_fnm(rr_model: DRRModel, tmp_path: Path) -> None:
     for name in _fnm_input_files(rr_dir / "Sobek_3b.fnm"):
         if name.lower() in by_lower:
             assert name in written, f"Sobek_3b.fnm refers to {name}, written as {by_lower[name.lower()][0]}"
+
+
+def test_add_precip_after_a_meteo_file_raises() -> None:
+    # precipitation from a file and series per meteo area cannot be combined
+    forcings = DRRModel().external_forcings
+    forcings.precip = "DEFAULT.BUI"
+    with pytest.raises(TypeError, match="already read from DEFAULT.BUI"):
+        forcings.add_precip("ms_1", pd.Series([1.0]))

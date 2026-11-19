@@ -11,10 +11,21 @@ import shapely
 from branca.element import MacroElement
 from jinja2 import Template
 from matplotlib.figure import Figure
+from shapely.geometry import LineString, MultiLineString
+
+from hydrolib.core.dflowfm.net.models import Network
 
 
 # --- helper for point layers ---
-def point_layer(m, gdf, name, color, symbol, size=14, use_centroid=False):
+def point_layer(
+    m: folium.Map,
+    gdf: gpd.GeoDataFrame,
+    name: str,
+    color: str,
+    symbol: str,
+    size: int = 14,
+    use_centroid: bool = False,
+) -> None:
     # One GeoJson layer with a shared marker template instead of a folium.Marker per point, keeps the HTML small.
     geoms = gdf.geometry.set_crs(28992)
     if use_centroid:
@@ -34,7 +45,7 @@ def point_layer(m, gdf, name, color, symbol, size=14, use_centroid=False):
     ).add_to(m)
 
 class TitleControl(MacroElement):
-    def __init__(self, title):
+    def __init__(self, title: str) -> None:
         super().__init__()
         self.title = title
         self._template = Template("""
@@ -51,7 +62,7 @@ class TitleControl(MacroElement):
         """)
 
 def plot_network(
-    network,
+    network: Network,
     crs: int = 28992,
     mesh1d_kwargs: dict | None = None,
     mesh2d_kwargs: dict | None = None,
@@ -77,18 +88,21 @@ def plot_network(
     all_bounds = []
     nodes1d = faces2d = None
 
-    def edges_to_lines(nodes, edge_nodes):
+    def edges_to_lines(nodes: np.ndarray, edge_nodes: np.ndarray) -> LineString | np.ndarray:
         coords = nodes[edge_nodes]
         return shapely.linestrings(
             coords.reshape(-1, 2),
             indices=np.repeat(np.arange(len(edge_nodes)), 2),
         )
 
-    def add_lines(geoms, name, color, weight):
+    def add_lines(geoms: LineString | np.ndarray, name: str, color: str, weight: float) -> None:
         # One MultiLineString instead of a feature per edge, with coordinates rounded to 1e-6 degrees (~0.1 m).
         # This keeps the HTML small enough to render a 2D mesh in a notebook.
         lines = gpd.GeoSeries(geoms, crs=crs).to_crs(4326)
-        merged = shapely.set_precision(shapely.multilinestrings(lines.values), 1e-6, mode="pointwise")
+        merged = shapely.multilinestrings(lines.to_numpy())
+        if not isinstance(merged, MultiLineString):
+            raise TypeError(f"Expected one MultiLineString, got {type(merged)}")
+        merged = shapely.set_precision(merged, 1e-6, mode="pointwise")
         folium.GeoJson(
             gpd.GeoDataFrame(geometry=[merged], crs=4326), name=name,
             style_function=lambda _, c=color, w=weight: {"color": c, "weight": w},
@@ -105,7 +119,9 @@ def plot_network(
     if not network._mesh2d.is_empty():
         nodes2d = np.stack([network._mesh2d.mesh2d_node_x, network._mesh2d.mesh2d_node_y], axis=1)
         add_lines(
-            edges_to_lines(nodes2d, network._mesh2d.mesh2d_edge_nodes),
+            # TODO: fix in hydrolib-core, mesh2d_edge_nodes is annotated np.ndarray[int, int] (like #1314):
+            # https://github.com/Deltares/HYDROLIB-core/issues/1314
+            edges_to_lines(nodes2d, network._mesh2d.mesh2d_edge_nodes),  # type: ignore[arg-type]
             "Mesh 2D", mesh2d_kwargs["color"], mesh2d_kwargs["weight"],
         )
         faces2d = np.stack([network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y], axis=1)
