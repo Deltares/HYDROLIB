@@ -20,6 +20,7 @@ from shapely.geometry import (
 
 from hydrolib.core.dflowfm.net.models import Branch, Mesh2d, Network
 from hydrolib.core.dflowfm.net.reader import UgridReader
+from hydrolib.core.dflowfm.net.writer import FillValueConfiguration
 from hydrolib.dhydamo.geometry import common, spatial, zonal
 from hydrolib.dhydamo.geometry.models import GeometryList
 
@@ -55,6 +56,8 @@ def mesh2d_add_rectilinear(
         deletemeshoption (mk.DeleteMeshOption, optional): Option for clipping mesh.
             Defaults to mk.DeleteMeshOption.INSIDE_NOT_INTERSECTED.
     """
+
+    before = network._mesh2d.get_mesh2d() if _has_bedlevel(network) else None
 
     # Loop over polygons and create a grid for each polygon bounds
     mesh2d_hc = Mesh2d(meshkernel=mk.MeshKernel())
@@ -98,15 +101,52 @@ def mesh2d_add_rectilinear(
             ]),
         )
 
+    _drop_stale_bedlevel(network, before)
+
 def mesh2d_from_netcdf(network: Network, path: Path | str) -> None:
     """Read a 2d mesh from a UGRID netCDF file into the network.
+
+    A face bed level is always dropped, with a warning: MeshKernel rebuilds the faces from the edges, so neither a face
+    bed level from the file nor one of the network can be matched to them. A node bed level from the file is kept if
+    it has one value per node; a node bed level of the network that the file does not replace is kept only if the
+    nodes did not change. A bed level in the file with only fill values, as hydrolib-core writes when there is no bed
+    level, counts as no bed level.
 
     Args:
         network (Network): Network object to which the mesh is added
         path (Path | str): Path to the UGRID netCDF file
     """
+    before = network._mesh2d.get_mesh2d() if _has_bedlevel(network) else None
+    node_z, face_z = network._mesh2d.mesh2d_node_z, network._mesh2d.mesh2d_face_z
     reader = UgridReader(path)
     reader.read_mesh2d(network._mesh2d)
+
+    # hydrolib-core always writes mesh2d_node_z and mesh2d_face_z, filled with its fill value when there is no bed
+    # level, and reads them back as that value. Such a bed level is no bed level: keep the network's own instead.
+    fill_value = FillValueConfiguration().float64_fill_value
+    for bedlevel_name, own in (("mesh2d_node_z", node_z), ("mesh2d_face_z", face_z)):
+        bedlevel = getattr(network._mesh2d, bedlevel_name)
+        if bedlevel is not own and np.all(bedlevel == fill_value):
+            setattr(network._mesh2d, bedlevel_name, own)
+
+    # hydrolib-core passes only the nodes and edges to MeshKernel, which derives the faces from the edges and closes
+    # small holes into extra faces; even when faces are given, MeshKernel (8.4) puts them in its own order. A face bed
+    # level, from the file or of the network, does not follow:
+    # https://github.com/Deltares/HYDROLIB-core/issues/1318 (order), https://github.com/Deltares/HYDROLIB-core/issues/577
+    # (extra faces)
+    if network._mesh2d.mesh2d_face_z.size > 0:
+        network._mesh2d.mesh2d_face_z = np.empty(0, dtype=np.double)
+        logger.warning(
+            "The 2D face bed level cannot be matched to the faces MeshKernel rebuilds when reading a mesh and is "
+            "dropped. Recompute it after the last mesh change (mesh2d_altitude_from_raster) or add it as samples to "
+            "the initial fields (set_spatial_field)."
+        )
+
+    # hydrolib-core replaces the node bed level only if the file has one. That one belongs to the loaded mesh, since
+    # MeshKernel keeps the nodes, so only its number of values is checked; the network's own belongs to the mesh
+    # before the read.
+    bedlevel_mesh = before if network._mesh2d.mesh2d_node_z is node_z else network._mesh2d.get_mesh2d()
+    _drop_stale_bedlevel(network, bedlevel_mesh)
 
 
 def mesh2d_add_triangular(
@@ -128,6 +168,7 @@ def mesh2d_add_triangular(
             triangle size. Defaults to None.
     """
 
+    before = network._mesh2d.get_mesh2d() if _has_bedlevel(network) else None
     meshkernel = network._mesh2d.meshkernel
     for poly in common.as_polygon_list(polygon):
         # Interpolate coordinates on polygon with edge_length distance
@@ -137,6 +178,7 @@ def mesh2d_add_triangular(
         # Add triangular mesh within polygon
         # No scale_factor: meshkernel>=8.4 ignores it (Deltares/MeshKernelPy#291)
         meshkernel.mesh2d_make_triangular_mesh_from_polygon(_geomlist_from_polygon(poly))
+    _drop_stale_bedlevel(network, before)
 
 def mesh2d_clip(
     network: Network,
@@ -153,6 +195,7 @@ def mesh2d_clip(
             polygon. Defaults to mk.DeleteMeshOption.INSIDE_AND_INTERSECTED.
         inside (bool, optional): Whether to clip inside or outside the polygon. Defaults to True.
     """
+    before = network._mesh2d.get_mesh2d() if _has_bedlevel(network) else None
 
     if isinstance(polygon, GeometryList):
         geo = polygon.to_geometry()
@@ -188,6 +231,7 @@ def mesh2d_clip(
     # Remove hanging edges
     network._mesh2d.meshkernel.mesh2d_delete_hanging_edges()    
     network._mesh2d.meshkernel.mesh2d_get()
+    _drop_stale_bedlevel(network, before)
 
 def _geomlist_from_polygon(polygon: Polygon) -> mk.GeometryList:
     """Convert a shapely Polygon to a meshkernel GeometryList.
@@ -269,11 +313,68 @@ def mesh2d_refine(
         for key in refine_parameters:
             setattr(parameters, key, refine_parameters[key])
 
+    before = network._mesh2d.get_mesh2d() if _has_bedlevel(network) else None
     for poly in common.as_polygon_list(polygon):
         network.mesh2d_refine_mesh(
             _geomlist_from_polygon(poly),
             level=steps,            
             parameters=parameters)                      
+    _drop_stale_bedlevel(network, before)
+
+
+def _has_bedlevel(network: Network) -> bool:
+    """Whether the 2D mesh of the network has a stored node or face bed level."""
+    return bool(network._mesh2d.mesh2d_node_z.size > 0 or network._mesh2d.mesh2d_face_z.size > 0)
+
+
+def _drop_stale_bedlevel(network: Network, bedlevel_mesh: mk.Mesh2d | None) -> None:
+    """Drop the stored node and face bed level of the 2D mesh of the network if they no longer fit, with a warning.
+
+    A node bed level is kept if the nodes are unchanged; a face bed level if the nodes and the faces are unchanged,
+    with the same positions and in the same order. A bed level without one value per node or face is always dropped.
+
+    MeshKernel stores no bed level, and hydrolib-core does not sync ``mesh2d_node_z`` and ``mesh2d_face_z`` with the
+    mesh: after the mesh changes they no longer fit, and saving the network fails with "shape mismatch". The D-HyDAMO
+    functions that change the 2D mesh therefore call this function. The values cannot be remapped: a node or face index
+    is only a position in an array, and every change renumbers them. Calling hydrolib-core's own mesh functions
+    directly still bypasses this.
+
+    Parameters
+    ----------
+    network : Network
+        The network, after the change of its 2D mesh.
+    bedlevel_mesh : mk.Mesh2d or None
+        The mesh to which the stored bed level belongs; None if no bed level was stored.
+    """
+    # fetching the mesh from MeshKernel is expensive for large meshes: only do it if there is a bed level to check
+    if not _has_bedlevel(network):
+        return
+    mesh2d = network._mesh2d
+    current = mesh2d.get_mesh2d()
+    for location, n_locations, mesh_arrays in (
+        ("node", current.node_x.size, ("node_x", "node_y")),
+        ("face", current.nodes_per_face.size, ("node_x", "node_y", "face_nodes", "nodes_per_face")),
+    ):
+        # unchanged is True only if bedlevel_mesh and the mesh now have the same nodes (for a face bed level: also the
+        # same faces), at the same positions and in the same order.
+        unchanged = False
+        if bedlevel_mesh is not None:
+            unchanged = all(
+                np.array_equal(getattr(bedlevel_mesh, name), getattr(current, name)) for name in mesh_arrays
+            )
+
+        bedlevel_name = f"mesh2d_{location}_z"
+        size = getattr(mesh2d, bedlevel_name).size
+        if size == 0 or (size == n_locations and unchanged):
+            # nothing to drop: no bed level is stored, or it has one value per node or face of an unchanged mesh
+            continue
+
+        # Bedlevel is stale, drop the old values and log a warning.
+        setattr(mesh2d, bedlevel_name, np.empty(0, dtype=np.double))
+        logger.warning(
+            f"The 2D {location} bed level no longer fits the 2D mesh and is dropped. Recompute it after the last mesh "
+            "change (mesh2d_altitude_from_raster) or add it as samples to the initial fields (set_spatial_field)."
+        )
 
 
 def mesh1d_add_branch_from_linestring(
