@@ -1,0 +1,11 @@
+# pyproject.toml's test task collects coverage for hydrolib (excluding contrib)
+# and writes coverage.xml; .github/workflows/ci.yml uploads it to Codecov.
+# This file groups the uploaded coverage by module for the README badges.
+component_management:
+  individual_components:
+    - component_id: dhydamo
+      paths:
+        - hydrolib/dhydamo/**
+    - component_id: profile_optimizer
+      paths:
+        - hydrolib/profile_optimizer/**
