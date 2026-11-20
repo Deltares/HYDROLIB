@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
@@ -85,6 +86,89 @@ def test_sample_field_written(tmp_path):
     assert (field.datafiletype, field.interpolationmethod) == ("sample", "triangulation")
     xyz = np.loadtxt(tmp_path / "initial_waterlevel_00.xyz")
     np.testing.assert_allclose(xyz[:, 2], [0.3, 0.4, 0.5])
+
+
+def test_sample_settings_written(tmp_path: Path) -> None:
+    # averaging settings on samples for 2D cells, and extrapolation on a raster with triangulation
+    hydamo = HyDAMO()
+    hydamo.external_forcings.set_spatial_field(
+        _points(),
+        quantity="bedlevel",
+        filetype="sample",
+        locationtype="2d",
+        interpolationmethod="averaging",
+        averagingrelsize=2.0,
+        averagingnummin=3,
+        averagingpercentile=10.0,
+    )
+    hydamo.external_forcings.set_spatial_field(
+        _polygons(),
+        "peil",
+        quantity="frictioncoefficient",
+        kind="parameter",
+        filetype="raster",
+        cellsize=5.0,
+        locationtype="2d",
+        interpolationmethod="triangulation",
+        extrapolationmethod=True,
+    )
+    _write(hydamo, tmp_path)
+
+    ini = IniFieldModel(filepath=tmp_path / "initialFields.ini")
+    averaging, triangulation = ini.initial[0], ini.parameter[0]
+    assert averaging.averagingrelsize == pytest.approx(2.0)
+    assert averaging.averagingnummin == 3
+    assert averaging.averagingpercentile == pytest.approx(10.0)
+    assert averaging.extrapolationmethod is False
+    assert triangulation.extrapolationmethod is True
+
+
+def test_unset_sample_settings_not_written(tmp_path: Path) -> None:
+    # without sample settings, the block is as before: only hydrolib-core's own extrapolationMethod = 0
+    hydamo = HyDAMO()
+    hydamo.external_forcings.set_spatial_field(
+        _points(), quantity="bedlevel", filetype="sample", locationtype="2d", interpolationmethod="averaging"
+    )
+    _write(hydamo, tmp_path)
+
+    text = (tmp_path / "initialFields.ini").read_text()
+    for key in ("averagingRelSize", "averagingNumMin", "averagingPercentile"):
+        assert key not in text
+    assert IniFieldModel(filepath=tmp_path / "initialFields.ini").initial[0].extrapolationmethod is False
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        pytest.param(
+            {"filetype": "sample", "averagingrelsize": 2.0},
+            "only apply to interpolationmethod 'averaging', not 'triangulation'",
+            id="averaging_setting_with_triangulation",
+        ),
+        pytest.param(
+            {"averagingnummin": 2},
+            "only apply to interpolationmethod 'averaging', not None",
+            id="averaging_setting_for_branch_values",
+        ),
+        pytest.param(
+            {
+                "filetype": "sample",
+                "locationtype": "2d",
+                "interpolationmethod": "averaging",
+                "extrapolationmethod": True,
+            },
+            "extrapolationmethod only applies to interpolationmethod 'triangulation', not 'averaging'",
+            id="extrapolation_with_averaging",
+        ),
+    ],
+)
+def test_sample_settings_for_other_interpolation_warn(
+    kwargs: dict, message: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    hydamo = HyDAMO()
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.hydamo"):
+        hydamo.external_forcings.set_spatial_field(_points(), **kwargs)
+    assert message in caplog.text
 
 
 @pytest.mark.parametrize(

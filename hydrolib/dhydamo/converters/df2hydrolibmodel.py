@@ -840,6 +840,10 @@ class Df2HydrolibModel:
             del kwargs["interpolationmethod"], kwargs["locationtype"]
         if sf["interpolationmethod"] == "averaging":
             kwargs["averagingtype"] = sf["averagingtype"]
+        # only the sample settings that are set: unset ones are left to D-Flow FM's defaults
+        for setting, setting_value in sf.get("sample_settings", {}).items():
+            if setting_value is not None:
+                kwargs[setting] = setting_value
 
         if sf["kind"] == "initial":
             field = InitialField(**kwargs)

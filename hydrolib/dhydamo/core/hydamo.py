@@ -2168,6 +2168,10 @@ class ExternalForcings:
         operand: str = "O",
         nodata: float = -999.0,
         max_snap_distance: float = 5.0,
+        averagingrelsize: float | None = None,
+        averagingnummin: int | None = None,
+        averagingpercentile: float | None = None,
+        extrapolationmethod: bool | None = None,
     ) -> None:
         """
         Add a spatially varying field to the initial fields file (initialFields.ini).
@@ -2198,6 +2202,13 @@ class ExternalForcings:
         or samples everywhere, also outside its own area; water levels per branch are kept. Add water depth
         fields before water level fields.
 
+        For samples and rasters on 2D cells, choose the interpolation by the density of the data: 'averaging' for
+        dense data (several values per cell, e.g. a point cloud or a fine raster), 'triangulation' for sparse data
+        (fewer values than cells, e.g. measured points). Averaging combines the values inside each cell, as set by
+        averagingtype and the averaging settings below; triangulation interpolates linearly between the values, and
+        only within their convex hull unless extrapolationmethod is True. Settings left at None are not written, so
+        D-Flow FM uses its defaults.
+
         The data files are written by Df2HydrolibModel.write_initial_fields().
 
         Args:
@@ -2218,6 +2229,16 @@ class ExternalForcings:
                 D-Flow FM treats as no value. Defaults to -999.0.
             max_snap_distance (float, optional): maximum distance to snap points to a branch for filetype 'branch'.
                 Defaults to 5.0.
+            averagingrelsize (float, optional): with 'averaging', the size of the area around a cell that is searched
+                for values, relative to the cell size (D-Flow FM default 1.01). Larger values smooth more, and fill
+                cells with few values. Defaults to None (not written).
+            averagingnummin (int, optional): with 'averaging', the minimum number of values in that area; a cell with
+                fewer gets no value from this field (D-Flow FM default 1). Defaults to None (not written).
+            averagingpercentile (float, optional): with 'averaging', the percentile of the values to use instead of
+                all values, e.g. a low percentile for the lowest part of a cell (D-Flow FM default 0, off). Defaults
+                to None (not written).
+            extrapolationmethod (bool, optional): with 'triangulation', True also gives values outside the convex
+                hull of the data. Defaults to None: not set, which hydrolib-core writes as extrapolationMethod = 0.
         """
         if kind not in ("initial", "parameter"):
             raise ValueError(f"kind should be 'initial' or 'parameter', not '{kind}'.")
@@ -2237,6 +2258,13 @@ class ExternalForcings:
             raise ValueError("A cellsize is required to rasterize polygons.")
 
         interpolationmethod = self._resolve_interpolation(filetype, locationtype, interpolationmethod)
+        sample_settings = {
+            "averagingrelsize": averagingrelsize,
+            "averagingnummin": averagingnummin,
+            "averagingpercentile": averagingpercentile,
+            "extrapolationmethod": extrapolationmethod,
+        }
+        self._warn_sample_settings(interpolationmethod, sample_settings)
         self._warn_spatial_field_options(gdf, filetype, locationtype)
         gdf, column = self._value_column(gdf, column, geomtypes)
         filename = self._next_field_filename(kind, quantity, filetype)
@@ -2260,6 +2288,7 @@ class ExternalForcings:
                 "operand": operand,
                 "nodata": nodata,
                 "max_snap_distance": max_snap_distance,
+                "sample_settings": sample_settings,
             }
         )
 
@@ -2340,6 +2369,34 @@ class ExternalForcings:
                 "Use filetype 'branch' or 'polygon' for polygons, or 'triangulation' for samples."
             )
         return interpolationmethod
+
+    @staticmethod
+    def _warn_sample_settings(interpolationmethod: str | None, sample_settings: dict) -> None:
+        """Warn for sample settings that do not apply to the interpolation method of a spatial field.
+
+        Such a setting is still written, but has no effect. The values themselves are checked by hydrolib-core when
+        the field is converted.
+
+        Parameters
+        ----------
+        interpolationmethod : str | None
+            The resolved interpolation method, or None for 'branch'.
+        sample_settings : dict
+            averagingrelsize, averagingnummin, averagingpercentile and extrapolationmethod, None when not set.
+
+        """
+        if interpolationmethod != "averaging" and any(
+            sample_settings[name] is not None for name in ("averagingrelsize", "averagingnummin", "averagingpercentile")
+        ):
+            logger.warning(
+                "averagingrelsize, averagingnummin and averagingpercentile only apply to interpolationmethod "
+                f"'averaging', not {interpolationmethod!r}, and have no effect."
+            )
+        if sample_settings["extrapolationmethod"] is not None and interpolationmethod != "triangulation":
+            logger.warning(
+                f"extrapolationmethod only applies to interpolationmethod 'triangulation', not {interpolationmethod!r}, "
+                "and has no effect."
+            )
 
     @staticmethod
     def _warn_spatial_field_options(gdf: gpd.GeoDataFrame, filetype: str, locationtype: str) -> None:
