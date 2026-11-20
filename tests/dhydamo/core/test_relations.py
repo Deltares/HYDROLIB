@@ -1,7 +1,8 @@
-from types import SimpleNamespace
+from collections.abc import Callable
 
 import pandas as pd
 import pytest
+from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.core.relations import (
     RelationsHyDAMO,
     build_cascade_plan,
@@ -9,8 +10,16 @@ from hydrolib.dhydamo.core.relations import (
 )
 
 
-def _profile_hydamo():
-    return SimpleNamespace(
+def _hydamo(**tables: pd.DataFrame) -> HyDAMO:
+    """Return a HyDAMO object with only the given tables filled in."""
+    hydamo = HyDAMO()
+    for name, table in tables.items():
+        setattr(hydamo, name, table)
+    return hydamo
+
+
+def _profile_hydamo() -> HyDAMO:
+    return _hydamo(
         profile=pd.DataFrame(
             {
                 "globalid": ["profile-1", "profile-2"],
@@ -36,8 +45,8 @@ def _profile_hydamo():
     )
 
 
-def _structure_hydamo():
-    return SimpleNamespace(
+def _structure_hydamo() -> HyDAMO:
+    return _hydamo(
         weirs=pd.DataFrame({"globalid": ["weir-1", "weir-2"]}, index=["w1", "w2"]),
         opening=pd.DataFrame(
             {
@@ -53,12 +62,8 @@ def _structure_hydamo():
             },
             index=["d1", "d2", "d3"],
         ),
-        culverts=pd.DataFrame(
-            {"globalid": ["culvert-1", "culvert-2"]}, index=["c1", "c2"]
-        ),
-        pumpstations=pd.DataFrame(
-            {"globalid": ["station-1", "station-2"]}, index=["ps1", "ps2"]
-        ),
+        culverts=pd.DataFrame({"globalid": ["culvert-1", "culvert-2"]}, index=["c1", "c2"]),
+        pumpstations=pd.DataFrame({"globalid": ["station-1", "station-2"]}, index=["ps1", "ps2"]),
         pumps=pd.DataFrame(
             {
                 "globalid": ["pump-1", "pump-2"],
@@ -70,8 +75,8 @@ def _structure_hydamo():
     )
 
 
-def _rr_hydamo():
-    return SimpleNamespace(
+def _rr_hydamo() -> HyDAMO:
+    return _hydamo(
         catchments=pd.DataFrame(
             {"lateraleknoopid": ["lateral-1", "lateral-2"]},
             index=["catchment1", "catchment2"],
@@ -84,9 +89,7 @@ def _rr_hydamo():
             {"codegerelateerdobject": ["sewer-1", "sewer-2"]},
             index=["overflow1", "overflow2"],
         ),
-        sewer_areas=pd.DataFrame(
-            {"code": ["sewer-1", "sewer-2"]}, index=["sewer1", "sewer2"]
-        ),
+        sewer_areas=pd.DataFrame({"code": ["sewer-1", "sewer-2"]}, index=["sewer1", "sewer2"]),
         greenhouse_laterals=pd.DataFrame(
             {"codegerelateerdobject": ["greenhouse-1", "greenhouse-2"]},
             index=["greenhouse_lateral1", "greenhouse_lateral2"],
@@ -98,27 +101,23 @@ def _rr_hydamo():
     )
 
 
-def test_parents_of_selects_rows_referenced_by_children():
+def test_parents_of_selects_rows_referenced_by_children() -> None:
     hydamo = _profile_hydamo()
 
-    parents = RelationsHyDAMO.PROFILE_LINE.parents_of(
-        hydamo.profile.loc[["p1"]], hydamo.profile_line
-    )
+    parents = RelationsHyDAMO.PROFILE_LINE.parents_of(hydamo.profile.loc[["p1"]], hydamo.profile_line)
 
     assert parents.index.tolist() == ["l1"]
 
 
-def test_children_of_selects_rows_referencing_parents():
+def test_children_of_selects_rows_referencing_parents() -> None:
     hydamo = _profile_hydamo()
 
-    children = RelationsHyDAMO.PROFILE_LINE.children_of(
-        hydamo.profile_line.loc[["l2"]], hydamo.profile
-    )
+    children = RelationsHyDAMO.PROFILE_LINE.children_of(hydamo.profile_line.loc[["l2"]], hydamo.profile)
 
     assert children.index.tolist() == ["p2"]
 
 
-def test_relation_methods_ignore_null_keys():
+def test_relation_methods_ignore_null_keys() -> None:
     relation = RelationsHyDAMO.PROFILE_LINE
     profiles = pd.DataFrame({"profiellijnid": [None]}, index=["profile-without-line"])
     profile_lines = pd.DataFrame({"globalid": [None]}, index=["line-without-id"])
@@ -151,10 +150,18 @@ def test_relation_methods_ignore_null_keys():
             "profiellijnid",
         ),
     ],
-    ids=["parents-missing-source-key", "parents-missing-target-key",
-         "children-missing-source-key", "children-missing-target-key"],
+    ids=[
+        "parents-missing-source-key",
+        "parents-missing-target-key",
+        "children-missing-source-key",
+        "children-missing-target-key",
+    ],
 )
-def test_relation_methods_require_source_and_target_keys(method, make_args, missing_key):
+def test_relation_methods_require_source_and_target_keys(
+    method: str,
+    make_args: Callable[[HyDAMO], tuple[pd.DataFrame, pd.DataFrame]],
+    missing_key: str,
+) -> None:
     relation_method = getattr(RelationsHyDAMO.PROFILE_LINE, method)
     source, target = make_args(_profile_hydamo())
 
@@ -162,24 +169,20 @@ def test_relation_methods_require_source_and_target_keys(method, make_args, miss
         relation_method(source, target)
 
 
-def test_follow_relation_dispatches_in_both_directions():
+def test_follow_relation_dispatches_in_both_directions() -> None:
     hydamo = _profile_hydamo()
     relation = RelationsHyDAMO.PROFILE_LINE
 
-    target_table, target_rows = follow_relation(
-        hydamo, relation, "profile", hydamo.profile.loc[["p1"]]
-    )
+    target_table, target_rows = follow_relation(hydamo, relation, "profile", hydamo.profile.loc[["p1"]])
     assert target_table == "profile_line"
     assert target_rows.index.tolist() == ["l1"]
 
-    target_table, target_rows = follow_relation(
-        hydamo, relation, "profile_line", hydamo.profile_line.loc[["l2"]]
-    )
+    target_table, target_rows = follow_relation(hydamo, relation, "profile_line", hydamo.profile_line.loc[["l2"]])
     assert target_table == "profile"
     assert target_rows.index.tolist() == ["p2"]
 
 
-def test_follow_relation_supports_empty_rows():
+def test_follow_relation_supports_empty_rows() -> None:
     hydamo = _profile_hydamo()
 
     target_table, target_rows = follow_relation(
@@ -194,7 +197,7 @@ def test_follow_relation_supports_empty_rows():
     assert target_rows.columns.tolist() == hydamo.profile_line.columns.tolist()
 
 
-def test_follow_relation_rejects_unrelated_source_table():
+def test_follow_relation_rejects_unrelated_source_table() -> None:
     hydamo = _profile_hydamo()
 
     with pytest.raises(ValueError, match="not an endpoint"):
@@ -206,7 +209,7 @@ def test_follow_relation_rejects_unrelated_source_table():
         )
 
 
-def test_build_cascade_plan_follows_profile_paths():
+def test_build_cascade_plan_follows_profile_paths() -> None:
     hydamo = _profile_hydamo()
 
     plan = build_cascade_plan(hydamo, "profile", pd.Index(["p1", "p2"]))
@@ -218,7 +221,7 @@ def test_build_cascade_plan_follows_profile_paths():
     }
 
 
-def test_build_cascade_plan_follows_profile_line_paths_in_reverse():
+def test_build_cascade_plan_follows_profile_line_paths_in_reverse() -> None:
     hydamo = _profile_hydamo()
 
     plan = build_cascade_plan(hydamo, "profile_line", pd.Index(["l2"]))
@@ -247,11 +250,9 @@ def test_build_cascade_plan_follows_profile_line_paths_in_reverse():
     ],
 )
 def test_build_cascade_plan_follows_structure_paths(
-    source_table, source_index, expected
-):
-    plan = build_cascade_plan(
-        _structure_hydamo(), source_table, pd.Index([source_index])
-    )
+    source_table: str, source_index: str, expected: dict[str, list[str]]
+) -> None:
+    plan = build_cascade_plan(_structure_hydamo(), source_table, pd.Index([source_index]))
 
     assert {table: index.tolist() for table, index in plan.items()} == expected
 
@@ -276,14 +277,14 @@ def test_build_cascade_plan_follows_structure_paths(
     ],
 )
 def test_build_cascade_plan_follows_rr_paths_in_both_directions(
-    source_table, source_index, expected
-):
+    source_table: str, source_index: str, expected: dict[str, list[str]]
+) -> None:
     plan = build_cascade_plan(_rr_hydamo(), source_table, pd.Index([source_index]))
 
     assert {table: index.tolist() for table, index in plan.items()} == expected
 
 
-def test_build_cascade_plan_returns_empty_for_unconfigured_source():
-    hydamo = SimpleNamespace(branches=pd.DataFrame(index=["branch-1"]))
+def test_build_cascade_plan_returns_empty_for_unconfigured_source() -> None:
+    hydamo = _hydamo(branches=pd.DataFrame(index=["branch-1"]))
 
     assert build_cascade_plan(hydamo, "branches", pd.Index(["branch-1"])) == {}

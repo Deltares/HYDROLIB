@@ -1,7 +1,14 @@
+"""Converter for DAMO 2.2."""
+
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from hydrolib.dhydamo.core.relations import RelationsRR
 from hydrolib.dhydamo.io.damo_converters.base import BaseDamoConverter, LayerSpec
+
+if TYPE_CHECKING:
+    from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 
 class Damo22Converter(BaseDamoConverter):
@@ -13,7 +20,7 @@ class Damo22Converter(BaseDamoConverter):
     """
 
     hydamo_version = "2.2"
-    layer_specs = (
+    layer_specs: tuple[LayerSpec, ...] = (
         LayerSpec("branches", "HydroObject", index_col="code"),
         LayerSpec(
             "profile",
@@ -49,13 +56,15 @@ class Damo22Converter(BaseDamoConverter):
         LayerSpec("laterals", "lateraleknoop"),
     )
 
-    def postprocess(self, hydamo) -> None:
+    def postprocess(self, hydamo: HyDAMO) -> None:
+        """Fill the columns that DAMO 2.2 lacks or names differently, in place.
+
+        - ``management_device.soortafsluitmiddel``: copied from ``soortregelmiddel``;
+        - ``profile.code``: the profile line id, instead of the code of each point;
+        - ``catchments.boundary_node``: the code of the lateral of each catchment.
+        """
         device = hydamo.management_device
-        if (
-            not device.empty
-            and "soortregelmiddel" in device.columns
-            and "soortafsluitmiddel" not in device.columns
-        ):
+        if not device.empty and "soortregelmiddel" in device.columns and "soortafsluitmiddel" not in device.columns:
             device["soortafsluitmiddel"] = device["soortregelmiddel"]
         if not hydamo.profile.empty and "profiellijnid" in hydamo.profile.columns:
             # After groupby, each row represents a profile line. Replace the
@@ -68,6 +77,4 @@ class Damo22Converter(BaseDamoConverter):
             # to the lateral's code, which is used as the RR boundary node ID.
             catchment_lateral = RelationsRR.CATCHMENT_LATERAL
             mapping = hydamo.laterals.set_index(catchment_lateral.parent_key)["code"]
-            hydamo.catchments["boundary_node"] = hydamo.catchments[
-                catchment_lateral.foreign_key
-            ].map(mapping)
+            hydamo.catchments["boundary_node"] = hydamo.catchments[catchment_lateral.foreign_key].map(mapping)

@@ -8,6 +8,7 @@ working copy with:
 
 ``` bash
 pixi install
+pixi run install-hooks
 pixi run test
 pixi run lint
 pixi run typecheck
@@ -21,7 +22,24 @@ pixi run --environment docs docs-build
 We use [Ruff](https://docs.astral.sh/ruff/) for formatting and import sorting,
 replacing Black and isort. Run `pixi run lint` locally to check formatting,
 imports, and lint rules. Run `pixi run fix` to apply formatting and Ruff's
-safe fixes. Linting is not enforced in CI yet.
+safe fixes. Docstrings follow the NumPy convention, which Ruff checks as well.
+
+### mypy
+
+Run `pixi run typecheck` to check the type hints of `hydrolib/dhydamo` and
+`tests/dhydamo` with [mypy](https://mypy.readthedocs.io). Every function needs type
+hints: mypy skips the body of a function without them.
+
+### pre-commit
+
+Install the [pre-commit](https://pre-commit.com) hooks once per clone with
+`pixi run install-hooks`. They run `ruff format`,
+`ruff check` and mypy on the changed Python files in `hydrolib/dhydamo` and `tests`,
+and regenerate the conda environment exports (see below). When `ruff format`
+changes a file, the commit stops, so you can review the change, `git add` it and
+commit again. CI runs the same checks (`pixi run lint` and `pixi run typecheck`)
+in the `lint` job, so a PR can't merge with lint or type errors even if the hooks
+were skipped.
 
 ### Commitizen
 We use `commitizen` to automatically bump the version number.
@@ -43,14 +61,13 @@ Pixi remains the source of truth; these files are a generated export, not a
 second dependency set to maintain by hand. Whenever `pixi.lock` changes, run
 
 ``` bash
-pixi run --environment test-py312 export-conda-environments
+pixi run --environment py312 export-conda-environments
 ```
 
 and commit the regenerated files alongside `pixi.lock`.
 
-Install the [pre-commit](https://pre-commit.com) hook once with
-`pixi run --environment py312 pre-commit install` and it will regenerate
-both files automatically whenever `pixi.lock` is staged; because the hook
+With the pre-commit hooks installed, both files are regenerated automatically
+whenever `pixi.lock` is staged; because the hook
 modifies files, the first `git commit` attempt after a lockfile change stops
 so you can `git add` the regenerated files and commit again. CI also
 regenerates both files in a clean checkout and fails the `check-conda-exports`
@@ -73,7 +90,7 @@ When starting development on a branch, a pull request should be created for revi
 In the description text area on GitHub, use a [closing keyword](https://docs.github.com/articles/closing-issues-using-keywords) such that this PR will be automatically linked to the issue.
 For example: `Fixes #160`.
 
-During continuous integration, the test suite runs with several Python versions on Windows and Ubuntu. Formatting and lint checks remain local developer tasks for now.
+During continuous integration, the test suite runs with several Python versions on Windows and Ubuntu, and the `lint` job checks formatting, lint rules and type hints.
 We advise to use a draft pull request, to prevent the branch to be merged back before developement is finished. When the branch is ready for review, you can update the status of the pull request to "ready for review".
 
 ### Reviews

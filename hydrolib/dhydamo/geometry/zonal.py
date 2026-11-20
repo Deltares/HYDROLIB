@@ -22,25 +22,50 @@ import hashlib
 import inspect
 import logging
 import os
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Required, TypeAlias, TypedDict, Unpack
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
 import shapely
+from affine import Affine
 from exactextract import exact_extract
 from exactextract.feature import Feature, FeatureSource
-from exactextract.raster import NumPyRasterSource, RasterioRasterSource
+from exactextract.raster import NumPyRasterSource, RasterioRasterSource, RasterSource
+from numpy.typing import ArrayLike
+from pyproj import CRS
 from rasterio.enums import MaskFlags
 from rasterio.io import DatasetReader
 from rasterio.windows import Window
+from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
 
 Strategy = Literal["feature-sequential", "raster-sequential"]
 CoverageWeight = Literal["fraction", "none"]
+Zones = gpd.GeoDataFrame | gpd.GeoSeries
+# a raster file, an open rasterio dataset, or a two-dimensional array; lazy arrays, such as
+# xarray's, are read only when needed
+Raster: TypeAlias = Path | str | DatasetReader | ArrayLike
+# show a progress bar, or exactextract's progress(fraction, message) callback
+Progress = bool | Callable[[float, str], None]
+
+
+class ZonalOptions(TypedDict, total=False):
+    """Keyword arguments of zonal_stats and zonal_category_counts, as ZonalCache passes them on."""
+
+    strategy: Required[Strategy]
+    min_coverage_frac: float
+    coverage_weight: CoverageWeight
+    affine: Affine | None
+    raster_crs: CRS | str | None
+    nodata: float | None
+    max_cells_in_memory: int
+    progress: Progress
+
 
 _ZONE_ID = "_zonal_id"
 
@@ -50,21 +75,21 @@ logger = logging.getLogger(__name__)
 class _Zone(Feature):
     """A zone as exactextract reads it: its position and its WKB geometry."""
 
-    def __init__(self, position: int, geometry):
+    def __init__(self, position: int, geometry: BaseGeometry) -> None:
         super().__init__()
         self.position = position
         self.wkb = shapely.to_wkb(geometry)
 
-    def get(self, name):
+    def get(self, name: str) -> int:
         return self.position
 
-    def fields(self):
+    def fields(self) -> list[str]:
         return [_ZONE_ID]
 
-    def geometry(self):
+    def geometry(self) -> bytes:
         return self.wkb
 
-    def set_geometry_format(self):
+    def set_geometry_format(self) -> str:
         return "wkb"
 
 
@@ -77,29 +102,29 @@ class _ZoneSource(FeatureSource):
     :func:`_check_crs` already compared the CRSs.
     """
 
-    def __init__(self, geometries: np.ndarray):
+    def __init__(self, geometries: np.ndarray) -> None:
         super().__init__()
         self.geometries = geometries
 
-    def count(self):
+    def count(self) -> int:
         return len(self.geometries)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[_Zone]:
         for position, geometry in enumerate(self.geometries):
             yield _Zone(position, geometry)
 
-    def srs_wkt(self):
+    def srs_wkt(self) -> None:
         return None
 
 
 class _PlainRasterioSource(RasterioRasterSource):
-    """Rasterio source that reads plain arrays and lets exactextract apply the
-    nodata value, instead of the masked arrays of exactextract's own reader.
-    Rasters masked otherwise than by a nodata value, or that are scaled, still go
-    through the masked reader.
+    """Rasterio source that reads plain arrays and lets exactextract apply the nodata value.
+
+    exactextract's own reader reads masked arrays instead. Rasters masked otherwise
+    than by a nodata value, or that are scaled, still go through the masked reader.
     """
 
-    def __init__(self, dataset):
+    def __init__(self, dataset: DatasetReader) -> None:
         super().__init__(dataset)
         flags = dataset.mask_flag_enums[self.band_idx - 1]
         self.plain = not self.scaled and set(flags) <= {
@@ -107,7 +132,7 @@ class _PlainRasterioSource(RasterioRasterSource):
             MaskFlags.all_valid,
         }
 
-    def read_window(self, x0, y0, nx, ny):
+    def read_window(self, x0: int, y0: int, nx: int, ny: int) -> np.ndarray:
         if not self.plain:
             return super().read_window(x0, y0, nx, ny)
         return self.ds.read(self.band_idx, window=Window(x0, y0, nx, ny))
@@ -123,18 +148,18 @@ _RASTERS_PER_CALL = 100
 
 
 def zonal_stats(
-    zones: gpd.GeoDataFrame | gpd.GeoSeries,
-    raster: Path | str | np.ndarray,
+    zones: Zones,
+    raster: Raster,
     statistics: str | list[str] | tuple[str, ...],
     *,
     strategy: Strategy,
     min_coverage_frac: float = 0.0,
     coverage_weight: CoverageWeight = "fraction",
-    affine=None,
-    raster_crs=None,
+    affine: Affine | None = None,
+    raster_crs: CRS | str | None = None,
     nodata: float | None = None,
     max_cells_in_memory: int = 30_000_000,
-    progress=False,
+    progress: Progress = False,
 ) -> pd.DataFrame:
     """Calculate scalar raster statistics for every polygonal zone.
 
@@ -208,17 +233,17 @@ def zonal_stats(
 
 
 def zonal_category_counts(
-    zones: gpd.GeoDataFrame | gpd.GeoSeries,
-    raster: Path | str | np.ndarray,
+    zones: Zones,
+    raster: Raster,
     *,
     strategy: Strategy,
     min_coverage_frac: float = 0.0,
     coverage_weight: CoverageWeight = "fraction",
-    affine=None,
-    raster_crs=None,
+    affine: Affine | None = None,
+    raster_crs: CRS | str | None = None,
     nodata: float | None = None,
     max_cells_in_memory: int = 30_000_000,
-    progress=False,
+    progress: Progress = False,
 ) -> pd.DataFrame:
     """Count the cells of each raster class within every polygonal zone.
 
@@ -252,9 +277,7 @@ def zonal_category_counts(
         }
         if isinstance(classes, np.ndarray)  # None for zones outside the raster
         else {}
-        for classes, frac, count in zip(
-            result["unique"], result["frac"], result["count"]
-        )
+        for classes, frac, count in zip(result["unique"], result["frac"], result["count"])
     ]
     counts = pd.DataFrame(rows, index=zones.index, dtype=np.float64)
     counts = counts.sort_index(axis=1).fillna(0.0)
@@ -263,18 +286,18 @@ def zonal_category_counts(
 
 
 def zonal_stats_per_raster(
-    zones: gpd.GeoDataFrame | gpd.GeoSeries,
-    rasters: list,
+    zones: Zones,
+    rasters: Sequence[Raster],
     statistic: str,
     *,
     strategy: Strategy,
     min_coverage_frac: float = 0.0,
     coverage_weight: CoverageWeight = "fraction",
-    affine=None,
-    raster_crs=None,
+    affine: Affine | None = None,
+    raster_crs: CRS | str | None = None,
     nodata: float | None = None,
     max_cells_in_memory: int = 30_000_000,
-    progress=False,
+    progress: Progress = False,
 ) -> pd.DataFrame:
     """Calculate one scalar raster statistic for every zone, in each raster.
 
@@ -306,11 +329,9 @@ def zonal_stats_per_raster(
             progress = _progress_bar(stack)
         for start in range(0, len(rasters), _RASTERS_PER_CALL):
             chunk = rasters[start : start + _RASTERS_PER_CALL]
-            chunk_progress = False
+            chunk_progress: Progress = False
             if progress:
-                chunk_progress = _rescale_progress(
-                    progress, start, len(chunk), len(rasters)
-                )
+                chunk_progress = _rescale_progress(progress, start, len(chunk), len(rasters))
             result = _extract(
                 zones,
                 chunk,
@@ -330,10 +351,9 @@ def zonal_stats_per_raster(
 
 
 class ZonalCache:
-    """Reuses the results of identical :func:`zonal_stats` and
-    :func:`zonal_category_counts` calls on raster files.
+    """Reuse the results of identical :func:`zonal_stats` and :func:`zonal_category_counts` calls.
 
-    A result is reused only when the zones (index, CRS and geometries), the
+    Only calls on raster files are cached. A result is reused only when the zones (index, CRS and geometries), the
     raster file (path, size and modification time), and every argument that
     affects the result are the same. Arrays and open datasets are never cached.
     Results are copied in and out, so changing a returned result does not
@@ -341,33 +361,34 @@ class ZonalCache:
     """
 
     # Arguments that do not affect the result.
-    _NOT_IN_KEY = frozenset(
-        {"zones", "raster", "strategy", "max_cells_in_memory", "progress"}
-    )
+    _NOT_IN_KEY = frozenset({"zones", "raster", "strategy", "max_cells_in_memory", "progress"})
 
-    def __init__(self):
-        self._results = {}
+    def __init__(self) -> None:
+        self._results: dict[tuple[object, ...], pd.DataFrame] = {}
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Return the number of cached results."""
         return len(self._results)
 
-    def clear(self):
+    def clear(self) -> None:
         """Remove all cached results."""
         self._results.clear()
 
-    def zonal_stats(self, zones, raster, statistics, **kwargs) -> pd.DataFrame:
+    def zonal_stats(
+        self, zones: Zones, raster: Raster, statistics: str | Sequence[str], **kwargs: Unpack[ZonalOptions]
+    ) -> pd.DataFrame:
         """:func:`zonal_stats`, reusing an identical earlier result."""
         if isinstance(statistics, str):
             statistics = [statistics]
-        return self._get(
-            zonal_stats, zones, raster, statistics=tuple(statistics), **kwargs
-        )
+        return self._get(zonal_stats, zones, raster, statistics=tuple(statistics), **kwargs)
 
-    def zonal_category_counts(self, zones, raster, **kwargs) -> pd.DataFrame:
+    def zonal_category_counts(self, zones: Zones, raster: Raster, **kwargs: Unpack[ZonalOptions]) -> pd.DataFrame:
         """:func:`zonal_category_counts`, reusing an identical earlier result."""
         return self._get(zonal_category_counts, zones, raster, **kwargs)
 
-    def _get(self, function, zones, raster, **kwargs):
+    def _get(
+        self, function: Callable[..., pd.DataFrame], zones: Zones, raster: Raster, **kwargs: object
+    ) -> pd.DataFrame:
         if not isinstance(raster, (str, os.PathLike)):
             return function(zones, raster, **kwargs)
         try:
@@ -397,7 +418,7 @@ class ZonalCache:
         return self._results[key].copy()
 
 
-def _zones_key(zones):
+def _zones_key(zones: Zones) -> tuple[int, str, str | None]:
     """Return a key that changes with the index, CRS or any geometry of zones."""
     digest = hashlib.blake2b(digest_size=16)
     for wkb in shapely.to_wkb(zones.geometry.to_numpy()):
@@ -409,43 +430,39 @@ def _zones_key(zones):
     return len(zones), digest.hexdigest(), _crs_key(zones.crs)
 
 
-def _crs_key(crs):
+def _crs_key(crs: CRS | str | None) -> str | None:
     return None if crs is None else rasterio.crs.CRS.from_user_input(crs).to_wkt()
 
 
 def _extract(
-    zones,
-    rasters,
-    statistics,
+    zones: Zones,
+    rasters: Sequence[Raster],
+    statistics: list[str],
     *,
-    strategy,
-    min_coverage_frac,
-    coverage_weight,
-    affine,
-    raster_crs,
-    nodata,
-    max_cells_in_memory,
-    progress,
-):
-    """Run exactextract on a list of rasters and return its results indexed like
-    ``zones``: the columns of each raster in turn."""
+    strategy: Strategy,
+    min_coverage_frac: float,
+    coverage_weight: CoverageWeight,
+    affine: Affine | None,
+    raster_crs: CRS | str | None,
+    nodata: float | None,
+    max_cells_in_memory: int,
+    progress: Progress,
+) -> pd.DataFrame:
+    """Run exactextract on a list of rasters.
+
+    The results are indexed like ``zones``, with the columns of each raster in turn.
+    """
     if zones.empty:
         raise ValueError("zones must contain at least one geometry.")
     if not 0 <= min_coverage_frac <= 1:
-        raise ValueError(
-            f"min_coverage_frac must be from 0 to 1, not {min_coverage_frac}."
-        )
+        raise ValueError(f"min_coverage_frac must be from 0 to 1, not {min_coverage_frac}.")
     if coverage_weight not in ("fraction", "none"):
-        raise ValueError(
-            f"coverage_weight must be 'fraction' or 'none', not {coverage_weight!r}."
-        )
+        raise ValueError(f"coverage_weight must be 'fraction' or 'none', not {coverage_weight!r}.")
     coverage = f"{min_coverage_frac=!s},{coverage_weight=!s}"
     ops = []
     for stat in statistics:
         if "min_coverage_frac" in stat or "coverage_weight" in stat:
-            raise ValueError(
-                f"Pass min_coverage_frac and coverage_weight as keywords, not in {stat!r}."
-            )
+            raise ValueError(f"Pass min_coverage_frac and coverage_weight as keywords, not in {stat!r}.")
         if stat.endswith(")"):  # has arguments, such as quantile(q=0.9)
             ops.append(f"{stat[:-1]},{coverage})")
         else:
@@ -473,28 +490,30 @@ def _extract(
     return result.set_index(_ZONE_ID).reindex(range(len(zones))).set_axis(zones.index)
 
 
-def _progress_bar(stack):
+def _progress_bar(stack: ExitStack) -> Callable[[float, str], None]:
     """Return an exactextract progress callback that shows a percentage bar."""
-    bar = stack.enter_context(
-        tqdm(total=100, bar_format="{percentage:3.0f}%|{bar}| [{elapsed}<{remaining}]")
-    )
+    bar = stack.enter_context(tqdm(total=100, bar_format="{percentage:3.0f}%|{bar}| [{elapsed}<{remaining}]"))
 
-    def update(fraction, message):
+    def update(fraction: float, message: str) -> None:
         bar.update(100 * fraction - bar.n)
 
     return update
 
 
-def _rescale_progress(progress, start, size, total):
+def _rescale_progress(
+    progress: Callable[[float, str], None], start: int, size: int, total: int
+) -> Callable[[float, str], None]:
     """Report progress over rasters ``start`` to ``start + size`` of ``total``."""
 
-    def update(fraction, message):
+    def update(fraction: float, message: str) -> None:
         progress((start + fraction * size) / total, message)
 
     return update
 
 
-def _raster_source(raster, affine, nodata, stack):
+def _raster_source(
+    raster: Raster, affine: Affine | None, nodata: float | None, stack: ExitStack
+) -> tuple[RasterSource, str | None]:
     """Return an exactextract source for ``raster`` and the raster's own CRS.
 
     Files are opened in ``stack``, which also scopes ``GDAL_NUM_THREADS`` for
@@ -522,12 +541,9 @@ def _raster_source(raster, affine, nodata, stack):
     return _RASTERIO_SOURCE(raster), raster.crs.to_wkt() if raster.crs else None
 
 
-def _check_crs(zones_crs, raster_crs):
+def _check_crs(zones_crs: CRS | None, raster_crs: CRS | str | None) -> None:
     """Raise if the zones and raster both have a CRS and they differ."""
     if zones_crs is None or raster_crs is None:
         return
     if not zones_crs.equals(raster_crs, ignore_axis_order=True):
-        raise ValueError(
-            f"Zones CRS {zones_crs.name!r} differs from the raster CRS; "
-            "reproject the zones first."
-        )
+        raise ValueError(f"Zones CRS {zones_crs.name!r} differs from the raster CRS; reproject the zones first.")

@@ -30,8 +30,10 @@ dependencies:
   - virtualenv==21.15.6
   - tzdata==2026.6
   - jupyter-client==8.10.0
+  - types-pytz==2026.6.0.20261031
   - fonttools==4.68.0
   - rpds-py==2026.9.1
+  - scipy-stubs==1.18.1.1
   - referencing==0.37.0
   - nodeenv==1.12.0
   - python-dateutil==4.0.0
@@ -65,9 +67,12 @@ dependencies:
   - jinja2==3.1.6
   - packaging==26.3
   - attrs==26.1.0
+  - types-geopandas==1.2.0.20261107
   - fsspec==2026.9.0
   - pure-eval==0.2.4
   - kiwisolver==1.5.1
+  - types-shapely==2.2.0.20261117
+  - types-python-dateutil==2.9.0.20261116
   - pygments==2.21.0
   - partd==1.4.2
   - pydantic==2.14.3
@@ -91,6 +96,7 @@ dependencies:
   - tqdm==4.70.1
   - cftime==1.6.6.1
   - xyzservices==2026.9.1
+  - optype==0.19.0
   - numpy==2.4.6
   - python-discovery==1.9.5
   - traitlets==5.16.1
@@ -98,6 +104,7 @@ dependencies:
   - mypy-extensions==1.2.0
   - folium==0.20.0
   - pytz==2026.6
+  - types-tqdm==4.70.0.20261106
   - mypy==2.4.1
   - pyproj==3.8.0
   - meshkernel==8.4.0
@@ -110,6 +117,7 @@ dependencies:
   - ipywidgets==8.1.9
   - geopandas==1.2.0
   - jsonschema==4.22.0
+  - pandas-stubs==2.3.3.260113
   - colorama==0.4.6
   - pyogrio==0.13.0
   - asttokens==3.0.2
@@ -132,6 +140,7 @@ dependencies:
   - netcdf4==1.7.5.1.post1
   - shapely==2.2.0
   - dask==2026.8.0
+  - numpy-typing-compat==20260602.2.4
   - pyzmq==27.3.0
   - identify==2.6.20
   - pillow==13.0.0

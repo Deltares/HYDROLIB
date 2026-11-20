@@ -1,5 +1,9 @@
+"""Split multi-geometries into lists and add vertices to lines and polygons."""
+
+from typing import overload
 
 import numpy as np
+import shapely
 from shapely.geometry import (
     LineString,
     MultiLineString,
@@ -10,101 +14,166 @@ from shapely.geometry import (
 )
 
 
-def _as_geometry_list(geometry, singletype, multitype):
-    """Convenience method to return a list with one or more
+def as_linestring_list(
+    linestring: LineString | MultiLineString | list[LineString | MultiLineString],
+) -> list[LineString]:
+    """Return the LineStrings in a LineString, a MultiLineString or a list of those.
 
-    Polygons/LineString/Point from a given Polygon/LineString/Point
-    or MultiPolygon/MultiLineString/MultiPoint.
+    Useful to iterate over geometries that can be single or multi.
 
     Parameters
     ----------
-    polygon : list or Polygon or MultiPolygon
-        Object to be converted
+    linestring : LineString, MultiLineString or list of those
+        Geometry, or geometries, to split.
 
     Returns
     -------
-    list
-        list of Polygons
+    list[LineString]
+        The single LineStrings, in order.
+
+    Raises
+    ------
+    TypeError
+        If a geometry is not a LineString or MultiLineString.
     """
-    if isinstance(geometry, singletype):
-        return [geometry]
-    elif isinstance(geometry, multitype):
-        return [p for p in geometry.geoms]
-    elif isinstance(geometry, list):
-        lst = []
-        for item in geometry:
-            lst.extend(_as_geometry_list(item, singletype, multitype))
-        return lst
-    else:
-        raise TypeError(f'Expected {singletype} or {multitype}. Got "{type(geometry)}"')
+    if isinstance(linestring, LineString):
+        return [linestring]
+    if isinstance(linestring, MultiLineString):
+        return list(linestring.geoms)
+    if not isinstance(linestring, list):
+        raise TypeError(f'Expected LineString or MultiLineString. Got "{type(linestring)}"')
+    linestrings: list[LineString] = []
+    for item in linestring:
+        linestrings.extend(as_linestring_list(item))
+    return linestrings
 
 
-def as_linestring_list(
-    linestring: LineString | MultiLineString | list[LineString | MultiLineString]
-) -> list[LineString]:
-    """Returns a list of LineStrings from a given LineString or MultiLineString. Useful for
-    iterating over varying multi of single type geometries.
+def as_polygon_list(polygon: Polygon | MultiPolygon | list[Polygon | MultiPolygon]) -> list[Polygon]:
+    """Return the Polygons in a Polygon, a MultiPolygon or a list of those.
 
-    Args:
-        linestring (Union[LineString, MultiLineString]): LineString of MultiLineString shapely geometry object
+    Useful to iterate over geometries that can be single or multi.
 
-    Returns:
-        List[LineString]: list of shapely geometry LineString objects
+    Parameters
+    ----------
+    polygon : Polygon, MultiPolygon or list of those
+        Geometry, or geometries, to split.
+
+    Returns
+    -------
+    list[Polygon]
+        The single Polygons, in order.
+
+    Raises
+    ------
+    TypeError
+        If a geometry is not a Polygon or MultiPolygon.
     """
-    return _as_geometry_list(linestring, LineString, MultiLineString)
+    if isinstance(polygon, Polygon):
+        return [polygon]
+    if isinstance(polygon, MultiPolygon):
+        return list(polygon.geoms)
+    if not isinstance(polygon, list):
+        raise TypeError(f'Expected Polygon or MultiPolygon. Got "{type(polygon)}"')
+    polygons: list[Polygon] = []
+    for item in polygon:
+        polygons.extend(as_polygon_list(item))
+    return polygons
 
 
-def as_polygon_list(
-    polygon: Polygon | MultiPolygon | list[Polygon | MultiPolygon]
-) -> list[Polygon]:
-    """Returns a list of Polygons from a given Polygon or MultiPolygon. Useful for
-    iterating over varying multi of single type geometries.
+def as_point_list(point: Point | MultiPoint | list[Point | MultiPoint]) -> list[Point]:
+    """Return the Points in a Point, a MultiPoint or a list of those.
 
-    Args:
-        linestring (Union[Polygon, MultiPolygon]): Polygon of MultiPolygon shapely geometry object
+    Useful to iterate over geometries that can be single or multi.
 
-    Returns:
-        List[Polygon]: list of shapely geometry Polygon objects
+    Parameters
+    ----------
+    point : Point, MultiPoint or list of those
+        Geometry, or geometries, to split.
+
+    Returns
+    -------
+    list[Point]
+        The single Points, in order.
+
+    Raises
+    ------
+    TypeError
+        If a geometry is not a Point or MultiPoint.
     """
-    return _as_geometry_list(polygon, Polygon, MultiPolygon)
+    if isinstance(point, Point):
+        return [point]
+    if isinstance(point, MultiPoint):
+        return list(point.geoms)
+    if not isinstance(point, list):
+        raise TypeError(f'Expected Point or MultiPoint. Got "{type(point)}"')
+    points: list[Point] = []
+    for item in point:
+        points.extend(as_point_list(item))
+    return points
 
 
-def as_point_list(
-    point: Point | MultiPoint | list[Point | MultiPoint]
-) -> list[Point]:
-    """Returns a list of Point from a given Point or MultiPoint. Useful for
-    iterating over varying multi of single type geometries.
+@overload
+def interp_linestring(linestring: LineString, dist: float) -> LineString: ...
+@overload
+def interp_linestring(linestring: MultiLineString, dist: float) -> MultiLineString: ...
+def interp_linestring(linestring: LineString | MultiLineString, dist: float) -> LineString | MultiLineString:
+    """Resample a line at regular distances along it.
 
-    Args:
-        linestring (Union[Point, MultiPoint]): Point of MultiPoint shapely geometry object
+    Parameters
+    ----------
+    linestring : LineString or MultiLineString
+        Line to resample. The parts of a MultiLineString are resampled one by one.
+    dist : float
+        Desired distance between the vertices. The line gets ``round(length / dist)``
+        vertices, at least 4, evenly spread from start to end.
 
-    Returns:
-        List[Point]: list of shapely geometry Point objects
+    Returns
+    -------
+    LineString or MultiLineString
+        The resampled line, of the same type as the input.
     """
-    return _as_geometry_list(point, Point, MultiPoint)
-
-
-def interp_linestring(linestring, dist):
     # In case of multilinestring
     if isinstance(linestring, MultiLineString):
-        return MultiLineString([interp_linestring(ls, dist) for ls in linestring])
+        return MultiLineString([interp_linestring(ls, dist) for ls in linestring.geoms])
 
-    return LineString(
-        [
-            linestring.interpolate(x)
-            for x in np.linspace(
-                0, linestring.length, max(4, round(linestring.length / dist))
-            )
-        ]
-    )
+    n_points = max(4, round(linestring.length / dist))
+    distances = np.linspace(0, linestring.length, n_points)
+    points = shapely.line_interpolate_point(linestring, distances)
+    return LineString(points)
 
 
-def interp_polygon(polygon, dist):
+@overload
+def interp_polygon(polygon: Polygon, dist: float) -> Polygon: ...
+@overload
+def interp_polygon(polygon: MultiPolygon, dist: float) -> MultiPolygon: ...
+def interp_polygon(polygon: Polygon | MultiPolygon, dist: float) -> Polygon | MultiPolygon:
+    """Simplify a polygon, then resample its exterior and holes at regular distances.
+
+    Parameters
+    ----------
+    polygon : Polygon or MultiPolygon
+        Polygon to resample. The parts of a MultiPolygon are resampled one by one.
+    dist : float
+        Tolerance for the simplification, and desired distance between the vertices,
+        see `interp_linestring`.
+
+    Returns
+    -------
+    Polygon or MultiPolygon
+        The resampled polygon, of the same type as the input.
+
+    Raises
+    ------
+    TypeError
+        If simplifying the polygon does not give a Polygon.
+    """
     # In case of multipolygon
     if isinstance(polygon, MultiPolygon):
-        return MultiPolygon([interp_polygon(p, dist) for p in polygon])
+        return MultiPolygon([interp_polygon(p, dist) for p in polygon.geoms])
 
     simplified = polygon.simplify(dist)
+    if not isinstance(simplified, Polygon):
+        raise TypeError(f"Simplifying a Polygon gave a {simplified.geom_type}")
     polygon = Polygon(
         shell=interp_linestring(simplified.exterior, dist),
         holes=[interp_linestring(intr, dist) for intr in simplified.interiors],

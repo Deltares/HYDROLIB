@@ -1,3 +1,5 @@
+"""Validate HyDAMO GeoPackages with the hydamo_validation package."""
+
 from __future__ import annotations
 
 import importlib
@@ -14,11 +16,25 @@ ValidationMode = Literal["off", "warn", "strict"]
 
 
 class HyDAMOValidationError(RuntimeError):
-    pass
+    """A HyDAMO GeoPackage failed validation in strict mode."""
 
 
 @dataclass
 class HydamoValidationResult:
+    """Result of validating a HyDAMO GeoPackage.
+
+    Attributes
+    ----------
+    success : bool
+        Whether the validation succeeded.
+    status : str or None
+        Status reported by hydamo_validation.
+    errors : list[str]
+        Error messages.
+    raw_result : Any
+        The result object of hydamo_validation.
+    """
+
     success: bool
     status: str | None
     errors: list[str]
@@ -129,6 +145,31 @@ def validate_or_raise(
     coverages: dict | None = None,
     validation_rules_path: str | Path | None = None,
 ) -> HydamoValidationResult | None:
+    """Validate a HyDAMO GeoPackage, depending on the validation mode.
+
+    Parameters
+    ----------
+    gpkg_path : str or Path
+        The GeoPackage.
+    hydamo_version : str
+        DAMO version, e.g. ``"2.4"``.
+    validation_mode : {"off", "warn", "strict"}
+        ``"off"`` skips the validation; ``"strict"`` raises when it fails.
+    coverages : dict, optional
+        Coverages for hydamo_validation. Defaults to None.
+    validation_rules_path : str or Path, optional
+        Rules file; see `validate_hydamo_package`. Defaults to None.
+
+    Returns
+    -------
+    HydamoValidationResult or None
+        The result, or None with ``"off"``.
+
+    Raises
+    ------
+    HyDAMOValidationError
+        With ``"strict"``, if the validation fails.
+    """
     if validation_mode == "off":
         return None
 
@@ -140,9 +181,7 @@ def validate_or_raise(
     )
     if validation_mode == "strict" and not result.success:
         joined_errors = "; ".join(result.errors) if result.errors else "unknown error"
-        raise HyDAMOValidationError(
-            f"HyDAMO validation failed for DAMO {hydamo_version}: {joined_errors}"
-        )
+        raise HyDAMOValidationError(f"HyDAMO validation failed for DAMO {hydamo_version}: {joined_errors}")
     return result
 
 
@@ -167,9 +206,7 @@ def _schema_version_for_damo(hv_module: Any, hydamo_version: str) -> tuple[str, 
             best_version = schema_file.stem.split("_")[1]
             best_schema = schema
     if best_version is not None and best_schema is not None:
-        valid_objects: list[str] = (
-            best_schema.get("$defs", {}).get("hydamo_objects", {}).get("enum", [])
-        )
+        valid_objects: list[str] = best_schema.get("$defs", {}).get("hydamo_objects", {}).get("enum", [])
         return best_version, valid_objects
     raise ValueError(
         f"The installed hydamo-validation package does not support DAMO version "

@@ -16,6 +16,9 @@ dependencies = [
   "geopandas>=1,<2",
   "xarray>=2024",
   "pydantic>=2,<3",
+  # TypedDict that pydantic accepts on Python < 3.12 (complex controllers in drtc.py)
+  # TODO: drop when the minimum Python is 3.12; use typing.TypedDict in drtc.py instead
+  "typing_extensions>=4.6",
   # implicit dependency, specific version follows from hydrolib-core
   "meshkernel",
   # upper pin <2 because hydrolib-core will remove support for some quantities/blocks
@@ -36,7 +39,8 @@ dependencies = [
   "folium>=0.18",
   "branca>=0.6",
   "jinja2>=3",
-  "shapely>=2.0.2",
+  # voronoi_polygons(ordered=True) in spatial.get_voronoi_around_nodes
+  "shapely>=2.1",
   "ipykernel>=7",
   "ipywidgets>=8",
   # specific gridgeom imports
@@ -55,8 +59,16 @@ dev = [
   "pytest>=6.2",
   "pytest-cov>=2.11",
   "ruff>=0.12",
-  "mypy>=0.910",
+  "mypy>=2.4",
   "pre-commit>=3.7",
+  # type stubs for mypy; pandas-stubs follows the pandas major version
+  "pandas-stubs>=2,<3",
+  "types-geopandas",
+  "types-shapely",
+  # scipy-stubs requires Python >= 3.12; the py311 environment type-checks scipy as untyped
+  "scipy-stubs; python_version >= '3.12'",
+  "types-tqdm",
+  "types-python-dateutil",
 ]
 # update docs dependency versions https://github.com/Deltares/HYDROLIB/issues/246
 docs = [
@@ -94,12 +106,63 @@ version_files = [
 changelog_file = "docs/changelog.md"
 
 [tool.ruff]
-line-length = 88
+line-length = 120
 target-version = "py311"
 src = ["hydrolib", "tests"]
+# deprecated, to be removed
+extend-exclude = [
+  "hydrolib/dhydamo/geometry/gridgeom",
+  "hydrolib/dhydamo/geometry/mesh2d_gridgeom.py",
+]
+# also exclude them when a file is passed explicitly (IDE, pre-commit)
+force-exclude = true
 
 [tool.ruff.lint]
-extend-select = ["I"]
+extend-select = ["I", "PD", "NPY", "PT", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+# tests are documented by their names: no docstrings required for modules, classes and functions
+"tests/**" = ["D100", "D101", "D102", "D103", "D104"]
+# Copied from imod-python 0.10.1: docstrings kept as upstream
+"hydrolib/dhydamo/io/idfreader.py" = ["D"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_ignores = true
+# every function must have type hints: mypy skips the body of a function without them
+disallow_untyped_defs = true
+# understands pydantic models, e.g. hydrolib-core fields with camelCase aliases
+plugins = ["pydantic.mypy"]
+# deprecated, to be removed
+exclude = [
+  "hydrolib/dhydamo/geometry/gridgeom/",
+  "hydrolib/dhydamo/geometry/mesh2d_gridgeom.py",
+]
+
+# Packages without type hints (no py.typed marker) and without stub packages.
+[[tool.mypy.overrides]]
+module = [
+  "cftime.*",
+  "exactextract.*",
+  "meshkernel.*",
+  "rasterio.*",
+]
+ignore_missing_imports = true
+
+# hydrolib-core is fully annotated but has no py.typed marker: read its type hints anyway.
+# It writes optional arguments as `name: str = None`, which implicit_optional reads as `str | None`.
+[[tool.mypy.overrides]]
+module = ["hydrolib.core.*"]
+follow_untyped_imports = true
+implicit_optional = true
+
+# Copied from imod-python 0.10.1: only open() and affine_from_idf() have type hints.
+[[tool.mypy.overrides]]
+module = ["hydrolib.dhydamo.io.idfreader"]
+disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -121,9 +184,12 @@ hydrolib = { path = ".", editable = true }
 # Tasks for the "dev" feature, whose dependencies come from [dependency-groups].
 [tool.pixi.feature.dev.tasks]
 test = "pytest -v -m 'not slow and not plot and not dll' --cov=hydrolib --cov-report=xml --cov-report=term"
-lint = "ruff format --check . && ruff check hydrolib tests"
-fix = "ruff format . && ruff check --fix hydrolib tests"
-typecheck = "mypy hydrolib"
+lint = "ruff format --check hydrolib/dhydamo tests && ruff check hydrolib/dhydamo tests"
+fix = "ruff format hydrolib/dhydamo tests && ruff check --fix hydrolib/dhydamo tests"
+typecheck = "mypy hydrolib/dhydamo tests/dhydamo"
+install-hooks = "pre-commit install"
+lock-check = "pixi lock --check"
+export-conda-environments = "pixi workspace export conda-environment environment-win-64.yml --environment py312 --platform win-64 --name hydrolib --from-lock-file && pixi workspace export conda-environment environment-linux-64.yml --environment py312 --platform linux-64 --name hydrolib --from-lock-file"
 
 [tool.pixi.feature.docs.tasks]
 docs-build = "mkdocs build"
@@ -161,7 +227,3 @@ docs = ["docs", "py312"]
 # doesn't need the runtime stack from [project.dependencies].
 features = ["release", "py312"]
 no-default-feature = true
-
-[tool.pixi.tasks]
-lock-check = "pixi lock --check"
-export-conda-environments = "pixi workspace export conda-environment environment-win-64.yml --environment py312 --platform win-64 --name hydrolib --from-lock-file && pixi workspace export conda-environment environment-linux-64.yml --environment py312 --platform linux-64 --name hydrolib --from-lock-file"

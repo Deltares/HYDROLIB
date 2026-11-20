@@ -7,3 +7,28 @@ repos:
         language: system
         pass_filenames: false
         files: ^pixi\.lock$
+
+      # The same checks as `pixi run lint` and `pixi run typecheck`, with the versions and
+      # settings of the pixi environment. Run `pixi run install-hooks` once per clone.
+      - id: ruff-format
+        name: ruff format
+        # formats the staged files; the commit stops, so the result can be reviewed and staged
+        entry: pixi run ruff format
+        language: system
+        types: [python]
+        files: ^(hydrolib/dhydamo|tests)/
+      - id: ruff-check
+        name: ruff check
+        # no --fix: fixes are reviewed by hand (house rule 7, inplace=True)
+        entry: pixi run ruff check
+        language: system
+        types: [python]
+        files: ^(hydrolib/dhydamo|tests)/
+      - id: mypy
+        name: mypy
+        # the whole package, like CI: a change in one file can break another
+        entry: pixi run typecheck
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^(hydrolib/dhydamo|tests/dhydamo)/

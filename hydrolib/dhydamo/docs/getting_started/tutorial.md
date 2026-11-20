@@ -26,7 +26,7 @@ import sys
 
 ```python
 ## In not installed, add a path from where hydrolib it can be imported
-#sys.path.insert(0, "d:/Documents/GitHub/HYDROLIB")
+# sys.path.insert(0, "d:/Documents/GitHub/HYDROLIB")
 sys.path.insert(0, "../../")
 
 # NOTE: core and dhydamo need to be in the same folder to be imported correctly
@@ -157,9 +157,7 @@ hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
 hydamo.bridges.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
 hydamo.bridges.dropna(axis=0, inplace=True, subset=["branch_offset"])
 # boundaries
-hydamo.boundary_conditions.read_gpkg_layer(
-    gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code"
-)
+hydamo.boundary_conditions.read_gpkg_layer(gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code")
 hydamo.boundary_conditions.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
 
 # catchments
@@ -194,9 +192,7 @@ ax.set_ylim(391000, 397000)
 
 hydamo.branches.geometry.plot(ax=ax, label="Channel", linewidth=2, color="blue")
 hydamo.profile.geometry.plot(ax=ax, color="red", label="Cross section", linewidth=1)
-hydamo.culverts.geometry.centroid.plot(
-    ax=ax, color="yellow", label="Culvert", markersize=20, zorder=10, marker="^"
-)
+hydamo.culverts.geometry.centroid.plot(ax=ax, color="yellow", label="Culvert", markersize=20, zorder=10, marker="^")
 hydamo.weirs.geometry.centroid.plot(ax=ax, color="green", label="Weir", markersize=25, zorder=10, marker="^")
 hydamo.bridges.geometry.plot(ax=ax, color="red", label="Bridge", markersize=20, zorder=10, marker="^")
 hydamo.pumpstations.geometry.plot(
@@ -541,7 +537,7 @@ hydamo.observationpoints.add_points(
 ```python
 hydamo.storagenodes.add_storagenode(
     "test",
-    "123_123",
+    nodeid="123_123",
     usestreetstorage="true",
     nodetype="unspecified",
     name=np.nan,
@@ -688,8 +684,8 @@ To generate a triangular mesh:
 
 
 ```python
-#if TwoD:
-    #mesh.mesh2d_add_triangular(network, extent, edge_length=50.0)
+# if TwoD:
+# mesh.mesh2d_add_triangular(network, extent, edge_length=50.0)
 ```
 
 And a rectangular mesh:
@@ -711,7 +707,9 @@ if TwoD:
     print("Nodes after refinement:", network._mesh2d.mesh2d_node_x.size)
 
     # add terrain level
-    mesh.mesh2d_altitude_from_raster(network, "../sample_data/data/rasters/AHN_2m_clipped_filled.tif", "face", "mean", fill_value=-999)
+    mesh.mesh2d_altitude_from_raster(
+        network, "../sample_data/data/rasters/AHN_2m_clipped_filled.tif", "face", "mean", fill_value=-999
+    )
 ```
 
     Nodes before refinement: 7515
@@ -789,7 +787,7 @@ if RTC:
         fm,
         output_path=output_path,
         rtc_timestep=60.0,
-        complex_controllers_folder=data_path / "complex_controllers"        
+        complex_controllers_folder=data_path / "complex_controllers",
     )
 ```
 
@@ -806,11 +804,11 @@ if RTC:
         "maxspeed": 0.00033,
     }
     pid_settings["kst_pid"] = {
-            "ki": -0.03,
-            "kp": -0.0,
-            "kd": 0.0,
-            "maxspeed": 0.00033,
-        }
+        "ki": -0.03,
+        "kp": -0.0,
+        "kd": 0.0,
+        "maxspeed": 0.00033,
+    }
 ```
 
 The function 'from_hydamo' converts the controllers that are specified in the HyDAMO DAMO2.2 data. The extra input consists of the settings for PID controllers (see above) and a dataframe with time series for the time controllers.
@@ -820,7 +818,7 @@ The function 'from_hydamo' converts the controllers that are specified in the Hy
 if RTC:
     if not hydamo.management.typecontroller.empty:
         timeseries = pd.read_csv(data_path / "timecontrollers.csv")
-        timeseries.index = timeseries.Time        
+        timeseries.index = timeseries.Time
 
         drtcmodel.from_hydamo(pid_settings=pid_settings, timeseries=timeseries)
 ```
@@ -842,7 +840,7 @@ if RTC:
     )
 
     drtcmodel.add_time_controller(
-        structure_id="S_96548", steering_variable="Crest level (s)", data=timeseries.iloc[:,1]
+        structure_id="S_96548", steering_variable="Crest level (s)", data=timeseries.iloc[:, 1]
     )
 ```
 
@@ -985,12 +983,8 @@ if RR:
         pump_capacity=pumpcapacity,
         meteo_areas=meteo_areas,
     )
-    drrmodel.greenhouse.io.greenhouse_from_input(
-        hydamo.catchments, lu_file, ahn_file, roof_storage, meteo_areas
-    )
-    drrmodel.openwater.io.openwater_from_input(
-        hydamo.catchments, lu_file, meteo_areas
-    )
+    drrmodel.greenhouse.io.greenhouse_from_input(hydamo.catchments, lu_file, ahn_file, roof_storage, meteo_areas)
+    drrmodel.openwater.io.openwater_from_input(hydamo.catchments, lu_file, meteo_areas)
 ```
 
 Make the RR boundaries:
@@ -1071,7 +1065,7 @@ Add the main parameters:
 
 
 ```python
-if RR:   
+if RR:
     drrmodel.d3b_parameters["Timestepsize"] = 300
     drrmodel.d3b_parameters["StartTime"] = "'2016/06/01;00:00:00'"  # should be equal to refdate for D-HYDRO
     drrmodel.d3b_parameters["EndTime"] = "'2016/06/03;00:00:00'"
@@ -1081,7 +1075,6 @@ if RR:
     drrmodel.d3b_parameters["UnsaturatedZone"] = 1
     drrmodel.d3b_parameters["UnpavedPercolationLikeSobek213"] = -1
     drrmodel.d3b_parameters["VolumeCheckFactorToCF"] = 100000
-
 ```
 
 And now we can also add the laterals to FM with the correct settings:
@@ -1100,7 +1093,6 @@ else:
     hydamo.external_forcings.convert.laterals(
         hydamo.laterals, lateral_discharges=lateral_discharges, rr_boundaries=None
     )
-
 ```
 
 And now we can also manually add lateral nodes, which we still need to convert to a dataframe.
@@ -1156,9 +1148,7 @@ ax.set_ylim(390000, 399000)
 
 hydamo.catchments.geometry.plot(ax=ax, label="Catchments", edgecolor="black", facecolor="pink", alpha=0.5)
 hydamo.branches.geometry.plot(ax=ax, label="Channel")
-node_geometry(drrmodel.unpaved.unp_nodes)[0].plot(
-    ax=ax, markersize=30, marker="s", color="green", label="Unpaved"
-)
+node_geometry(drrmodel.unpaved.unp_nodes)[0].plot(ax=ax, markersize=30, marker="s", color="green", label="Unpaved")
 node_geometry(drrmodel.unpaved.unp_nodes)[1].plot(ax=ax, color="black", linewidth=0.5)
 node_geometry(drrmodel.paved.pav_nodes)[0].plot(ax=ax, markersize=20, marker="s", color="red", label="Paved")
 node_geometry(drrmodel.paved.pav_nodes)[1].plot(ax=ax, color="black", linewidth=0.5)
@@ -1229,15 +1219,14 @@ Now we write the file structure:
 ```python
 fm.filepath = Path(output_path) / "fm" / "test.mdu"
 dimr = DIMR()
-dimr.component.append(
-    FMComponent(name="DFM", workingDir=Path(output_path) / "fm", model=fm, inputfile=fm.filepath)    
-)
+dimr.component.append(FMComponent(name="DFM", workingDir=Path(output_path) / "fm", model=fm, inputfile=fm.filepath))
 dimr.save(recurse=True)
 ```
 
 
 ```python
 import shutil
+
 shutil.copy(data_path / "initialWaterDepth.ini", output_path / "fm")
 ```
 

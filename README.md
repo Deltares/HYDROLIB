@@ -1,7 +1,8 @@
 # HYDROLIB
 
 [![Join the chat at https://gitter.im/Deltares/HYDROLIB](https://badges.gitter.im/Deltares/HYDROLIB.svg)](https://gitter.im/Deltares/HYDROLIB?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Code style: Ruff](https://img.shields.io/badge/code%20style-Ruff-261230.svg)](https://docs.astral.sh/ruff/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![mypy: dhydamo](https://img.shields.io/badge/mypy-dhydamo-2a6db2.svg)](https://mypy-lang.org/)
 [![ci](https://github.com/Deltares/HYDROLIB/actions/workflows/ci.yml/badge.svg)](https://github.com/Deltares/HYDROLIB/actions/workflows/ci.yml)
 [![codecov](https://img.shields.io/codecov/c/github/deltares/hydrolib.svg?style=flat-square)](https://app.codecov.io/gh/deltares/hydrolib?displayType=list)
 

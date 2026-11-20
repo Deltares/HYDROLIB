@@ -1,13 +1,18 @@
 # coding: latin-1
+"""Write the files of a D-RR model."""
+
 import logging
 import os
 import re
 import shutil
+from pathlib import Path
+from typing import TextIO
 
 import numpy as np
 import pandas as pd
 from shapely.geometry import Point
 
+from hydrolib.dhydamo.core.drr import DRRModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 # from delft3dfmpy.core.geometry import orthogonal_line
@@ -17,18 +22,39 @@ logger = logging.getLogger(__name__)
 
 
 class DRRWriter:
-    """Writer for RR files"""
+    """Write the files of an RR model to the ``rr`` folder of a model.
 
-    def __init__(self, rrmodel, output_dir, name=None, wwtp=None):
+    An existing ``rr`` folder is removed when the writer is created.
+
+    Parameters
+    ----------
+    rrmodel : DRRModel
+        The RR model to write.
+    output_dir : str or Path
+        Model folder; the files are written to its ``rr`` subfolder.
+    name : str, optional
+        Deprecated, not used. Defaults to None.
+    wwtp : tuple[float, float], optional
+        Coordinates of the waste water treatment plant node, to which the paved nodes
+        are linked. Defaults to None: (100000, 500000).
+    """
+
+    def __init__(
+        self,
+        rrmodel: DRRModel,
+        output_dir: str | Path,
+        name: str | None = None,
+        wwtp: tuple[float, float] | None = None,
+    ) -> None:
         self.rrmodel = rrmodel
         # self.geometries = parent.geometries
         # self.boundary_conditions = parent.boundary_conditions
         self.output_dir = os.path.join(output_dir, "rr")
-        
+
         if name is not None:
             logger.warning(
-                "The 'name' parameter is deprecated and will be removed in a future version.",                
-        )
+                "The 'name' parameter is deprecated and will be removed in a future version.",
+            )
 
         hydamo = HyDAMO()
         self.version = hydamo.version
@@ -38,7 +64,7 @@ class DRRWriter:
 
         self.d3b_parameters = rrmodel.d3b_parameters
 
-        self.precip_df = {}
+        self.precip_df = pd.DataFrame()
         self.run_dimrpad = rrmodel.dimr_path
 
         if wwtp is None:
@@ -46,10 +72,8 @@ class DRRWriter:
         else:
             self.wwtp = Point((wwtp[0], wwtp[1]))
 
-    def write_all(self):  # write all RR files
-        """
-        Wrapper method to write all components
-        """
+    def write_all(self) -> None:  # write all RR files
+        """Write all RR files and set the parameters of ``delft_3b.ini``."""
         # copy all 'standard' files from the resources folder
         self.copyRRFiles()
 
@@ -69,39 +93,34 @@ class DRRWriter:
         for parameter, value in self.d3b_parameters.items():
             self.change_d3b_parameter(parameter, value)
 
-    def copyRRFiles(self):
-        """
-        Method to copy the RR-files from resources.
+    def copyRRFiles(self) -> bool:
+        """Copy the standard RR files from the resources folder to the output folder.
 
         Returns
         -------
         bool
-            Succesfull or not.
-
+            Always True.
         """
         srcRR = os.path.join(os.path.dirname(__file__), "..", "resources", "RR")
         targetRR = os.path.join(self.output_dir)
         shutil.copytree(srcRR, targetRR)
         return True
 
-    def write_topology(self):
-        """
-        Wrapper to write the topolgy files for RR. The following files are written:
-            3B_NOD.TP: IDs and coordinates of all nodes: unpaved, paved, greenhouse, open water and boundary. Only nodes with a total area of >0 are written. Nodes are placed up to 20 m to the east and west of the catchment centroid.
-            3B_LINK.TP: Links between all nodes and the correct boundaries.
-            BOUND3B.3B: coupling information for every RR boundary.
-            BoundaryConditions.bc: see bound3b.3b
-        Returns
-        -------
-        None.
+    def write_topology(self) -> None:
+        """Write the topology files of the RR model.
 
+        - ``3B_NOD.TP``: ids and coordinates of all nodes: unpaved, paved, greenhouse,
+          open water and boundary. Only nodes with a total area > 0 are written. Nodes are
+          placed up to 20 m east and west of the catchment centroid.
+        - ``3B_LINK.TP``: links between all nodes and their boundaries.
+        - ``BOUND3B.3B``: coupling information for every RR boundary.
+        - ``BoundaryConditions.bc``: see ``BOUND3B.3B``.
         """
         filepath = os.path.join(self.output_dir, "3B_NOD.TP")
         with open(filepath, "w") as f:
-
             # Unpaved nodes
             if any(self.rrmodel.unpaved.unp_nodes):
-                for _, dct in self.rrmodel.unpaved.unp_nodes.items():
+                for dct in self.rrmodel.unpaved.unp_nodes.values():
                     if np.sum([float(d) for d in dct["ar"].split(" ")]) > 0.0:
                         f.write(
                             "NODE id '"
@@ -117,7 +136,7 @@ class DRRWriter:
 
             # Paved nodes
             if any(self.rrmodel.paved.pav_nodes):
-                for _, dct in self.rrmodel.paved.pav_nodes.items():
+                for dct in self.rrmodel.paved.pav_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "NODE id '"
@@ -148,7 +167,7 @@ class DRRWriter:
 
             # Greenhouse nodes
             if any(self.rrmodel.greenhouse.gh_nodes):
-                for _, dct in self.rrmodel.greenhouse.gh_nodes.items():
+                for dct in self.rrmodel.greenhouse.gh_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "NODE id '"
@@ -164,7 +183,7 @@ class DRRWriter:
 
             # Openwater nodes
             if any(self.rrmodel.openwater.ow_nodes):
-                for _, dct in self.rrmodel.openwater.ow_nodes.items():
+                for dct in self.rrmodel.openwater.ow_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "NODE id '"
@@ -180,7 +199,7 @@ class DRRWriter:
 
             # Boundary_nodes
             if any(self.rrmodel.external_forcings.boundary_nodes):
-                for _, dct in self.rrmodel.external_forcings.boundary_nodes.items():
+                for dct in self.rrmodel.external_forcings.boundary_nodes.values():
                     f.write(
                         "NODE id '"
                         + dct["id"]
@@ -195,10 +214,9 @@ class DRRWriter:
 
         filepath = os.path.join(self.output_dir, "3B_LINK.TP")
         with open(filepath, "w") as f:
-
             cnt = 0
             if any(self.rrmodel.unpaved.unp_nodes):
-                for _, dct in self.rrmodel.unpaved.unp_nodes.items():
+                for dct in self.rrmodel.unpaved.unp_nodes.values():
                     if np.sum([float(d) for d in dct["ar"].split(" ")]) > 0.0:
                         cnt += 1
                         f.write(
@@ -211,7 +229,7 @@ class DRRWriter:
                             + "' brch\n"
                         )
             if any(self.rrmodel.paved.pav_nodes):
-                for _, dct in self.rrmodel.paved.pav_nodes.items():
+                for dct in self.rrmodel.paved.pav_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         cnt += 1
                         f.write(
@@ -239,7 +257,7 @@ class DRRWriter:
                 )
 
             if any(self.rrmodel.greenhouse.gh_nodes):
-                for _, dct in self.rrmodel.greenhouse.gh_nodes.items():
+                for dct in self.rrmodel.greenhouse.gh_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         cnt += 1
                         f.write(
@@ -252,7 +270,7 @@ class DRRWriter:
                             + "' brch\n"
                         )
             if any(self.rrmodel.openwater.ow_nodes):
-                for _, dct in self.rrmodel.openwater.ow_nodes.items():
+                for dct in self.rrmodel.openwater.ow_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         cnt += 1
                         f.write(
@@ -268,7 +286,7 @@ class DRRWriter:
         # bound3b.3b
         filepath = os.path.join(self.output_dir, "Bound3B.3B")
         with open(filepath, "w") as f:
-            for _, dct in self.rrmodel.external_forcings.boundary_nodes.items():
+            for dct in self.rrmodel.external_forcings.boundary_nodes.values():
                 f.write("BOUN id '" + dct["id"] + "' bl 2 '0' is 0 boun\n")
             if any(self.rrmodel.paved.pav_nodes):
                 f.write("BOUN id 'WWTP_BND' bl 0 -3 is 0 boun\n")
@@ -278,7 +296,7 @@ class DRRWriter:
         header = {"fileVersion": "1.01", "fileType": "boundConds"}
         with open(filepath, "w") as f:
             self._write_dict(f, header, "General", "\n")
-            for _, dct in self.rrmodel.external_forcings.boundary_nodes.items():
+            for dct in self.rrmodel.external_forcings.boundary_nodes.values():
                 temp = {
                     "name": "" + dct["id"],
                     "function": "constant",
@@ -295,14 +313,12 @@ class DRRWriter:
                 }
                 self._write_dict(f, temp, "Boundary", "    0\n\n")
 
-    def write_unpaved(self):
-        """
-        Method to write all files associated with unpaved nodes: UNPAVED.3B, UNPAVED.ALF, UNPAVED.STO, UNPAVED.INF and UNPAVED.SEP. All files contain a definition for every node  because they may or may not be spatially distributed.
+    def write_unpaved(self) -> None:
+        """Write the files of the unpaved nodes.
 
-        Returns
-        -------
-        None.
-
+        ``UNPAVED.3B``, ``UNPAVED.ALF``, ``UNPAVED.STO``, ``UNPAVED.INF`` and
+        ``UNPAVED.SEP``. All files have a definition for every node, because the values
+        may be spatially distributed.
         """
         if any(self.rrmodel.unpaved.unp_nodes):
             filepath = os.path.join(self.output_dir, "UNPAVED.3B")
@@ -366,29 +382,13 @@ class DRRWriter:
                 for _, dct in self.rrmodel.unpaved.unp_nodes.items():
                     if np.sum([float(d) for d in dct["ar"].split(" ")]) > 0.0:
                         f.write(
-                            "INFC id 'inf_"
-                            + dct["id"]
-                            + "' nm 'inf_"
-                            + dct["id"]
-                            + "' ic "
-                            + dct["ic"]
-                            + " infc\n"
+                            "INFC id 'inf_" + dct["id"] + "' nm 'inf_" + dct["id"] + "' ic " + dct["ic"] + " infc\n"
                         )
 
             filepath = os.path.join(self.output_dir, "UNPAVED.ALF")
             with open(filepath, "w") as f:
                 for _, dct in self.rrmodel.unpaved.ernst_defs.items():
-                    if (
-                        np.sum(
-                            [
-                                float(d)
-                                for d in self.rrmodel.unpaved.unp_nodes[_]["ar"].split(
-                                    " "
-                                )
-                            ]
-                        )
-                        > 0.0
-                    ):
+                    if np.sum([float(d) for d in self.rrmodel.unpaved.unp_nodes[_]["ar"].split(" ")]) > 0.0:
                         f.write(
                             "ERNS id '"
                             + dct["id"]
@@ -409,38 +409,24 @@ class DRRWriter:
             with open(filepath, "w") as f:
                 for _, dct in self.rrmodel.unpaved.unp_nodes.items():
                     if np.sum([float(d) for d in dct["ar"].split(" ")]) > 0.0:
-                        f.write(
-                            "SEEP id '"
-                            + dct["sp"]
-                            + "' nm '"
-                            + dct["sp"]
-                            + "' co 4 PDIN 0 0 pdin ss 0\n"
-                        )
+                        f.write("SEEP id '" + dct["sp"] + "' nm '" + dct["sp"] + "' co 4 PDIN 0 0 pdin ss 0\n")
                         f.write("TBLE\n")
-                        for row in self.rrmodel.external_forcings.seepage[dct["sp"]][
-                            "seepage"
-                        ].items():
-                            f.write(
-                                "'"
-                                + row[0].strftime("%Y/%m/%d;%H:%M:%S")
-                                + "' "
-                                + f"{row[1]:.5f} <\n"
-                            )
+                        seepage = self.rrmodel.external_forcings.seepage[dct["sp"]]["seepage"]
+                        f.writelines(
+                            f"'{time.strftime('%Y/%m/%d;%H:%M:%S')}' {value:.5f} <\n"
+                            for time, value in zip(pd.DatetimeIndex(seepage.index), seepage)
+                        )
                         f.write("tble\nseep\n")
 
-    def write_paved(self):
-        """
-        Method to write all files associated with paved nodes: PAVED.3B, PAVED.STO and PAVED.DWA. The latter contains only one definition.
+    def write_paved(self) -> None:
+        """Write the files of the paved nodes.
 
-        Returns
-        -------
-        None.
-
+        ``PAVED.3B``, ``PAVED.STO`` and ``PAVED.DWA``. The latter has only one definition.
         """
         if any(self.rrmodel.paved.pav_nodes):
             filepath = os.path.join(self.output_dir, "PAVED.3B")
             with open(filepath, "w") as f:
-                for _, dct in self.rrmodel.paved.pav_nodes.items():
+                for dct in self.rrmodel.paved.pav_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "PAVE id '"
@@ -468,7 +454,7 @@ class DRRWriter:
 
             filepath = os.path.join(self.output_dir, "PAVED.STO")
             with open(filepath, "w") as f:
-                for _, dct in self.rrmodel.paved.pav_nodes.items():
+                for dct in self.rrmodel.paved.pav_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "STDF id 'sto_"
@@ -496,21 +482,22 @@ class DRRWriter:
             with open(filepath, "w") as f:
                 f.write("\n")
 
-    def write_greenhouse(self):
-        """
-        Method to write all files associated with greenhouse nodes: GREENHSE.3B, GREENHSE.RF and GREENHSE.SIL. The latter contains only one definition.
+    def write_greenhouse(self) -> None:
+        """Write the files of the greenhouse nodes.
 
-        Returns
-        -------
-        None.
-
+        ``GREENHSE.3B``, ``GREENHSE.RF`` and ``GREENHSE.SIL``. The latter has only one
+        definition.
         """
         if any(self.rrmodel.greenhouse.gh_nodes):
             filepath = os.path.join(self.output_dir, "GREENHSE.3B")
             with open(filepath, "w") as f:
-                for _, dct in self.rrmodel.greenhouse.gh_nodes.items():                    
+                for dct in self.rrmodel.greenhouse.gh_nodes.values():
                     if float(dct["ar"]) > 0.0:
-                        area_string = ' '.join(['0' for _ in range(int(dct['basin_storage_class'])-1)]+ [dct['ar']]+['0' for _ in range(10-(int(dct['basin_storage_class'])))])
+                        area_string = " ".join(
+                            ["0" for _ in range(int(dct["basin_storage_class"]) - 1)]
+                            + [dct["ar"]]
+                            + ["0" for _ in range(10 - (int(dct["basin_storage_class"])))]
+                        )
                         f.write(
                             "GRHS id '"
                             + dct["id"]
@@ -533,7 +520,7 @@ class DRRWriter:
 
             filepath = os.path.join(self.output_dir, "GREENHSE.RF")
             with open(filepath, "w") as f:
-                for _, dct in self.rrmodel.greenhouse.gh_nodes.items():
+                for dct in self.rrmodel.greenhouse.gh_nodes.values():
                     if float(dct["ar"]) > 0.0:
                         f.write(
                             "STDF id 'sto_"
@@ -545,85 +532,56 @@ class DRRWriter:
                             + " ik 0 stdf\n"
                         )
 
-    def write_openwater(self):
-        """
-         Method to write OPENWATE.3B file.
-
-        Returns
-        -------
-        None.
-
-        """
+    def write_openwater(self) -> None:
+        """Write ``OPENWATE.3B``, the file of the open water nodes."""
         # write openwater.3b
         if any(self.rrmodel.openwater.ow_nodes):
             filepath = os.path.join(self.output_dir, "OPENWATE.3B")
             with open(filepath, "w") as f:
-                for _, dct in self.rrmodel.openwater.ow_nodes.items():
+                for dct in self.rrmodel.openwater.ow_nodes.values():
                     if float(dct["ar"]) > 0.0:
-                        f.write(
-                            "OWRR id '"
-                            + dct["id"]
-                            + "' ar "
-                            + dct["ar"]
-                            + " ms '"
-                            + dct["ms"]
-                            + "' owrr\n"
-                        )
+                        f.write("OWRR id '" + dct["id"] + "' ar " + dct["ar"] + " ms '" + dct["ms"] + "' owrr\n")
 
-    def write_meteo(self):
-        """
-        Method to write meteofiles (DEFAULT.BUI and DEFAULT.EVP) based on values per catchment.
+    def write_meteo(self) -> None:
+        """Write the meteo files ``DEFAULT.BUI`` and ``DEFAULT.EVP``.
 
-        Returns
-        -------
-        None.
-
+        From the time series per meteo area, or as a copy of the meteo file given to the
+        RR model.
         """
         # precip
         filepath = os.path.join(self.output_dir, "DEFAULT.BUI")
         if isinstance(self.rrmodel.external_forcings.precip, str):
             shutil.copy(self.rrmodel.external_forcings.precip, filepath)
         else:
-            df = {}
-            for ii, ms in enumerate(self.rrmodel.external_forcings.precip.items()):
-                df[ms[0]] = pd.Series(ms[1]["precip"])
+            # the precipitation per meteo area, written below the header
+            self.precip_df = pd.DataFrame(
+                {name: pd.Series(series["precip"]) for name, series in self.rrmodel.external_forcings.precip.items()}
+            )
 
-            f = open(filepath, "w")
-            f.write("*Name of this file: c:\\Result\\1058\\DEFAULT.BUI\n")
-            f.close()
-            f = open(filepath, "a")
-            f.write("*Date and time of construction: 00/00/2000 00:00:00.\n")
-            f.write("1\n")
-            f.write("*Aantal stations\n")
-            f.write(str(len(self.rrmodel.external_forcings.precip)) + "\n")
-            f.write("*Namen van stations\n")
-            for ms in self.rrmodel.external_forcings.precip.items():
-                f.write("'" + ms[0] + "'" + "\n")
-            f.write(
-                "*Aantal gebeurtenissen (omdat het 1 bui betreft is dit altijd 1)\n"
-            )
-            f.write("*en het aantal seconden per waarnemingstijdstap\n")
-            f.write(
-                f'1 {(ms[1]["precip"].index[1]-ms[1]["precip"].index[0]).total_seconds():.0f}\n'
-            )
-            f.write("*Elke commentaarregel wordt begonnen met een * (asterisk).\n")
-            f.write(
-                "*Eerste record bevat startdatum en -tijd, lengte van de gebeurtenis in dd hh mm ss\n"
-            )
-            f.write("*Het format is: yyyymmdd:hhmmss:ddhhmmss")
-            f.write("*Daarna voor elk station de neerslag in mm per tijdstap.\n")
-            duration = (
-                ms[1]["precip"].index[-1] - ms[1]["precip"].index[0]
-            ).total_seconds()
-            f.write(
-                ms[1]["precip"].index[0].strftime("%Y %#m %#d %#H %#M %#S ")
-                + str(int(duration / 86400.0))
-                + " "
-                + str(int(np.remainder(duration, 86400.0) / 3600.0))
-                + " 0 0\n"
-            )
-            f.close()
-            self._dict_to_df()
+            with open(filepath, "w") as f:
+                f.write("*Name of this file: c:\\Result\\1058\\DEFAULT.BUI\n")
+                f.write("*Date and time of construction: 00/00/2000 00:00:00.\n")
+                f.write("1\n")
+                f.write("*Aantal stations\n")
+                f.write(str(len(self.rrmodel.external_forcings.precip)) + "\n")
+                f.write("*Namen van stations\n")
+                for ms in self.rrmodel.external_forcings.precip.items():
+                    f.write("'" + ms[0] + "'" + "\n")
+                f.write("*Aantal gebeurtenissen (omdat het 1 bui betreft is dit altijd 1)\n")
+                f.write("*en het aantal seconden per waarnemingstijdstap\n")
+                f.write(f"1 {(ms[1]['precip'].index[1] - ms[1]['precip'].index[0]).total_seconds():.0f}\n")
+                f.write("*Elke commentaarregel wordt begonnen met een * (asterisk).\n")
+                f.write("*Eerste record bevat startdatum en -tijd, lengte van de gebeurtenis in dd hh mm ss\n")
+                f.write("*Het format is: yyyymmdd:hhmmss:ddhhmmss")
+                f.write("*Daarna voor elk station de neerslag in mm per tijdstap.\n")
+                duration = (ms[1]["precip"].index[-1] - ms[1]["precip"].index[0]).total_seconds()
+                f.write(
+                    ms[1]["precip"].index[0].strftime("%Y %#m %#d %#H %#M %#S ")
+                    + str(int(duration / 86400.0))
+                    + " "
+                    + str(int(np.remainder(duration, 86400.0) / 3600.0))
+                    + " 0 0\n"
+                )
             self.precip_df.to_csv(
                 filepath,
                 header=False,
@@ -632,59 +590,46 @@ class DRRWriter:
                 float_format="%.3f",
                 mode="a",
             )
-        #%%
+        # %%
 
-        #%%%
+        # %%%
         # evaporation
         filepath = os.path.join(self.output_dir, "DEFAULT.EVP")
         if isinstance(self.rrmodel.external_forcings.evap, str):
             shutil.copy(self.rrmodel.external_forcings.evap, filepath)
         else:
-            f = open(filepath, "w")
-            f.write("*Verdampingsfile\n")
-            f.write("*Meteo data: evaporation intensity in mm/day\n")
-            f.write("*First record: start date, data in mm/day\n")
-            f.write(
-                "*Datum (year month day), verdamping (mm/dag) voor elk weerstation\n"
-            )
-            f.write("*jaar maand dag verdamping[mm]\n")
-            f.close()
-            table = list(self.rrmodel.external_forcings.evap.values())[0]["evap"]
+            with open(filepath, "w") as f:
+                f.write("*Verdampingsfile\n")
+                f.write("*Meteo data: evaporation intensity in mm/day\n")
+                f.write("*First record: start date, data in mm/day\n")
+                f.write("*Datum (year month day), verdamping (mm/dag) voor elk weerstation\n")
+                f.write("*jaar maand dag verdamping[mm]\n")
+            table = next(iter(self.rrmodel.external_forcings.evap.values()))["evap"]
             table = table.sort_index()
             date_format = "%#Y  %#m  %#d "
             float_format = "%.3f"
             sep = " "
             with open(filepath, "a") as f:
-                for ts, val in table.items():
+                for ts, val in zip(pd.DatetimeIndex(table.index), table):
                     date = ts.strftime(date_format)
                     f.write(f"{date}{sep}{float_format % val}\n")
 
-    def _dict_to_df(self):
-        """
-        Method to convert the precip dictionary to a dataframe
-        Returns
-        -------
-        None.
-
-        """
-        df = {}
-        for ii, stat in enumerate(self.rrmodel.external_forcings.precip.items()):
-            df[stat[0]] = pd.Series(stat[1]["precip"])
-        self.precip_df = pd.DataFrame(df)
-
-    def _write_dict(self, f, dct, header, endline):
-        """
-        Write a dictionary to file, without transforming with mapping
-        """
+    def _write_dict(self, f: TextIO, dct: dict[str, str], header: str, endline: str) -> None:
+        """Write a dictionary as an INI section, without transforming the values."""
         # Write header
         f.write(f"[{header}]\n")
-        for key, value in dct.items():
-            f.write(f"    {key:20s} = {value:20s}\n")
+        f.writelines(f"    {key:20s} = {value:20s}\n" for key, value in dct.items())
         f.write(endline)
 
-    def change_d3b_parameter(self, parameter, value):
-        """
-        Change parameter value in delft3b.ini file
+    def change_d3b_parameter(self, parameter: str, value: str | float) -> None:
+        """Change the value of a parameter in ``delft_3b.ini``, in place.
+
+        Parameters
+        ----------
+        parameter : str
+            Parameter name, case-insensitive.
+        value : str or float
+            New value.
         """
         with open(os.path.join(self.output_dir, "delft_3b.ini")) as f:
             lines = f.readlines()
@@ -693,11 +638,9 @@ class DRRWriter:
             if line.lower().strip().startswith(parameter.lower()):
                 items = re.split("=", line)
                 key, oldvalue = items[0], items[1]
-                if not key.strip().lower() == parameter.lower():
+                if key.strip().lower() != parameter.lower():
                     continue
-                lines[i] = line.replace(
-                    "=" + oldvalue, f"={value}\n"
-                )
+                lines[i] = line.replace("=" + oldvalue, f"={value}\n")
                 break
 
         with open(os.path.join(self.output_dir, "delft_3b.ini"), "w") as f:
