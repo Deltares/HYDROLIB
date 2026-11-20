@@ -1,5 +1,6 @@
 import itertools
 import logging
+import shutil
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -779,6 +780,10 @@ class Df2HydrolibModel:
         list[tuple[str, str, float | None]]
             One block (filename, 'sample', None).
         """
+        if sf.get("xyz_file") is not None:
+            # an existing .xyz file: copied unchanged by write_spatial_fields(), its values are not read
+            self.spatial_data[sf["filename"]] = {"filetype": "xyz_file", "path": sf["xyz_file"]}
+            return [(sf["filename"], "sample", None)]
         gdf = sf["gdf"]
         self.spatial_data[sf["filename"]] = {
             "filetype": "sample",
@@ -874,6 +879,9 @@ class Df2HydrolibModel:
         if sf["kind"] != "initial" or kind is None:
             return None
         if sf["filetype"] != "branch" and sf["locationtype"] not in ("1d", "all"):
+            return None
+        if data is not None and data.get("filetype") == "xyz_file":
+            logger.info(f"The overlap check of initial water levels and depths skips {sf['filename']} (an .xyz file).")
             return None
         footprint = {
             "kind": kind,
@@ -1105,6 +1113,8 @@ class Df2HydrolibModel:
                         )
                     )
                 PolyFile(objects=objects).save(filepath=path)
+            elif data["filetype"] == "xyz_file":
+                shutil.copyfile(data["path"], path)
             elif data["filetype"] == "raster":
                 write_raster(
                     path,
@@ -1322,6 +1332,9 @@ class Df2HydrolibModel:
         elif data["filetype"] == "polygon":
             inside = gpd.GeoSeries(nodes.points).intersects(shapely.union_all(data["polygons"]))
             values[inside.to_numpy()] = float(inifield.value)
+        elif data["filetype"] == "xyz_file":
+            logger.info(f"Sample field {filename} (an .xyz file) is not evaluated at the nodes.")
+            return None
         else:
             logger.warning(f"Raster field {filename} is not evaluated at the nodes.")
             return None

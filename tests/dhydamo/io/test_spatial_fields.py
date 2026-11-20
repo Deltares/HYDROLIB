@@ -171,6 +171,83 @@ def test_sample_settings_for_other_interpolation_warn(
     assert message in caplog.text
 
 
+def _xyz_file(path: Path) -> Path:
+    # an existing .xyz file with a comment line, as D-Flow FM and hydrolib-core accept it
+    path.write_text("* bed level samples\n1.0 1.0 0.3\n5.0 5.0 0.4\n9.0 2.0 0.5\n")
+    return path
+
+
+@pytest.mark.parametrize(
+    ("as_type", "kind", "quantity"),
+    [
+        pytest.param(Path, "initial", "bedlevel", id="path_initial"),
+        pytest.param(str, "parameter", "frictioncoefficient", id="str_parameter"),
+    ],
+)
+def test_xyz_file_field_written(tmp_path: Path, as_type: type, kind: str, quantity: str) -> None:
+    source = _xyz_file(tmp_path / "source.xyz")
+    hydamo = HyDAMO()
+    hydamo.external_forcings.set_spatial_field(
+        as_type(source),
+        quantity=quantity,
+        kind=kind,
+        locationtype="2d",
+        interpolationmethod="averaging",
+        averagingnummin=2,
+    )
+    output = tmp_path / "fm"
+    models = _write(hydamo, output)
+
+    field = (models.inifields + models.parameterfields)[0]
+    assert (field.datafiletype, field.datafile.filepath.name) == ("sample", f"{kind}_{quantity}_00.xyz")
+    assert field.averagingnummin == 2
+    assert (output / f"{kind}_{quantity}_00.xyz").read_bytes() == source.read_bytes()
+
+
+@pytest.mark.parametrize(
+    ("content", "kwargs", "error", "message"),
+    [
+        pytest.param(None, {}, FileNotFoundError, "does not exist", id="missing_file"),
+        pytest.param("x y z\n1 1 0.3\n", {}, ValueError, "should start with three numbers", id="header_line"),
+        pytest.param("1.0 1.0\n", {}, ValueError, "should start with three numbers", id="two_columns"),
+        pytest.param("", {}, ValueError, "should start with three numbers", id="empty_file"),
+        pytest.param("1 1 0.3\n", {"column": "z"}, ValueError, "do not pass a column", id="column"),
+        pytest.param("1 1 0.3\n", {"filetype": "polygon"}, ValueError, "is a sample field", id="other_filetype"),
+    ],
+)
+def test_xyz_file_invalid_input(
+    tmp_path: Path, content: str | None, kwargs: dict, error: type[Exception], message: str
+) -> None:
+    path = tmp_path / "samples.xyz"
+    if content is not None:
+        path.write_text(content)
+    hydamo = HyDAMO()
+    with pytest.raises(error, match=message):
+        hydamo.external_forcings.set_spatial_field(path, **kwargs)
+
+
+def test_xyz_file_skipped_at_nodes_and_in_overlap_check(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    hydamo = HyDAMO()
+    hydamo.branches = _branches()
+    fm = FMModel()
+    mesh.mesh1d_add_branches_from_gdf(
+        fm.geometry.netfile.network, branches=hydamo.branches, branch_name_col="code", node_distance=5
+    )
+    # a water level on br1, then a water depth from an .xyz file, whose values D-HyDAMO does not read
+    levels = gpd.GeoDataFrame({"peil": [1.0]}, geometry=[box(0, 0, 20, 10)], crs=28992)
+    hydamo.external_forcings.set_spatial_field(levels, "peil", quantity="waterlevel", filetype="polygon")
+    hydamo.external_forcings.set_spatial_field(_xyz_file(tmp_path / "depth.xyz"), quantity="waterdepth")
+
+    with caplog.at_level(logging.INFO, logger="hydrolib.dhydamo.converters.df2hydrolibmodel"):
+        models = Df2HydrolibModel(hydamo)
+        nodes = models.initial_conditions_at_nodes(fm.geometry.netfile.network)
+
+    assert "overlap check of initial water levels and depths skips initial_waterdepth_01.xyz" in caplog.text
+    assert "initial_waterdepth_01.xyz (an .xyz file) is not evaluated at the nodes" in caplog.text
+    on_br1 = nodes[nodes["branchid"] == "br1"].set_index("chainage")
+    assert on_br1.loc[5.0, "quantity"] == "waterlevel"
+
+
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
