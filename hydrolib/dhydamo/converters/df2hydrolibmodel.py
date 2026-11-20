@@ -34,6 +34,8 @@ from hydrolib.core.dflowfm.inifield.models import (
     InitialField,
     ParameterField,
 )
+from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.core.dflowfm.net.models import NetworkModel
 from hydrolib.core.dflowfm.obs.models import ObservationPoint
 from hydrolib.core.dflowfm.onedfield.models import (
     OneDFieldBranch,
@@ -1137,6 +1139,8 @@ class Df2HydrolibModel:
 
         This writes the 1dField files (uniform values), rasters and sample files to fm_dir, and links them
         in initialFields.ini, using paths relative to the fm folder. Call this before saving the FM model.
+        It logs a warning when D-Flow FM would use the uniform bed level (BedlevUni) for the whole 2D mesh,
+        see _warn_missing_bedlevel.
 
         Args:
             fm (FMModel): the FM model
@@ -1154,10 +1158,52 @@ class Df2HydrolibModel:
             onedfieldmodel.save(filepath=fm_dir / inifield.datafile.filepath.name)
 
         self.write_spatial_fields(fm_dir)
+        self._warn_missing_bedlevel(fm)
 
         inifieldmodel = IniFieldModel(initial=self.inifields, parameter=self.parameterfields)
         fm.geometry.inifieldfile = inifieldmodel
         return inifieldmodel
+
+    def _warn_missing_bedlevel(self, fm: FMModel) -> None:
+        """Warn when the 2D mesh gets no bed level for the bedLevType of the model.
+
+        D-Flow FM then uses the uniform bed level (BedlevUni). Where it takes the bed level from (D-Flow FM source,
+        2026): with bedLevType 1 the face bed level of the net file and a 2D bed level field, with 3 the node
+        bed level and a 2D bed level field, with 4 to 6 only the node bed level (a bed level field is not used).
+        bedLevType 2 is not checked. Models without a 2D mesh are not checked: 1D bed levels come from the cross
+        sections.
+
+        Parameters
+        ----------
+        fm : FMModel
+            The FM model, with the network and bedLevType.
+        """
+        netfile = fm.geometry.netfile
+        if not isinstance(netfile, NetworkModel) or netfile.network._mesh2d.is_empty():
+            return
+        mesh2d = netfile.network._mesh2d
+        bedlevtype = fm.geometry.bedlevtype
+        bedlevel_field = any(
+            field.quantity.lower() == "bedlevel" and str(field.locationtype).lower() in ("2d", "all")
+            for field in self.inifields
+        )
+        hint = "Use mesh2d_altitude_from_raster with where='{}', or a bed level field from set_spatial_field."
+        if bedlevtype == 1 and mesh2d.mesh2d_face_z.size == 0 and not bedlevel_field:
+            logger.warning(
+                "bedLevType is 1, but the 2D mesh has no face bed level and there is no 2D bed level field, so "
+                f"D-Flow FM uses BedlevUni everywhere. {hint.format('face')}"
+            )
+        elif bedlevtype == 3 and mesh2d.mesh2d_node_z.size == 0 and not bedlevel_field:
+            logger.warning(
+                "bedLevType is 3, but the 2D mesh has no node bed level and there is no 2D bed level field, so "
+                f"D-Flow FM uses BedlevUni everywhere. {hint.format('node')}"
+            )
+        elif bedlevtype in (4, 5, 6) and mesh2d.mesh2d_node_z.size == 0:
+            unused = " D-Flow FM does not use a bed level field with bedLevType 4 to 6." if bedlevel_field else ""
+            logger.warning(
+                f"bedLevType is {bedlevtype}, but the 2D mesh has no node bed level, so D-Flow FM uses BedlevUni "
+                f"everywhere.{unused} Use mesh2d_altitude_from_raster with where='node', or bedLevType 1 or 3."
+            )
 
     def initial_conditions_at_nodes(
         self, network, output_file: Path | str | None = None, crs=None

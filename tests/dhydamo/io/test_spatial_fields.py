@@ -17,6 +17,7 @@ from hydrolib.dhydamo.geometry.spatial import (
     points_to_branch_values,
     polygons_to_branch_values,
 )
+from meshkernel import DeleteMeshOption
 from shapely.geometry import LineString, Point, Polygon, box
 
 
@@ -246,6 +247,97 @@ def test_xyz_file_skipped_at_nodes_and_in_overlap_check(tmp_path: Path, caplog: 
     assert "initial_waterdepth_01.xyz (an .xyz file) is not evaluated at the nodes" in caplog.text
     on_br1 = nodes[nodes["branchid"] == "br1"].set_index("chainage")
     assert on_br1.loc[5.0, "quantity"] == "waterlevel"
+
+
+def _fm_with_2d_mesh(bedlevtype: int, bedlevel: str | None) -> FMModel:
+    # a 2 x 2 cell 2D mesh with bedLevType, and a node or face bed level (bedlevel 'node' or 'face') or none
+    fm = FMModel()
+    fm.geometry.bedlevtype = bedlevtype
+    mesh2d = fm.geometry.netfile.network._mesh2d
+    mesh.mesh2d_add_rectilinear(
+        fm.geometry.netfile.network,
+        box(0, 0, 10, 10),
+        dx=5,
+        dy=5,
+        deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
+    )
+    if bedlevel == "node":
+        mesh2d.mesh2d_node_z = np.zeros(mesh2d.mesh2d_node_x.size)
+    elif bedlevel == "face":
+        mesh2d.mesh2d_face_z = np.zeros(mesh2d.mesh2d_face_x.size)
+    return fm
+
+
+def _bedlevel_warnings(tmp_path: Path, fm: FMModel, field: str | None, caplog: pytest.LogCaptureFixture) -> list[str]:
+    # writes the initial fields, with a bed level field ('points', 'xyz' or '1d') or none; returns the warnings
+    hydamo = HyDAMO()
+    if field == "points":
+        # three samples for four cells: a point cloud does not need one point per cell
+        hydamo.external_forcings.set_spatial_field(_points(), quantity="bedlevel", filetype="sample", locationtype="2d")
+    elif field == "xyz":
+        hydamo.external_forcings.set_spatial_field(
+            _xyz_file(tmp_path / "bed.xyz"), quantity="bedlevel", locationtype="2d"
+        )
+    elif field == "1d":
+        hydamo.external_forcings.set_spatial_field(_points(), quantity="bedlevel", filetype="sample")
+    models = Df2HydrolibModel(hydamo)
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.converters.df2hydrolibmodel"):
+        inifieldmodel = models.write_initial_fields(fm, tmp_path / "fm")
+    # the model is written in every case
+    assert fm.geometry.inifieldfile is inifieldmodel
+    return [record.getMessage() for record in caplog.records if "bedLevType" in record.getMessage()]
+
+
+@pytest.mark.parametrize(
+    ("bedlevtype", "bedlevel", "field", "message"),
+    [
+        pytest.param(1, None, None, "bedLevType is 1, but the 2D mesh has no face bed level", id="1_nothing"),
+        pytest.param(1, "node", None, "bedLevType is 1, but the 2D mesh has no face bed level", id="1_node_bedlevel"),
+        pytest.param(1, None, "1d", "bedLevType is 1, but the 2D mesh has no face bed level", id="1_1d_field"),
+        pytest.param(3, None, None, "bedLevType is 3, but the 2D mesh has no node bed level", id="3_nothing"),
+        pytest.param(3, "face", None, "bedLevType is 3, but the 2D mesh has no node bed level", id="3_face_bedlevel"),
+        pytest.param(5, None, None, "bedLevType is 5, but the 2D mesh has no node bed level", id="5_nothing"),
+        pytest.param(6, None, "points", "does not use a bed level field with bedLevType 4 to 6", id="6_field_unused"),
+    ],
+)
+def test_missing_bedlevel_warns(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    bedlevtype: int,
+    bedlevel: str | None,
+    field: str | None,
+    message: str,
+) -> None:
+    warnings = _bedlevel_warnings(tmp_path, _fm_with_2d_mesh(bedlevtype, bedlevel), field, caplog)
+    assert len(warnings) == 1
+    assert message in warnings[0]
+
+
+@pytest.mark.parametrize(
+    ("bedlevtype", "bedlevel", "field"),
+    [
+        pytest.param(1, "face", None, id="1_face_bedlevel"),
+        pytest.param(1, None, "points", id="1_field"),
+        pytest.param(1, None, "xyz", id="1_xyz_file"),
+        pytest.param(3, "node", None, id="3_node_bedlevel"),
+        pytest.param(3, None, "xyz", id="3_xyz_file"),
+        pytest.param(4, "node", None, id="4_node_bedlevel"),
+        pytest.param(2, None, None, id="2_not_checked"),
+    ],
+)
+def test_bedlevel_for_bedlevtype_gives_no_warning(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    bedlevtype: int,
+    bedlevel: str | None,
+    field: str | None,
+) -> None:
+    assert _bedlevel_warnings(tmp_path, _fm_with_2d_mesh(bedlevtype, bedlevel), field, caplog) == []
+
+
+def test_bedlevel_not_checked_without_2d_mesh(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    # 1D bed levels come from the cross sections; hydrolib-core's default bedLevType is 3
+    assert _bedlevel_warnings(tmp_path, FMModel(), None, caplog) == []
 
 
 @pytest.mark.parametrize(
