@@ -1,12 +1,11 @@
-## Hisreader usage example:
+# HydroLogic Inundation toolbox
+This module contains readers and tools to extract inundation information (arrival time, maximum rising speed, and water level at maximum rising speed) from the various model output files. 
 
-    from hisreader import HisResults
+## Sub directories
 
-    output_path = "...\dflowfm\output"
-
-    Results = HisResults(inputdir=output_path, outputdir=output_path)
-    Results.<object_name>.simulated_plot("waterlevel")
-
+- Data: contains D-HYDRO model output for two example models. The Tol case is provided by HydroLogic, the Zwolle case if by Arcadis (through HYDROLIB).
+- Examples: containts Jupyter notebooks with example usage of the toolbox and readers.
+- Readers: contains flowmeshreader and hisreader.
 
 ## Purpose
 This subdir is aimed at contributions from HydroLogic on various topics.
@@ -15,5 +14,5 @@ be placed, which can later be cleaned up and promoted into HYDROLIB-core
 for example.
 
 ## Contact
-[@Kreef]( https://github.com/Kreef )
+[@CarienL]( https://github.com/CarienL )
 [@marcel-ald]( https://github.com/marcel-ald )
