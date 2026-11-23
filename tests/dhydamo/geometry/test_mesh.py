@@ -24,7 +24,9 @@ from shapely.geometry import (
 
 from tests.dhydamo.io import test_from_hydamo
 
-hydamo_data_path = Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"
+hydamo_data_path = (
+    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"
+)
 
 test_figure_path = Path(__file__).parent / ".." / ".." / "figures"
 test_figure_path.mkdir(parents=True, exist_ok=True)
@@ -89,8 +91,12 @@ def test_mesh2d_from_netcdf(tmp_path: Path, path_type: type[Path] | type[str]) -
     mesh.mesh2d_from_netcdf(network, path_type(netfile))
 
     mesh2d = network._mesh2d.get_mesh2d()
-    np.testing.assert_array_equal(mesh2d.node_x, [0.0, 5.0, 10.0, 0.0, 5.0, 10.0, 0.0, 5.0, 10.0])
-    np.testing.assert_array_equal(mesh2d.node_y, [0.0, 0.0, 0.0, 5.0, 5.0, 5.0, 10.0, 10.0, 10.0])
+    np.testing.assert_array_equal(
+        mesh2d.node_x, [0.0, 5.0, 10.0, 0.0, 5.0, 10.0, 0.0, 5.0, 10.0]
+    )
+    np.testing.assert_array_equal(
+        mesh2d.node_y, [0.0, 0.0, 0.0, 5.0, 5.0, 5.0, 10.0, 10.0, 10.0]
+    )
     assert mesh2d.edge_nodes.size == 24
 
 
@@ -136,8 +142,14 @@ def test_create_2d_rectilinear_within_circle(do_plot: bool) -> None:
     if do_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[circle], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "red", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[circle], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "red",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         m.save(test_figure_path / "test_create_2d_rectilinear_within_circle_mk.html")
 
@@ -160,8 +172,14 @@ def test_create_2d_triangular_within_circle(do_plot: bool) -> None:
     if do_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[circle], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "red", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[circle], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "red",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         m.save(test_figure_path / "test_create_2d_triangular_within_circle_mk.html")
 
@@ -210,23 +228,49 @@ def test_create_2d_rectangular_from_multipolygon(do_plot: bool) -> None:
     if do_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[polygon1], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "black", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[polygon1], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "black",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[polygon2], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "black", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[polygon2], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "black",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[river], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "red", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[river], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "red",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[refinement], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "green", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[refinement], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "green",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
 
-        m.save(test_figure_path / "test_create_2d_rectangular_from_multipolygon_mk.html")
+        m.save(
+            test_figure_path / "test_create_2d_rectangular_from_multipolygon_mk.html"
+        )
 
     assert pre_refine_length == 149
     assert pre_clip_length == 907
@@ -253,22 +297,42 @@ def test_create_2d_triangular_from_multipolygon(do_plot: bool) -> None:
 
     # Refine mesh
     refine_parameters = {"min_edge_size": 0.001}
-    mesh.mesh2d_refine(network, refinement_box, steps=2, refine_parameters=refine_parameters)
+    mesh.mesh2d_refine(
+        network, refinement_box, steps=2, refine_parameters=refine_parameters
+    )
 
     # Plot to verify
     if do_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[circle1], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "black", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[circle1], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "black",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[circle2], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "black", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[circle2], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "black",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[refinement_box], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "green", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[refinement_box], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "green",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
 
         m.save(test_figure_path / "test_create_2d_triangular_from_multipolygon_mk.html")
@@ -301,7 +365,9 @@ def test_2d_refine_ring_geometry(do_plot: bool) -> None:
     uitknippen = donut.buffer(1)
 
     refine_parameters = {"min_edge_size": 0.001}
-    mesh.mesh2d_refine(network, refinement, steps=2, refine_parameters=refine_parameters)
+    mesh.mesh2d_refine(
+        network, refinement, steps=2, refine_parameters=refine_parameters
+    )
     pre_clip_length = len(network._mesh2d.mesh2d_face_x)
     mesh.mesh2d_clip(network, uitknippen, inside=True)
 
@@ -309,12 +375,24 @@ def test_2d_refine_ring_geometry(do_plot: bool) -> None:
     if do_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[polygon], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "black", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[polygon], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "black",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[donut], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "red", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[donut], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "red",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         m.save(test_figure_path / "test_2d_refine_ring_geometry_mk.html")
 
@@ -339,7 +417,9 @@ def test_2d_clip_outside_polygon(do_plot: bool) -> None:
     )
     pre_clip_length = len(network._mesh2d.mesh2d_face_x)
 
-    clipgeo = box(-8, -8, 8, 8).difference(MultiPolygon([box(-6, -1, -4, 2), box(4, 5, 7, 7)]))
+    clipgeo = box(-8, -8, 8, 8).difference(
+        MultiPolygon([box(-6, -1, -4, 2), box(4, 5, 7, 7)])
+    )
     assert isinstance(clipgeo, Polygon)
 
     mesh.mesh2d_clip(
@@ -353,8 +433,14 @@ def test_2d_clip_outside_polygon(do_plot: bool) -> None:
     if do_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[clipgeo], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "black", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[clipgeo], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "black",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         m.save(test_figure_path / "test_2d_clip_outside_polygon_mk.html")
 
@@ -393,8 +479,14 @@ def test_plot_2d_clip_inside_polygon_with_holes(do_plot: bool) -> None:
     if do_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[clipgeo], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "red", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[clipgeo], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "red",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         m.save(test_figure_path / "test_2d_clip_inside_multipolygon_with_holes_mk.html")
 
@@ -431,8 +523,14 @@ def test_2d_clip_inside_multipolygon(do_plot: bool) -> None:
     if do_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[clipgeo], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "red", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[clipgeo], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "red",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         m.save(test_figure_path / "test_2d_clip_inside_multipolygon_mk.html")
 
@@ -455,8 +553,14 @@ def test_1d_add_branch_from_linestring(do_plot: bool) -> None:
     if do_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[branch], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "black", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[branch], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "black",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         m.save(test_figure_path / "test_1d_add_branch_from_linestring_mk.html")
 
@@ -475,12 +579,16 @@ def _prepare_1d2d_mesh(
     branchids = []
     branches = []
     branch = LineString([[-9, -3], [0, 4]])
-    branchids.append(mesh.mesh1d_add_branch_from_linestring(network, branch, node_distance=1))
+    branchids.append(
+        mesh.mesh1d_add_branch_from_linestring(network, branch, node_distance=1)
+    )
     branches.append(branch)
 
     if second_branch:
         branch = LineString([[0, 4], [9, 5]])
-        branchids.append(mesh.mesh1d_add_branch_from_linestring(network, branch, node_distance=1))
+        branchids.append(
+            mesh.mesh1d_add_branch_from_linestring(network, branch, node_distance=1)
+        )
         branches.append(branch)
 
     # Generate 2d
@@ -489,7 +597,9 @@ def _prepare_1d2d_mesh(
     mesh.mesh2d_add_rectilinear(network, areas, dx=0.5, dy=0.5)
     mesh.mesh2d_clip(network, hole)
 
-    within = box(-10, -10, 12, 10).difference(LineString([[-2, -10], [2, 10]]).buffer(2))
+    within = box(-10, -10, 12, 10).difference(
+        LineString([[-2, -10], [2, 10]]).buffer(2)
+    )
     assert isinstance(within, MultiPolygon)
 
     return network, within, branchids, branches
@@ -506,7 +616,12 @@ def _prepare_1d2d_mesh(
     ],
 )
 def test_links1d2d_add_links_1d_to_2d(
-    b_within: bool, b_branchids: bool, b_refine: bool, max_length: float, b_plot: bool, outcome: int
+    b_within: bool,
+    b_branchids: bool,
+    b_refine: bool,
+    max_length: float,
+    b_plot: bool,
+    outcome: int,
 ) -> None:
     network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
     within = _within if b_within else None
@@ -514,10 +629,14 @@ def test_links1d2d_add_links_1d_to_2d(
 
     if b_refine:
         buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
-        mesh.mesh2d_refine(network, buffer, steps=2, refine_parameters={"min_edge_size": 0.2})
+        mesh.mesh2d_refine(
+            network, buffer, steps=2, refine_parameters={"min_edge_size": 0.2}
+        )
 
     # Generate all links
-    mesh.links1d2d_add_links_1d_to_2d(network, branchids=branchids, within=within, max_length=max_length)
+    mesh.links1d2d_add_links_1d_to_2d(
+        network, branchids=branchids, within=within, max_length=max_length
+    )
 
     # Plot to verify
     if b_plot:
@@ -525,7 +644,11 @@ def test_links1d2d_add_links_1d_to_2d(
         if b_within:
             GeoJson(
                 gpd.GeoDataFrame(geometry=[_within], crs=4326),
-                style_function=lambda x: {"color": "green", "dashArray": "5 5", "fillOpacity": 0},
+                style_function=lambda x: {
+                    "color": "green",
+                    "dashArray": "5 5",
+                    "fillOpacity": 0,
+                },
             ).add_to(m)
         m.save(
             test_figure_path
@@ -546,7 +669,12 @@ def test_links1d2d_add_links_1d_to_2d(
     ],
 )
 def test_links1d2d_add_links_2d_to_1d_lateral(
-    b_within: bool, b_branchids: bool, b_refine: bool, max_length: float, b_plot: bool, outcome: int
+    b_within: bool,
+    b_branchids: bool,
+    b_refine: bool,
+    max_length: float,
+    b_plot: bool,
+    outcome: int,
 ) -> None:
     network, _within, _branchids, branches = _prepare_1d2d_mesh(second_branch=True)
     within = _within if b_within else None
@@ -554,18 +682,28 @@ def test_links1d2d_add_links_2d_to_1d_lateral(
 
     if b_refine:
         buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
-        mesh.mesh2d_refine(network, buffer, steps=2, refine_parameters={"min_edge_size": 0.2})
+        mesh.mesh2d_refine(
+            network, buffer, steps=2, refine_parameters={"min_edge_size": 0.2}
+        )
 
     # Generate all links
-    mesh.links1d2d_add_links_2d_to_1d_lateral(network, branchids=branchids, within=within, max_length=max_length)
+    mesh.links1d2d_add_links_2d_to_1d_lateral(
+        network, branchids=branchids, within=within, max_length=max_length
+    )
 
     # Plot to verify
     if b_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         if b_within:
             GeoJson(
-                gpd.GeoDataFrame(geometry=[_within], crs=4326),  # shapely geometry, folium accepts it directly
-                style_function=lambda x: {"color": "green", "dashArray": "5 5", "fillOpacity": 0},
+                gpd.GeoDataFrame(
+                    geometry=[_within], crs=4326
+                ),  # shapely geometry, folium accepts it directly
+                style_function=lambda x: {
+                    "color": "green",
+                    "dashArray": "5 5",
+                    "fillOpacity": 0,
+                },
             ).add_to(m)
         m.save(
             test_figure_path
@@ -575,14 +713,20 @@ def test_links1d2d_add_links_2d_to_1d_lateral(
     assert len(network._link1d2d.link1d2d_id) == outcome
 
 
-def test_links1d2d_add_links_2d_to_1d_lateral_within_splits_single_mesh_boundary() -> None:
+def test_links1d2d_add_links_2d_to_1d_lateral_within_splits_single_mesh_boundary() -> (
+    None
+):
     # A single 2d mesh area has one boundary Polygon. Clipping it with 'within' gives a
     # MultiPolygon, which used to fail with "Sequences of multi-polygons are not valid arguments".
     fmmodel = FMModel()
     assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
-    mesh.mesh1d_add_branch_from_linestring(network, LineString([[-9, -3], [0, 4]]), node_distance=1)
-    mesh.mesh1d_add_branch_from_linestring(network, LineString([[0, 4], [9, 5]]), node_distance=1)
+    mesh.mesh1d_add_branch_from_linestring(
+        network, LineString([[-9, -3], [0, 4]]), node_distance=1
+    )
+    mesh.mesh1d_add_branch_from_linestring(
+        network, LineString([[0, 4], [9, 5]]), node_distance=1
+    )
     mesh.mesh2d_add_rectilinear(network, box(-8, -10, 8, 10), dx=0.5, dy=0.5)
     within = box(-10, -10, 12, 10).difference(box(-10, -5.5, 12, -4))
     assert isinstance(within, MultiPolygon)
@@ -592,11 +736,15 @@ def test_links1d2d_add_links_2d_to_1d_lateral_within_splits_single_mesh_boundary
     # without 'within' there are 10 links, on faces at x=-7.25 from y=-7.25 to -2.75;
     # the 3 faces in the removed strip are no longer linked
     links = network._link1d2d.link1d2d
-    np.testing.assert_array_equal(links, [[0, 120], [0, 150], [0, 180], [0, 210], [1, 330], [1, 360], [1, 390]])
+    np.testing.assert_array_equal(
+        links, [[0, 120], [0, 150], [0, 180], [0, 210], [1, 330], [1, 360], [1, 390]]
+    )
     mesh2d = network._mesh2d.get_mesh2d()
     face_y = mesh2d.face_y[links[:, 1]]
     np.testing.assert_array_equal(mesh2d.face_x[links[:, 1]], -7.25)
-    np.testing.assert_array_equal(face_y, [-7.25, -6.75, -6.25, -5.75, -3.75, -3.25, -2.75])
+    np.testing.assert_array_equal(
+        face_y, [-7.25, -6.75, -6.25, -5.75, -3.75, -3.25, -2.75]
+    )
 
 
 @pytest.mark.parametrize(
@@ -617,18 +765,28 @@ def test_links1d2d_add_links_2d_to_1d_embedded(
 
     if b_refine:
         buffer = Polygon(MultiLineString(branches).buffer(0.5).exterior)
-        mesh.mesh2d_refine(network, buffer, steps=2, refine_parameters={"min_edge_size": 0.2})
+        mesh.mesh2d_refine(
+            network, buffer, steps=2, refine_parameters={"min_edge_size": 0.2}
+        )
 
     # Generate all links
-    mesh.links1d2d_add_links_2d_to_1d_embedded(network, branchids=branchids, within=within)
+    mesh.links1d2d_add_links_2d_to_1d_embedded(
+        network, branchids=branchids, within=within
+    )
 
     # Plot to verify
     if b_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         if b_within:
             GeoJson(
-                gpd.GeoDataFrame(geometry=[_within], crs=4326),  # shapely geometry, folium accepts it directly
-                style_function=lambda x: {"color": "green", "dashArray": "5 5", "fillOpacity": 0},
+                gpd.GeoDataFrame(
+                    geometry=[_within], crs=4326
+                ),  # shapely geometry, folium accepts it directly
+                style_function=lambda x: {
+                    "color": "green",
+                    "dashArray": "5 5",
+                    "fillOpacity": 0,
+                },
             ).add_to(m)
         m.save(
             test_figure_path
@@ -684,8 +842,14 @@ def test_linkd1d2d_remove_links_within_polygon(do_plot: bool) -> None:
     if do_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[within], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "green", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[within], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "green",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
         m.save(test_figure_path / "test_linkd1d2d_remove_links_within_polygon_mk.html")
 
@@ -697,7 +861,9 @@ def test_linkd1d2d_remove_links_within_small_polygon(do_plot: bool) -> None:
 
     # Generate all links
     mesh.links1d2d_add_links_1d_to_2d(network)
-    coords1d = np.vstack([network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y]).T
+    coords1d = np.vstack(
+        [network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y]
+    ).T
     within = MultiPoint(coords1d).buffer(0.1)
     mesh.links1d2d_remove_within(network, within)
 
@@ -705,10 +871,19 @@ def test_linkd1d2d_remove_links_within_small_polygon(do_plot: bool) -> None:
     if do_plot:
         m = viz.plot_network(network, background=False, crs=4326)
         GeoJson(
-            gpd.GeoDataFrame(geometry=[within], crs=4326),  # shapely geometry, folium accepts it directly
-            style_function=lambda x: {"color": "red", "dashArray": "5 5", "fillOpacity": 0},
+            gpd.GeoDataFrame(
+                geometry=[within], crs=4326
+            ),  # shapely geometry, folium accepts it directly
+            style_function=lambda x: {
+                "color": "red",
+                "dashArray": "5 5",
+                "fillOpacity": 0,
+            },
         ).add_to(m)
-        m.save(test_figure_path / "test_linkd1d2d_remove_links_within_small_polygon_mk.html")
+        m.save(
+            test_figure_path
+            / "test_linkd1d2d_remove_links_within_small_polygon_mk.html"
+        )
 
     assert len(network._link1d2d.link1d2d_id) == 0
 
@@ -719,7 +894,9 @@ def test_links1d2d_remove_1d_endpoints(do_plot: bool) -> None:
     network = fmmodel.geometry.netfile.network
 
     # Build a small network where both branch-end nodes get a 1d2d link.
-    mesh.mesh1d_add_branch_from_linestring(network, LineString([(0, 0), (4, 0)]), node_distance=1)
+    mesh.mesh1d_add_branch_from_linestring(
+        network, LineString([(0, 0), (4, 0)]), node_distance=1
+    )
     mesh.mesh2d_add_rectilinear(
         network,
         box(-1, -1, 5, 1),
@@ -758,12 +935,16 @@ def test_links1d2d_remove_1d_endpoints(do_plot: bool) -> None:
         fig.save(test_figure_path / "test_links1d2d_remove_1d_endpoints_mk.html")
 
 
-def test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(do_plot: bool) -> None:
+def test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(
+    do_plot: bool,
+) -> None:
     fmmodel = FMModel()
     assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
-    mesh.mesh1d_add_branch_from_linestring(network, LineString([(0, 0), (4, 0)]), node_distance=1)
+    mesh.mesh1d_add_branch_from_linestring(
+        network, LineString([(0, 0), (4, 0)]), node_distance=1
+    )
     mesh.mesh2d_add_rectilinear(
         network,
         box(-1, -1, 5, 1),
@@ -806,7 +987,10 @@ def test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(do_
         fig = branca.element.Figure()
         fig.add_subplot(1, 2, 1).add_child(m1)
         fig.add_subplot(1, 2, 2).add_child(m2)
-        fig.save(test_figure_path / "test_links1d2d_remove_1d_endpoints_removes_all_matches_mk.html")
+        fig.save(
+            test_figure_path
+            / "test_links1d2d_remove_1d_endpoints_removes_all_matches_mk.html"
+        )
 
 
 def _prepare_hydamo() -> HyDAMO:
@@ -820,7 +1004,9 @@ def _prepare_hydamo() -> HyDAMO:
     assert gpkg_file.exists()
 
     # read branchs
-    hydamo.branches._read_gpkg_layer(str(gpkg_file), layer_name="HydroObject", index_col="code")
+    hydamo.branches._read_gpkg_layer(
+        str(gpkg_file), layer_name="HydroObject", index_col="code"
+    )
 
     # Read management device
     hydamo.management_device._read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
@@ -839,7 +1025,9 @@ def _prepare_hydamo() -> HyDAMO:
         ("node", "nearest", None, 5244.467),
     ],
 )
-def test_mesh2d_altitude_from_raster(where: str, fill_option: str, fill_value: float | None, outcome: float) -> None:
+def test_mesh2d_altitude_from_raster(
+    where: str, fill_option: str, fill_value: float | None, outcome: float
+) -> None:
     rasterpath = hydamo_data_path / "rasters" / "AHN_2m_clipped_filled.tif"
     assert rasterpath.exists()
 
@@ -885,7 +1073,9 @@ def test_mesh2d_altitude_from_raster(where: str, fill_option: str, fill_value: f
         fill_value=fill_value,
     )
 
-    assert round(getattr(network._mesh2d, f"mesh2d_{where}_z").sum(), 1) == round(outcome, 1)
+    assert round(getattr(network._mesh2d, f"mesh2d_{where}_z").sum(), 1) == round(
+        outcome, 1
+    )
 
 
 def test_mesh1d_add_branches_from_gdf(do_plot: bool) -> None:
@@ -926,12 +1116,16 @@ def test_mesh1d_add_branches_from_gdf(do_plot: bool) -> None:
     assert len(network._mesh1d.mesh1d_node_x) == 1421
 
 
-def test_mesh1d_add_branches_from_gdf_logs_missing_branchid(caplog: pytest.LogCaptureFixture) -> None:
+def test_mesh1d_add_branches_from_gdf_logs_missing_branchid(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     fmmodel = FMModel()
     assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
-    branches = gpd.GeoDataFrame({"code": ["branch_1"], "geometry": [LineString([(0.0, 0.0), (10.0, 0.0)])]})
+    branches = gpd.GeoDataFrame(
+        {"code": ["branch_1"], "geometry": [LineString([(0.0, 0.0), (10.0, 0.0)])]}
+    )
     structures = pd.DataFrame(
         {
             "branchid": [None, "branch_1"],
@@ -954,7 +1148,9 @@ def test_mesh1d_add_branches_from_gdf_logs_missing_branchid(caplog: pytest.LogCa
     assert len(network._mesh1d.network1d_node_x) > 0
 
 
-def test_mesh1d_add_branches_from_gdf_logs_duplicate_structure_location(caplog: pytest.LogCaptureFixture) -> None:
+def test_mesh1d_add_branches_from_gdf_logs_duplicate_structure_location(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     # Two structures on the same branch at the same chainage, with non-string
     # (float) ids: this used to crash with
     # "TypeError: sequence item 0: expected str instance, float found" in the
@@ -963,7 +1159,9 @@ def test_mesh1d_add_branches_from_gdf_logs_duplicate_structure_location(caplog: 
     assert isinstance(fmmodel.geometry.netfile, NetworkModel)
     network = fmmodel.geometry.netfile.network
 
-    branches = gpd.GeoDataFrame({"code": ["branch_1"], "geometry": [LineString([(0.0, 0.0), (10.0, 0.0)])]})
+    branches = gpd.GeoDataFrame(
+        {"code": ["branch_1"], "geometry": [LineString([(0.0, 0.0), (10.0, 0.0)])]}
+    )
     structures = pd.DataFrame(
         {
             "branchid": ["branch_1", "branch_1", "branch_1"],
@@ -998,11 +1196,18 @@ def test_mesh1d_order_numbers_from_attribute() -> None:
         "b2": LineString([(300, 0), (400, 0)]),
     }
     for name, line in lines.items():
-        mesh.mesh1d_add_branch_from_linestring(network, line, node_distance=50, name=name)
-    branches = gpd.GeoDataFrame({"code": list(lines), "naam": ["A", "A", "B", "B"]}, geometry=list(lines.values()))
+        mesh.mesh1d_add_branch_from_linestring(
+            network, line, node_distance=50, name=name
+        )
+    branches = gpd.GeoDataFrame(
+        {"code": list(lines), "naam": ["A", "A", "B", "B"]},
+        geometry=list(lines.values()),
+    )
 
     # a2 and b2 have no cross section
-    missing = mesh.mesh1d_order_numbers_from_attribute(branches, ["a2", "b2"], "naam", network)
+    missing = mesh.mesh1d_order_numbers_from_attribute(
+        branches, ["a2", "b2"], "naam", network
+    )
 
     assert missing == []
     assert branches["order"].tolist() == [1, 1, 2, 2]

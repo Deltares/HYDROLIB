@@ -78,7 +78,9 @@ def full_zone() -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(geometry=[box(0, 0, 3, 3)], crs=CRS)
 
 
-def test_zonal_stats_calculates_mean_median_mode_and_excludes_nodata(full_zone: gpd.GeoDataFrame) -> None:
+def test_zonal_stats_calculates_mean_median_mode_and_excludes_nodata(
+    full_zone: gpd.GeoDataFrame,
+) -> None:
     values = VALUES.copy()
     values[1, 1] = -9999
 
@@ -195,7 +197,9 @@ def test_zonal_stats_rejects_invalid_coverage(
         )
 
 
-def test_zonal_stats_uses_exactextract_column_names(full_zone: gpd.GeoDataFrame) -> None:
+def test_zonal_stats_uses_exactextract_column_names(
+    full_zone: gpd.GeoDataFrame,
+) -> None:
     result = zonal_stats(
         full_zone,
         VALUES,
@@ -208,7 +212,9 @@ def test_zonal_stats_uses_exactextract_column_names(full_zone: gpd.GeoDataFrame)
     assert result[["sum", "min", "max"]].iloc[0].tolist() == [45.0, 1.0, 9.0]
 
 
-def test_zonal_stats_rejects_statistics_with_clashing_names(full_zone: gpd.GeoDataFrame) -> None:
+def test_zonal_stats_rejects_statistics_with_clashing_names(
+    full_zone: gpd.GeoDataFrame,
+) -> None:
     with pytest.raises(ValueError, match="clashing column names"):
         zonal_stats(
             full_zone,
@@ -253,7 +259,9 @@ def test_zonal_stats_accepts_crsless_mesh_zones(raster_factory: RasterFactory) -
     assert result.to_dict("list") == {"mean": [5.0]}
 
 
-def test_zonal_stats_reads_file_raster_nodata(raster_factory: RasterFactory, full_zone: gpd.GeoDataFrame) -> None:
+def test_zonal_stats_reads_file_raster_nodata(
+    raster_factory: RasterFactory, full_zone: gpd.GeoDataFrame
+) -> None:
     values = VALUES.copy()
     values[1, 1] = -9999
 
@@ -267,7 +275,9 @@ def test_zonal_stats_reads_file_raster_nodata(raster_factory: RasterFactory, ful
     assert result.to_dict("list") == {"mean": [5.0]}
 
 
-def test_zonal_stats_reads_file_raster_mask_band(raster_factory: RasterFactory, full_zone: gpd.GeoDataFrame) -> None:
+def test_zonal_stats_reads_file_raster_mask_band(
+    raster_factory: RasterFactory, full_zone: gpd.GeoDataFrame
+) -> None:
     values = VALUES.copy()
     values[1, 1] = 1000
     valid = np.ones(values.shape, dtype=bool)
@@ -284,7 +294,9 @@ def test_zonal_stats_reads_file_raster_mask_band(raster_factory: RasterFactory, 
 
 
 @pytest.mark.parametrize("strategy", [FS, RS])
-def test_zonal_stats_preserves_shuffled_zone_order_and_index(strategy: Strategy) -> None:
+def test_zonal_stats_preserves_shuffled_zone_order_and_index(
+    strategy: Strategy,
+) -> None:
     zones = gpd.GeoDataFrame(
         {"name": ["right", "left"]},
         geometry=[box(2, 0, 3, 3), box(0, 0, 1, 3)],
@@ -298,7 +310,9 @@ def test_zonal_stats_preserves_shuffled_zone_order_and_index(strategy: Strategy)
     assert result["mean"].tolist() == [6.0, 4.0]
 
 
-def test_zonal_stats_rejects_mismatched_crs(raster_factory: RasterFactory, full_zone: gpd.GeoDataFrame) -> None:
+def test_zonal_stats_rejects_mismatched_crs(
+    raster_factory: RasterFactory, full_zone: gpd.GeoDataFrame
+) -> None:
     zones = full_zone.to_crs("EPSG:4326")
     raster = raster_factory(VALUES)
 
@@ -330,7 +344,9 @@ def test_zonal_stats_checks_raster_crs_of_a_raster_without_crs(
     assert result.to_dict("list") == {"mean": [5.0]}
 
 
-def test_zonal_stats_rejects_mismatched_raster_crs_of_an_array(full_zone: gpd.GeoDataFrame) -> None:
+def test_zonal_stats_rejects_mismatched_raster_crs_of_an_array(
+    full_zone: gpd.GeoDataFrame,
+) -> None:
     raster_crs = rasterio.crs.CRS.from_epsg(4326)
 
     with pytest.raises(ValueError, match="differs from the raster CRS"):
@@ -383,7 +399,9 @@ def test_zonal_stats_per_raster_matches_zonal_stats_in_raster_order(
     # Three rasters over two calls.
     monkeypatch.setattr(zonal, "_RASTERS_PER_CALL", 2)
     rasters = [raster_factory(VALUES * factor) for factor in (1, 10, 100)]
-    zones = gpd.GeoDataFrame(geometry=[PARTIAL_ZONE, box(0, 0, 3, 3)], index=[42, 7], crs=CRS)
+    zones = gpd.GeoDataFrame(
+        geometry=[PARTIAL_ZONE, box(0, 0, 3, 3)], index=[42, 7], crs=CRS
+    )
 
     result = zonal_stats_per_raster(zones, rasters, "mean", strategy=FS)
 
@@ -395,18 +413,24 @@ def test_zonal_stats_per_raster_matches_zonal_stats_in_raster_order(
     pd.testing.assert_frame_equal(result, expected)
 
 
-def test_zonal_stats_per_raster_reads_numpy_and_lazy_arrays(full_zone: gpd.GeoDataFrame) -> None:
+def test_zonal_stats_per_raster_reads_numpy_and_lazy_arrays(
+    full_zone: gpd.GeoDataFrame,
+) -> None:
     dask_array = pytest.importorskip("dask.array")
     rasters = [VALUES, dask_array.from_array(VALUES * 10)]
 
-    result = zonal_stats_per_raster(full_zone, rasters, "mean", strategy=FS, affine=TRANSFORM)
+    result = zonal_stats_per_raster(
+        full_zone, rasters, "mean", strategy=FS, affine=TRANSFORM
+    )
 
     assert result.iloc[0].tolist() == [5.0, 50.0]
 
 
 def test_zonal_category_counts_per_integer_class(raster_factory: RasterFactory) -> None:
     values = np.array([[1, 1, 2], [1, 2, 2]], dtype=np.int16)
-    zones = gpd.GeoDataFrame(geometry=[box(2, 0, 3, 2), box(0, 0, 2, 2)], index=[42, 7], crs=CRS)
+    zones = gpd.GeoDataFrame(
+        geometry=[box(2, 0, 3, 2), box(0, 0, 2, 2)], index=[42, 7], crs=CRS
+    )
 
     result = zonal_category_counts(
         zones,
@@ -421,7 +445,9 @@ def test_zonal_category_counts_per_integer_class(raster_factory: RasterFactory) 
 def test_zonal_category_counts_uses_int_keys_for_integer_float_classes() -> None:
     zones = gpd.GeoDataFrame(geometry=[box(0, 0, 3, 3)], crs=CRS)
 
-    result = zonal_category_counts(zones, VALUES.astype(np.float32), strategy=FS, affine=TRANSFORM)
+    result = zonal_category_counts(
+        zones, VALUES.astype(np.float32), strategy=FS, affine=TRANSFORM
+    )
 
     assert result.columns.tolist() == list(range(1, 10))
     assert all(dtype == np.float64 for dtype in result.dtypes)
@@ -437,7 +463,9 @@ def test_zonal_category_counts_uses_int_keys_for_integer_float_classes() -> None
     ],
 )
 def test_zonal_category_counts_coverage(
-    min_coverage_frac: float, coverage_weight: CoverageWeight, expected: dict[int, float]
+    min_coverage_frac: float,
+    coverage_weight: CoverageWeight,
+    expected: dict[int, float],
 ) -> None:
     zones = gpd.GeoDataFrame(geometry=[PARTIAL_ZONE], crs=CRS)
 
@@ -453,7 +481,9 @@ def test_zonal_category_counts_coverage(
     assert result.loc[0].to_dict() == pytest.approx(expected)
 
 
-def test_zonal_category_counts_returns_empty_for_zone_without_overlap(raster_factory: RasterFactory) -> None:
+def test_zonal_category_counts_returns_empty_for_zone_without_overlap(
+    raster_factory: RasterFactory,
+) -> None:
     zones = gpd.GeoDataFrame(geometry=[box(4, 4, 5, 5)], crs=CRS)
 
     result = zonal_category_counts(
@@ -489,7 +519,9 @@ def extract_calls(monkeypatch: pytest.MonkeyPatch) -> list[None]:
     return calls
 
 
-def test_zonal_cache_reuses_an_identical_call(raster_factory: RasterFactory, extract_calls: list[None]) -> None:
+def test_zonal_cache_reuses_an_identical_call(
+    raster_factory: RasterFactory, extract_calls: list[None]
+) -> None:
     cache = ZonalCache()
     path = raster_factory(VALUES)
     zones = gpd.GeoDataFrame(geometry=[PARTIAL_ZONE, box(0, 0, 3, 3)], crs=CRS)
@@ -564,7 +596,9 @@ def test_zonal_cache_misses_when_the_raster_file_is_rewritten(
     assert (before["mean"].item(), after["mean"].item()) == (5.0, 50.0)
 
 
-def test_zonal_cache_returns_copies(raster_factory: RasterFactory, full_zone: gpd.GeoDataFrame) -> None:
+def test_zonal_cache_returns_copies(
+    raster_factory: RasterFactory, full_zone: gpd.GeoDataFrame
+) -> None:
     cache = ZonalCache()
     path = raster_factory(VALUES)
 
@@ -574,7 +608,9 @@ def test_zonal_cache_returns_copies(raster_factory: RasterFactory, full_zone: gp
     assert cache.zonal_category_counts(full_zone, path, strategy=FS).loc[0, 1] == 1.0
 
 
-def test_zonal_cache_does_not_cache_arrays(extract_calls: list[None], full_zone: gpd.GeoDataFrame) -> None:
+def test_zonal_cache_does_not_cache_arrays(
+    extract_calls: list[None], full_zone: gpd.GeoDataFrame
+) -> None:
     cache = ZonalCache()
 
     for _ in range(2):
@@ -585,7 +621,9 @@ def test_zonal_cache_does_not_cache_arrays(extract_calls: list[None], full_zone:
 
 
 def test_zonal_cache_clear(
-    raster_factory: RasterFactory, extract_calls: list[None], full_zone: gpd.GeoDataFrame
+    raster_factory: RasterFactory,
+    extract_calls: list[None],
+    full_zone: gpd.GeoDataFrame,
 ) -> None:
     cache = ZonalCache()
     path = raster_factory(VALUES)

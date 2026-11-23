@@ -21,7 +21,9 @@ from tests.dhydamo.io.test_to_hydrolibcore import setup_model
 # repository root, so the tests do not depend on the working directory
 REPOSITORY = Path(__file__).resolve().parents[3]
 RTC_STATE = REPOSITORY / "hydrolib" / "sample_data" / "data" / "rtc_state"
-REFERENCE_HIS = REPOSITORY / "tests" / "reference_model" / "dflowfm" / "output" / "DFM_his.nc"
+REFERENCE_HIS = (
+    REPOSITORY / "tests" / "reference_model" / "dflowfm" / "output" / "DFM_his.nc"
+)
 
 
 @functools.cache
@@ -41,7 +43,9 @@ def _full_model() -> tuple[HyDAMO, FMModel]:
     return copy.deepcopy(hydamo), fm
 
 
-def _add_default_simple_control(data_path: Path, hydamo: HyDAMO, drtcmodel: DRTCModel) -> None:
+def _add_default_simple_control(
+    data_path: Path, hydamo: HyDAMO, drtcmodel: DRTCModel
+) -> None:
     pid_settings = {}
     pid_settings["global"] = {
         "ki": -0.05,
@@ -215,9 +219,9 @@ def test_complex_controller_multiple_folders() -> None:
         "timeseries",
         "state",
     ):
-        assert len(rtcd1.complex_controllers[key]) + len(rtcd2.complex_controllers[key]) == len(
-            rtcd.complex_controllers[key]
-        )
+        assert len(rtcd1.complex_controllers[key]) + len(
+            rtcd2.complex_controllers[key]
+        ) == len(rtcd.complex_controllers[key])
 
 
 def test_complex_controller_multiple_folders_dimr_merged() -> None:
@@ -240,7 +244,12 @@ def test_complex_controller_multiple_folders_dimr_merged() -> None:
     )
     assert rtcd.complex_controllers is not None
     root = rtcd.complex_controllers["dimr_config"][0]
-    targets = {el.text for el in root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")}
+    targets = {
+        el.text
+        for el in root.findall(
+            ".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName"
+        )
+    }
     assert "weirs/S_96684/crestLevel" in targets
     assert "weirs/S_96789/crestLevel" in targets
 
@@ -324,7 +333,9 @@ def test_dimrwriter_flow_to_rtc_components_for_complex_only() -> None:
 
     # the control block must reference flow_to_rtc too, otherwise DIMR never
     # invokes the coupler even though it's defined below
-    control_coupler = root.find("./{*}control/{*}parallel/{*}startGroup/{*}coupler[@name='flow_to_rtc']")
+    control_coupler = root.find(
+        "./{*}control/{*}parallel/{*}startGroup/{*}coupler[@name='flow_to_rtc']"
+    )
     assert control_coupler is not None
 
 
@@ -350,15 +361,25 @@ def test_drtc_deduplicates_complex_fragments() -> None:
 
     # Inject duplicate complex snippets explicitly.
     assert rtcd.complex_controllers is not None
-    rtcd.complex_controllers["dataconfig_import"].append(rtcd.complex_controllers["dataconfig_import"][0])
-    rtcd.complex_controllers["dataconfig_export"].append(rtcd.complex_controllers["dataconfig_export"][0])
-    rtcd.complex_controllers["timeseries"].append(rtcd.complex_controllers["timeseries"][0])
+    rtcd.complex_controllers["dataconfig_import"].append(
+        rtcd.complex_controllers["dataconfig_import"][0]
+    )
+    rtcd.complex_controllers["dataconfig_export"].append(
+        rtcd.complex_controllers["dataconfig_export"][0]
+    )
+    rtcd.complex_controllers["timeseries"].append(
+        rtcd.complex_controllers["timeseries"][0]
+    )
     rtcd.complex_controllers["state"].append(rtcd.complex_controllers["state"][0])
 
     rtcd.write_xml_v1()
 
     rtc_data_root = ET.parse(output_path / "rtc" / "rtcDataConfig.xml").getroot()
-    dataconfig_ids = [el.attrib["id"] for el in rtc_data_root.findall(".//{*}timeSeries") if "id" in el.attrib]
+    dataconfig_ids = [
+        el.attrib["id"]
+        for el in rtc_data_root.findall(".//{*}timeSeries")
+        if "id" in el.attrib
+    ]
     assert len(dataconfig_ids) == len(set(dataconfig_ids))
 
     ts_root = ET.parse(output_path / "rtc" / "timeseries_import.xml").getroot()
@@ -372,11 +393,17 @@ def test_drtc_deduplicates_complex_fragments() -> None:
     assert len(ts_keys) == len(set(ts_keys))
 
     state_root = ET.parse(output_path / "rtc" / "state_import.xml").getroot()
-    state_ids = [leaf.attrib["id"] for leaf in state_root.findall(".//{*}treeVectorLeaf") if "id" in leaf.attrib]
+    state_ids = [
+        leaf.attrib["id"]
+        for leaf in state_root.findall(".//{*}treeVectorLeaf")
+        if "id" in leaf.attrib
+    ]
     assert len(state_ids) == len(set(state_ids))
 
 
-def _build_fourtypes_rtc(caplog: pytest.LogCaptureFixture, folder: str, id_limit: list[str]) -> DRTCModel:
+def _build_fourtypes_rtc(
+    caplog: pytest.LogCaptureFixture, folder: str, id_limit: list[str]
+) -> DRTCModel:
     """Build an RTC model with the four observation points of the complex-controller fixtures.
 
     Then add the default simple control and write the XML files.
@@ -452,7 +479,9 @@ def test_complex_controller_fourtypes_limit(caplog: pytest.LogCaptureFixture) ->
     assert len(rtcd.all_controllers) == 9
 
 
-def test_complex_controller_filters_dimr_items_missing_from_hydamo(caplog: pytest.LogCaptureFixture) -> None:
+def test_complex_controller_filters_dimr_items_missing_from_hydamo(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
     output_path = Path("hydrolib/sample_data/model").resolve()
@@ -463,8 +492,12 @@ def test_complex_controller_filters_dimr_items_missing_from_hydamo(caplog: pytes
     # reproduces cases where user-supplied RTC XML still contains an old/foreign
     # structure id, such as a DIMR target that is no longer present in HyDAMO.
     missing_structure_id = "S_96840"
-    hydamo.structures.rweirs_df = hydamo.structures.rweirs_df[hydamo.structures.rweirs_df.id != missing_structure_id]
-    hydamo.structures.uweirs_df = hydamo.structures.uweirs_df[hydamo.structures.uweirs_df.id != missing_structure_id]
+    hydamo.structures.rweirs_df = hydamo.structures.rweirs_df[
+        hydamo.structures.rweirs_df.id != missing_structure_id
+    ]
+    hydamo.structures.uweirs_df = hydamo.structures.uweirs_df[
+        hydamo.structures.uweirs_df.id != missing_structure_id
+    ]
 
     hydamo.observationpoints.add_points(
         [Point(200064, 395087), Point(199996, 393899), Point(199877, 393954)],
@@ -511,11 +544,18 @@ def test_complex_controller_filters_dimr_items_missing_from_hydamo(caplog: pytes
     # complex-controller id must not survive as an rtc_to_flow coupling target,
     # otherwise DIMR can reference an RTC output that no RTC XML defines.
     dimr_root = rtcd.complex_controllers["dimr_config"][0]
-    dimr_targets = {el.text for el in dimr_root.findall(".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName")}
+    dimr_targets = {
+        el.text
+        for el in dimr_root.findall(
+            ".//{*}coupler[@name='rtc_to_flow']/{*}item/{*}targetName"
+        )
+    }
     assert f"weirs/{missing_structure_id}/crestLevel" not in dimr_targets
 
 
-def test_complex_controller_logs_items_not_referenced_by_dimr(caplog: pytest.LogCaptureFixture) -> None:
+def test_complex_controller_logs_items_not_referenced_by_dimr(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     data_path = Path("hydrolib/sample_data/data").resolve()
     assert data_path.exists()
     output_path = Path("hydrolib/sample_data/model").resolve()
@@ -579,9 +619,7 @@ def test_complex_controller_wrong(caplog: pytest.LogCaptureFixture) -> None:
 
     check_msg1 = "dimr_config.xml: Skipped rtc_to_flow element with 'targetName' 'weirs/S_96548/crestLevel': excluded by id_limit_complex_controllers."
     check_msg2 = "rtcDataConfig.xml: Skipped exportSeries item for elementId 'S_96548': excluded by id_limit_complex_controllers."
-    check_msg3 = (
-        "rtcToolsConfig.xml: Skipped rule element '[PID]PIDfout/PID Rule': excluded by id_limit_complex_controllers."
-    )
+    check_msg3 = "rtcToolsConfig.xml: Skipped rule element '[PID]PIDfout/PID Rule': excluded by id_limit_complex_controllers."
     check_msg4 = "RtcToolsConfig.xml: Skipped writing Time control for S_96840, complex controller already present"
 
     assert check_msg1 in caplog.messages
@@ -607,9 +645,13 @@ def test_state_from_file(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> No
     assert len(copied) > 0
     assert all(state[key] == value for key, value in copied.items())
     assert all(key in valid_ids for key in state)
-    assert any("not part of this RTC model and are skipped" in msg for msg in caplog.messages)
+    assert any(
+        "not part of this RTC model and are skipped" in msg for msg in caplog.messages
+    )
     # the state is valid for the end of the earlier run, which differs from the start of this model
-    assert any("The RTC state is valid for 2016-06-03" in msg for msg in caplog.messages)
+    assert any(
+        "The RTC state is valid for 2016-06-03" in msg for msg in caplog.messages
+    )
 
 
 def test_set_initial_state(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
@@ -622,7 +664,9 @@ def test_set_initial_state(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> 
     state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
     steering_variable = rtcd.pid_controllers[structure_id]["steering_variable"]
     assert state[f"[Output]{structure_id}/{steering_variable}"] == "12.34"
-    assert any("no controlled structure not_a_structure" in msg for msg in caplog.messages)
+    assert any(
+        "no controlled structure not_a_structure" in msg for msg in caplog.messages
+    )
 
 
 def test_initial_pid_setting_written_to_state(tmp_path: Path) -> None:
@@ -637,7 +681,9 @@ def test_initial_pid_setting_written_to_state(tmp_path: Path) -> None:
         leaf_id = f"[Output]{structure_id}/{controller['steering_variable']}"
         if leaf_id not in state:
             continue  # replaced by a complex controller
-        assert float(state[leaf_id]) == rtcd._initial_pid_setting(structure_id, controller)
+        assert float(state[leaf_id]) == rtcd._initial_pid_setting(
+            structure_id, controller
+        )
         checked += 1
     assert checked > 0
 
@@ -655,12 +701,21 @@ def test_state_from_modelrun(tmp_path: Path, caplog: pytest.LogCaptureFixture) -
         index = int(np.argmin(np.abs(his["time"][:] - 36 * 3600)))
         names = [n.strip() for n in chartostring(his["weirgen_name"][:])]
         weir = next(sid for sid in values if sid in names)
-        assert values[weir] == float(his["weirgen_crest_level"][index, names.index(weir)])
+        assert values[weir] == float(
+            his["weirgen_crest_level"][index, names.index(weir)]
+        )
 
     rtcd.write_xml_v1()
     state = DRTCModel._read_state_leaves(tmp_path / "rtc" / "state_import.xml")
-    controller = {**rtcd.time_controllers, **rtcd.interval_controllers, **rtcd.pid_controllers}[weir]
-    assert float(state[f"[Output]{weir}/{controller['steering_variable']}"]) == values[weir]
+    controller = {
+        **rtcd.time_controllers,
+        **rtcd.interval_controllers,
+        **rtcd.pid_controllers,
+    }[weir]
+    assert (
+        float(state[f"[Output]{weir}/{controller['steering_variable']}"])
+        == values[weir]
+    )
 
 
 def test_state_from_modelrun_time_options(tmp_path: Path) -> None:
@@ -687,15 +742,21 @@ def minimal_drtc(tmp_path: Path) -> tuple[DRTCModel, HyDAMO]:
     return drtc, hydamo
 
 
-def test_resolve_management_structure_pump(minimal_drtc: tuple[DRTCModel, HyDAMO]) -> None:
+def test_resolve_management_structure_pump(
+    minimal_drtc: tuple[DRTCModel, HyDAMO],
+) -> None:
     drtc, hydamo = minimal_drtc
-    hydamo.pumps = ExtendedDataFrame(data={"globalid": ["test-pump-guid"], "code": ["P_TEST"]})
+    hydamo.pumps = ExtendedDataFrame(
+        data={"globalid": ["test-pump-guid"], "code": ["P_TEST"]}
+    )
 
     row = pd.Series({"pompid": "test-pump-guid", "regelmiddelid": "some-id"})
     assert drtc._resolve_management_structure(row) == ("pump", "P_TEST")
 
 
-def test_resolve_management_structure_pump_not_in_hydamo_returns_none(minimal_drtc: tuple[DRTCModel, HyDAMO]) -> None:
+def test_resolve_management_structure_pump_not_in_hydamo_returns_none(
+    minimal_drtc: tuple[DRTCModel, HyDAMO],
+) -> None:
     drtc, hydamo = minimal_drtc
     hydamo.pumps = ExtendedDataFrame(data={"globalid": [], "code": []})
 
@@ -703,7 +764,9 @@ def test_resolve_management_structure_pump_not_in_hydamo_returns_none(minimal_dr
     assert drtc._resolve_management_structure(row) is None
 
 
-def test_resolve_management_structure_null_regelmiddelid_raises(minimal_drtc: tuple[DRTCModel, HyDAMO]) -> None:
+def test_resolve_management_structure_null_regelmiddelid_raises(
+    minimal_drtc: tuple[DRTCModel, HyDAMO],
+) -> None:
     drtc, _ = minimal_drtc
 
     row = pd.Series({"pompid": pd.NA, "regelmiddelid": pd.NA})
@@ -715,7 +778,9 @@ def test_resolve_management_structure_device_not_found_returns_none(
     minimal_drtc: tuple[DRTCModel, HyDAMO], caplog: pytest.LogCaptureFixture
 ) -> None:
     drtc, hydamo = minimal_drtc
-    hydamo.management_device = ExtendedDataFrame(data={"globalid": ["other-guid"], "duikersifonhevelid": [None]})
+    hydamo.management_device = ExtendedDataFrame(
+        data={"globalid": ["other-guid"], "duikersifonhevelid": [None]}
+    )
 
     row = pd.Series({"pompid": pd.NA, "regelmiddelid": "does-not-exist-guid"})
     with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.drtc"):
@@ -725,7 +790,9 @@ def test_resolve_management_structure_device_not_found_returns_none(
     assert "does-not-exist-guid" in caplog.text
 
 
-def test_resolve_management_structure_culvert(minimal_drtc: tuple[DRTCModel, HyDAMO]) -> None:
+def test_resolve_management_structure_culvert(
+    minimal_drtc: tuple[DRTCModel, HyDAMO],
+) -> None:
     drtc, hydamo = minimal_drtc
     hydamo.management_device = ExtendedDataFrame(
         data={
@@ -736,7 +803,11 @@ def test_resolve_management_structure_culvert(minimal_drtc: tuple[DRTCModel, HyD
     hydamo.culverts = ExtendedGeoDataFrame(
         geotype=LineString,
         required_columns=["globalid", "code", "geometry"],
-        data={"globalid": ["culv-guid"], "code": ["C_TEST"], "geometry": [LineString([(0, 0), (1, 0)])]},
+        data={
+            "globalid": ["culv-guid"],
+            "code": ["C_TEST"],
+            "geometry": [LineString([(0, 0), (1, 0)])],
+        },
     )
 
     row = pd.Series({"pompid": pd.NA, "regelmiddelid": "dev-guid"})
@@ -753,10 +824,17 @@ def test_resolve_management_structure_culvert(minimal_drtc: tuple[DRTCModel, HyD
     ],
 )
 def test_initial_pid_setting_crest_level(
-    minimal_drtc: tuple[DRTCModel, HyDAMO], attribute: str, crestlevel: float, expected: float
+    minimal_drtc: tuple[DRTCModel, HyDAMO],
+    attribute: str,
+    crestlevel: float,
+    expected: float,
 ) -> None:
     drtc, hydamo = minimal_drtc
-    setattr(hydamo.structures, attribute, pd.DataFrame({"id": ["S_TEST"], "crestlevel": [crestlevel]}))
+    setattr(
+        hydamo.structures,
+        attribute,
+        pd.DataFrame({"id": ["S_TEST"], "crestlevel": [crestlevel]}),
+    )
     drtc.add_pid_controller(
         structure_id="S_TEST",
         steering_variable="Crest level (s)",
@@ -766,10 +844,14 @@ def test_initial_pid_setting_crest_level(
         lower_bound=14.0,
         upper_bound=16.0,
     )
-    assert drtc._initial_pid_setting("S_TEST", drtc.pid_controllers["S_TEST"]) == expected
+    assert (
+        drtc._initial_pid_setting("S_TEST", drtc.pid_controllers["S_TEST"]) == expected
+    )
 
 
-def test_initial_pid_setting_without_structure_setting(minimal_drtc: tuple[DRTCModel, HyDAMO]) -> None:
+def test_initial_pid_setting_without_structure_setting(
+    minimal_drtc: tuple[DRTCModel, HyDAMO],
+) -> None:
     # no setting available for the structure: start at the upper bound, as before
     drtc, _ = minimal_drtc
     drtc.add_pid_controller(
@@ -781,7 +863,10 @@ def test_initial_pid_setting_without_structure_setting(minimal_drtc: tuple[DRTCM
         lower_bound=14.0,
         upper_bound=16.0,
     )
-    assert drtc._initial_pid_setting("S_UNKNOWN", drtc.pid_controllers["S_UNKNOWN"]) == 16.0
+    assert (
+        drtc._initial_pid_setting("S_UNKNOWN", drtc.pid_controllers["S_UNKNOWN"])
+        == 16.0
+    )
 
 
 @pytest.mark.parametrize(
@@ -793,7 +878,9 @@ def test_initial_pid_setting_without_structure_setting(minimal_drtc: tuple[DRTCM
     ],
 )
 def test_initial_pid_setting_without_usable_bounds(
-    minimal_drtc: tuple[DRTCModel, HyDAMO], lower_bound: float | str | None, upper_bound: float | None
+    minimal_drtc: tuple[DRTCModel, HyDAMO],
+    lower_bound: float | str | None,
+    upper_bound: float | None,
 ) -> None:
     # without two numeric bounds the structure's own setting is used, not limited
     drtc, hydamo = minimal_drtc
@@ -810,7 +897,9 @@ def test_initial_pid_setting_without_usable_bounds(
     assert drtc._initial_pid_setting("S_TEST", drtc.pid_controllers["S_TEST"]) == 18.0
 
 
-def test_pid_controller_with_setpoint_series(minimal_drtc: tuple[DRTCModel, HyDAMO], tmp_path: Path) -> None:
+def test_pid_controller_with_setpoint_series(
+    minimal_drtc: tuple[DRTCModel, HyDAMO], tmp_path: Path
+) -> None:
     drtc, _ = minimal_drtc
     setpoint = pd.Series(
         [13.0, 13.5, 14.0],
@@ -828,15 +917,26 @@ def test_pid_controller_with_setpoint_series(minimal_drtc: tuple[DRTCModel, HyDA
     drtc.write_xml_v1()
 
     namespace = {"pi": "http://www.wldelft.nl/fews/PI"}
-    series = ET.parse(tmp_path / "rtc" / "timeseries_import.xml").getroot().findall("pi:series", namespace)
+    series = (
+        ET.parse(tmp_path / "rtc" / "timeseries_import.xml")
+        .getroot()
+        .findall("pi:series", namespace)
+    )
     assert len(series) == 1
     header = series[0].find("pi:header", namespace)
     assert header is not None
-    assert header.findtext("pi:locationId", namespaces=namespace) == "[PID]Control group S_TEST/PID Rule"
+    assert (
+        header.findtext("pi:locationId", namespaces=namespace)
+        == "[PID]Control group S_TEST/PID Rule"
+    )
     assert header.findtext("pi:parameterId", namespaces=namespace) == "SP"
     # the attributes of each header element, by tag without the namespace
     attributes = {element.tag.split("}")[1]: element.attrib for element in header}
-    assert attributes["timeStep"] == {"unit": "minute", "multiplier": "60", "divider": "1"}
+    assert attributes["timeStep"] == {
+        "unit": "minute",
+        "multiplier": "60",
+        "divider": "1",
+    }
     assert attributes["startDate"] == {"date": "2016-06-01", "time": "00:00:00"}
     assert attributes["endDate"] == {"date": "2016-06-01", "time": "02:00:00"}
     events = [event.attrib for event in series[0].findall("pi:event", namespace)]
@@ -850,7 +950,9 @@ def test_pid_controller_with_setpoint_series(minimal_drtc: tuple[DRTCModel, HyDA
     assert "<setpointSeries>[SP]Control group S_TEST/PID Rule</setpointSeries>" in tools
 
 
-def test_interval_controller_with_string_setpoint(minimal_drtc: tuple[DRTCModel, HyDAMO]) -> None:
+def test_interval_controller_with_string_setpoint(
+    minimal_drtc: tuple[DRTCModel, HyDAMO],
+) -> None:
     drtc, _ = minimal_drtc
     drtc.add_interval_controller(
         structure_id="O_TEST",
@@ -870,7 +972,9 @@ def test_add_controller_keyword_only(minimal_drtc: tuple[DRTCModel, HyDAMO]) -> 
     drtc, _ = minimal_drtc
     with pytest.raises(ValidationError, match="Unexpected positional argument"):
         # positional arguments on purpose: they must be rejected
-        drtc.add_pid_controller("S_TEST", "Crest level (s)", "Water level (op)", 13.0, "Obs_TEST")  # type: ignore[call-arg]
+        drtc.add_pid_controller(
+            "S_TEST", "Crest level (s)", "Water level (op)", 13.0, "Obs_TEST"
+        )  # type: ignore[call-arg]
 
 
 def test_only_timeseries_without_data(tmp_path: Path) -> None:
@@ -881,7 +985,9 @@ def test_only_timeseries_without_data(tmp_path: Path) -> None:
         DRTCModel(HyDAMO(), fm, output_path=tmp_path, rtc_onlytimeseries=True)
 
 
-def test_state_from_file_missing(minimal_drtc: tuple[DRTCModel, HyDAMO], tmp_path: Path) -> None:
+def test_state_from_file_missing(
+    minimal_drtc: tuple[DRTCModel, HyDAMO], tmp_path: Path
+) -> None:
     drtc, _ = minimal_drtc
     missing = tmp_path / "no_state"
     missing.mkdir()
@@ -889,10 +995,14 @@ def test_state_from_file_missing(minimal_drtc: tuple[DRTCModel, HyDAMO], tmp_pat
         drtc.set_state_from_file(missing)
 
 
-def test_state_from_file_without_items(minimal_drtc: tuple[DRTCModel, HyDAMO], tmp_path: Path) -> None:
+def test_state_from_file_without_items(
+    minimal_drtc: tuple[DRTCModel, HyDAMO], tmp_path: Path
+) -> None:
     drtc, _ = minimal_drtc
     empty = tmp_path / "state_export.xml"
-    empty.write_text('<?xml version="1.0"?><treeVector xmlns="http://www.wldelft.nl/fews"/>')
+    empty.write_text(
+        '<?xml version="1.0"?><treeVector xmlns="http://www.wldelft.nl/fews"/>'
+    )
     with pytest.raises(ValueError, match="No state items"):
         drtc.set_state_from_file(empty)
 
@@ -900,7 +1010,9 @@ def test_state_from_file_without_items(minimal_drtc: tuple[DRTCModel, HyDAMO], t
 @pytest.mark.parametrize(
     ("with_statepi", "check_time", "message"),
     [
-        pytest.param(False, True, "the time of the state is not checked", id="no_statepi"),
+        pytest.param(
+            False, True, "the time of the state is not checked", id="no_statepi"
+        ),
         pytest.param(True, False, None, id="time_not_checked"),
     ],
 )
@@ -915,7 +1027,9 @@ def test_state_from_file_time_check(
     drtc, _ = minimal_drtc
     folder = tmp_path / "state"
     folder.mkdir()
-    (folder / "state_export.xml").write_bytes((RTC_STATE / "state_export.xml").read_bytes())
+    (folder / "state_export.xml").write_bytes(
+        (RTC_STATE / "state_export.xml").read_bytes()
+    )
     if with_statepi:
         (folder / "statePI.xml").write_bytes((RTC_STATE / "statePI.xml").read_bytes())
     with caplog.at_level(logging.INFO, logger="hydrolib.dhydamo.core.drtc"):

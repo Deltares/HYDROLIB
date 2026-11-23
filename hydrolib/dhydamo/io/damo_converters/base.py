@@ -89,7 +89,10 @@ class BaseDamoConverter(ABC):
             Pass ``False`` to allow 2D profile points. Default is ``True``.
         """
         gpkg_path = Path(gpkg_path)
-        available_layers = {layer_name.lower(): layer_name for layer_name in gpd.list_layers(gpkg_path).name.tolist()}
+        available_layers = {
+            layer_name.lower(): layer_name
+            for layer_name in gpd.list_layers(gpkg_path).name.tolist()
+        }
 
         for spec in self.layer_specs:
             actual_layer = available_layers.get(spec.source_layer.lower())
@@ -101,7 +104,9 @@ class BaseDamoConverter(ABC):
                         self.hydamo_version,
                     )
                     continue
-                raise ValueError(f'Missing required HyDAMO layer "{spec.source_layer}" for DAMO {self.hydamo_version}.')
+                raise ValueError(
+                    f'Missing required HyDAMO layer "{spec.source_layer}" for DAMO {self.hydamo_version}.'
+                )
 
             target = getattr(hydamo, spec.target_attr)
             kwargs = {
@@ -133,7 +138,9 @@ class BaseDamoConverter(ABC):
         """
 
 
-def replace_layer_specs(base_specs: tuple[LayerSpec, ...], *overrides: LayerSpec) -> tuple[LayerSpec, ...]:
+def replace_layer_specs(
+    base_specs: tuple[LayerSpec, ...], *overrides: LayerSpec
+) -> tuple[LayerSpec, ...]:
     """Merge *overrides* into *base_specs*, replacing entries by ``target_attr``.
 
     Specs present in *base_specs* are replaced in-place by the matching

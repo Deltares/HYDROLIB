@@ -74,7 +74,9 @@ def validate_hydamo_package(
         if validation_rules_path is not None:
             shutil.copy2(validation_rules_path, rules_target)
         else:
-            schema_version, valid_objects = _schema_version_for_damo(_hydamo_validation, hydamo_version)
+            schema_version, valid_objects = _schema_version_for_damo(
+                _hydamo_validation, hydamo_version
+            )
             rules_target.write_text(
                 json.dumps(
                     _build_minimal_validation_rules(
@@ -181,11 +183,15 @@ def validate_or_raise(
     )
     if validation_mode == "strict" and not result.success:
         joined_errors = "; ".join(result.errors) if result.errors else "unknown error"
-        raise HyDAMOValidationError(f"HyDAMO validation failed for DAMO {hydamo_version}: {joined_errors}")
+        raise HyDAMOValidationError(
+            f"HyDAMO validation failed for DAMO {hydamo_version}: {joined_errors}"
+        )
     return result
 
 
-def _schema_version_for_damo(hv_module: Any, hydamo_version: str) -> tuple[str, list[str]]:
+def _schema_version_for_damo(
+    hv_module: Any, hydamo_version: str
+) -> tuple[str, list[str]]:
     """Return ``(schema_version, valid_object_names)`` for *hydamo_version*.
 
     Scans the schema files shipped with the installed package to find the highest
@@ -201,12 +207,16 @@ def _schema_version_for_damo(hv_module: Any, hydamo_version: str) -> tuple[str, 
     best_schema: dict | None = None
     for schema_file in sorted(schema_dir.glob("rules_*.json")):
         schema = json.loads(schema_file.read_text())
-        supported = schema.get("properties", {}).get("hydamo_version", {}).get("enum", [])
+        supported = (
+            schema.get("properties", {}).get("hydamo_version", {}).get("enum", [])
+        )
         if hydamo_version in supported:
             best_version = schema_file.stem.split("_")[1]
             best_schema = schema
     if best_version is not None and best_schema is not None:
-        valid_objects: list[str] = best_schema.get("$defs", {}).get("hydamo_objects", {}).get("enum", [])
+        valid_objects: list[str] = (
+            best_schema.get("$defs", {}).get("hydamo_objects", {}).get("enum", [])
+        )
         return best_version, valid_objects
     raise ValueError(
         f"The installed hydamo-validation package does not support DAMO version "
@@ -227,7 +237,11 @@ def _build_minimal_validation_rules(
         sample.columns = [col.lower() for col in sample.columns]
 
         parameter = next(
-            (candidate for candidate in ("globalid", "code", "nen3610id") if candidate in sample.columns),
+            (
+                candidate
+                for candidate in ("globalid", "code", "nen3610id")
+                if candidate in sample.columns
+            ),
             None,
         )
         if parameter is None:
@@ -253,4 +267,8 @@ def _build_minimal_validation_rules(
             }
         )
 
-    return {"schema": schema_version, "hydamo_version": hydamo_version, "objects": objects}
+    return {
+        "schema": schema_version,
+        "hydamo_version": hydamo_version,
+        "objects": objects,
+    }

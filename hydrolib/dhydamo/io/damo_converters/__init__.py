@@ -40,4 +40,6 @@ def get_damo_converter(version: str) -> BaseDamoConverter:
         return _CONVERTERS[version]()
     except KeyError as exc:
         supported = ", ".join(SUPPORTED_HYDAMO_VERSIONS)
-        raise ValueError(f'Unsupported HyDAMO DAMO version "{version}". Supported versions: {supported}.') from exc
+        raise ValueError(
+            f'Unsupported HyDAMO DAMO version "{version}". Supported versions: {supported}.'
+        ) from exc

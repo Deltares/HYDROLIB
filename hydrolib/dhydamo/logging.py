@@ -74,10 +74,15 @@ def configure_logging(
     logger.setLevel(level)
     formatter = logging.Formatter(fmt)
 
-    # a FileHandler is also a StreamHandler, so leave those out when looking for a screen handler
-    has_stream_handler = any(
-        isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) for h in logger.handlers
-    )
+    has_stream_handler = False
+    for h in logger.handlers:
+        # a FileHandler is also a StreamHandler, so leave those out when looking for a screen handler
+        if isinstance(h, logging.FileHandler):
+            continue
+        if isinstance(h, logging.StreamHandler):
+            has_stream_handler = True
+            break
+
     if stream and not has_stream_handler:
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
@@ -94,7 +99,10 @@ def configure_logging(
             os.makedirs(directory)
         # FileHandler stores the absolute path
         path = os.path.abspath(filepath)
-        if not any(isinstance(h, logging.FileHandler) and h.baseFilename == path for h in logger.handlers):
+        if not any(
+            isinstance(h, logging.FileHandler) and h.baseFilename == path
+            for h in logger.handlers
+        ):
             file_handler = logging.FileHandler(path, mode=mode, encoding="utf-8")
             file_handler.setLevel(level)
             file_handler.setFormatter(formatter)

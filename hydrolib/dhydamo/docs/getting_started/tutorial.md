@@ -131,7 +131,9 @@ hydamo.profile_group.read_gpkg_layer(gpkg_file, layer_name="profielgroep")
 hydamo.profile.drop("code", axis=1, inplace=True)
 hydamo.profile["code"] = hydamo.profile["profiellijnid"]
 # structures
-hydamo.culverts.read_gpkg_layer(gpkg_file, layer_name="DuikerSifonHevel", index_col="code")
+hydamo.culverts.read_gpkg_layer(
+    gpkg_file, layer_name="DuikerSifonHevel", index_col="code"
+)
 hydamo.culverts.snap_to_branch(hydamo.branches, snap_method="ends", maxdist=5)
 hydamo.culverts.dropna(axis=0, inplace=True, subset=["branch_offset"])
 
@@ -141,7 +143,9 @@ hydamo.weirs.dropna(axis=0, inplace=True, subset=["branch_offset"])
 hydamo.opening.read_gpkg_layer(gpkg_file, layer_name="Kunstwerkopening")
 hydamo.management_device.read_gpkg_layer(gpkg_file, layer_name="Regelmiddel")
 
-idx = hydamo.management_device[hydamo.management_device["duikersifonhevelid"].notnull()].index
+idx = hydamo.management_device[
+    hydamo.management_device["duikersifonhevelid"].notnull()
+].index
 for i in idx:
     globid = hydamo.culverts[
         hydamo.culverts.code == hydamo.management_device.duikersifonhevelid.loc[i]
@@ -157,11 +161,17 @@ hydamo.bridges.read_gpkg_layer(gpkg_file, layer_name="Brug", index_col="code")
 hydamo.bridges.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
 hydamo.bridges.dropna(axis=0, inplace=True, subset=["branch_offset"])
 # boundaries
-hydamo.boundary_conditions.read_gpkg_layer(gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code")
-hydamo.boundary_conditions.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
+hydamo.boundary_conditions.read_gpkg_layer(
+    gpkg_file, layer_name="hydrologischerandvoorwaarde", index_col="code"
+)
+hydamo.boundary_conditions.snap_to_branch(
+    hydamo.branches, snap_method="overal", maxdist=10
+)
 
 # catchments
-hydamo.catchments.read_gpkg_layer(gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code")
+hydamo.catchments.read_gpkg_layer(
+    gpkg_file, layer_name="afvoergebiedaanvoergebied", index_col="code"
+)
 # laterals
 hydamo.laterals.read_gpkg_layer(gpkg_file, layer_name="lateraleknoop")
 for ind, cat in hydamo.catchments.iterrows():
@@ -192,9 +202,15 @@ ax.set_ylim(391000, 397000)
 
 hydamo.branches.geometry.plot(ax=ax, label="Channel", linewidth=2, color="blue")
 hydamo.profile.geometry.plot(ax=ax, color="red", label="Cross section", linewidth=1)
-hydamo.culverts.geometry.centroid.plot(ax=ax, color="yellow", label="Culvert", markersize=20, zorder=10, marker="^")
-hydamo.weirs.geometry.centroid.plot(ax=ax, color="green", label="Weir", markersize=25, zorder=10, marker="^")
-hydamo.bridges.geometry.plot(ax=ax, color="red", label="Bridge", markersize=20, zorder=10, marker="^")
+hydamo.culverts.geometry.centroid.plot(
+    ax=ax, color="yellow", label="Culvert", markersize=20, zorder=10, marker="^"
+)
+hydamo.weirs.geometry.centroid.plot(
+    ax=ax, color="green", label="Weir", markersize=25, zorder=10, marker="^"
+)
+hydamo.bridges.geometry.plot(
+    ax=ax, color="red", label="Bridge", markersize=20, zorder=10, marker="^"
+)
 hydamo.pumpstations.geometry.plot(
     ax=ax,
     color="orange",
@@ -206,7 +222,14 @@ hydamo.pumpstations.geometry.plot(
     linewidth=2.5,
 )
 hydamo.boundary_conditions.geometry.plot(
-    ax=ax, color="red", label="Boundary", marker="s", markersize=125, zorder=10, facecolor="red", linewidth=0
+    ax=ax,
+    color="red",
+    label="Boundary",
+    marker="s",
+    markersize=125,
+    zorder=10,
+    facecolor="red",
+    linewidth=0,
 )
 ax.legend()
 
@@ -256,7 +279,9 @@ hydamo.structures.convert.weirs(
     hydamo.management_device,
 )
 
-hydamo.structures.convert.culverts(hydamo.culverts, management_device=hydamo.management_device)
+hydamo.structures.convert.culverts(
+    hydamo.culverts, management_device=hydamo.management_device
+)
 
 hydamo.structures.convert.bridges(
     hydamo.bridges,
@@ -265,7 +290,9 @@ hydamo.structures.convert.bridges(
     profiles=hydamo.profile,
 )
 
-hydamo.structures.convert.pumps(hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management)
+hydamo.structures.convert.pumps(
+    hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
+)
 ```
 
 Additional methods are available to add structures:
@@ -510,7 +537,12 @@ hydamo.crosssections.convert.profiles(
 
 # Set a default cross section
 default = hydamo.crosssections.add_rectangle_definition(
-    height=5.0, width=5.0, closed=False, roughnesstype="StricklerKs", roughnessvalue=30, name="default"
+    height=5.0,
+    width=5.0,
+    closed=False,
+    roughnesstype="StricklerKs",
+    roughnessvalue=30,
+    name="default",
 )
 hydamo.crosssections.set_default_definition(definition=default, shift=10.0)
 ```
@@ -557,7 +589,9 @@ hydamo.storagenodes.add_storagenode(
 
 
 ```python
-hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network)
+hydamo.external_forcings.convert.boundaries(
+    hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network
+)
 ```
 
 #### Add a fictional time series to use in the BC file
@@ -565,7 +599,9 @@ hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions, mesh1d=f
 
 ```python
 series = pd.Series(np.sin(np.linspace(2, 8, 120) * -1) + 1.0)
-series.index = [pd.Timestamp("2016-06-01 00:00:00") + pd.Timedelta(hours=i) for i in range(120)]
+series.index = [
+    pd.Timestamp("2016-06-01 00:00:00") + pd.Timedelta(hours=i) for i in range(120)
+]
 series.plot()
 ```
 
@@ -708,7 +744,11 @@ if TwoD:
 
     # add terrain level
     mesh.mesh2d_altitude_from_raster(
-        network, "../sample_data/data/rasters/AHN_2m_clipped_filled.tif", "face", "mean", fill_value=-999
+        network,
+        "../sample_data/data/rasters/AHN_2m_clipped_filled.tif",
+        "face",
+        "mean",
+        fill_value=-999,
     )
 ```
 
@@ -840,7 +880,9 @@ if RTC:
     )
 
     drtcmodel.add_time_controller(
-        structure_id="S_96548", steering_variable="Crest level (s)", data=timeseries.iloc[:, 1]
+        structure_id="S_96548",
+        steering_variable="Crest level (s)",
+        data=timeseries.iloc[:, 1],
     )
 ```
 
@@ -983,7 +1025,9 @@ if RR:
         pump_capacity=pumpcapacity,
         meteo_areas=meteo_areas,
     )
-    drrmodel.greenhouse.io.greenhouse_from_input(hydamo.catchments, lu_file, ahn_file, roof_storage, meteo_areas)
+    drrmodel.greenhouse.io.greenhouse_from_input(
+        hydamo.catchments, lu_file, ahn_file, roof_storage, meteo_areas
+    )
     drrmodel.openwater.io.openwater_from_input(hydamo.catchments, lu_file, meteo_areas)
 ```
 
@@ -992,7 +1036,9 @@ Make the RR boundaries:
 
 ```python
 if RR:
-    drrmodel.external_forcings.io.boundary_from_input(hydamo.laterals, hydamo.catchments, drrmodel)
+    drrmodel.external_forcings.io.boundary_from_input(
+        hydamo.laterals, hydamo.catchments, drrmodel
+    )
 ```
 
 Again, the result is a dictionary, but it can be easily displayed as a dataframe:
@@ -1049,8 +1095,12 @@ if RR:
     precip_file = str(data_path / "DEFAULT.BUI")
     evap_folder = data_path / "rasters" / "evaporation"
     drrmodel.external_forcings.io.seepage_from_input(hydamo.catchments, seepage_folder)
-    drrmodel.external_forcings.io.precip_from_input(meteo_areas, precip_folder=None, precip_file=precip_file)
-    drrmodel.external_forcings.io.evap_from_input(meteo_areas, evap_folder=evap_folder, evap_file=None)
+    drrmodel.external_forcings.io.precip_from_input(
+        meteo_areas, precip_folder=None, precip_file=precip_file
+    )
+    drrmodel.external_forcings.io.evap_from_input(
+        meteo_areas, evap_folder=evap_folder, evap_file=None
+    )
 ```
 
 
@@ -1067,7 +1117,9 @@ Add the main parameters:
 ```python
 if RR:
     drrmodel.d3b_parameters["Timestepsize"] = 300
-    drrmodel.d3b_parameters["StartTime"] = "'2016/06/01;00:00:00'"  # should be equal to refdate for D-HYDRO
+    drrmodel.d3b_parameters["StartTime"] = (
+        "'2016/06/01;00:00:00'"  # should be equal to refdate for D-HYDRO
+    )
     drrmodel.d3b_parameters["EndTime"] = "'2016/06/03;00:00:00'"
     drrmodel.d3b_parameters["RestartIn"] = 0
     drrmodel.d3b_parameters["RestartOut"] = 0
@@ -1123,15 +1175,26 @@ def node_geometry(dict):
                         (
                             Point(float(i[1]["px"]), float(i[1]["py"])),
                             Point(
-                                float(drrmodel.external_forcings.boundary_nodes[i[1]["boundary_node"]]["px"]),
-                                float(drrmodel.external_forcings.boundary_nodes[i[1]["boundary_node"]]["py"]),
+                                float(
+                                    drrmodel.external_forcings.boundary_nodes[
+                                        i[1]["boundary_node"]
+                                    ]["px"]
+                                ),
+                                float(
+                                    drrmodel.external_forcings.boundary_nodes[
+                                        i[1]["boundary_node"]
+                                    ]["py"]
+                                ),
                             ),
                         )
                     )
                 )
         else:
             geoms.append(Point((float(i[1]["px"]), float(i[1]["py"]))))
-    return ((gpd.GeoDataFrame(geoms, columns=["geometry"])), gpd.GeoDataFrame(links, columns=["geometry"]))
+    return (
+        (gpd.GeoDataFrame(geoms, columns=["geometry"])),
+        gpd.GeoDataFrame(links, columns=["geometry"]),
+    )
 ```
 
 
@@ -1146,16 +1209,28 @@ ax.yaxis.set_visible(False)
 ax.set_xlim(195000, 205000)
 ax.set_ylim(390000, 399000)
 
-hydamo.catchments.geometry.plot(ax=ax, label="Catchments", edgecolor="black", facecolor="pink", alpha=0.5)
+hydamo.catchments.geometry.plot(
+    ax=ax, label="Catchments", edgecolor="black", facecolor="pink", alpha=0.5
+)
 hydamo.branches.geometry.plot(ax=ax, label="Channel")
-node_geometry(drrmodel.unpaved.unp_nodes)[0].plot(ax=ax, markersize=30, marker="s", color="green", label="Unpaved")
+node_geometry(drrmodel.unpaved.unp_nodes)[0].plot(
+    ax=ax, markersize=30, marker="s", color="green", label="Unpaved"
+)
 node_geometry(drrmodel.unpaved.unp_nodes)[1].plot(ax=ax, color="black", linewidth=0.5)
-node_geometry(drrmodel.paved.pav_nodes)[0].plot(ax=ax, markersize=20, marker="s", color="red", label="Paved")
+node_geometry(drrmodel.paved.pav_nodes)[0].plot(
+    ax=ax, markersize=20, marker="s", color="red", label="Paved"
+)
 node_geometry(drrmodel.paved.pav_nodes)[1].plot(ax=ax, color="black", linewidth=0.5)
-node_geometry(drrmodel.greenhouse.gh_nodes)[0].plot(ax=ax, markersize=15, color="yellow", label="Greenhouse")
+node_geometry(drrmodel.greenhouse.gh_nodes)[0].plot(
+    ax=ax, markersize=15, color="yellow", label="Greenhouse"
+)
 node_geometry(drrmodel.greenhouse.gh_nodes)[1].plot(ax=ax, color="black", linewidth=0.5)
-node_geometry(drrmodel.openwater.ow_nodes)[0].plot(ax=ax, markersize=10, color="blue", label="Openwater")
-node_geometry(drrmodel.openwater.ow_nodes)[1].plot(ax=ax, color="black", linewidth=0.5, label="RR-link")
+node_geometry(drrmodel.openwater.ow_nodes)[0].plot(
+    ax=ax, markersize=10, color="blue", label="Openwater"
+)
+node_geometry(drrmodel.openwater.ow_nodes)[1].plot(
+    ax=ax, color="black", linewidth=0.5, label="RR-link"
+)
 node_geometry(drrmodel.external_forcings.boundary_nodes)[0].plot(
     ax=ax, markersize=15, color="purple", label="RR Boundary"
 )
@@ -1219,7 +1294,11 @@ Now we write the file structure:
 ```python
 fm.filepath = Path(output_path) / "fm" / "test.mdu"
 dimr = DIMR()
-dimr.component.append(FMComponent(name="DFM", workingDir=Path(output_path) / "fm", model=fm, inputfile=fm.filepath))
+dimr.component.append(
+    FMComponent(
+        name="DFM", workingDir=Path(output_path) / "fm", model=fm, inputfile=fm.filepath
+    )
+)
 dimr.save(recurse=True)
 ```
 
@@ -1248,7 +1327,9 @@ if RTC:
 
 ```python
 if RR:
-    rr_writer = DRRWriter(drrmodel, output_dir=output_path, name="test", wwtp=(199000.0, 396000.0))
+    rr_writer = DRRWriter(
+        drrmodel, output_dir=output_path, name="test", wwtp=(199000.0, 396000.0)
+    )
     rr_writer.write_all()
 ```
 

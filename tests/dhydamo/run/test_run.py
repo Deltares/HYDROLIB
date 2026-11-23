@@ -19,7 +19,10 @@ from tests.dhydamo.rtc import test_rtc
 DHYDRO_VERSION = None
 
 
-def _find_dimr(dhydro_path: str | pathlib.Path = "C:/Program Files/Deltares", version: str | None = None) -> str | None:
+def _find_dimr(
+    dhydro_path: str | pathlib.Path = "C:/Program Files/Deltares",
+    version: str | None = None,
+) -> str | None:
     dimr_path = None
 
     # Find latest D-Hydro installation
@@ -27,17 +30,34 @@ def _find_dimr(dhydro_path: str | pathlib.Path = "C:/Program Files/Deltares", ve
     # @TODO assumes program files installation
     dhydro_path = pathlib.Path(dhydro_path)
     if dhydro_path.exists():
-        installs = [p for p in dhydro_path.iterdir() if p.is_dir() and p.name.startswith("D-HYDRO Suite")]
+        installs = [
+            p
+            for p in dhydro_path.iterdir()
+            if p.is_dir() and p.name.startswith("D-HYDRO Suite")
+        ]
         if len(installs) > 0:
-            sort_keys = [p.name.replace("D-HYDRO Suite", "").strip().split(" ")[0] for p in installs]
+            sort_keys = [
+                p.name.replace("D-HYDRO Suite", "").strip().split(" ")[0]
+                for p in installs
+            ]
             installs = [x for _, x in sorted(zip(sort_keys, installs))]
             if version is None:
-                dimr_path = str(installs[-1].joinpath("plugins/DeltaShell.Dimr/kernels/x64/bin/run_dimr.bat"))
+                dimr_path = str(
+                    installs[-1].joinpath(
+                        "plugins/DeltaShell.Dimr/kernels/x64/bin/run_dimr.bat"
+                    )
+                )
             else:
                 installs = [i for i in installs if str(version) in str(i)]
                 if installs == []:
-                    raise ValueError(f"No D-Hydro installation found with version {version}")
-                dimr_path = str(installs[0].joinpath("plugins/DeltaShell.Dimr/kernels/x64/bin/run_dimr.bat"))
+                    raise ValueError(
+                        f"No D-Hydro installation found with version {version}"
+                    )
+                dimr_path = str(
+                    installs[0].joinpath(
+                        "plugins/DeltaShell.Dimr/kernels/x64/bin/run_dimr.bat"
+                    )
+                )
     return dimr_path
 
 
@@ -49,7 +69,9 @@ figure_path = tests_path / "figures"
 # change version here to get test a different DHYDRO version
 DIMR_VERSION = None
 
-skip_without_dimr = pytest.mark.skipif(_find_dimr() is None, reason="D-Hydro not installed or run_dimr.bat not found")
+skip_without_dimr = pytest.mark.skipif(
+    _find_dimr() is None, reason="D-Hydro not installed or run_dimr.bat not found"
+)
 
 
 @pytest.fixture(scope="module")
@@ -65,7 +87,9 @@ def model_run() -> tuple[pathlib.Path, subprocess.CompletedProcess[str]]:
     return output_path, result
 
 
-def _run_model(output_path: pathlib.Path, version: str | None = None) -> subprocess.CompletedProcess[str]:
+def _run_model(
+    output_path: pathlib.Path, version: str | None = None
+) -> subprocess.CompletedProcess[str]:
     # Read hydamo object only once
     hydamo = test_from_hydamo._add_structures_manually()
     hydamo = test_from_hydamo._convert_structures(hydamo_obj=hydamo)
@@ -85,7 +109,9 @@ def _run_model(output_path: pathlib.Path, version: str | None = None) -> subproc
     drrmodel.d3b_parameters["UnsaturatedZone"] = 1
     drrmodel.d3b_parameters["UnpavedPercolationLikeSobek213"] = -1
     drrmodel.d3b_parameters["VolumeCheckFactorToCF"] = 100000
-    rr_writer = DRRWriter(drrmodel, output_dir=output_path, name="test", wwtp=(199000.0, 396000.0))
+    rr_writer = DRRWriter(
+        drrmodel, output_dir=output_path, name="test", wwtp=(199000.0, 396000.0)
+    )
     rr_writer.write_all()
 
     # Add RTC component
@@ -105,13 +131,21 @@ def _run_model(output_path: pathlib.Path, version: str | None = None) -> subproc
     # Call DIMR .bat file. Use the absolute path: with NoDefaultCurrentDirectoryInExePath set, cmd does not
     # search the working directory for 'run.bat'.
     runbat = pathlib.Path(output_path).resolve() / "run.bat"
-    result = subprocess.run(["cmd", "/c", str(runbat)], cwd=output_path, capture_output=True, text=True, check=False)
+    result = subprocess.run(
+        ["cmd", "/c", str(runbat)],
+        cwd=output_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     return result
 
 
 @pytest.mark.slow
 @skip_without_dimr
-def test_run_model(model_run: tuple[pathlib.Path, subprocess.CompletedProcess[str]]) -> None:
+def test_run_model(
+    model_run: tuple[pathlib.Path, subprocess.CompletedProcess[str]],
+) -> None:
     _, result = model_run
     assert result.returncode == 0, result.stderr
 
@@ -147,8 +181,10 @@ def test_read_output(
     his_test = output_path / "dflowfm" / "output" / "DFM_his.nc"
     assert his_test.exists()
 
-    geom_test, series_test = hydamo.external_forcings.convert.timeseries_from_other_model(
-        his_test, location_type, location_id, variable
+    geom_test, series_test = (
+        hydamo.external_forcings.convert.timeseries_from_other_model(
+            his_test, location_type, location_id, variable
+        )
     )
 
     geom_ref, series_ref = hydamo.external_forcings.convert.timeseries_from_other_model(
@@ -157,7 +193,13 @@ def test_read_output(
 
     _, ax = plt.subplots()
     ax.plot(series_ref.index, series_ref.to_numpy(), label="Reference", color="blue")
-    ax.plot(series_test.index, series_test.to_numpy(), label="New model", color="Red", linestyle="--")
+    ax.plot(
+        series_test.index,
+        series_test.to_numpy(),
+        label="New model",
+        color="Red",
+        linestyle="--",
+    )
     ax.set_ylabel(variable)
     ax.set_title(f"{location_type} {location_id}: {variable}")
     ax.legend()

@@ -17,7 +17,9 @@ from shapely.geometry import LineString, MultiPolygon, Point, box
         (Point(10, 11), 5.0, [(10.0, 10.0), (10.0, 15.0)]),
     ],
 )
-def test_extend_linestring(near_pt: Point, length: float, expected: list[tuple[float, float]]) -> None:
+def test_extend_linestring(
+    near_pt: Point, length: float, expected: list[tuple[float, float]]
+) -> None:
     line = LineString([(0, 0), (10, 0), (10, 10)])
 
     extension = spatial.extend_linestring(line, near_pt, length)
@@ -28,14 +30,18 @@ def test_extend_linestring(near_pt: Point, length: float, expected: list[tuple[f
 
 def test_voronoi_around_nodes_cells_cover_the_faces() -> None:
     # 3x3 nodes of a 2x2 mesh: each cell contains its own node, and together the cells cover the faces exactly
-    faces = gpd.GeoDataFrame(geometry=[box(0, 0, 1, 1), box(1, 0, 2, 1), box(0, 1, 1, 2), box(1, 1, 2, 2)])
+    faces = gpd.GeoDataFrame(
+        geometry=[box(0, 0, 1, 1), box(1, 0, 2, 1), box(0, 1, 1, 2), box(1, 1, 2, 2)]
+    )
     x, y = np.meshgrid([0.0, 1.0, 2.0], [0.0, 1.0, 2.0])
     nodes = np.stack([x.ravel(), y.ravel()], axis=1)
 
     cells = spatial.get_voronoi_around_nodes(nodes, faces)
 
     assert cells.index.tolist() == list(range(1, 10))
-    assert shapely.intersects_xy(cells.geometry.to_numpy(), nodes[:, 0], nodes[:, 1]).all()
+    assert shapely.intersects_xy(
+        cells.geometry.to_numpy(), nodes[:, 0], nodes[:, 1]
+    ).all()
     # corner, edge and centre node
     assert cells.geometry[1].equals(box(0, 0, 0.5, 0.5))
     assert cells.geometry[2].equals(box(0.5, 0, 1.5, 0.5))
@@ -54,13 +60,26 @@ def test_voronoi_around_nodes_clipped_into_two_parts() -> None:
 
     # the bisector of the two nodes is at y = 8.75
     assert cells.geometry[1].equals(box(0, 0, 10, 8.75))
-    assert cells.geometry[2].equals(MultiPolygon([box(0, 8.75, 10, 10), box(0, 12, 10, 13)]))
+    assert cells.geometry[2].equals(
+        MultiPolygon([box(0, 8.75, 10, 10), box(0, 12, 10, 13)])
+    )
 
 
 def test_voronoi_around_nodes_duplicate_nodes() -> None:
     # Meshes added next to each other share border nodes; each copy gets the same cell
     faces = gpd.GeoDataFrame(geometry=[box(0, 0, 1, 1), box(1, 0, 2, 1)])
-    nodes = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 0.0], [2.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 1.0], [2.0, 1.0]])
+    nodes = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [1.0, 0.0],
+            [2.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 1.0],
+            [1.0, 1.0],
+            [2.0, 1.0],
+        ]
+    )
 
     cells = spatial.get_voronoi_around_nodes(nodes, faces)
 

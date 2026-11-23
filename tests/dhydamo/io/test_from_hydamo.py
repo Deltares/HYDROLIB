@@ -26,7 +26,9 @@ from shapely.geometry import (
 )
 from shapely.geometry.base import BaseGeometry
 
-hydamo_data_path = Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"
+hydamo_data_path = (
+    Path(__file__).parent / ".." / ".." / ".." / "hydrolib" / "sample_data" / "data"
+)
 
 
 def _mixed_extended_geometries() -> ExtendedGeoDataFrame:
@@ -88,7 +90,9 @@ def test_clip_hydamo_object() -> None:
     )
 
     assert hydamo.branches.shape[0] == 18
-    assert np.isclose(np.round(hydamo.branches.loc["W_242208_0"].geometry.length, 2), 426.4)
+    assert np.isclose(
+        np.round(hydamo.branches.loc["W_242208_0"].geometry.length, 2), 426.4
+    )
 
 
 def test_clip_extended_geodataframe() -> None:
@@ -102,7 +106,10 @@ def test_clip_extended_geodataframe() -> None:
     assert geoms.loc["polygon_result"].geometry.geom_type == "Polygon"
     assert geoms.loc["multipolygon_result"].geometry.geom_type == "MultiPolygon"
     assert geoms.loc["point_result"].geometry.geom_type == "Point"
-    assert geoms.loc["geometrycollection_result"].geometry.geom_type == "GeometryCollection"
+    assert (
+        geoms.loc["geometrycollection_result"].geometry.geom_type
+        == "GeometryCollection"
+    )
 
 
 def test_clip_and_drop_extended_geodataframe() -> None:
@@ -146,7 +153,9 @@ def test_merge_columns() -> None:
     ("col1", "col2", "missing"),
     [("x", "z", "'z'"), ("z", "y", "'z'"), (None, "z", "None, 'z'"), ("", "y", "''")],
 )
-def test_merge_columns_missing_column(col1: str | None, col2: str, missing: str) -> None:
+def test_merge_columns_missing_column(
+    col1: str | None, col2: str, missing: str
+) -> None:
     geoms = _columns_to_merge()
 
     with pytest.raises(ValueError, match=f"{missing} not found"):
@@ -164,14 +173,18 @@ def test_merge_columns_incompatible_types() -> None:
 
 def test_check_geotype_with_a_union_of_types() -> None:
     # catchments accept Polygon | MultiPolygon; a wrong type used to give an IndexError in the message
-    catchments = ExtendedGeoDataFrame(geotype=Polygon | MultiPolygon, required_columns=["code"])
+    catchments = ExtendedGeoDataFrame(
+        geotype=Polygon | MultiPolygon, required_columns=["code"]
+    )
     points = gpd.GeoDataFrame({"code": ["c1"]}, geometry=[Point(0, 0)])
 
     with pytest.raises(TypeError, match=r"Polygon \| .*MultiPolygon.* required"):
         catchments.set_data(points, index_col="code")
 
 
-def test_clip_and_drop_linestring_uses_first_with_warning(caplog: pytest.LogCaptureFixture) -> None:
+def test_clip_and_drop_linestring_uses_first_with_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     gdf = gpd.GeoDataFrame(
         {
             "code": ["line_split"],
@@ -209,16 +222,40 @@ def _hydamo_object_from_gpkg() -> tuple[HyDAMO, int]:
     hydamo.load_from_gpkg(gpkg_file, hydamo_version="2.2")
 
     len_profile_before = len(hydamo.profile)
-    hydamo.snap_to_branch_and_drop(hydamo.profile, hydamo.branches, snap_method="intersecting", drop_related=True)
-    hydamo.snap_to_branch_and_drop(hydamo.weirs, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True)
-    hydamo.snap_to_branch_and_drop(hydamo.culverts, hydamo.branches, snap_method="ends", maxdist=5, drop_related=True)
     hydamo.snap_to_branch_and_drop(
-        hydamo.pumpstations, hydamo.branches, snap_method="overal", maxdist=10, drop_related=True
+        hydamo.profile, hydamo.branches, snap_method="intersecting", drop_related=True
     )
     hydamo.snap_to_branch_and_drop(
-        hydamo.bridges, hydamo.branches, snap_method="overal", maxdist=1100, drop_related=True
+        hydamo.weirs,
+        hydamo.branches,
+        snap_method="overal",
+        maxdist=10,
+        drop_related=True,
     )
-    hydamo.boundary_conditions.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=10)
+    hydamo.snap_to_branch_and_drop(
+        hydamo.culverts,
+        hydamo.branches,
+        snap_method="ends",
+        maxdist=5,
+        drop_related=True,
+    )
+    hydamo.snap_to_branch_and_drop(
+        hydamo.pumpstations,
+        hydamo.branches,
+        snap_method="overal",
+        maxdist=10,
+        drop_related=True,
+    )
+    hydamo.snap_to_branch_and_drop(
+        hydamo.bridges,
+        hydamo.branches,
+        snap_method="overal",
+        maxdist=1100,
+        drop_related=True,
+    )
+    hydamo.boundary_conditions.snap_to_branch(
+        hydamo.branches, snap_method="overal", maxdist=10
+    )
     hydamo.laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=5000)
 
     return hydamo, len_profile_before
@@ -238,7 +275,9 @@ def test_hydamo_object_from_gpkg() -> None:
     # the dataset contains two profile groups (a bridge and a uweir)
     assert hydamo.profile_group.shape == (2, 4)
     # a profile_lines' profielgroepid's should correspond to profile_group globalids
-    assert hydamo.profile_line.profielgroepid.to_numpy()[0] in list(hydamo.profile_group.globalid)
+    assert hydamo.profile_line.profielgroepid.to_numpy()[0] in list(
+        hydamo.profile_group.globalid
+    )
     assert len(hydamo.management_device) == 32
     assert len(hydamo.weirs) == 25
     assert np.isclose(np.round(hydamo.weirs.doorstroombreedte.mean()), 2)
@@ -270,7 +309,9 @@ def _convert_structures(hydamo_obj: HyDAMO | None = None) -> HyDAMO:
         management_device=hydamo_obj.management_device,
     )
 
-    hydamo_obj.structures.convert.culverts(hydamo_obj.culverts, management_device=hydamo_obj.management_device)
+    hydamo_obj.structures.convert.culverts(
+        hydamo_obj.culverts, management_device=hydamo_obj.management_device
+    )
 
     hydamo_obj.structures.convert.bridges(
         hydamo_obj.bridges,
@@ -280,7 +321,9 @@ def _convert_structures(hydamo_obj: HyDAMO | None = None) -> HyDAMO:
     )
 
     hydamo_obj.structures.convert.pumps(
-        hydamo_obj.pumpstations, pumps=hydamo_obj.pumps, management=hydamo_obj.management
+        hydamo_obj.pumpstations,
+        pumps=hydamo_obj.pumps,
+        management=hydamo_obj.management,
     )
 
     return hydamo_obj
@@ -292,15 +335,27 @@ def test_convert_structures() -> None:
     assert hydamo.structures.rweirs_df.shape[0] == hydamo.weirs.shape[0] - 2 + 4
     assert len(hydamo.structures.compounds_df) == 2
     assert (
-        hydamo.structures.compounds_df[hydamo.structures.compounds_df.id == "cmp_S_98740"].structureids.squeeze()
+        hydamo.structures.compounds_df[
+            hydamo.structures.compounds_df.id == "cmp_S_98740"
+        ].structureids.squeeze()
         == "S_98740_1;S_98740_2;S_98740_3;S_98740_4"
     )
     assert hydamo.structures.culverts_df.shape[0] == hydamo.culverts.shape[0]
 
     # number culverts with flowdirection positive should be 1
-    assert hydamo.structures.culverts_df[hydamo.structures.culverts_df.allowedflowdir == "positive"].shape[0] == 1
+    assert (
+        hydamo.structures.culverts_df[
+            hydamo.structures.culverts_df.allowedflowdir == "positive"
+        ].shape[0]
+        == 1
+    )
     # number of culverts with a gate shouuld be 1
-    assert hydamo.structures.culverts_df[hydamo.structures.culverts_df.valveonoff == 1].shape[0] == 1
+    assert (
+        hydamo.structures.culverts_df[
+            hydamo.structures.culverts_df.valveonoff == 1
+        ].shape[0]
+        == 1
+    )
 
     assert hydamo.structures.bridges_df.shape[0] == hydamo.bridges.shape[0]
     assert hydamo.structures.pumps_df.shape[0] == hydamo.pumps.shape[0]
@@ -310,7 +365,9 @@ def _pump_hydamo(management_counts: tuple[int, ...]) -> HyDAMO:
     """Build one station; each tuple entry gives a pump's management row count."""
     hydamo = HyDAMO()
     hydamo.branches.set_data(
-        gpd.GeoDataFrame({"code": ["B1"], "geometry": [LineString([(0, 0), (100, 0)])]}),
+        gpd.GeoDataFrame(
+            {"code": ["B1"], "geometry": [LineString([(0, 0), (100, 0)])]}
+        ),
         index_col="code",
     )
     hydamo.pumpstations.set_data(
@@ -385,10 +442,18 @@ def test_convert_pumps(
     Missing management skips a pump without renumbering the remaining pumps.
     """
     hydamo = _pump_hydamo(management_counts)
-    hydamo.structures.convert.pumps(hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management)
+    hydamo.structures.convert.pumps(
+        hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
+    )
     pumps = hydamo.structures.pumps_df.to_dict("records", into=dict)
     assert [
-        (pump["id"], pump["capacity"], pump["startlevelsuctionside"], pump["stoplevelsuctionside"]) for pump in pumps
+        (
+            pump["id"],
+            pump["capacity"],
+            pump["startlevelsuctionside"],
+            pump["stoplevelsuctionside"],
+        )
+        for pump in pumps
     ] == expected
     for pump in pumps:
         assert pump["startleveldeliveryside"] == pump["startlevelsuctionside"]
@@ -414,11 +479,18 @@ def test_convert_pumps(
         pytest.param((1, 2), id="second-pump-in-compound"),
     ],
 )
-def test_convert_pumps_rejects_duplicate_management(management_counts: tuple[int, ...]) -> None:
+def test_convert_pumps_rejects_duplicate_management(
+    management_counts: tuple[int, ...],
+) -> None:
     """Reject multiple control rows per pump instead of choosing the first."""
     hydamo = _pump_hydamo(management_counts)
-    with pytest.raises(ValueError, match="Pump station S1: expected one management row per pump, found 2"):
-        hydamo.structures.convert.pumps(hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management)
+    with pytest.raises(
+        ValueError,
+        match="Pump station S1: expected one management row per pump, found 2",
+    ):
+        hydamo.structures.convert.pumps(
+            hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
+        )
 
 
 def _convert_crosssections() -> HyDAMO:
@@ -472,15 +544,27 @@ def test_convert_crosssections() -> None:
 def test_crosssection_to_yzprofiles_thalweg(profile: LineString) -> None:
     branch = LineString([(0, 0), (10, 0), (10, 5), (0, 5)])
     branches = ExtendedGeoDataFrame(geotype=LineString, required_columns=["code"])
-    branches.set_data(gpd.GeoDataFrame({"code": ["b1"]}, geometry=[branch]), index_col="code")
+    branches.set_data(
+        gpd.GeoDataFrame({"code": ["b1"]}, geometry=[branch]), index_col="code"
+    )
     crosssections = gpd.GeoDataFrame(
-        {"code": ["p1"], "branch_id": ["b1"], "branch_offset": [5.0], "globalid": ["g1"]},
+        {
+            "code": ["p1"],
+            "branch_id": ["b1"],
+            "branch_offset": [5.0],
+            "globalid": ["g1"],
+        },
         geometry=[profile],
     )
     roughness = ExtendedDataFrame()
     roughness.set_data(
         pd.DataFrame(
-            {"profielpuntid": ["g1"], "typeruwheid": ["StricklerKs"], "ruwheidhoog": [30.0], "ruwheidlaag": [20.0]}
+            {
+                "profielpuntid": ["g1"],
+                "typeruwheid": ["StricklerKs"],
+                "ruwheidhoog": [30.0],
+                "ruwheidlaag": [20.0],
+            }
         ),
         index_col=None,
     )
@@ -697,7 +781,9 @@ def test_convert_boundaries() -> None:
         structures=None,
     )
 
-    hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network)
+    hydamo.external_forcings.convert.boundaries(
+        hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network
+    )
     assert next(i == "RVM_02" for i in hydamo.external_forcings.boundary_nodes)
     assert len(hydamo.external_forcings.boundary_nodes.keys()) == 1
 
@@ -718,7 +804,9 @@ def test_add_boundaries() -> None:
     )
 
     series = pd.Series(np.sin(np.linspace(2, 8, 100) * -1) + 1.0)
-    series.index = [pd.Timestamp("2016-01-01 00:00:00") + pd.Timedelta(hours=i) for i in range(100)]
+    series.index = [
+        pd.Timestamp("2016-01-01 00:00:00") + pd.Timedelta(hours=i) for i in range(100)
+    ]
 
     hydamo.external_forcings.add_boundary_condition(
         "RVW_01",
@@ -735,7 +823,9 @@ def test_add_boundary_condition_accepts_integer_value() -> None:
     assert isinstance(fm.geometry.netfile, NetworkModel)
     network = fm.geometry.netfile.network
     mesh.mesh1d_add_branch_from_linestring(
-        network, LineString([(197464.0, 392130.0), (197564.0, 392130.0)]), node_distance=100
+        network,
+        LineString([(197464.0, 392130.0), (197564.0, 392130.0)]),
+        node_distance=100,
     )
 
     hydamo = HyDAMO()
@@ -756,7 +846,9 @@ def test_add_boundary_condition_accepts_integer_value() -> None:
 
 def test_add_boundary_condition_requires_a_network() -> None:
     with pytest.raises(ValueError, match="Provide the network"):
-        HyDAMO().external_forcings.add_boundary_condition("RVW", (0.0, 0.0), "dischargebnd", 1.0)
+        HyDAMO().external_forcings.add_boundary_condition(
+            "RVW", (0.0, 0.0), "dischargebnd", 1.0
+        )
 
 
 @pytest.mark.parametrize(
@@ -768,12 +860,18 @@ def test_add_boundary_condition_requires_a_network() -> None:
         ("add_bridge", {"frictiontype": "Manning"}),
         (
             "add_culvert",
-            {"crosssection": {"shape": "circle", "diameter": 1.0}, "bedfrictiontype": "Manning", "bedfriction": 0.03},
+            {
+                "crosssection": {"shape": "circle", "diameter": 1.0},
+                "bedfrictiontype": "Manning",
+                "bedfriction": 0.03,
+            },
         ),
         ("add_pump", {}),
     ],
 )
-def test_add_structure_requires_keywords(method: str, kwargs: dict[str, object]) -> None:
+def test_add_structure_requires_keywords(
+    method: str, kwargs: dict[str, object]
+) -> None:
     # id, branchid and chainage are required, and all arguments are keyword-only
     add = getattr(HyDAMO().structures, method)
     with pytest.raises(ValidationError, match="Missing required"):
@@ -789,8 +887,14 @@ def test_add_initialfields_uniform_depth() -> None:
     hydamo.external_forcings.set_initial_waterdepth(uniform_depth)
 
     # a uniform 1D value is a field per branch over all branches
-    fields = [f for f in hydamo.external_forcings.spatial_fields if f.get("uniform") is not None]
-    assert [(f["quantity"], f["uniform"]) for f in fields] == [("waterdepth", uniform_depth)]
+    fields = [
+        f
+        for f in hydamo.external_forcings.spatial_fields
+        if f.get("uniform") is not None
+    ]
+    assert [(f["quantity"], f["uniform"]) for f in fields] == [
+        ("waterdepth", uniform_depth)
+    ]
     assert hydamo.external_forcings.initial_waterdepth_polygons.empty
 
 
@@ -801,27 +905,47 @@ def test_add_initialfields_uniform_level() -> None:
     hydamo.external_forcings.set_initial_waterlevel(uniform_level)
 
     # a uniform 1D value is a field per branch over all branches
-    fields = [f for f in hydamo.external_forcings.spatial_fields if f.get("uniform") is not None]
-    assert [(f["quantity"], f["uniform"]) for f in fields] == [("waterlevel", uniform_level)]
+    fields = [
+        f
+        for f in hydamo.external_forcings.spatial_fields
+        if f.get("uniform") is not None
+    ]
+    assert [(f["quantity"], f["uniform"]) for f in fields] == [
+        ("waterlevel", uniform_level)
+    ]
     assert hydamo.external_forcings.initial_waterlevel_polygons.empty
 
 
 def test_add_initialfields_level_from_polygon() -> None:
     # polygons are passed on to set_spatial_field, written per branch for 1D
-    poly_values = gpd.read_file(hydamo_data_path / "Example_model.gpkg", layer="afvoergebiedaanvoergebied")
+    poly_values = gpd.read_file(
+        hydamo_data_path / "Example_model.gpkg", layer="afvoergebiedaanvoergebied"
+    )
     poly_values["waterstand"] = 17.0 + 0.01 * np.arange(len(poly_values))
     hydamo, _ = _hydamo_object_from_gpkg()
 
-    hydamo.external_forcings.set_initial_waterlevel(poly_values, value_column="waterstand")
+    hydamo.external_forcings.set_initial_waterlevel(
+        poly_values, value_column="waterstand"
+    )
 
     field = hydamo.external_forcings.spatial_fields[-1]
-    assert (field["quantity"], field["filetype"], field["locationtype"]) == ("waterlevel", "branch", "1d")
-    np.testing.assert_allclose(field["gdf"]["waterstand"].to_numpy(), poly_values["waterstand"].to_numpy())
+    assert (field["quantity"], field["filetype"], field["locationtype"]) == (
+        "waterlevel",
+        "branch",
+        "1d",
+    )
+    np.testing.assert_allclose(
+        field["gdf"]["waterstand"].to_numpy(), poly_values["waterstand"].to_numpy()
+    )
     models = Df2HydrolibModel(hydamo)
-    assert [(f.quantity, f.datafiletype) for f in models.inifields] == [("waterlevel", "1dField")]
+    assert [(f.quantity, f.datafiletype) for f in models.inifields] == [
+        ("waterlevel", "1dField")
+    ]
     values = {
         v
-        for _, branch_values in models.spatial_data["InitialWaterLevel.ini"]["branches"].values()
+        for _, branch_values in models.spatial_data["InitialWaterLevel.ini"][
+            "branches"
+        ].values()
         for v in branch_values
     }
     assert len(values) > 1
@@ -829,7 +953,9 @@ def test_add_initialfields_level_from_polygon() -> None:
 
 
 def test_add_initialfields_polygon_requires_value_column() -> None:
-    poly_values = gpd.read_file(hydamo_data_path / "Example_model.gpkg", layer="afvoergebiedaanvoergebied")
+    poly_values = gpd.read_file(
+        hydamo_data_path / "Example_model.gpkg", layer="afvoergebiedaanvoergebied"
+    )
     hydamo = HyDAMO()
     with pytest.raises(ValueError, match="value_column"):
         hydamo.external_forcings.set_initial_waterlevel(poly_values)
@@ -837,12 +963,15 @@ def test_add_initialfields_polygon_requires_value_column() -> None:
 
 @pytest.mark.slow
 @pytest.mark.skipif(
-    not (hydamo_data_path / "model_result" / "DFM_fou.nc").exists(), reason="DFM_fou.nc is not in the repository"
+    not (hydamo_data_path / "model_result" / "DFM_fou.nc").exists(),
+    reason="DFM_fou.nc is not in the repository",
 )
 def test_read_values_from_modelrun_fou() -> None:
     hydamo = HyDAMO()
     nc_path = hydamo_data_path / "model_result" / "DFM_fou.nc"
-    df = hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_fourier001_max")
+    df = hydamo.external_forcings.read_values_from_modelrun(
+        nc_path, "mesh1d_fourier001_max"
+    )
     assert len(df) == 1421
     assert np.isfinite(df["value"]).all()
 
@@ -851,7 +980,9 @@ def test_read_values_from_modelrun_map() -> None:
     hydamo = HyDAMO()
     # reduced map file with only the last time step, see tests/tools/reduce_map.py
     nc_path = hydamo_data_path / "model_result" / "DFM_map_last.nc"
-    df = hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1", netcdf_index=-1)
+    df = hydamo.external_forcings.read_values_from_modelrun(
+        nc_path, "mesh1d_s1", netcdf_index=-1
+    )
 
     assert len(df) == 1421
     assert {"x", "y", "value", "branchid", "chainage"} <= set(df.columns)
@@ -871,7 +1002,9 @@ def test_read_values_from_modelrun_fills_dry_nodes() -> None:
 
     level = hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1")
     np.testing.assert_allclose(level["value"].to_numpy()[dry], bed_level[dry])
-    depth = hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_waterdepth")
+    depth = hydamo.external_forcings.read_values_from_modelrun(
+        nc_path, "mesh1d_waterdepth"
+    )
     assert (depth["value"].to_numpy()[dry] >= 0).all()
     assert len(level) == len(depth) == len(bed_level)
 
@@ -880,35 +1013,51 @@ def test_read_values_from_modelrun_time_options() -> None:
     hydamo = HyDAMO()
     nc_path = hydamo_data_path / "model_result" / "DFM_map_last.nc"
     # the reduced file only contains 3 June 2016 00:00
-    by_time = hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1", time="2016-06-03 00:00")
+    by_time = hydamo.external_forcings.read_values_from_modelrun(
+        nc_path, "mesh1d_s1", time="2016-06-03 00:00"
+    )
     default = hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1")
     np.testing.assert_allclose(by_time["value"], default["value"])
 
     with pytest.raises(ValueError, match="outside the period"):
-        hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1", time="2030-01-01")
+        hydamo.external_forcings.read_values_from_modelrun(
+            nc_path, "mesh1d_s1", time="2030-01-01"
+        )
     with pytest.raises(ValueError, match="not both"):
-        hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1", time="2016-06-03", netcdf_index=-1)
+        hydamo.external_forcings.read_values_from_modelrun(
+            nc_path, "mesh1d_s1", time="2016-06-03", netcdf_index=-1
+        )
     # a variable without time dimension
     with pytest.raises(ValueError, match="no time dimension"):
-        hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_flowelem_bl", netcdf_index=0)
+        hydamo.external_forcings.read_values_from_modelrun(
+            nc_path, "mesh1d_flowelem_bl", netcdf_index=0
+        )
 
 
 def test_correct_values_from_modelrun() -> None:
     hydamo, _ = _hydamo_object_from_gpkg()
     nc_path = hydamo_data_path / "model_result" / "DFM_map_last.nc"
-    poly_values = gpd.read_file(hydamo_data_path / "Example_model.gpkg", layer="afvoergebiedaanvoergebied")
+    poly_values = gpd.read_file(
+        hydamo_data_path / "Example_model.gpkg", layer="afvoergebiedaanvoergebied"
+    )
     selection = poly_values[poly_values["code"].isin([246.0, 285.0, 293.0])].copy()
     selection["streefpeil"] = 15.0
 
-    df = hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1", crs=poly_values.crs)
-    df_cor = hydamo.external_forcings.correct_values_from_modelrun(df, selection, value_column="streefpeil")
+    df = hydamo.external_forcings.read_values_from_modelrun(
+        nc_path, "mesh1d_s1", crs=poly_values.crs
+    )
+    df_cor = hydamo.external_forcings.correct_values_from_modelrun(
+        df, selection, value_column="streefpeil"
+    )
 
     # the model points come first: those inside the polygons get the target level, the others keep their value
     inside = df.intersects(selection.union_all()).to_numpy()
     original = df_cor.iloc[: len(df)]
     assert inside.sum() > 0
     np.testing.assert_allclose(original["value"].to_numpy()[inside], 15.0)
-    np.testing.assert_allclose(original["value"].to_numpy()[~inside], df["value"].to_numpy()[~inside])
+    np.testing.assert_allclose(
+        original["value"].to_numpy()[~inside], df["value"].to_numpy()[~inside]
+    )
     # then two points per crossing of a polygon boundary with a branch, at least one of them inside a polygon
     added = df_cor.iloc[len(df) :]
     assert len(added) > 0
@@ -920,10 +1069,18 @@ def test_correct_values_from_modelrun_without_branches() -> None:
     # without branches no points are added at the polygon boundaries
     hydamo = HyDAMO()
     nc_path = hydamo_data_path / "model_result" / "DFM_map_last.nc"
-    df = hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1", crs=28992)
-    polygon = gpd.GeoDataFrame({"streefpeil": [15.0]}, geometry=[df.iloc[:5].union_all().buffer(1.0)], crs=28992)
+    df = hydamo.external_forcings.read_values_from_modelrun(
+        nc_path, "mesh1d_s1", crs=28992
+    )
+    polygon = gpd.GeoDataFrame(
+        {"streefpeil": [15.0]},
+        geometry=[df.iloc[:5].union_all().buffer(1.0)],
+        crs=28992,
+    )
 
-    df_cor = hydamo.external_forcings.correct_values_from_modelrun(df, polygon, value_column="streefpeil")
+    df_cor = hydamo.external_forcings.correct_values_from_modelrun(
+        df, polygon, value_column="streefpeil"
+    )
     assert len(df_cor) == len(df)
     assert (df_cor["value"].iloc[:5] == 15.0).all()
 
@@ -933,11 +1090,15 @@ def test_write_laterals() -> None:
     hydamo, _ = _hydamo_object_from_gpkg()
 
     series = pd.Series(np.sin(np.linspace(2, 8, 100) * -1) + 1.0)
-    series.index = [pd.Timestamp("2016-01-01 00:00:00") + pd.Timedelta(hours=i) for i in range(100)]
+    series.index = [
+        pd.Timestamp("2016-01-01 00:00:00") + pd.Timedelta(hours=i) for i in range(100)
+    ]
     series.plot()
     hydamo.external_forcings.add_lateral("LAT_01", "W_242209_0", "5.0", series)
 
-    assert np.isclose(np.round(np.mean(hydamo.external_forcings.lateral_nodes["LAT_01"]["value"])), 1)
+    assert np.isclose(
+        np.round(np.mean(hydamo.external_forcings.lateral_nodes["LAT_01"]["value"])), 1
+    )
 
 
 def test_read_values_from_modelrun_edges() -> None:
@@ -953,19 +1114,26 @@ def test_read_values_from_modelrun_edges() -> None:
 
 @pytest.mark.slow
 @pytest.mark.skipif(
-    not (hydamo_data_path / "model_result" / "DFM_map.nc").exists(), reason="DFM_map.nc is not in the repository"
+    not (hydamo_data_path / "model_result" / "DFM_map.nc").exists(),
+    reason="DFM_map.nc is not in the repository",
 )
 def test_read_values_from_modelrun_time() -> None:
     hydamo, _ = _hydamo_object_from_gpkg()
     nc_path = hydamo_data_path / "model_result" / "DFM_map.nc"
-    by_time = hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1", time="2016-06-02 12:00")
+    by_time = hydamo.external_forcings.read_values_from_modelrun(
+        nc_path, "mesh1d_s1", time="2016-06-02 12:00"
+    )
     with Dataset(nc_path) as nc:
         index = int(np.argmin(np.abs(nc["time"][:] - 36 * 3600)))
-    by_index = hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1", netcdf_index=index)
+    by_index = hydamo.external_forcings.read_values_from_modelrun(
+        nc_path, "mesh1d_s1", netcdf_index=index
+    )
     assert np.allclose(by_time["value"], by_index["value"])
 
     with pytest.raises(ValueError, match="is outside the period"):
-        hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1", time="2030-01-01")
+        hydamo.external_forcings.read_values_from_modelrun(
+            nc_path, "mesh1d_s1", time="2030-01-01"
+        )
 
 
 def test_read_values_from_modelrun_level_from_depth(tmp_path: Path) -> None:
@@ -978,9 +1146,13 @@ def test_read_values_from_modelrun_level_from_depth(tmp_path: Path) -> None:
         for name, var in s.variables.items():
             if name == "mesh1d_s1":
                 continue
-            fill = var.getncattr("_FillValue") if "_FillValue" in var.ncattrs() else None
+            fill = (
+                var.getncattr("_FillValue") if "_FillValue" in var.ncattrs() else None
+            )
             v = d.createVariable(name, var.datatype, var.dimensions, fill_value=fill)
-            v.setncatts({k: var.getncattr(k) for k in var.ncattrs() if k != "_FillValue"})
+            v.setncatts(
+                {k: var.getncattr(k) for k in var.ncattrs() if k != "_FillValue"}
+            )
             v[:] = var[:]
 
     hydamo, _ = _hydamo_object_from_gpkg()
@@ -998,7 +1170,9 @@ def test_read_values_from_modelrun_default_last_time_step() -> None:
     hydamo, _ = _hydamo_object_from_gpkg()
     nc_path = hydamo_data_path / "model_result" / "DFM_map_last.nc"
     default = hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1")
-    last = hydamo.external_forcings.read_values_from_modelrun(nc_path, "mesh1d_s1", netcdf_index=-1)
+    last = hydamo.external_forcings.read_values_from_modelrun(
+        nc_path, "mesh1d_s1", netcdf_index=-1
+    )
     assert np.allclose(default["value"], last["value"])
 
 
@@ -1016,11 +1190,15 @@ def test_set_initial_velocity() -> None:
 
     # D-Flow FM does not accept 'initialvelocity' itself
     with pytest.raises(ValueError, match="does not support 'initialvelocity'"):
-        hydamo.external_forcings.set_spatial_field(u, "value", quantity="initialvelocity")
+        hydamo.external_forcings.set_spatial_field(
+            u, "value", quantity="initialvelocity"
+        )
 
 
 @pytest.mark.parametrize("qspec", [2.0, -1.0])
-def test_create_laterals_excludes_nodata_and_keeps_negative_discharge(tmp_path: Path, qspec: float) -> None:
+def test_create_laterals_excludes_nodata_and_keeps_negative_discharge(
+    tmp_path: Path, qspec: float
+) -> None:
     hydamo, _ = _hydamo_object_from_gpkg()
     xmin, ymin, xmax, ymax = hydamo.catchments.total_bounds
     cell = 25.0
@@ -1062,7 +1240,9 @@ def test_create_laterals_excludes_nodata_and_keeps_negative_discharge(tmp_path: 
 def test_make_index_unique_suffixes_duplicates_without_code_column() -> None:
     from hydrolib.dhydamo.io.common import _make_index_unique
 
-    gdf = gpd.GeoDataFrame({"globalid": ["a", "a", "b", "a"]}, geometry=[Point(0, 0)] * 4)
+    gdf = gpd.GeoDataFrame(
+        {"globalid": ["a", "a", "b", "a"]}, geometry=[Point(0, 0)] * 4
+    )
     _make_index_unique(gdf, "globalid")
 
     assert gdf["globalid"].tolist() == ["a", "a_1", "b", "a_2"]
@@ -1072,7 +1252,11 @@ def test_make_index_unique_suffixes_duplicates_without_code_column() -> None:
     ("maximumflowwidth", "levels", "flowwidths"),
     [
         (8.0, "10.0 11.000", "4.00 8.00"),  # up to the bank top, 1 m above the bed
-        (float("nan"), "10.0 100", "4.00 364.00"),  # bank height missing: up to a level of 100 m
+        (
+            float("nan"),
+            "10.0 100",
+            "4.00 364.00",
+        ),  # bank height missing: up to a level of 100 m
         (2.0, "10.0 100", "4.00 364.00"),  # bank below the bed: up to a level of 100 m
     ],
 )
@@ -1096,4 +1280,10 @@ def test_open_trapezium_profile(
     definition = crosssections.crosssection_def[name]
     assert (definition["levels"], definition["flowwidths"]) == (levels, flowwidths)
     valid = maximumflowwidth > 4.0
-    assert any("no valid height up to the bank top" in message for message in caplog.messages) != valid
+    assert (
+        any(
+            "no valid height up to the bank top" in message
+            for message in caplog.messages
+        )
+        != valid
+    )

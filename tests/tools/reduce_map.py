@@ -49,9 +49,24 @@ def reduce_map(src_path, dst_path, n_last=1):
                 if dim not in dst.dimensions:
                     size = None if dim == "time" else src.dimensions[dim].size
                     dst.createDimension(dim, size)
-            fill_value = var.getncattr("_FillValue") if "_FillValue" in var.ncattrs() else None
-            out = dst.createVariable(name, var.dtype, var.dimensions, zlib=True, complevel=4, fill_value=fill_value)
-            out.setncatts({attr: var.getncattr(attr) for attr in var.ncattrs() if attr != "_FillValue"})
+            fill_value = (
+                var.getncattr("_FillValue") if "_FillValue" in var.ncattrs() else None
+            )
+            out = dst.createVariable(
+                name,
+                var.dtype,
+                var.dimensions,
+                zlib=True,
+                complevel=4,
+                fill_value=fill_value,
+            )
+            out.setncatts(
+                {
+                    attr: var.getncattr(attr)
+                    for attr in var.ncattrs()
+                    if attr != "_FillValue"
+                }
+            )
             if "time" in var.dimensions:
                 out[:] = var[start:]
             else:

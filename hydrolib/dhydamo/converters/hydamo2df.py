@@ -52,8 +52,12 @@ class CrossSectionsIO:
 
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def from_datamodel(self, crsdefs: pd.DataFrame | None = None, crslocs: pd.DataFrame | None = None) -> None:
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
+    def from_datamodel(
+        self, crsdefs: pd.DataFrame | None = None, crslocs: pd.DataFrame | None = None
+    ) -> None:
         """Add cross sections from parsed data models (legacy from delft3dfmpy, untested)."""
         if crslocs is not None:
             for _, crsloc in crslocs.iterrows():
@@ -98,7 +102,9 @@ class CrossSectionsIO:
                     )
                 elif crsdef["type"] == "trapezium":
                     self.crosssections.add_trapezium_definition(
-                        slope=(crsdef["t_width"] - crsdef["width"]) / 2 / crsdef["height"],
+                        slope=(crsdef["t_width"] - crsdef["width"])
+                        / 2
+                        / crsdef["height"],
                         maximumflowwidth=crsdef["t_width"],
                         bottomwidth=crsdef["width"],
                         closed=crsdef["closed"],
@@ -120,7 +126,9 @@ class CrossSectionsIO:
                 else:
                     raise NotImplementedError
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def profiles(
         self,
         branches: ExtendedGeoDataFrame,  # = None,
@@ -189,11 +197,15 @@ class CrossSectionsIO:
 
         # Assign cross-sections to branches
         nnocross = len(self.crosssections.get_branches_without_crosssection())
-        logger.info(f"Before adding the number of branches without cross section is: {nnocross}.")
+        logger.info(
+            f"Before adding the number of branches without cross section is: {nnocross}."
+        )
 
         if dp_branches is not None:
             if crosssection_roughness is None:
-                raise ValueError("crosssection_roughness is required with crosssections.")
+                raise ValueError(
+                    "crosssection_roughness is required with crosssections."
+                )
             # 1. Collect cross sections from 'dwarsprofielen'
             yz_profiles = self.crosssections.crosssection_to_yzprofiles(
                 dp_branches,
@@ -218,10 +230,14 @@ class CrossSectionsIO:
 
         # Check the number of branches with cross sections
         no_crosssection_id = self.crosssections.get_branches_without_crosssection()
-        no_crosssection = [b for b in branches.itertuples() if b.code in no_crosssection_id]
+        no_crosssection = [
+            b for b in branches.itertuples() if b.code in no_crosssection_id
+        ]
 
         nnocross = len(no_crosssection)
-        logger.info(f"After adding 'dwarsprofielen' the number of branches without cross section is: {nnocross}.")
+        logger.info(
+            f"After adding 'dwarsprofielen' the number of branches without cross section is: {nnocross}."
+        )
         if nnocross == 0:
             logger.info("No further branches without a profile.")
         elif param_profile is None:
@@ -237,7 +253,9 @@ class CrossSectionsIO:
                 roughness_variant=roughness_variant,
             )
             # Get branch information
-            branchdata = self.crosssections.hydamo.branches.loc[list(param_profiles_converted.keys())]
+            branchdata = self.crosssections.hydamo.branches.loc[
+                list(param_profiles_converted.keys())
+            ]
             branchdata["chainage_upper"] = 0.05 * branchdata.length
             branchdata["chainage_lower"] = 0.95 * branchdata.length
 
@@ -281,11 +299,15 @@ class CrossSectionsIO:
                 )
 
         nnocross = len(self.crosssections.get_branches_without_crosssection())
-        logger.info(f"After adding 'normgeparametriseerd' the number of branches without cross section is: {nnocross}.")
+        logger.info(
+            f"After adding 'normgeparametriseerd' the number of branches without cross section is: {nnocross}."
+        )
 
         if dp_structures is not None:
             if crosssection_roughness is None:
-                raise ValueError("crosssection_roughness is required with crosssections.")
+                raise ValueError(
+                    "crosssection_roughness is required with crosssections."
+                )
             # 1. Collect cross sections from 'dwarsprofielen'
             yz_profiles = self.crosssections.crosssection_to_yzprofiles(
                 dp_structures,
@@ -317,8 +339,12 @@ class ExternalForcingsIO:
     def __init__(self, external_forcings: ExternalForcings) -> None:
         self.external_forcings = external_forcings
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def boundaries(self, boundary_conditions: ExtendedGeoDataFrame, mesh1d: Network | None = None) -> None:
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
+    def boundaries(
+        self, boundary_conditions: ExtendedGeoDataFrame, mesh1d: Network | None = None
+    ) -> None:
         """Add constant boundary conditions from the DAMO table randvoorwaarden.
 
         The table has no time series; to add one, use
@@ -363,7 +389,9 @@ class ExternalForcingsIO:
                 key, item["geometry"], item["quantity"], item["value"], mesh1d=mesh1d
             )
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def laterals(
         self,
         locations: ExtendedGeoDataFrame,
@@ -402,11 +430,17 @@ class ExternalForcingsIO:
         if overflows is not None:
             all_locations = pd.concat([all_locations, overflows], ignore_index=True)
         if greenhouse_laterals is not None:
-            all_locations = pd.concat([all_locations, greenhouse_laterals], ignore_index=True)
+            all_locations = pd.concat(
+                [all_locations, greenhouse_laterals], ignore_index=True
+            )
 
         # Get time series and add to dictionary
         # for nidx, lateral in zip(nearest_idx, locations.itertuples()):
-        lateral_columns = zip(all_locations["code"], all_locations["branch_id"], all_locations["branch_offset"])
+        lateral_columns = zip(
+            all_locations["code"],
+            all_locations["branch_id"],
+            all_locations["branch_offset"],
+        )
         for code, branch_id, branch_offset in lateral_columns:
             # Check if a time is provided for the lateral
             if code in rr_boundaries:
@@ -461,7 +495,9 @@ class ExternalForcingsIO:
                 discharge=item["discharge"],
             )
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def timeseries_from_other_model(
         self,
         his_file: Path | str,
@@ -512,7 +548,9 @@ class ExternalForcingsIO:
         refdate = pd.to_datetime(time_unit[2] + " " + time_unit[3])
         interval_seconds = his_time[1] - his_time[0]
         times = pd.date_range(
-            start=refdate, end=refdate + pd.Timedelta(hours=np.max(his_time) / 3600.0), freq=f"{interval_seconds}S"
+            start=refdate,
+            end=refdate + pd.Timedelta(hours=np.max(his_time) / 3600.0),
+            freq=f"{interval_seconds}S",
         )
 
         if location_type == "weir":
@@ -577,7 +615,9 @@ class ExternalForcingsIO:
         if starttime is not None:
             loc_series = loc_series.loc[starttime:endtime]
             if loc_series.empty:
-                logger.error(f"No data available for {location_id} between {starttime} and {endtime}.")
+                logger.error(
+                    f"No data available for {location_id} between {starttime} and {endtime}."
+                )
         return loc_geom, loc_series
 
 
@@ -597,7 +637,9 @@ class StructuresIO:
         """Return the index label of the row if it has a name column, otherwise NaN."""
         return row.name if "name" in row.index else np.nan
 
-    def _common_structure_kwargs(self, row: pd.Series, id_attr: str = "id") -> dict[str, object]:
+    def _common_structure_kwargs(
+        self, row: pd.Series, id_attr: str = "id"
+    ) -> dict[str, object]:
         """Return the id, name, branch id and chainage of a structure row."""
         return {
             "id": getattr(row, id_attr),
@@ -608,7 +650,9 @@ class StructuresIO:
 
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def generalstructures_from_datamodel(self, generalstructures: pd.DataFrame) -> None:
         """Add general structures from a parsed data model (legacy from delft3dfmpy, untested)."""
         for generalstructure_idx, generalstructure in generalstructures.iterrows():
@@ -628,9 +672,15 @@ class StructuresIO:
                 upstream2level=generalstructure.upstream2level
                 if "upstream2level" in generalstructure.index
                 else np.nan,
-                crestwidth=generalstructure.crestwidth if "crestwidth" in generalstructure.index else np.nan,
-                crestlevel=generalstructure.crestlevel if "crestlevel" in generalstructure.index else np.nan,
-                crestlength=generalstructure.crestlength if "crestlength" in generalstructure.index else np.nan,
+                crestwidth=generalstructure.crestwidth
+                if "crestwidth" in generalstructure.index
+                else np.nan,
+                crestlevel=generalstructure.crestlevel
+                if "crestlevel" in generalstructure.index
+                else np.nan,
+                crestlength=generalstructure.crestlength
+                if "crestlength" in generalstructure.index
+                else np.nan,
                 downstream1width=generalstructure.downstream1width
                 if "downstream1width" in generalstructure.index
                 else np.nan,
@@ -679,7 +729,9 @@ class StructuresIO:
                 extraresistance=generalstructure.extraresistance
                 if "extraresistance" in generalstructure.index
                 else np.nan,
-                gateheight=generalstructure.gateheight if "gateheight" in generalstructure.index else np.nan,
+                gateheight=generalstructure.gateheight
+                if "gateheight" in generalstructure.index
+                else np.nan,
                 gateopeningwidth=generalstructure.gateopeningwidth
                 if "gateopeningwidth" in generalstructure.index
                 else np.nan,
@@ -691,7 +743,9 @@ class StructuresIO:
                 else np.nan,
             )
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def weirs(
         self,
         weirs: ExtendedGeoDataFrame | None = None,
@@ -730,7 +784,10 @@ class StructuresIO:
         if weirs is None or opening is None or management_device is None:
             raise ValueError("weirs, opening and management_device are required.")
         index = np.zeros(len(weirs.code))
-        if profile_groups is not None and profile_group_weir.foreign_key in profile_groups:
+        if (
+            profile_groups is not None
+            and profile_group_weir.foreign_key in profile_groups
+        ):
             index[
                 np.isin(
                     weirs[opening_weir.parent_key],
@@ -787,7 +844,9 @@ class StructuresIO:
                     # this structure id; see Structures.compound_weir_structure_ids
                     # in core/hydamo.py.
                     weir_id = f"{weir.code}_{num_op + 1}"
-                    self.structures.compound_weir_structure_ids[str(weir_mandev["globalid"].iloc[0])] = weir_id
+                    self.structures.compound_weir_structure_ids[
+                        str(weir_mandev["globalid"].iloc[0])
+                    ] = weir_id
                     kind = str(weir_mandev["overlaatonderlaat"].iloc[0]).lower()
                     if kind == "overlaat":
                         cmp_list.append(weir_id)
@@ -804,7 +863,9 @@ class StructuresIO:
                         )
                     elif kind == "onderlaat":
                         cmp_list.append(weir_id)
-                        if "maximaaldebiet" not in weir_mandev or pd.isna(weir_mandev.maximaaldebiet.to_numpy()[0]):
+                        if "maximaaldebiet" not in weir_mandev or pd.isna(
+                            weir_mandev.maximaaldebiet.to_numpy()[0]
+                        ):
                             limitflow = False
                             maxq = 0.0
                         else:
@@ -815,12 +876,18 @@ class StructuresIO:
                             name=name,
                             branchid=weir.branch_id,
                             chainage=weir.branch_offset,
-                            crestlevel=float(weir_opening.laagstedoorstroomhoogte.to_numpy()[0]),
-                            crestwidth=float(weir_opening.laagstedoorstroombreedte.to_numpy()[0]),
+                            crestlevel=float(
+                                weir_opening.laagstedoorstroomhoogte.to_numpy()[0]
+                            ),
+                            crestwidth=float(
+                                weir_opening.laagstedoorstroombreedte.to_numpy()[0]
+                            ),
                             corrcoeff=weir.afvoercoefficient,
                             allowedflowdir="both",
                             usevelocityheight=usevelocityheight,
-                            gateloweredgelevel=float(weir_opening.laagstedoorstroomhoogte.to_numpy()[0])
+                            gateloweredgelevel=float(
+                                weir_opening.laagstedoorstroomhoogte.to_numpy()[0]
+                            )
                             + float(weir_mandev.hoogteopening.to_numpy()[0]),
                             uselimitflowpos=limitflow,
                             limitflowpos=maxq,
@@ -833,7 +900,9 @@ class StructuresIO:
                             weir.code,
                             weir_mandev.overlaatonderlaat,
                         )
-                self.structures.add_compound(id=f"cmp_{weir.code}", structureids=cmp_list)
+                self.structures.add_compound(
+                    id=f"cmp_{weir.code}", structureids=cmp_list
+                )
                 # self.structures.rweirs_df.drop(weir.code)
             else:
                 if weir_opening.empty:
@@ -885,7 +954,9 @@ class StructuresIO:
                     )
 
                 elif overlaatonderlaat.lower() == "onderlaat":
-                    if "maximaaldebiet" not in weir_mandev or pd.isna(weir_mandev.maximaaldebiet.to_numpy()[0]):
+                    if "maximaaldebiet" not in weir_mandev or pd.isna(
+                        weir_mandev.maximaaldebiet.to_numpy()[0]
+                    ):
                         limitflow = False
                         maxq = 0.0
                     else:
@@ -896,12 +967,18 @@ class StructuresIO:
                         name=name,
                         branchid=weir.branch_id,
                         chainage=weir.branch_offset,
-                        crestlevel=float(weir_opening.laagstedoorstroomhoogte.to_numpy()[0]),
-                        crestwidth=float(weir_opening.laagstedoorstroombreedte.to_numpy()[0]),
+                        crestlevel=float(
+                            weir_opening.laagstedoorstroomhoogte.to_numpy()[0]
+                        ),
+                        crestwidth=float(
+                            weir_opening.laagstedoorstroombreedte.to_numpy()[0]
+                        ),
                         corrcoeff=weir.afvoercoefficient,
                         allowedflowdir="both",
                         usevelocityheight=usevelocityheight,
-                        gateloweredgelevel=float(weir_opening.laagstedoorstroomhoogte.to_numpy()[0])
+                        gateloweredgelevel=float(
+                            weir_opening.laagstedoorstroomhoogte.to_numpy()[0]
+                        )
                         + float(weir_mandev.hoogteopening.to_numpy()[0]),
                         uselimitflowpos=limitflow,
                         limitflowpos=maxq,
@@ -947,7 +1024,9 @@ class StructuresIO:
                 # return an error it is still not found
                 raise ValueError(f"{uweir.code} is not found in any cross-section.")
 
-            if not hasattr(uweir, "laagstedoorstroomhoogte") or pd.isna(uweir.laagstedoorstroomhoogte):
+            if not hasattr(uweir, "laagstedoorstroomhoogte") or pd.isna(
+                uweir.laagstedoorstroomhoogte
+            ):
                 kruinhoogte = np.min(xyz[:, -1])
             else:
                 kruinhoogte = uweir.laagstedoorstroomhoogte
@@ -966,7 +1045,9 @@ class StructuresIO:
 
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def weirs_from_datamodel(self, weirs: pd.DataFrame) -> None:
         """Add weirs from a parsed data model (legacy from delft3dfmpy, untested)."""
         for weir_idx, weir in weirs.iterrows():
@@ -980,7 +1061,9 @@ class StructuresIO:
 
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def orifices_from_datamodel(self, orifices: pd.DataFrame) -> None:
         """Add orifices from a parsed data model (legacy from delft3dfmpy, untested)."""
         for orifice_idx, orifice in orifices.iterrows():
@@ -1000,7 +1083,9 @@ class StructuresIO:
 
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def uweirs_from_datamodel(self, uweirs: pd.DataFrame) -> None:
         """Add universal weirs from a parsed data model (legacy from delft3dfmpy, untested)."""
         for uweir_idx, uweir in uweirs.iterrows():
@@ -1014,7 +1099,9 @@ class StructuresIO:
                 dischargecoeff=uweir.dischargecoeff,
             )
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def bridges(
         self,
         bridges: ExtendedGeoDataFrame,
@@ -1038,7 +1125,9 @@ class StructuresIO:
         profile_line_group = RelationsHyDAMO.PROFILE_LINE_GROUP
         profile_line = RelationsHyDAMO.PROFILE_LINE
         if profile_groups is None or profile_lines is None or profiles is None:
-            raise ValueError("profile_groups, profile_lines and profiles are required for bridges.")
+            raise ValueError(
+                "profile_groups, profile_lines and profiles are required for bridges."
+            )
         for bridge in bridges.itertuples():
             bridge_rows = bridges.loc[[bridge.Index]]
             # first search in yz-profiles
@@ -1072,7 +1161,9 @@ class StructuresIO:
 
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def bridges_from_datamodel(self, bridges: pd.DataFrame) -> None:
         """Add bridges from a parsed data model (legacy from delft3dfmpy, untested)."""
         for bridge_idx, bridge in bridges.iterrows():
@@ -1089,7 +1180,9 @@ class StructuresIO:
                 friction=bridge.ruwheid,
             )
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def culverts(
         self,
         culverts: ExtendedGeoDataFrame,
@@ -1108,8 +1201,13 @@ class StructuresIO:
             DAMO management devices (regelmiddel). Defaults to None.
         """
         management_device_culvert = RelationsHyDAMO.MANAGEMENT_DEVICE_CULVERT
-        if management_device is not None and "soortafsluitmiddel" not in management_device.columns:
-            management_device["soortafsluitmiddel"] = management_device["soortregelmiddel"]
+        if (
+            management_device is not None
+            and "soortafsluitmiddel" not in management_device.columns
+        ):
+            management_device["soortafsluitmiddel"] = management_device[
+                "soortregelmiddel"
+            ]
 
         for culvert in culverts.itertuples():
             culvert_rows = culverts.loc[[culvert.Index]]
@@ -1117,7 +1215,13 @@ class StructuresIO:
             vormkoker = str(culvert.vormkoker).lower()
             if vormkoker in {"rond", "ellipsvormig"}:
                 crosssection = {"shape": "circle", "diameter": culvert.hoogteopening}
-            elif vormkoker in {"rechthoekig", "onbekend", "eivormig", "muilprofiel", "heulprofiel"}:
+            elif vormkoker in {
+                "rechthoekig",
+                "onbekend",
+                "eivormig",
+                "muilprofiel",
+                "heulprofiel",
+            }:
                 crosssection = {
                     "shape": "rectangle",
                     "height": culvert.hoogteopening,
@@ -1137,7 +1241,9 @@ class StructuresIO:
                     management_device,
                 )
                 if "soortafsluitmiddel" not in mandev:
-                    mandev.loc[mandev.index, "soortafsluitmiddel"] = mandev["soortregelmiddel"]
+                    mandev.loc[mandev.index, "soortafsluitmiddel"] = mandev[
+                        "soortregelmiddel"
+                    ]
             else:
                 mandev = pd.DataFrame()
 
@@ -1156,7 +1262,10 @@ class StructuresIO:
                         valveonoff = 1
                         valveopeningheight = float(i["hoogteopening"])
                         numlosscoeff = 1
-                        relopening = [float(i["hoogteopening"]) / float(culvert_rows["hoogteopening"].to_numpy()[0])]
+                        relopening = [
+                            float(i["hoogteopening"])
+                            / float(culvert_rows["hoogteopening"].to_numpy()[0])
+                        ]
                         losscoeff = [float(i["afvoercoefficient"])]
                     else:
                         raise NotImplementedError(
@@ -1192,7 +1301,9 @@ class StructuresIO:
 
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def culverts_from_datamodel(self, culverts: pd.DataFrame) -> None:
         """Add culverts from a parsed data model (legacy from delft3dfmpy, untested)."""
         # Add to dict
@@ -1203,7 +1314,9 @@ class StructuresIO:
                 leftlevel=culvert.leftlevel,
                 rightlevel=culvert.rightlevel,
                 crosssection=culvert.crosssectiondefinitionid,
-                length=culvert.geometry.length if "geometry" in culvert.index else culvert.length,
+                length=culvert.geometry.length
+                if "geometry" in culvert.index
+                else culvert.length,
                 inletlosscoeff=culvert.inletlosscoeff,
                 outletlosscoeff=culvert.outletlosscoeff,
                 allowedflowdir="both",
@@ -1216,7 +1329,9 @@ class StructuresIO:
                 frictionvalue=culvert.frictionvalue,
             )
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def pumps(
         self,
         pumpstations: ExtendedGeoDataFrame,
@@ -1316,11 +1431,15 @@ class StructuresIO:
                 )
 
             if is_compound:
-                self.structures.add_compound(id=f"cmp_{pumpstation.code}", structureids=cmp_list)
+                self.structures.add_compound(
+                    id=f"cmp_{pumpstation.code}", structureids=cmp_list
+                )
 
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def pumps_from_datamodel(self, pumps: pd.DataFrame) -> None:
         """Add pumps from a parsed data model (legacy from delft3dfmpy, untested)."""
         for pump_idx, pump in pumps.iterrows():
@@ -1339,7 +1458,10 @@ class StructuresIO:
 
     @staticmethod
     def move_structure(
-        struc: str, struc_dict: dict[str, dict[str, str | float]], branch: str, offset: float
+        struc: str,
+        struc_dict: dict[str, dict[str, str | float]],
+        branch: str,
+        offset: float,
     ) -> dict[str, dict[str, str | float]]:
         """Move a structure to the location of the first structure of its compound, in place.
 
@@ -1361,7 +1483,9 @@ class StructuresIO:
         """
         branch2 = struc_dict[struc]["branchid"]
         if branch2 != branch:
-            logger.warning(f"Structures of not on the same branche. Moving structure {struc} to branch {branch}.")
+            logger.warning(
+                f"Structures of not on the same branche. Moving structure {struc} to branch {branch}."
+            )
         struc_dict[struc]["branchid"] = branch
         struc_dict[struc]["chainage"] = offset
         return struc_dict
@@ -1377,7 +1501,9 @@ class StructuresIO:
             self.structures.orifices_df,
         )
 
-    def _get_structure_location(self, structure_id: str) -> tuple[str | None, float | None]:
+    def _get_structure_location(
+        self, structure_id: str
+    ) -> tuple[str | None, float | None]:
         """Return the branch id and chainage of a structure, or None if it is not found."""
         branch = None
         offset = None
@@ -1390,7 +1516,9 @@ class StructuresIO:
                 offset = match.chainage.to_numpy()[0]
         return branch, offset
 
-    def _set_structure_location(self, structure_id: str, branch: str, offset: float) -> None:
+    def _set_structure_location(
+        self, structure_id: str, branch: str, offset: float
+    ) -> None:
         """Set the branch id and chainage of a structure, in place."""
         for df in self._structure_frames():
             if df.empty:
@@ -1400,7 +1528,9 @@ class StructuresIO:
                 df.loc[idx, "branchid"] = branch
                 df.loc[idx, "chainage"] = offset
 
-    def compound_structures(self, idlist: list[str], structurelist: list[list[str]]) -> None:
+    def compound_structures(
+        self, idlist: list[str], structurelist: list[list[str]]
+    ) -> None:
         """Add compound structures, and move their structures to the location of the first.
 
         Parameters

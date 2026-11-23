@@ -41,14 +41,18 @@ def as_linestring_list(
     if isinstance(linestring, MultiLineString):
         return list(linestring.geoms)
     if not isinstance(linestring, list):
-        raise TypeError(f'Expected LineString or MultiLineString. Got "{type(linestring)}"')
+        raise TypeError(
+            f'Expected LineString or MultiLineString. Got "{type(linestring)}"'
+        )
     linestrings: list[LineString] = []
     for item in linestring:
         linestrings.extend(as_linestring_list(item))
     return linestrings
 
 
-def as_polygon_list(polygon: Polygon | MultiPolygon | list[Polygon | MultiPolygon]) -> list[Polygon]:
+def as_polygon_list(
+    polygon: Polygon | MultiPolygon | list[Polygon | MultiPolygon],
+) -> list[Polygon]:
     """Return the Polygons in a Polygon, a MultiPolygon or a list of those.
 
     Useful to iterate over geometries that can be single or multi.
@@ -116,7 +120,9 @@ def as_point_list(point: Point | MultiPoint | list[Point | MultiPoint]) -> list[
 def interp_linestring(linestring: LineString, dist: float) -> LineString: ...
 @overload
 def interp_linestring(linestring: MultiLineString, dist: float) -> MultiLineString: ...
-def interp_linestring(linestring: LineString | MultiLineString, dist: float) -> LineString | MultiLineString:
+def interp_linestring(
+    linestring: LineString | MultiLineString, dist: float
+) -> LineString | MultiLineString:
     """Resample a line at regular distances along it.
 
     Parameters
@@ -146,7 +152,9 @@ def interp_linestring(linestring: LineString | MultiLineString, dist: float) -> 
 def interp_polygon(polygon: Polygon, dist: float) -> Polygon: ...
 @overload
 def interp_polygon(polygon: MultiPolygon, dist: float) -> MultiPolygon: ...
-def interp_polygon(polygon: Polygon | MultiPolygon, dist: float) -> Polygon | MultiPolygon:
+def interp_polygon(
+    polygon: Polygon | MultiPolygon, dist: float
+) -> Polygon | MultiPolygon:
     """Simplify a polygon, then resample its exterior and holes at regular distances.
 
     Parameters

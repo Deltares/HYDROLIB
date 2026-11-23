@@ -64,7 +64,11 @@ class Damo22Converter(BaseDamoConverter):
         - ``catchments.boundary_node``: the code of the lateral of each catchment.
         """
         device = hydamo.management_device
-        if not device.empty and "soortregelmiddel" in device.columns and "soortafsluitmiddel" not in device.columns:
+        if (
+            not device.empty
+            and "soortregelmiddel" in device.columns
+            and "soortafsluitmiddel" not in device.columns
+        ):
             device["soortafsluitmiddel"] = device["soortregelmiddel"]
         if not hydamo.profile.empty and "profiellijnid" in hydamo.profile.columns:
             # After groupby, each row represents a profile line. Replace the
@@ -77,4 +81,6 @@ class Damo22Converter(BaseDamoConverter):
             # to the lateral's code, which is used as the RR boundary node ID.
             catchment_lateral = RelationsRR.CATCHMENT_LATERAL
             mapping = hydamo.laterals.set_index(catchment_lateral.parent_key)["code"]
-            hydamo.catchments["boundary_node"] = hydamo.catchments[catchment_lateral.foreign_key].map(mapping)
+            hydamo.catchments["boundary_node"] = hydamo.catchments[
+                catchment_lateral.foreign_key
+            ].map(mapping)

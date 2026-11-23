@@ -56,7 +56,9 @@ class HyDAMO:
     forcings of the model.
     """
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def __init__(self, extent_file: Path | str | None = None) -> None:
         """Create an empty HyDAMO object.
 
@@ -109,18 +111,25 @@ class HyDAMO:
         self.validation_result: HydamoValidationResult | None = None
 
         # Create standard dataframe for network, crosssections, orifices, weirs
-        self.branches = ExtendedGeoDataFrame(geotype=LineString, required_columns=["code", "geometry"])
+        self.branches = ExtendedGeoDataFrame(
+            geotype=LineString, required_columns=["code", "geometry"]
+        )
 
         self.profile = ExtendedGeoDataFrame(
-            geotype=LineString, required_columns=["code", "geometry", "globalid", "profiellijnid"]
+            geotype=LineString,
+            required_columns=["code", "geometry", "globalid", "profiellijnid"],
         )
         self.profile_roughness = ExtendedDataFrame(required_columns=["profielpuntid"])
 
-        self.profile_line = ExtendedGeoDataFrame(geotype=LineString, required_columns=["globalid", "profielgroepid"])
+        self.profile_line = ExtendedGeoDataFrame(
+            geotype=LineString, required_columns=["globalid", "profielgroepid"]
+        )
 
         self.profile_group = ExtendedDataFrame(required_columns=[])
 
-        self.param_profile = ExtendedDataFrame(required_columns=["globalid", "normgeparamprofielid", "hydroobjectid"])
+        self.param_profile = ExtendedDataFrame(
+            required_columns=["globalid", "normgeparamprofielid", "hydroobjectid"]
+        )
 
         self.param_profile_values = ExtendedDataFrame(
             required_columns=[
@@ -158,7 +167,9 @@ class HyDAMO:
         self.closing_device = ExtendedDataFrame(required_columns=["code"])
 
         # opening
-        self.management_device = ExtendedDataFrame(required_columns=["code", "overlaatonderlaat"])
+        self.management_device = ExtendedDataFrame(
+            required_columns=["code", "overlaatonderlaat"]
+        )
 
         # Bridges
         self.bridges = ExtendedGeoDataFrame(
@@ -203,7 +214,9 @@ class HyDAMO:
                 "geometry",
             ],
         )
-        self.pumps = ExtendedDataFrame(required_columns=["code", "globalid", "gemaalid", "maximalecapaciteit"])
+        self.pumps = ExtendedDataFrame(
+            required_columns=["code", "globalid", "gemaalid", "maximalecapaciteit"]
+        )
         self.management = ExtendedDataFrame(required_columns=["code", "globalid"])
 
         # Hydraulische randvoorwaarden
@@ -213,31 +226,41 @@ class HyDAMO:
 
         # RR catchments
         self.catchments = ExtendedGeoDataFrame(
-            geotype=Polygon | MultiPolygon, required_columns=["code", "geometry", "globalid", "lateraleknoopid"]
+            geotype=Polygon | MultiPolygon,
+            required_columns=["code", "geometry", "globalid", "lateraleknoopid"],
         )
 
         # Laterals
-        self.laterals = ExtendedGeoDataFrame(geotype=Point, required_columns=["code", "geometry", "globalid"])
+        self.laterals = ExtendedGeoDataFrame(
+            geotype=Point, required_columns=["code", "geometry", "globalid"]
+        )
 
         # RR overflows
         self.overflows = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["code", "geometry", "codegerelateerdobject", "fractie"]
+            geotype=Point,
+            required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
         )
 
         # RR sewer areas
-        self.sewer_areas = ExtendedGeoDataFrame(geotype=Polygon, required_columns=["code", "geometry"])
+        self.sewer_areas = ExtendedGeoDataFrame(
+            geotype=Polygon, required_columns=["code", "geometry"]
+        )
 
         # RR overflows
         self.overflows = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["code", "geometry", "codegerelateerdobject", "fractie"]
+            geotype=Point,
+            required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
         )
 
         # RR greenhouse areas
-        self.greenhouse_areas = ExtendedGeoDataFrame(geotype=Polygon, required_columns=["code", "geometry"])
+        self.greenhouse_areas = ExtendedGeoDataFrame(
+            geotype=Polygon, required_columns=["code", "geometry"]
+        )
 
         # RR overflows
         self.greenhouse_laterals = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["code", "geometry", "codegerelateerdobject"]
+            geotype=Point,
+            required_columns=["code", "geometry", "codegerelateerdobject"],
         )
 
         # RR overflows
@@ -246,7 +269,9 @@ class HyDAMO:
             required_columns=["code", "geometry"],
         )
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def validate_gpkg(
         self,
         gpkg_path: Path | str,
@@ -403,7 +428,9 @@ class HyDAMO:
         converter.load_into(self, gpkg_path, clip_layers=clip_layers, check_3d=check_3d)
         return self
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def list_to_str(self, lst: list | np.ndarray) -> str:
         """Return numbers as a space separated string, with 3 decimals.
 
@@ -423,7 +450,9 @@ class HyDAMO:
             string = " ".join([f"{number:6.3f}" for number in lst])
         return string
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def dict_to_dataframe(self, dictionary: dict) -> pd.DataFrame:
         """Return a dictionary of dictionaries as a DataFrame, with the keys as rows.
 
@@ -601,7 +630,9 @@ class Network:
         self.offsets = {}
 
     @no_type_check
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def set_branch_order(self, branchids: list, idx: int | None = None) -> None:
         """Group branch ids so that the cross sections are interpolated along the branch.
 
@@ -663,7 +694,9 @@ class Network:
         }
 
     @no_type_check
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def generate_nodes_with_bedlevels(
         self,
         resolve_at_bifurcation_method: str = "min",
@@ -700,11 +733,17 @@ class Network:
             if order == -1:
                 # No branch order so just get upstream and downstream levels
                 branch_length = self.branches.loc[branch, "geometry"].length
-                subset = bedlevels_crs_branches.loc[bedlevels_crs_branches["branchid"] == branch]
+                subset = bedlevels_crs_branches.loc[
+                    bedlevels_crs_branches["branchid"] == branch
+                ]
                 if subset.empty:
                     continue  # if this happens, crs is not defined. This can be a problem.
-                nodes_dict[nodes[0]]["up"].append(np.interp(0.0, subset["chainage"], subset["minz"]))
-                nodes_dict[nodes[1]]["down"].append(np.interp(branch_length, subset["chainage"], subset["minz"]))
+                nodes_dict[nodes[0]]["up"].append(
+                    np.interp(0.0, subset["chainage"], subset["minz"])
+                )
+                nodes_dict[nodes[1]]["down"].append(
+                    np.interp(branch_length, subset["chainage"], subset["minz"])
+                )
             else:
                 # In case of branch order, first collect all branches and set in them in order of up- to downstream
                 all_branches = [
@@ -714,7 +753,10 @@ class Network:
                 all_nodes = [self.nodes_to_branch_map[b] for b in all_branches]
                 # First check if any of the branches has a bedlevel from a cross-section profile otherwise skip
                 check = all(
-                    bedlevels_crs_branches.loc[bedlevels_crs_branches["branchid"] == b].empty for b in all_branches
+                    bedlevels_crs_branches.loc[
+                        bedlevels_crs_branches["branchid"] == b
+                    ].empty
+                    for b in all_branches
                 )
                 if check:
                     continue  # if this happens, cross-section is not defined. This can be a problem.
@@ -725,8 +767,18 @@ class Network:
                 direction = list(np.ones(n_length))
                 max_tries = 0
                 while n < n_length:
-                    up = np.count_nonzero(all_nodes[n][0] == np.array([x[0] for x in all_nodes])) == 1
-                    down = np.count_nonzero(all_nodes[n][1] == np.array([x[1] for x in all_nodes])) == 1
+                    up = (
+                        np.count_nonzero(
+                            all_nodes[n][0] == np.array([x[0] for x in all_nodes])
+                        )
+                        == 1
+                    )
+                    down = (
+                        np.count_nonzero(
+                            all_nodes[n][1] == np.array([x[1] for x in all_nodes])
+                        )
+                        == 1
+                    )
                     if (not up) or (not down):
                         # Reverse
                         all_nodes[n] = list(np.flip(all_nodes[n]))
@@ -735,10 +787,18 @@ class Network:
                     # Check if indeed everything is now in proper direction. Otherwise try again
                     if n == n_length:
                         up = all(
-                            np.count_nonzero(node[0] == np.array([x[0] for x in all_nodes])) == 1 for node in all_nodes
+                            np.count_nonzero(
+                                node[0] == np.array([x[0] for x in all_nodes])
+                            )
+                            == 1
+                            for node in all_nodes
                         )
                         down = all(
-                            np.count_nonzero(node[1] == np.array([x[1] for x in all_nodes])) == 1 for node in all_nodes
+                            np.count_nonzero(
+                                node[1] == np.array([x[1] for x in all_nodes])
+                            )
+                            == 1
+                            for node in all_nodes
                         )
                         if (not up) or (not down):
                             n = 0
@@ -751,10 +811,16 @@ class Network:
                         break
 
                 # Add reserved branches to return
-                reserved_branches.extend([b for b, d in zip(all_branches, direction) if d == -1])
+                reserved_branches.extend(
+                    [b for b, d in zip(all_branches, direction) if d == -1]
+                )
 
                 # Get most upstream node. Otherwise just pick i_upstream = 0 as starting point
-                i_upstream = [i for i, n in enumerate([x[0] for x in all_nodes]) if n not in [x[1] for x in all_nodes]]
+                i_upstream = [
+                    i
+                    for i, n in enumerate([x[0] for x in all_nodes])
+                    if n not in [x[1] for x in all_nodes]
+                ]
                 if len(i_upstream) == 1:
                     i_upstream = i_upstream[0]
                 else:
@@ -763,12 +829,15 @@ class Network:
                     i_upstream = [
                         i
                         for i, n in enumerate([x[0] for x in all_nodes])
-                        if (len(self.branches_to_node_map[n]) > 2) or (len(self.branches_to_node_map[n]) == 1)
+                        if (len(self.branches_to_node_map[n]) > 2)
+                        or (len(self.branches_to_node_map[n]) == 1)
                     ]
                     if len(i_upstream) == 1:
                         i_upstream = i_upstream[0]
                     else:
-                        raise ValueError(f"Something is not right with the branch order group {all_branches}")
+                        raise ValueError(
+                            f"Something is not right with the branch order group {all_branches}"
+                        )
 
                 # Now put branch list in correct order
                 all_branches_sorted = []
@@ -793,7 +862,9 @@ class Network:
                 chainage, bedlevel = [], []
                 branch_length = 0
                 for b, d in zip(all_branches_sorted, direction_sorted):
-                    subset = bedlevels_crs_branches.loc[bedlevels_crs_branches["branchid"] == b]
+                    subset = bedlevels_crs_branches.loc[
+                        bedlevels_crs_branches["branchid"] == b
+                    ]
                     chain, bed = subset["chainage"], subset["minz"]
                     # Reverse chainage and bedlevel arrays
                     if d == -1:
@@ -805,14 +876,23 @@ class Network:
                 # Get chainage of up- and downstream node of loop branch within the overall branch
                 if len(all_branches_sorted) == 1:
                     up_node_chainage = 0
-                    down_node_chainage = self.branches.loc[all_branches_sorted[0], "geometry"].length
+                    down_node_chainage = self.branches.loc[
+                        all_branches_sorted[0], "geometry"
+                    ].length
                 else:
-                    i = np.argmax([1 if ((nodes == n) or (list(np.flip(nodes)) == n)) else 0 for n in all_nodes_sorted])
+                    i = np.argmax(
+                        [
+                            1 if ((nodes == n) or (list(np.flip(nodes)) == n)) else 0
+                            for n in all_nodes_sorted
+                        ]
+                    )
                     up_node_chainage = sum(
                         [0]
                         + [
                             self.branches.loc[b, "geometry"].length
-                            for b, n in zip(all_branches_sorted[:-1], all_nodes_sorted[:-1])
+                            for b, n in zip(
+                                all_branches_sorted[:-1], all_nodes_sorted[:-1]
+                            )
                         ][: i + 1]
                     )
                     down_node_chainage = sum(
@@ -822,21 +902,48 @@ class Network:
                         ][: i + 1]
                     )
                 # Finally interpolate
-                nodes_dict[nodes[0]]["up"].append(np.interp(up_node_chainage, chainage, bedlevel))
-                nodes_dict[nodes[1]]["down"].append(np.interp(down_node_chainage, chainage, bedlevel))
+                nodes_dict[nodes[0]]["up"].append(
+                    np.interp(up_node_chainage, chainage, bedlevel)
+                )
+                nodes_dict[nodes[1]]["down"].append(
+                    np.interp(down_node_chainage, chainage, bedlevel)
+                )
 
         # Summarize everything and save
         nodes = list(nodes_dict.keys())
-        node_geom = [Point(x, y) for x, y in zip(self.mesh1d.get_values("nnodex"), self.mesh1d.get_values("nnodey"))]
+        node_geom = [
+            Point(x, y)
+            for x, y in zip(
+                self.mesh1d.get_values("nnodex"), self.mesh1d.get_values("nnodey")
+            )
+        ]
         if resolve_at_bifurcation_method == "min":
-            upstream_bedlevel = [np.min(v["up"]) if len(v["up"]) > 0 else np.nan for v in nodes_dict.values()]
-            downstream_bedlevel = [np.min(v["down"]) if len(v["down"]) > 0 else np.nan for v in nodes_dict.values()]
+            upstream_bedlevel = [
+                np.min(v["up"]) if len(v["up"]) > 0 else np.nan
+                for v in nodes_dict.values()
+            ]
+            downstream_bedlevel = [
+                np.min(v["down"]) if len(v["down"]) > 0 else np.nan
+                for v in nodes_dict.values()
+            ]
         elif resolve_at_bifurcation_method == "max":
-            upstream_bedlevel = [np.max(v["up"]) if len(v["up"]) > 0 else np.nan for v in nodes_dict.values()]
-            downstream_bedlevel = [np.max(v["down"]) if len(v["down"]) > 0 else np.nan for v in nodes_dict.values()]
+            upstream_bedlevel = [
+                np.max(v["up"]) if len(v["up"]) > 0 else np.nan
+                for v in nodes_dict.values()
+            ]
+            downstream_bedlevel = [
+                np.max(v["down"]) if len(v["down"]) > 0 else np.nan
+                for v in nodes_dict.values()
+            ]
         elif resolve_at_bifurcation_method == "mean":
-            upstream_bedlevel = [np.average(["up"]) if len(v["up"]) > 0 else np.nan for v in nodes_dict.values()]
-            downstream_bedlevel = [np.average(v["down"]) if len(v["down"]) > 0 else np.nan for v in nodes_dict.values()]
+            upstream_bedlevel = [
+                np.average(["up"]) if len(v["up"]) > 0 else np.nan
+                for v in nodes_dict.values()
+            ]
+            downstream_bedlevel = [
+                np.average(v["down"]) if len(v["down"]) > 0 else np.nan
+                for v in nodes_dict.values()
+            ]
         else:
             raise NotImplementedError
 
@@ -885,10 +992,14 @@ class Network:
                     if b in branch_ids_checked:
                         # connected branch is already added to a group, so this means that branch should be added to
                         # that group
-                        groups[next(k for k, v in groups.items() if b in v)].append(branch_id)
+                        groups[next(k for k, v in groups.items() if b in v)].append(
+                            branch_id
+                        )
                         branch_ids_checked.extend([branch_id])
                     else:
-                        groups[list(groups.keys())[-1] + 1] = [branch_id]  # otherwise add to group
+                        groups[list(groups.keys())[-1] + 1] = [
+                            branch_id
+                        ]  # otherwise add to group
                         branch_ids_checked.extend([branch_id])
                 branch_ids_checked = list(np.unique(branch_ids_checked))
         groups.pop(0)  # remove the 0th group because empty
@@ -905,12 +1016,24 @@ class Network:
                     if _k == -1:
                         _k = k  # set index to first group found
                     else:
-                        _groups[_k].extend(v)  # otherwise add group to first found group
-                        _groups[_k] = list(np.unique(_groups[_k]))  # remove duplicates due to add
+                        _groups[_k].extend(
+                            v
+                        )  # otherwise add group to first found group
+                        _groups[_k] = list(
+                            np.unique(_groups[_k])
+                        )  # remove duplicates due to add
                         _groups.pop(k)  # and remove group from groups
             groups = _groups.copy()  # copy changed dict over original
         # One pass over all branches should be sufficient to group everything together. Otherwise raise error
-        if max([sum([1 if b in v else 0 for k, v in groups.items()]) for b in branch_ids]) > 1:
+        if (
+            max(
+                [
+                    sum([1 if b in v else 0 for k, v in groups.items()])
+                    for b in branch_ids
+                ]
+            )
+            > 1
+        ):
             raise ValueError(
                 f"Still branches contained in multiple groups. Maximum number of groups where this "
                 f"happens: {max([sum([1 if b in v else 0 for k, v in groups.items()]) for b in branch_ids])}"
@@ -920,15 +1043,22 @@ class Network:
         self.branch_groups = groups.copy()
 
     @no_type_check
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def get_node_idx_offset(self, branch_id: str, pt: shapely.geometry.Point, nnodes: int = 1) -> tuple:
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
+    def get_node_idx_offset(
+        self, branch_id: str, pt: shapely.geometry.Point, nnodes: int = 1
+    ) -> tuple:
         """Get the index and offset of the nearest node on a 1d branch."""
         # Project the point on the branch
         dist = self.schematised[branch_id].project(pt)
 
         # Get the branch data from the networkdata
         branchidx = (
-            self.mesh1d.description1d["network_branch_ids"].index(self.str2chars(branch_id, self.idstrlength)) + 1
+            self.mesh1d.description1d["network_branch_ids"].index(
+                self.str2chars(branch_id, self.idstrlength)
+            )
+            + 1
         )
         pt_branch_id = self.mesh1d.get_values("branchidx", as_array=True)
         idx = np.nonzero(pt_branch_id == branchidx)
@@ -1067,8 +1197,15 @@ class CrossSections:
         crds : np.array
             Nx2 array with y, z coordinates
         """
-        if yz is None or thalweg is None or roughnesstype is None or roughnessvalue is None:
-            raise ValueError("yz, thalweg, roughnesstype and roughnessvalue are required.")
+        if (
+            yz is None
+            or thalweg is None
+            or roughnesstype is None
+            or roughnessvalue is None
+        ):
+            raise ValueError(
+                "yz, thalweg, roughnesstype and roughnessvalue are required."
+            )
         # get coordinates
         length, z = yz.T
         if name is None:
@@ -1093,7 +1230,11 @@ class CrossSections:
         return name
 
     def add_circle_definition(
-        self, diameter: float, roughnesstype: str, roughnessvalue: float, name: str | None = None
+        self,
+        diameter: float,
+        roughnesstype: str,
+        roughnessvalue: float,
+        name: str | None = None,
     ) -> str:
         """Add a circle cross section definition.
 
@@ -1247,7 +1388,12 @@ class CrossSections:
         return name
 
     def add_crosssection_location(
-        self, branchid: str, chainage: float, definition: str, minz: float = np.nan, shift: float = 0.0
+        self,
+        branchid: str,
+        chainage: float,
+        definition: str,
+        minz: float = np.nan,
+        shift: float = 0.0,
     ) -> None:
         """Add a cross section location, with the id ``{branchid}_{chainage:.1f}``.
 
@@ -1288,11 +1434,19 @@ class CrossSections:
         """Return the cross section definition ids of bridges and culverts that do not exist."""
         csdef_ids = [dct["id"] for _, dct in self.crosssection_def.items()]
         no_crosssection: list[str] = []
-        bridge_ids = [dct["csdefid"] for _, dct in self.hydamo.structures.bridges_df.iterrows()]
-        no_cross_bridge = np.asarray(bridge_ids)[~np.isin(bridge_ids, csdef_ids)].tolist()
+        bridge_ids = [
+            dct["csdefid"] for _, dct in self.hydamo.structures.bridges_df.iterrows()
+        ]
+        no_cross_bridge = np.asarray(bridge_ids)[
+            ~np.isin(bridge_ids, csdef_ids)
+        ].tolist()
         no_crosssection = no_crosssection + no_cross_bridge
-        culvert_ids = [dct["csdefid"] for _, dct in self.hydamo.structures.culverts_df.iterrows()]
-        no_cross_culvert = np.asarray(culvert_ids)[~np.isin(culvert_ids, csdef_ids)].tolist()
+        culvert_ids = [
+            dct["csdefid"] for _, dct in self.hydamo.structures.culverts_df.iterrows()
+        ]
+        no_cross_culvert = np.asarray(culvert_ids)[
+            ~np.isin(culvert_ids, csdef_ids)
+        ].tolist()
         no_crosssection = no_crosssection + no_cross_culvert
         return no_crosssection
 
@@ -1307,7 +1461,9 @@ class CrossSections:
         for css in self.crosssection_loc.values():
             # Get location
             geometry.append(
-                self.dflowfmmodel.network.schematised.loc[css["branchid"], "geometry"].interpolate(css["chainage"])
+                self.dflowfmmodel.network.schematised.loc[
+                    css["branchid"], "geometry"
+                ].interpolate(css["chainage"])
             )
             shift = css["shift"]
 
@@ -1320,10 +1476,14 @@ class CrossSections:
             data.append([css["branchid"], css["chainage"], minz])
 
         # Add to geodataframe
-        gdf = gpd.GeoDataFrame(data=data, columns=["branchid", "chainage", "minz"], geometry=geometry)
+        gdf = gpd.GeoDataFrame(
+            data=data, columns=["branchid", "chainage", "minz"], geometry=geometry
+        )
         return gdf
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def crosssection_to_yzprofiles(
         self,
         crosssections: gpd.GeoDataFrame | ExtendedGeoDataFrame,
@@ -1357,7 +1517,9 @@ class CrossSections:
 
             # Determine yz_values
             xyz = np.vstack(geometry.coords[:])
-            length = np.r_[0, np.cumsum(np.hypot(np.diff(xyz[:, 0]), np.diff(xyz[:, 1])))]
+            length = np.r_[
+                0, np.cumsum(np.hypot(np.diff(xyz[:, 0]), np.diff(xyz[:, 1])))
+            ]
             yz = np.c_[length, xyz[:, -1]]
             # the GUI cannot cope with identical y-coordinates. Add 1 cm to a 2nd duplicate.
             yz[:, 0] = np.round(yz[:, 0], 3)
@@ -1373,7 +1535,9 @@ class CrossSections:
                     crossing = crossing.geoms[0]
                 thalweg_xyz = crossing.coords[0]
                 # and the Y-coordinate of the thalweg
-                thalweg = np.hypot(thalweg_xyz[0] - xyz[0, 0], thalweg_xyz[1] - xyz[0, 1])
+                thalweg = np.hypot(
+                    thalweg_xyz[0] - xyz[0, 0], thalweg_xyz[1] - xyz[0, 1]
+                )
             else:
                 thalweg = 0.0
 
@@ -1388,13 +1552,17 @@ class CrossSections:
                 "chainage": branch_offset,
                 "yz": yz,
                 "thalweg": thalweg,
-                "typeruwheid": roughness[roughness["profielpuntid"] == globalid].typeruwheid.to_numpy()[0],
+                "typeruwheid": roughness[
+                    roughness["profielpuntid"] == globalid
+                ].typeruwheid.to_numpy()[0],
                 "ruwheid": float(ruwheid.iloc[0]),
             }
 
         return cssdct
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def parametrised_to_profiles(
         self,
         parametrised: ExtendedDataFrame,
@@ -1423,7 +1591,9 @@ class CrossSections:
         # index label of the branch per branch id (the first matching branch)
         branch_index: dict[str, Hashable] = {}
         for branch in branches:
-            branch_index.setdefault(getattr(branch, branch_relation.parent_key), branch.Index)
+            branch_index.setdefault(
+                getattr(branch, branch_relation.parent_key), branch.Index
+            )
 
         for _, param in parametrised.iterrows():
             param_row = param.to_frame().T
@@ -1436,48 +1606,74 @@ class CrossSections:
             # parambranches = parambranches.drop(ExtendedGeoDataFrame(geotype=LineString), parambranches.index[nulls], index_col='code',axis=0)
             # parambranches.drop(parambranches.index[nulls], inplace=True)
 
-            if pd.isna(values[values.soortparameter == "bodemhoogte benedenstrooms"].waarde).to_numpy()[0]:
+            if pd.isna(
+                values[values.soortparameter == "bodemhoogte benedenstrooms"].waarde
+            ).to_numpy()[0]:
                 logger.warning(
                     "bodemhoogte benedenstrooms not available for profile %s.",
                     param.globalid,
                 )
-            if pd.isna(values[values.soortparameter == "bodembreedte"].waarde).to_numpy()[0]:
+            if pd.isna(
+                values[values.soortparameter == "bodembreedte"].waarde
+            ).to_numpy()[0]:
                 logger.warning(
                     "bodembreedte not available for profile %s.",
                     param.globalid,
                 )
-            if pd.isna(values[values.soortparameter == "bodemhoogte bovenstrooms"].waarde).to_numpy()[0]:
+            if pd.isna(
+                values[values.soortparameter == "bodemhoogte bovenstrooms"].waarde
+            ).to_numpy()[0]:
                 logger.warning(
                     "bodemhoogte bovenstrooms not available for profile %s.",
                     param.globalid,
                 )
 
             # Determine characteristics
-            botlev_upper = values[values.soortparameter == "bodemhoogte bovenstrooms"].waarde.to_numpy()[0]
-            botlev_lower = values[values.soortparameter == "bodemhoogte benedenstrooms"].waarde.to_numpy()[0]
+            botlev_upper = values[
+                values.soortparameter == "bodemhoogte bovenstrooms"
+            ].waarde.to_numpy()[0]
+            botlev_lower = values[
+                values.soortparameter == "bodemhoogte benedenstrooms"
+            ].waarde.to_numpy()[0]
 
-            if pd.isna(values[values.soortparameter == "taludhelling linkerzijde"].waarde).to_numpy()[0]:
+            if pd.isna(
+                values[values.soortparameter == "taludhelling linkerzijde"].waarde
+            ).to_numpy()[0]:
                 css_type = "rectangle"
             else:
                 css_type = "trapezium"
                 dh1 = (
-                    values[values.soortparameter == "hoogte insteek linkerzijde"].waarde.to_numpy()[0]
+                    values[
+                        values.soortparameter == "hoogte insteek linkerzijde"
+                    ].waarde.to_numpy()[0]
                     - (botlev_upper + botlev_lower) / 2.0
                 )
                 dh2 = (
-                    values[values.soortparameter == "hoogte insteek rechterzijde"].waarde.to_numpy()[0]
+                    values[
+                        values.soortparameter == "hoogte insteek rechterzijde"
+                    ].waarde.to_numpy()[0]
                     - (botlev_upper + botlev_lower) / 2.0
                 )
                 # height = (dh1 + dh2) / 2.0
                 # Determine maximum flow width and slope (both needed for output)
                 maxflowwidth = (
                     values[values.soortparameter == "bodembreedte"].waarde.to_numpy()[0]
-                    + values[values.soortparameter == "taludhelling linkerzijde"].waarde.to_numpy()[0] * dh1
-                    + values[values.soortparameter == "taludhelling rechterzijde"].waarde.to_numpy()[0] * dh2
+                    + values[
+                        values.soortparameter == "taludhelling linkerzijde"
+                    ].waarde.to_numpy()[0]
+                    * dh1
+                    + values[
+                        values.soortparameter == "taludhelling rechterzijde"
+                    ].waarde.to_numpy()[0]
+                    * dh2
                 )
                 slope = (
-                    values[values.soortparameter == "taludhelling linkerzijde"].waarde.to_numpy()[0]
-                    + values[values.soortparameter == "taludhelling rechterzijde"].waarde.to_numpy()[0]
+                    values[
+                        values.soortparameter == "taludhelling linkerzijde"
+                    ].waarde.to_numpy()[0]
+                    + values[
+                        values.soortparameter == "taludhelling rechterzijde"
+                    ].waarde.to_numpy()[0]
                 ) / 2.0
 
             if roughness_variant == RoughnessVariant.LOW:
@@ -1485,7 +1681,9 @@ class CrossSections:
             elif roughness_variant == RoughnessVariant.HIGH:
                 roughness = values.ruwheidhoog.to_numpy()[0]
             else:
-                raise ValueError('Invalid value for roughness_variant; should be "High" or "Low".')
+                raise ValueError(
+                    'Invalid value for roughness_variant; should be "High" or "Low".'
+                )
             # Determine name for cross section
             if css_type == "trapezium":
                 cssdct[index] = {
@@ -1493,7 +1691,9 @@ class CrossSections:
                     "slope": round(slope, 2),
                     "maximumflowwidth": round(maxflowwidth, 1),
                     "bottomwidth": round(
-                        values[values.soortparameter == "bodembreedte"].waarde.to_numpy()[0],
+                        values[
+                            values.soortparameter == "bodembreedte"
+                        ].waarde.to_numpy()[0],
                         3,
                     ),
                     "closed": 0,
@@ -1508,7 +1708,9 @@ class CrossSections:
                     "type": css_type,
                     "height": 5.0,
                     "width": round(
-                        values[values.soortparameter == "bodembreedte"].waarde.to_numpy()[0],
+                        values[
+                            values.soortparameter == "bodembreedte"
+                        ].waarde.to_numpy()[0],
                         3,
                     ),
                     "closed": 0,
@@ -1592,8 +1794,12 @@ class ExternalForcings:
     def __init__(self, hydamo: HyDAMO) -> None:
         self.hydamo = hydamo
 
-        self.initial_waterlevel_polygons = gpd.GeoDataFrame(columns=["waterlevel", "geometry", "locationtype"])
-        self.initial_waterdepth_polygons = gpd.GeoDataFrame(columns=["waterdepth", "geometry", "locationtype"])
+        self.initial_waterlevel_polygons = gpd.GeoDataFrame(
+            columns=["waterlevel", "geometry", "locationtype"]
+        )
+        self.initial_waterdepth_polygons = gpd.GeoDataFrame(
+            columns=["waterdepth", "geometry", "locationtype"]
+        )
         self.missing = None
         self.spatial_fields: list[dict] = []
         # number of the next spatial field, used in the generated file names
@@ -1676,7 +1882,11 @@ class ExternalForcings:
         self._set_initial("waterdepth", initial_values, locationtype, value_column)
 
     def _set_initial(
-        self, quantity: str, initial_values: float | gpd.GeoDataFrame, locationtype: str, value_column: str | None
+        self,
+        quantity: str,
+        initial_values: float | gpd.GeoDataFrame,
+        locationtype: str,
+        value_column: str | None,
     ) -> None:
         """Shared implementation of set_initial_waterlevel and set_initial_waterdepth."""
         if isinstance(initial_values, numbers.Real):
@@ -1688,7 +1898,11 @@ class ExternalForcings:
                     self,
                     f"initial_{quantity}_polygons",
                     gpd.GeoDataFrame(
-                        {quantity: [float(initial_values)], "geometry": [None], "locationtype": [locationtype]},
+                        {
+                            quantity: [float(initial_values)],
+                            "geometry": [None],
+                            "locationtype": [locationtype],
+                        },
                         index=["global"],
                     ),
                 )
@@ -1700,10 +1914,16 @@ class ExternalForcings:
                 "Use hydamo.external_forcings.set_spatial_field() for 2D."
             )
         if value_column is None:
-            raise ValueError(f"Provide value_column with the initial {quantity} per polygon.")
+            raise ValueError(
+                f"Provide value_column with the initial {quantity} per polygon."
+            )
         if not isinstance(initial_values, gpd.GeoDataFrame):
-            raise TypeError(f"initial_values must be a number or a GeoDataFrame, got {type(initial_values).__name__}.")
-        self.set_spatial_field(initial_values, value_column, quantity=quantity, locationtype="1d")
+            raise TypeError(
+                f"initial_values must be a number or a GeoDataFrame, got {type(initial_values).__name__}."
+            )
+        self.set_spatial_field(
+            initial_values, value_column, quantity=quantity, locationtype="1d"
+        )
 
     def _set_uniform_field(self, quantity: str, value: float) -> None:
         """Add a uniform 1D value as a spatial field per branch over all branches, replacing an earlier one.
@@ -1711,7 +1931,9 @@ class ExternalForcings:
         The values per branch are derived from the branches when the model is converted.
         """
         self.spatial_fields = [
-            sf for sf in self.spatial_fields if not (sf.get("uniform") is not None and sf["quantity"] == quantity)
+            sf
+            for sf in self.spatial_fields
+            if not (sf.get("uniform") is not None and sf["quantity"] == quantity)
         ]
         self.spatial_fields.append(
             {
@@ -1769,7 +1991,9 @@ class ExternalForcings:
         """
         model_values_corrected = model_values.copy(deep=True)
         if model_values_corrected.crs is None and correction_polygons.crs is not None:
-            model_values_corrected = model_values_corrected.set_crs(correction_polygons.crs)
+            model_values_corrected = model_values_corrected.set_crs(
+                correction_polygons.crs
+            )
 
         # use a plain GeoDataFrame, an ExtendedGeoDataFrame loses the value column in the spatial join
         joined = gpd.sjoin(
@@ -1783,24 +2007,36 @@ class ExternalForcings:
         model_values_corrected.loc[joined.index, "value"] = joined[value_column]
 
         branches = getattr(self.hydamo, "branches", None)
-        if boundary_step is None or not {"branchid", "chainage"} <= set(model_values.columns):
+        if boundary_step is None or not {"branchid", "chainage"} <= set(
+            model_values.columns
+        ):
             return model_values_corrected
         if branches is None or branches.empty:
-            logger.info("No branches available: no points are added at the boundaries of the correction polygons.")
+            logger.info(
+                "No branches available: no points are added at the boundaries of the correction polygons."
+            )
             return model_values_corrected
 
         boundary_points = self._points_at_polygon_boundaries(
             model_values,
-            gpd.GeoDataFrame(correction_polygons[[value_column, "geometry"]]).reset_index(drop=True),
+            gpd.GeoDataFrame(
+                correction_polygons[[value_column, "geometry"]]
+            ).reset_index(drop=True),
             value_column,
             branches,
             boundary_step,
         )
         if boundary_points.empty:
             return model_values_corrected
-        logger.info(f"{len(boundary_points)} points added at the boundaries of the correction polygons.")
-        combined = pd.concat([model_values_corrected, boundary_points], ignore_index=True)
-        return gpd.GeoDataFrame(combined, geometry="geometry", crs=model_values_corrected.crs)
+        logger.info(
+            f"{len(boundary_points)} points added at the boundaries of the correction polygons."
+        )
+        combined = pd.concat(
+            [model_values_corrected, boundary_points], ignore_index=True
+        )
+        return gpd.GeoDataFrame(
+            combined, geometry="geometry", crs=model_values_corrected.crs
+        )
 
     @staticmethod
     def _points_at_polygon_boundaries(
@@ -1817,8 +2053,12 @@ class ExternalForcings:
                 continue
             line = branches.geometry.loc[branch_id]
             if not isinstance(line, LineString):
-                raise TypeError(f"Branch {branch_id} is a {line.geom_type}, expected a LineString.")
-            candidates = polygons.iloc[polygons.sindex.query(line, predicate="intersects")]
+                raise TypeError(
+                    f"Branch {branch_id} is a {line.geom_type}, expected a LineString."
+                )
+            candidates = polygons.iloc[
+                polygons.sindex.query(line, predicate="intersects")
+            ]
             if candidates.empty:
                 continue
             original = original.sort_values("chainage")
@@ -1832,7 +2072,9 @@ class ExternalForcings:
             ]
             for chainage in chainages:
                 point = line.interpolate(chainage)
-                value = _value_at_chainage(point, chainage, candidates, value_column, original)
+                value = _value_at_chainage(
+                    point, chainage, candidates, value_column, original
+                )
                 rows.append(
                     {
                         "x": point.x,
@@ -1845,7 +2087,8 @@ class ExternalForcings:
                 )
         if not rows:
             return gpd.GeoDataFrame(
-                columns=["x", "y", "value", "branchid", "chainage", "geometry"], geometry="geometry"
+                columns=["x", "y", "value", "branchid", "chainage", "geometry"],
+                geometry="geometry",
             )
         return gpd.GeoDataFrame(rows, geometry="geometry", crs=model_values.crs)
 
@@ -1895,9 +2138,15 @@ class ExternalForcings:
         """
         logger.info(f"Reading {netcdf_field} from {netcdf_path} ...")
         with Dataset(netcdf_path, "r") as results:  # Open file in read mode
-            variable, from_depth = self._select_netcdf_variable(results, netcdf_field, netcdf_path)
-            netcdf_index = self._resolve_netcdf_index(results, variable, netcdf_field, netcdf_path, netcdf_index, time)
-            masked = np.ma.masked_invalid(variable[:] if netcdf_index is None else variable[netcdf_index, :])
+            variable, from_depth = self._select_netcdf_variable(
+                results, netcdf_field, netcdf_path
+            )
+            netcdf_index = self._resolve_netcdf_index(
+                results, variable, netcdf_field, netcdf_path, netcdf_index, time
+            )
+            masked = np.ma.masked_invalid(
+                variable[:] if netcdf_index is None else variable[netcdf_index, :]
+            )
             if from_depth:
                 # dry nodes (missing depth) get the bed level
                 bed_level = np.ma.filled(results["mesh1d_flowelem_bl"][:], np.nan)
@@ -1913,9 +2162,13 @@ class ExternalForcings:
                 )
 
             topology = self._read_1d_topology(results, location)
-            value, missing = self._fill_missing_values(masked, results, netcdf_field, location)
+            value, missing = self._fill_missing_values(
+                masked, results, netcdf_field, location
+            )
             if missing.any():
-                logger.warning(f"{missing.sum()} {location}s without a value in {netcdf_field} are left out.")
+                logger.warning(
+                    f"{missing.sum()} {location}s without a value in {netcdf_field} are left out."
+                )
                 x, y, value = x[~missing], y[~missing], value[~missing]
                 topology = {key: values[~missing] for key, values in topology.items()}
 
@@ -1926,7 +2179,9 @@ class ExternalForcings:
         )
 
     @staticmethod
-    def _select_netcdf_variable(results: Dataset, netcdf_field: str, netcdf_path: str | Path) -> tuple[Variable, bool]:
+    def _select_netcdf_variable(
+        results: Dataset, netcdf_field: str, netcdf_path: str | Path
+    ) -> tuple[Variable, bool]:
         """Return the variable to read from a model result.
 
         If 'mesh1d_s1' is requested but the file only contains the water depth, the water depth is returned,
@@ -1957,7 +2212,9 @@ class ExternalForcings:
             and {"mesh1d_waterdepth", "mesh1d_flowelem_bl"} <= set(results.variables)
         )
         if from_depth:
-            logger.info("mesh1d_s1 is not in the file; the water level is computed as bed level + water depth.")
+            logger.info(
+                "mesh1d_s1 is not in the file; the water level is computed as bed level + water depth."
+            )
             return results["mesh1d_waterdepth"], True
         if netcdf_field in results.variables:
             return results[netcdf_field], False
@@ -2004,14 +2261,20 @@ class ExternalForcings:
             if netcdf_index is not None:
                 raise ValueError("Provide either netcdf_index or time, not both.")
             if not has_time:
-                raise ValueError(f"{netcdf_field} in {netcdf_path} has no time dimension.")
+                raise ValueError(
+                    f"{netcdf_field} in {netcdf_path} has no time dimension."
+                )
             return time_index(results, time)
         if netcdf_index is not None and not has_time:
-            raise ValueError(f"{netcdf_field} in {netcdf_path} has no time dimension; do not provide netcdf_index.")
+            raise ValueError(
+                f"{netcdf_field} in {netcdf_path} has no time dimension; do not provide netcdf_index."
+            )
         if netcdf_index is None and has_time:
             n_time = results.dimensions["time"].size
             if n_time != 1:
-                logger.info(f"No time given; the last of the {n_time} time steps in {netcdf_path} is used.")
+                logger.info(
+                    f"No time given; the last of the {n_time} time steps in {netcdf_path} is used."
+                )
             return -1
         return netcdf_index
 
@@ -2035,11 +2298,20 @@ class ExternalForcings:
         topology = {}
         if all(
             v in results.variables
-            for v in (f"mesh1d_{location}_branch", f"mesh1d_{location}_offset", "network1d_branch_id")
+            for v in (
+                f"mesh1d_{location}_branch",
+                f"mesh1d_{location}_offset",
+                "network1d_branch_id",
+            )
         ):
-            branch_ids = np.array([b.strip() for b in chartostring(results["network1d_branch_id"][:])], dtype=object)
+            branch_ids = np.array(
+                [b.strip() for b in chartostring(results["network1d_branch_id"][:])],
+                dtype=object,
+            )
             branch_index = np.array(results[f"mesh1d_{location}_branch"][:]).astype(int)
-            branch_index -= int(getattr(results[f"mesh1d_{location}_branch"], "start_index", 0))
+            branch_index -= int(
+                getattr(results[f"mesh1d_{location}_branch"], "start_index", 0)
+            )
             topology = {
                 "branchid": branch_ids[branch_index],
                 "chainage": np.array(results[f"mesh1d_{location}_offset"][:]),
@@ -2048,9 +2320,13 @@ class ExternalForcings:
             # direction of the link (from its first to its second node), to decompose velocities in x and y
             edge_nodes = np.array(results["mesh1d_edge_nodes"][:]).astype(int)
             edge_nodes -= int(getattr(results["mesh1d_edge_nodes"], "start_index", 0))
-            node_x, node_y = np.array(results["mesh1d_node_x"][:]), np.array(results["mesh1d_node_y"][:])
+            node_x, node_y = (
+                np.array(results["mesh1d_node_x"][:]),
+                np.array(results["mesh1d_node_y"][:]),
+            )
             topology["direction"] = np.arctan2(
-                node_y[edge_nodes[:, 1]] - node_y[edge_nodes[:, 0]], node_x[edge_nodes[:, 1]] - node_x[edge_nodes[:, 0]]
+                node_y[edge_nodes[:, 1]] - node_y[edge_nodes[:, 0]],
+                node_x[edge_nodes[:, 1]] - node_x[edge_nodes[:, 0]],
             )
         return topology
 
@@ -2085,15 +2361,24 @@ class ExternalForcings:
         name = netcdf_field.lower()
         if "depth" in name or location == "edge" or "velocity" in name:
             fill, label = np.zeros(len(masked)), "0"
-        elif (name.endswith("_s1") or "waterlevel" in name) and "mesh1d_flowelem_bl" in results.variables:
-            fill, label = np.ma.filled(results["mesh1d_flowelem_bl"][:], np.nan), "the bed level"
+        elif (
+            name.endswith("_s1") or "waterlevel" in name
+        ) and "mesh1d_flowelem_bl" in results.variables:
+            fill, label = (
+                np.ma.filled(results["mesh1d_flowelem_bl"][:], np.nan),
+                "the bed level",
+            )
         else:
             return np.ma.filled(masked, np.nan), missing
-        logger.info(f"{missing.sum()} {location}s without a value (dry) in {netcdf_field}, set to {label}.")
+        logger.info(
+            f"{missing.sum()} {location}s without a value (dry) in {netcdf_field}, set to {label}."
+        )
         value = np.where(missing, fill, np.ma.filled(masked, np.nan))
         return value, np.isnan(value)
 
-    def set_initial_velocity(self, velocities: gpd.GeoDataFrame, column: str = "value") -> None:
+    def set_initial_velocity(
+        self, velocities: gpd.GeoDataFrame, column: str = "value"
+    ) -> None:
         """Set the initial velocity on the 1D flow links from a model result.
 
         E.g. ``'mesh1d_u1'`` read with `read_values_from_modelrun`.
@@ -2119,7 +2404,10 @@ class ExternalForcings:
             )
         speed = velocities[column].astype(float).to_numpy()
         angle = velocities["direction"].astype(float).to_numpy()
-        for component, values in (("x", speed * np.cos(angle)), ("y", speed * np.sin(angle))):
+        for component, values in (
+            ("x", speed * np.cos(angle)),
+            ("y", speed * np.sin(angle)),
+        ):
             self.set_spatial_field(
                 velocities.assign(_component=values)[["_component", "geometry"]],
                 "_component",
@@ -2222,11 +2510,15 @@ class ExternalForcings:
         geomtypes = set(gdf.geom_type)
         filetype = self._resolve_filetype(geomtypes, filetype)
         if filetype == "branch" and locationtype != "1d":
-            raise ValueError("Filetype 'branch' is only available for locationtype '1d'.")
+            raise ValueError(
+                "Filetype 'branch' is only available for locationtype '1d'."
+            )
         if filetype == "raster" and cellsize is None:
             raise ValueError("A cellsize is required to rasterize polygons.")
 
-        interpolationmethod = self._resolve_interpolation(filetype, locationtype, interpolationmethod)
+        interpolationmethod = self._resolve_interpolation(
+            filetype, locationtype, interpolationmethod
+        )
         self._warn_spatial_field_options(gdf, filetype, locationtype)
         gdf, column = self._value_column(gdf, column, geomtypes)
         filename = self._next_field_filename(kind, quantity, filetype)
@@ -2278,17 +2570,25 @@ class ExternalForcings:
         if geomtypes <= {"Polygon", "MultiPolygon"}:
             filetype = "branch" if filetype is None else filetype
             if filetype not in ("branch", "polygon", "raster"):
-                raise ValueError(f"For polygons, filetype should be 'branch', 'polygon' or 'raster', not '{filetype}'.")
+                raise ValueError(
+                    f"For polygons, filetype should be 'branch', 'polygon' or 'raster', not '{filetype}'."
+                )
         elif geomtypes <= {"Point"}:
             filetype = "branch" if filetype is None else filetype
             if filetype not in ("sample", "branch"):
-                raise ValueError(f"For points, filetype should be 'sample' or 'branch', not '{filetype}'.")
+                raise ValueError(
+                    f"For points, filetype should be 'sample' or 'branch', not '{filetype}'."
+                )
         else:
-            raise ValueError(f"Only (multi)polygons or points are supported, found: {geomtypes}.")
+            raise ValueError(
+                f"Only (multi)polygons or points are supported, found: {geomtypes}."
+            )
         return filetype
 
     @staticmethod
-    def _resolve_interpolation(filetype: str, locationtype: str, interpolationmethod: str | None) -> str | None:
+    def _resolve_interpolation(
+        filetype: str, locationtype: str, interpolationmethod: str | None
+    ) -> str | None:
         """Interpolation method of a spatial field, with the default per filetype and location type.
 
         Parameters
@@ -2321,7 +2621,9 @@ class ExternalForcings:
             else:
                 interpolationmethod = "triangulation"
         if filetype == "polygon" and interpolationmethod != "constant":
-            raise ValueError("Polygon files only support interpolationmethod 'constant'.")
+            raise ValueError(
+                "Polygon files only support interpolationmethod 'constant'."
+            )
         if interpolationmethod == "averaging" and locationtype == "1d":
             raise ValueError(
                 "interpolationmethod 'averaging' assigns no values to 1D nodes (D-HYDRO 2026.02). "
@@ -2330,7 +2632,9 @@ class ExternalForcings:
         return interpolationmethod
 
     @staticmethod
-    def _warn_spatial_field_options(gdf: gpd.GeoDataFrame, filetype: str, locationtype: str) -> None:
+    def _warn_spatial_field_options(
+        gdf: gpd.GeoDataFrame, filetype: str, locationtype: str
+    ) -> None:
         """Warn for options that work, but may not give the intended result.
 
         Parameters
@@ -2347,11 +2651,20 @@ class ExternalForcings:
                 "D-Flow FM uses the raster nodata value as data, which affects 1D nodes near polygon edges. "
                 "Consider filetype 'branch' for 1D."
             )
-        if filetype == "polygon" and (shapely.get_num_interior_rings(gdf.geometry.explode().to_numpy()) > 0).any():
-            logger.warning("Polygon files do not support holes; interiors of the polygons are ignored.")
+        if (
+            filetype == "polygon"
+            and (
+                shapely.get_num_interior_rings(gdf.geometry.explode().to_numpy()) > 0
+            ).any()
+        ):
+            logger.warning(
+                "Polygon files do not support holes; interiors of the polygons are ignored."
+            )
 
     @staticmethod
-    def _value_column(gdf: gpd.GeoDataFrame, column: str | None, geomtypes: set[str]) -> tuple[gpd.GeoDataFrame, str]:
+    def _value_column(
+        gdf: gpd.GeoDataFrame, column: str | None, geomtypes: set[str]
+    ) -> tuple[gpd.GeoDataFrame, str]:
         """Column with the values of a spatial field; without a column, the Z-coordinate of points is used.
 
         Parameters
@@ -2375,12 +2688,16 @@ class ExternalForcings:
         """
         if column is None:
             if "Point" not in geomtypes or not gdf.has_z.all():
-                raise ValueError("Provide a value column, or use points with a Z-coordinate.")
+                raise ValueError(
+                    "Provide a value column, or use points with a Z-coordinate."
+                )
             gdf = gdf.assign(_z=gdf.geometry.z)
             column = "_z"
 
         if gdf[column].isna().any():
-            raise ValueError(f"Column {column} not filled for all features. Please provide valid values.")
+            raise ValueError(
+                f"Column {column} not filled for all features. Please provide valid values."
+            )
         return gdf, column
 
     def _next_field_filename(self, kind: str, quantity: str, filetype: str) -> str:
@@ -2402,7 +2719,9 @@ class ExternalForcings:
         str
             The file name.
         """
-        ext = {"branch": ".ini", "polygon": ".pol", "raster": ".tif", "sample": ".xyz"}[filetype]
+        ext = {"branch": ".ini", "polygon": ".pol", "raster": ".tif", "sample": ".xyz"}[
+            filetype
+        ]
         name = quantity.lower().removeprefix(kind)
         filename = f"{kind}_{name}_{self._next_field_number:02d}{ext}"
         self._next_field_number += 1
@@ -2428,7 +2747,9 @@ class ExternalForcings:
             "bctype": bctype + "bnd",
         }
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def add_boundary_condition(
         self,
         name: str,
@@ -2463,7 +2784,9 @@ class ExternalForcings:
         assert quantity in ["dischargebnd", "waterlevelbnd", "qhbnd"]
 
         if isinstance(value, pd.Series):
-            vec1: list[float] | None = ((value.index - value.index[0]).total_seconds() / 60.0).tolist()
+            vec1: list[float] | None = (
+                (value.index - value.index[0]).total_seconds() / 60.0
+            ).tolist()
             vec2: list[float] | float = value.to_numpy().tolist()
             startdate = value.index[0].strftime("%Y-%m-%d %H:%M:%S")
             unit1 = f"minutes since {startdate}"
@@ -2481,7 +2804,9 @@ class ExternalForcings:
             unit2 = "m"
 
         if name in self.boundary_nodes:
-            raise KeyError(f'A boundary condition with name "{name}" is already present.')
+            raise KeyError(
+                f'A boundary condition with name "{name}" is already present.'
+            )
 
         if isinstance(pt, tuple):
             pt = Point(*pt)
@@ -2490,7 +2815,9 @@ class ExternalForcings:
         if mesh1d is None:
             raise ValueError("Provide the network with the 1d mesh (mesh1d).")
         if len(mesh1d._mesh1d.mesh1d_node_id) == 0:
-            raise KeyError("To find the closest node a 1d mesh should be created first.")
+            raise KeyError(
+                "To find the closest node a 1d mesh should be created first."
+            )
         nodes1d = np.asarray(
             [
                 n
@@ -2516,7 +2843,9 @@ class ExternalForcings:
             "nodeid": nodeid,
         }
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def add_rain_series(self, name: str, values: list, times: list) -> None:
         """Add a rain series as a boundary condition.
 
@@ -2542,13 +2871,17 @@ class ExternalForcings:
             "branchid": None,
         }
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def add_lateral(
         self,
         id: str,
         branchid: str,
         chainage: str,
-        discharge: Annotated[pd.Series | float | str, Field(union_mode="left_to_right")],
+        discharge: Annotated[
+            pd.Series | float | str, Field(union_mode="left_to_right")
+        ],
     ) -> None:
         """Add a lateral.
 
@@ -2566,7 +2899,9 @@ class ExternalForcings:
         """
         # Convert time to minutes
         if isinstance(discharge, pd.Series):
-            times = ((discharge.index - discharge.index[0]).total_seconds() / 60.0).tolist()
+            times = (
+                (discharge.index - discharge.index[0]).total_seconds() / 60.0
+            ).tolist()
             values = discharge.to_numpy().tolist()
             startdate = discharge.index[0].strftime("%Y-%m-%d %H:%M:%S")
         else:
@@ -2643,18 +2978,26 @@ class Structures:
         """
         # Check if the ID exists
         if branchid not in self.hydamo.branches["code"]:
-            raise ValueError(f"branchid {branchid} not present. Give an existing branch.")
+            raise ValueError(
+                f"branchid {branchid} not present. Give an existing branch."
+            )
 
         # Get the branch
         branch = self.hydamo.branches.geometry[branchid]
 
         # Check the limits
         if chainage < 0.0:
-            raise ValueError(f"Chainage {chainage} is outside the branch range (0.0 - {branch.length}).")
+            raise ValueError(
+                f"Chainage {chainage} is outside the branch range (0.0 - {branch.length})."
+            )
         if chainage > branch.length:
-            raise ValueError(f"Chainage {chainage} is outside the branch length (0.0 - {branch.length}).")
+            raise ValueError(
+                f"Chainage {chainage} is outside the branch length (0.0 - {branch.length})."
+            )
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def add_rweir(
         self,
         *,  # keyword-only, so required arguments can follow optional ones in the original order
@@ -2692,7 +3035,9 @@ class Structures:
         )
         self.rweirs_df = pd.concat([self.rweirs_df, dct], ignore_index=True)
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def add_orifice(
         self,
         *,  # keyword-only, so required arguments can follow optional ones in the original order
@@ -2740,7 +3085,9 @@ class Structures:
         )
         self.orifices_df = pd.concat([self.orifices_df, dct], ignore_index=True)
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def add_uweir(
         self,
         *,  # keyword-only, so required arguments can follow optional ones in the original order
@@ -2782,7 +3129,9 @@ class Structures:
         )
         self.uweirs_df = pd.concat([self.uweirs_df, dct], ignore_index=True)
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def add_bridge(
         self,
         *,  # keyword-only, so required arguments can follow optional ones in the original order
@@ -2830,7 +3179,9 @@ class Structures:
         )
         self.bridges_df = pd.concat([self.bridges_df, dct], ignore_index=True)
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def add_culvert(
         self,
         *,  # keyword-only, so required arguments can follow optional ones in the original order
@@ -2883,7 +3234,9 @@ class Structures:
                 name=id,
             )
         else:
-            raise NotImplementedError(f'Cross section with shape "{crosssection["shape"]}" not implemented.')
+            raise NotImplementedError(
+                f'Cross section with shape "{crosssection["shape"]}" not implemented.'
+            )
 
         bedfrictiontype = self.hydamo.roughness_mapping[bedfrictiontype]
 
@@ -2913,7 +3266,9 @@ class Structures:
 
         self.culverts_df = pd.concat([self.culverts_df, dct], ignore_index=True)
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def add_pump(
         self,
         *,  # keyword-only, so required arguments can follow optional ones in the original order
@@ -2957,7 +3312,9 @@ class Structures:
         )
         self.pumps_df = pd.concat([self.pumps_df, dct], ignore_index=True)
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def add_compound(self, *, id: str, structureids: list) -> None:
         """Add a compound structure of existing structures.
 
@@ -2981,7 +3338,9 @@ class Structures:
         )
         self.compounds_df = pd.concat([self.compounds_df, dct], ignore_index=True)
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def as_dataframe(
         self,
         generalstructures: bool = False,
@@ -3055,7 +3414,9 @@ class ObservationPoints:
         self.hydamo = hydamo
         self.observation_points = gpd.GeoDataFrame().set_geometry([])
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def add_points(
         self,
         crds: list,
@@ -3086,7 +3447,9 @@ class ObservationPoints:
 
             # split 1d and 2d points, as the first ones need to be snapped to branches
             obs2d = gpd.GeoDataFrame()
-            obs2d["name"] = [n for nn, n in enumerate(names) if locationTypes[nn] == "2d"]
+            obs2d["name"] = [
+                n for nn, n in enumerate(names) if locationTypes[nn] == "2d"
+            ]
             obs2d["locationtype"] = "2d"
             obs2d = obs2d.set_geometry(
                 [
@@ -3105,12 +3468,20 @@ class ObservationPoints:
 
         obs1d = gpd.GeoDataFrame()
         obs1d["name"] = names1d
-        obs1d = obs1d.set_geometry([Point(*pt) if not isinstance(pt, Point) else pt for pt in crds1d])
+        obs1d = obs1d.set_geometry(
+            [Point(*pt) if not isinstance(pt, Point) else pt for pt in crds1d]
+        )
         obs1d["locationtype"] = "1d"
-        find_nearest_branch(self.hydamo.branches, obs1d, method="overal", maxdist=snap_distance)
-        obs1d = obs1d.rename(columns={"branch_id": "branchid", "branch_offset": "chainage"})
+        find_nearest_branch(
+            self.hydamo.branches, obs1d, method="overal", maxdist=snap_distance
+        )
+        obs1d = obs1d.rename(
+            columns={"branch_id": "branchid", "branch_offset": "chainage"}
+        )
 
-        obs = pd.concat([obs1d, obs2d], sort=True) if locationTypes is not None else obs1d
+        obs = (
+            pd.concat([obs1d, obs2d], sort=True) if locationTypes is not None else obs1d
+        )
 
         obs = obs.dropna(how="all", axis=1)
 
@@ -3118,7 +3489,9 @@ class ObservationPoints:
         if self.observation_points.empty:
             self.observation_points = gpd.GeoDataFrame(obs)
         else:
-            self.observation_points = gpd.GeoDataFrame(pd.concat([self.observation_points, obs], ignore_index=True))
+            self.observation_points = gpd.GeoDataFrame(
+                pd.concat([self.observation_points, obs], ignore_index=True)
+            )
 
 
 class StorageNodes:
@@ -3182,9 +3555,13 @@ class StorageNodes:
             raise ValueError("If a nodeid is provided, it should be of type string.")
         if nodeid is None:
             if network is None or xy is None:
-                raise ValueError("Without a nodeid, provide the network and a location: xy, or branchid and chainage.")
+                raise ValueError(
+                    "Without a nodeid, provide the network and a location: xy, or branchid and chainage."
+                )
             if len(network._mesh1d.network1d_node_id) == 0:
-                raise KeyError("To find the closest node a 1d mesh should be created first.")
+                raise KeyError(
+                    "To find the closest node a 1d mesh should be created first."
+                )
             nodes1d = np.asarray(
                 [
                     n
@@ -3228,7 +3605,9 @@ class StorageNodes:
             }
         elif usetable == "true":
             if not isinstance(levels, str) or not isinstance(storagearea, str):
-                raise ValueError("With usetable='true', provide levels and storagearea as strings of numbers.")
+                raise ValueError(
+                    "With usetable='true', provide levels and storagearea as strings of numbers."
+                )
             assert len(levels.split()) == len(storagearea.split()), (
                 "Number of levels does not equal number of storagearea"
             )
@@ -3246,7 +3625,9 @@ class StorageNodes:
                 "storageType": storagetype,
             }
         else:
-            raise ValueError("Value of key 'usetable' is not supported. Either use 'true' or 'false")
+            raise ValueError(
+                "Value of key 'usetable' is not supported. Either use 'true' or 'false"
+            )
         self.storagenodes[id] = remove_nan_values(out)
 
 

@@ -66,7 +66,12 @@ def setup_model(
         )
 
         hydamo.observationpoints.add_points(
-            [Point(200198, 396489), Point(201129, 396269), Point(199996, 393899), Point(199665, 395323)],
+            [
+                Point(200198, 396489),
+                Point(201129, 396269),
+                Point(199996, 393899),
+                Point(199665, 395323),
+            ],
             ["ObsS_96544", "ObsP_113GIS", "ObsS_96789", "Obs_ORIF"],
             locationTypes=["1d", "1d", "1d", "1d"],
             snap_distance=10.0,
@@ -95,7 +100,9 @@ def setup_model(
     )
     assert structures is not None
     if full_test:
-        objects = pd.concat([structures, hydamo.observationpoints.observation_points], axis=0)
+        objects = pd.concat(
+            [structures, hydamo.observationpoints.observation_points], axis=0
+        )
     else:
         objects = structures
 
@@ -120,13 +127,21 @@ def setup_model(
     )
     missing = hydamo.crosssections.get_branches_without_crosssection()
     missing_after_interpolation = mesh.mesh1d_order_numbers_from_attribute(
-        hydamo.branches, missing, order_attribute="naam", network=fm.geometry.netfile.network, exceptions=["W_1386_0"]
+        hydamo.branches,
+        missing,
+        order_attribute="naam",
+        network=fm.geometry.netfile.network,
+        exceptions=["W_1386_0"],
     )
 
     # Set a default cross section
     profiel = np.array([[0, 21], [2, 19], [7, 19], [9, 21]])
     default = hydamo.crosssections.add_yz_definition(
-        yz=profiel, thalweg=4.5, roughnesstype="StricklerKs", roughnessvalue=25.0, name="default"
+        yz=profiel,
+        thalweg=4.5,
+        roughnesstype="StricklerKs",
+        roughnessvalue=25.0,
+        name="default",
     )
 
     hydamo.crosssections.set_default_definition(definition=default, shift=0.0)
@@ -146,11 +161,19 @@ def setup_model(
         )
 
         # boundary conditions
-    hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network)
+    hydamo.external_forcings.convert.boundaries(
+        hydamo.boundary_conditions, mesh1d=fm.geometry.netfile.network
+    )
     series = pd.Series(np.sin(np.linspace(2, 8, 120) * -1) + 1.0)
-    series.index = [pd.Timestamp("2016-06-01 00:00:00") + pd.Timedelta(hours=i) for i in range(120)]
+    series.index = [
+        pd.Timestamp("2016-06-01 00:00:00") + pd.Timedelta(hours=i) for i in range(120)
+    ]
     hydamo.external_forcings.add_boundary_condition(
-        "RVW_01", (197464.0, 392130.0), "dischargebnd", series, fm.geometry.netfile.network
+        "RVW_01",
+        (197464.0, 392130.0),
+        "dischargebnd",
+        series,
+        fm.geometry.netfile.network,
     )
     # initial condition
     hydamo.external_forcings.set_initial_waterdepth(1.5)
@@ -163,7 +186,11 @@ def setup_model(
         mesh.mesh2d_add_rectilinear(network, extent, dx=20, dy=20)
         mesh.mesh2d_clip(network, hydamo.branches.geometry["W_2646_0"].buffer(20.0))
         mesh.mesh2d_altitude_from_raster(
-            network, data_path.joinpath("rasters/AHN_2m_clipped_filled.tif"), "face", "mean", fill_value=-999
+            network,
+            data_path.joinpath("rasters/AHN_2m_clipped_filled.tif"),
+            "face",
+            "mean",
+            fill_value=-999,
         )
         mesh.links1d2d_add_links_1d_to_2d(network)
         mesh.links1d2d_remove_1d_endpoints(network)
@@ -189,7 +216,9 @@ def _add_to_filestructure(
     model_path: Path | str | None = None,
 ) -> FMModel:
     model_path = output_path if model_path is None else Path(model_path)
-    hydamo, fm = setup_model(hydamo_obj=hydamo_obj, full_test=full_test, model_path=model_path)
+    hydamo, fm = setup_model(
+        hydamo_obj=hydamo_obj, full_test=full_test, model_path=model_path
+    )
 
     if drrmodel is not None:
         hydamo.external_forcings.convert.laterals(
@@ -231,30 +260,45 @@ def _write_model(
     model_path: Path | str | None = None,
 ) -> tuple[FMModel, Path]:
     model_path = output_path if model_path is None else Path(model_path)
-    fm = _add_to_filestructure(drrmodel=drrmodel, hydamo_obj=hydamo_obj, full_test=full_test, model_path=model_path)
+    fm = _add_to_filestructure(
+        drrmodel=drrmodel,
+        hydamo_obj=hydamo_obj,
+        full_test=full_test,
+        model_path=model_path,
+    )
 
     fm.geometry.uniformwidth1d = 1.0  # default  breedte
     fm.geometry.bedlevtype = 1  # 1: at cell center (tiles xz,yz,bl,bob=max(bl)), 2: at face (tiles xu,yu,blu,bob=blu), 3: at face (using mean node values), 4: at face
-    fm.geometry.changestructuredimensions = (
-        False  # Change the structure dimensions in case these are inconsistent with the channel dimensions.
-    )
+    fm.geometry.changestructuredimensions = False  # Change the structure dimensions in case these are inconsistent with the channel dimensions.
 
     fm.sediment.sedimentmodelnr = 0
 
     fm.numerics.cflmax = 0.7  # Maximum Courant nr.
-    fm.numerics.advectype = 33  # Adv type, 0=no, 33=Perot q(uio-u) fast, 3=Perot q(uio-u).
+    fm.numerics.advectype = (
+        33  # Adv type, 0=no, 33=Perot q(uio-u) fast, 3=Perot q(uio-u).
+    )
 
-    fm.volumetables.increment = 0.2  # parameter setting advised by Deltares for better performance
-    fm.volumetables.usevolumetables = True  # parameter setting advised by Deltares for better performance
+    fm.volumetables.increment = (
+        0.2  # parameter setting advised by Deltares for better performance
+    )
+    fm.volumetables.usevolumetables = (
+        True  # parameter setting advised by Deltares for better performance
+    )
 
     fm.restart.restartfile = DiskOnlyFileModel(
         filepath=None
     )  # Restart file, only from netCDF-file, hence: either *_rst.nc or *_map.nc.
     fm.restart.restartdatetime = None  # Restart time [YYYYMMDDHHMMSS], only relevant in case of restart from *_map.nc.
     fm.sediment.sedimentmodelnr = 4
-    fm.output.mapformat = 4  # parameter setting advised by Deltares for better performance
-    fm.output.ncformat = 4  # parameter setting advised by Deltares for better performance
-    fm.output.ncnoforcedflush = True  # parameter setting advised by Deltares for better performance
+    fm.output.mapformat = (
+        4  # parameter setting advised by Deltares for better performance
+    )
+    fm.output.ncformat = (
+        4  # parameter setting advised by Deltares for better performance
+    )
+    fm.output.ncnoforcedflush = (
+        True  # parameter setting advised by Deltares for better performance
+    )
     fm.output.ncnounlimited = True
     fm.output.outputdir = Path("output")
     fm.output.statsinterval = [
@@ -287,10 +331,14 @@ def test_write_model() -> None:
     assert (output_path / "dflowfm" / "InitialWaterDepth.ini").exists()
 
 
-def test_default_profiles_without_a_default_definition(caplog: pytest.LogCaptureFixture) -> None:
+def test_default_profiles_without_a_default_definition(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     # without a default definition no locations are added; they used to get the definition None
     hydamo = HyDAMO()
-    branches = gpd.GeoDataFrame({"code": ["b1"]}, geometry=[LineString([(0, 0), (100, 0)])])
+    branches = gpd.GeoDataFrame(
+        {"code": ["b1"]}, geometry=[LineString([(0, 0), (100, 0)])]
+    )
     hydamo.branches.set_data(branches, index_col="code")
     hydamo.crosssections.set_default_locations(["b1"])
 
@@ -298,7 +346,10 @@ def test_default_profiles_without_a_default_definition(caplog: pytest.LogCapture
         models = Df2HydrolibModel(hydamo, assign_default_profiles=True)
 
     assert models.crosslocs == []
-    assert any("Not all branches have a cross section" in message for message in caplog.messages)
+    assert any(
+        "Not all branches have a cross section" in message
+        for message in caplog.messages
+    )
 
 
 def test_ext_model_file_version(tmp_path: Path) -> None:
@@ -308,7 +359,10 @@ def test_ext_model_file_version(tmp_path: Path) -> None:
     extmodel.save(filepath=tmp_path / "bnd.ext")
 
     lines = (tmp_path / "bnd.ext").read_text().splitlines()
-    assert any(line.split("#")[0].split() == ["fileVersion", "=", EXT_FILE_VERSION] for line in lines)
+    assert any(
+        line.split("#")[0].split() == ["fileVersion", "=", EXT_FILE_VERSION]
+        for line in lines
+    )
 
 
 def test_constant_and_qh_boundaries_write_time_interpolation(tmp_path: Path) -> None:
@@ -317,12 +371,18 @@ def test_constant_and_qh_boundaries_write_time_interpolation(tmp_path: Path) -> 
     fm = FMModel()
     assert isinstance(fm.geometry.netfile, NetworkModel)
     network = fm.geometry.netfile.network
-    mesh.mesh1d_add_branch_from_linestring(network, LineString([(0.0, 0.0), (100.0, 0.0)]), node_distance=100)
+    mesh.mesh1d_add_branch_from_linestring(
+        network, LineString([(0.0, 0.0), (100.0, 0.0)]), node_distance=100
+    )
 
     hydamo = HyDAMO()
     forcings = hydamo.external_forcings
-    forcings.add_boundary_condition("constant", (0.0, 0.0), "waterlevelbnd", 1.5, network)
-    forcings.add_boundary_condition("qh", (100.0, 0.0), "qhbnd", {"Q": [0.0, 1.0], "H": [1.0, 2.0]}, network)
+    forcings.add_boundary_condition(
+        "constant", (0.0, 0.0), "waterlevelbnd", 1.5, network
+    )
+    forcings.add_boundary_condition(
+        "qh", (100.0, 0.0), "qhbnd", {"Q": [0.0, 1.0], "H": [1.0, 2.0]}, network
+    )
     models = Df2HydrolibModel(hydamo)
     models.forcingmodel.save(tmp_path / "boundaryconditions.bc")
 

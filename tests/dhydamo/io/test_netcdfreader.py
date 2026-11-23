@@ -25,7 +25,9 @@ def test_exact_time(his_like: Dataset, caplog: pytest.LogCaptureFixture) -> None
     assert caplog.messages == []
 
 
-def test_nearest_time_with_warning(his_like: Dataset, caplog: pytest.LogCaptureFixture) -> None:
+def test_nearest_time_with_warning(
+    his_like: Dataset, caplog: pytest.LogCaptureFixture
+) -> None:
     with caplog.at_level(logging.WARNING):
         assert time_index(his_like, "2016-06-01 03:20") == 3
         assert time_index(his_like, "2016-06-01 03:40") == 4

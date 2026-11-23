@@ -15,10 +15,16 @@ def test_plot_network_returns_map() -> None:
     fm = FMModel()
     assert isinstance(fm.geometry.netfile, NetworkModel)
     network = fm.geometry.netfile.network
-    mesh.mesh1d_add_branches_from_gdf(network, branches=_branches(), branch_name_col="code", node_distance=5)
+    mesh.mesh1d_add_branches_from_gdf(
+        network, branches=_branches(), branch_name_col="code", node_distance=5
+    )
     m = viz.plot_network(network, background=False, crs=28992)
     assert isinstance(m, folium.Map)
-    layers = [child.layer_name for child in m._children.values() if isinstance(child, folium.GeoJson)]
+    layers = [
+        child.layer_name
+        for child in m._children.values()
+        if isinstance(child, folium.GeoJson)
+    ]
     assert layers == ["Mesh 1D"]
 
 
@@ -28,14 +34,22 @@ def test_plot_network_face_levels() -> None:
     assert isinstance(fm.geometry.netfile, NetworkModel)
     network = fm.geometry.netfile.network
     mesh.mesh2d_add_rectilinear(
-        network, box(0, 0, 100, 100), dx=10, dy=10, deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED
+        network,
+        box(0, 0, 100, 100),
+        dx=10,
+        dy=10,
+        deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
     )
     face_x, face_y = network._mesh2d.mesh2d_face_x, network._mesh2d.mesh2d_face_y
     network._mesh2d.mesh2d_face_z = np.arange(len(face_x), dtype=float)
 
     m = viz.plot_network(network, background=False, crs=28992, face_z_kwargs={})
 
-    overlays = [child for child in m._children.values() if isinstance(child, folium.raster_layers.ImageOverlay)]
+    overlays = [
+        child
+        for child in m._children.values()
+        if isinstance(child, folium.raster_layers.ImageOverlay)
+    ]
     assert len(overlays) == 1
     centres = gpd.GeoSeries(gpd.points_from_xy(face_x, face_y), crs=28992).to_crs(4326)
     lon0, lat0, lon1, lat1 = centres.total_bounds

@@ -10,7 +10,10 @@ def test_interp_linestring_multilinestring() -> None:
     result = common.interp_linestring(MultiLineString(lines), 2.0)
 
     assert isinstance(result, MultiLineString)
-    assert [part.equals(common.interp_linestring(line, 2.0)) for part, line in zip(result.geoms, lines)] == [True, True]
+    assert [
+        part.equals(common.interp_linestring(line, 2.0))
+        for part, line in zip(result.geoms, lines)
+    ] == [True, True]
     assert len(result.geoms[0].coords) == 5
 
 
@@ -20,7 +23,10 @@ def test_interp_polygon_multipolygon() -> None:
     result = common.interp_polygon(MultiPolygon(polygons), 2.0)
 
     assert isinstance(result, MultiPolygon)
-    assert [part.equals(common.interp_polygon(polygon, 2.0)) for part, polygon in zip(result.geoms, polygons)] == [
+    assert [
+        part.equals(common.interp_polygon(polygon, 2.0))
+        for part, polygon in zip(result.geoms, polygons)
+    ] == [
         True,
         True,
     ]

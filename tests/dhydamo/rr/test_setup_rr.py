@@ -79,14 +79,20 @@ def _setup_rr_model(hydamo: HyDAMO | None = None) -> DRRModel:
 
     drrmodel.openwater.io.openwater_from_input(hydamo.catchments, lu_file, meteo_areas)
 
-    drrmodel.external_forcings.io.boundary_from_input(hydamo.laterals, hydamo.catchments, drrmodel)
+    drrmodel.external_forcings.io.boundary_from_input(
+        hydamo.laterals, hydamo.catchments, drrmodel
+    )
 
     seepage_folder = data_path / "rasters" / "seepage"
     precip_folder = data_path / "rasters" / "precipitation"
     evap_folder = data_path / "rasters" / "evaporation"
     drrmodel.external_forcings.io.seepage_from_input(hydamo.catchments, seepage_folder)
-    drrmodel.external_forcings.io.precip_from_input(meteo_areas, precip_folder=precip_folder, precip_file=None)
-    drrmodel.external_forcings.io.evap_from_input(meteo_areas, evap_folder=evap_folder, evap_file=None)
+    drrmodel.external_forcings.io.precip_from_input(
+        meteo_areas, precip_folder=precip_folder, precip_file=None
+    )
+    drrmodel.external_forcings.io.evap_from_input(
+        meteo_areas, evap_folder=evap_folder, evap_file=None
+    )
 
     return drrmodel
 
@@ -99,10 +105,46 @@ def rr_model() -> DRRModel:
 
 def test_setup_rr_model(rr_model: DRRModel) -> None:
     drrmodel = rr_model
-    assert len([i[1]["ga"] for i in drrmodel.unpaved.unp_nodes.items() if float(i[1]["ga"]) > 0.0]) == 121
-    assert len([i[1]["ar"] for i in drrmodel.paved.pav_nodes.items() if float(i[1]["ar"]) > 0.0]) == 101
-    assert len([i[1]["ar"] for i in drrmodel.greenhouse.gh_nodes.items() if float(i[1]["ar"]) > 0.0]) == 1
-    assert len([i[1]["ar"] for i in drrmodel.openwater.ow_nodes.items() if float(i[1]["ar"]) > 0.0]) == 113
+    assert (
+        len(
+            [
+                i[1]["ga"]
+                for i in drrmodel.unpaved.unp_nodes.items()
+                if float(i[1]["ga"]) > 0.0
+            ]
+        )
+        == 121
+    )
+    assert (
+        len(
+            [
+                i[1]["ar"]
+                for i in drrmodel.paved.pav_nodes.items()
+                if float(i[1]["ar"]) > 0.0
+            ]
+        )
+        == 101
+    )
+    assert (
+        len(
+            [
+                i[1]["ar"]
+                for i in drrmodel.greenhouse.gh_nodes.items()
+                if float(i[1]["ar"]) > 0.0
+            ]
+        )
+        == 1
+    )
+    assert (
+        len(
+            [
+                i[1]["ar"]
+                for i in drrmodel.openwater.ow_nodes.items()
+                if float(i[1]["ar"]) > 0.0
+            ]
+        )
+        == 113
+    )
     assert len(drrmodel.external_forcings.boundary_nodes) == 121
     assert len(drrmodel.external_forcings.precip) == 121
     assert len(drrmodel.external_forcings.evap) == 121
@@ -117,12 +159,18 @@ def test_setup_rr_model(rr_model: DRRModel) -> None:
     # series per meteo area, not the path of a meteo file
     assert isinstance(drrmodel.external_forcings.precip, dict)
     assert isinstance(drrmodel.external_forcings.evap, dict)
-    assert drrmodel.external_forcings.precip["ms_15.0"]["precip"].iloc[2] == pytest.approx(0.08, abs=1e-7)
-    assert drrmodel.external_forcings.evap["ms_15.0"]["evap"].iloc[1] == pytest.approx(2.9, abs=1e-7)
+    assert drrmodel.external_forcings.precip["ms_15.0"]["precip"].iloc[
+        2
+    ] == pytest.approx(0.08, abs=1e-7)
+    assert drrmodel.external_forcings.evap["ms_15.0"]["evap"].iloc[1] == pytest.approx(
+        2.9, abs=1e-7
+    )
     # Catchment 15.0 (55 x 45 m) touches a few 250 m seepage cells, weighted by
     # its coverage of each; counting them fully gives -0.079156. IDF seepage is
     # float32-sourced, hence the looser tolerance.
-    assert drrmodel.external_forcings.seepage["sep_15.0"]["seepage"].iloc[1] == pytest.approx(-0.033760, abs=1e-6)
+    assert drrmodel.external_forcings.seepage["sep_15.0"]["seepage"].iloc[
+        1
+    ] == pytest.approx(-0.033760, abs=1e-6)
 
 
 def test_setup_rr_model_with_sewer_areas_and_greenhouses() -> None:
@@ -138,18 +186,31 @@ def test_setup_rr_model_with_sewer_areas_and_greenhouses() -> None:
     soil_file = data_path / "rasters" / "sobek_soil.tif"
     meteo_areas = hydamo.catchments
 
-    hydamo.greenhouse_areas._read_gpkg_layer(data_path / "greenhouses.gpkg", layer_name="greenhouses", index_col="code")
-    hydamo.greenhouse_laterals._read_gpkg_layer(data_path / "greenhouse_laterals.gpkg", layer_name="laterals")
-    hydamo.greenhouse_laterals.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
+    hydamo.greenhouse_areas._read_gpkg_layer(
+        data_path / "greenhouses.gpkg", layer_name="greenhouses", index_col="code"
+    )
+    hydamo.greenhouse_laterals._read_gpkg_layer(
+        data_path / "greenhouse_laterals.gpkg", layer_name="laterals"
+    )
+    hydamo.greenhouse_laterals.snap_to_branch(
+        hydamo.branches, snap_method="overal", maxdist=1100
+    )
     hydamo.greenhouse_areas["roof_storage_mm"] = 5.0
-    hydamo.greenhouse_areas["basin_storage_class"] = range(1, len(hydamo.greenhouse_areas) + 1)
+    hydamo.greenhouse_areas["basin_storage_class"] = range(
+        1, len(hydamo.greenhouse_areas) + 1
+    )
     hydamo.sewer_areas.read_shp(
         str(data_path / "rioleringsgebieden.shp"),
         index_col="code",
-        column_mapping={"Code": "code", "Berging_mm": "riool_berging_mm", "POC_m3s": "riool_poc_m3s"},
+        column_mapping={
+            "Code": "code",
+            "Berging_mm": "riool_berging_mm",
+            "POC_m3s": "riool_poc_m3s",
+        },
     )
     hydamo.overflows.read_shp(
-        str(data_path / "overstorten.shp"), column_mapping={"codegerela": "codegerelateerdobject"}
+        str(data_path / "overstorten.shp"),
+        column_mapping={"codegerela": "codegerelateerdobject"},
     )
     hydamo.overflows.snap_to_branch(hydamo.branches, snap_method="overal", maxdist=1100)
 
@@ -227,8 +288,13 @@ def test_setup_rr_model_with_sewer_areas_and_greenhouses() -> None:
     # overflows and greenhouse laterals are RR boundaries, coupled to the FM laterals
     assert "BBB_de_Kuyper" in drrmodel.external_forcings.boundary_nodes
     assert "lat_kas_2" in drrmodel.external_forcings.boundary_nodes
-    assert hydamo.external_forcings.lateral_nodes["BBB_de_Kuyper"]["discharge"] == "realtime"
-    assert hydamo.external_forcings.lateral_nodes["lat_kas_2"]["discharge"] == "realtime"
+    assert (
+        hydamo.external_forcings.lateral_nodes["BBB_de_Kuyper"]["discharge"]
+        == "realtime"
+    )
+    assert (
+        hydamo.external_forcings.lateral_nodes["lat_kas_2"]["discharge"] == "realtime"
+    )
 
 
 def test_boundary_from_input_drops_zero_area_catchments_without_crash() -> None:
@@ -239,7 +305,13 @@ def test_boundary_from_input_drops_zero_area_catchments_without_crash() -> None:
     # "IndexError: single positional indexer is out-of-bounds".
     catchments = ExtendedGeoDataFrame(
         geotype=Polygon,
-        required_columns=["code", "geometry", "globalid", "lateraleknoopid", "boundary_node"],
+        required_columns=[
+            "code",
+            "geometry",
+            "globalid",
+            "lateraleknoopid",
+            "boundary_node",
+        ],
         data={
             "code": ["cat_1", "cat_2"],
             "globalid": ["g1", "g2"],
@@ -285,10 +357,15 @@ def test_rr_file_names_match_fnm() -> None:
     # files copied from resources exactly. Checked on the source, so that it also fails on Windows.
     resources = Path(drrwriter.__file__).parent.parent / "resources" / "RR"
     fnm_text = (resources / "Sobek_3b.fnm").read_text(encoding="latin-1")
-    fnm_names = {name.lower(): name for name in re.findall(r"^\s*'([^']+)'", fnm_text, re.MULTILINE)}
+    fnm_names = {
+        name.lower(): name
+        for name in re.findall(r"^\s*'([^']+)'", fnm_text, re.MULTILINE)
+    }
     resource_names = {path.name.lower(): path.name for path in resources.iterdir()}
     source = Path(drrwriter.__file__).read_text(encoding="utf-8")
-    used = re.findall(r'os\.path\.join\(\s*self\.output_dir\s*,\s*["\']([^"\']+)["\']', source)
+    used = re.findall(
+        r'os\.path\.join\(\s*self\.output_dir\s*,\s*["\']([^"\']+)["\']', source
+    )
     assert used
 
     for name in used:
@@ -301,7 +378,9 @@ def test_rr_file_names_match_fnm() -> None:
 
 
 def test_rr_written_files_match_fnm(rr_model: DRRModel, tmp_path: Path) -> None:
-    drrmodel = copy.deepcopy(rr_model)  # the time settings below should not leak into other tests
+    drrmodel = copy.deepcopy(
+        rr_model
+    )  # the time settings below should not leak into other tests
     drrmodel.d3b_parameters["Timestepsize"] = "60"
     drrmodel.d3b_parameters["StartTime"] = "'2016/06/01;00:00:00'"
     drrmodel.d3b_parameters["EndTime"] = "'2016/06/03;00:00:00'"
@@ -318,7 +397,9 @@ def test_rr_written_files_match_fnm(rr_model: DRRModel, tmp_path: Path) -> None:
     # every input file in Sobek_3b.fnm that is present has exactly that name
     for name in _fnm_input_files(rr_dir / "Sobek_3b.fnm"):
         if name.lower() in by_lower:
-            assert name in written, f"Sobek_3b.fnm refers to {name}, written as {by_lower[name.lower()][0]}"
+            assert name in written, (
+                f"Sobek_3b.fnm refers to {name}, written as {by_lower[name.lower()][0]}"
+            )
 
 
 def test_add_precip_after_a_meteo_file_raises() -> None:

@@ -32,7 +32,11 @@ def test_decompose_with_a_compiled_pattern() -> None:
 
     d = idfreader.decompose("bdgflf_20160528_l1.idf", pattern=pattern)
 
-    assert (d["name"], d["time"], d["layer"]) == ("bdgflf", datetime.datetime(2016, 5, 28), 1)
+    assert (d["name"], d["time"], d["layer"]) == (
+        "bdgflf",
+        datetime.datetime(2016, 5, 28),
+        1,
+    )
 
 
 def test_open_and_affine() -> None:

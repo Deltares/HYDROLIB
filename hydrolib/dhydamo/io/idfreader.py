@@ -294,7 +294,9 @@ def _convert_datetimes(times, use_cftime):
 
     out_of_bounds = False
     if use_cftime:
-        converted = [cftime.DatetimeProlepticGregorian(*time.timetuple()[:6]) for time in times]
+        converted = [
+            cftime.DatetimeProlepticGregorian(*time.timetuple()[:6]) for time in times
+        ]
     else:
         for time in times:
             year = time.year
@@ -306,7 +308,10 @@ def _convert_datetimes(times, use_cftime):
             use_cftime = True
             msg = "Dates are outside of np.datetime64[ns] timespan. Converting to cftime.DatetimeProlepticGregorian."
             warnings.warn(msg)
-            converted = [cftime.DatetimeProlepticGregorian(*time.timetuple()[:6]) for time in times]
+            converted = [
+                cftime.DatetimeProlepticGregorian(*time.timetuple()[:6])
+                for time in times
+            ]
         else:
             converted = [np.datetime64(time, "ns") for time in times]
 
@@ -326,7 +331,9 @@ def _dims_coordinates(header_coords, bounds, cellsizes, tops, bots, use_cftime):
     for dim in list(header_coords.keys()):
         if dim == "layer":
             haslayer = True
-            coords["layer"], unique_indices = np.unique(header_coords["layer"], return_index=True)
+            coords["layer"], unique_indices = np.unique(
+                header_coords["layer"], return_index=True
+            )
         elif dim == "time":
             hastime = True
             times, use_cftime = _convert_datetimes(header_coords["time"], use_cftime)
@@ -433,7 +440,9 @@ def _load(paths, use_cftime, pattern, _read, header):
     _all_equal(bounds, "bounding boxes")
     _check_cellsizes(cellsizes)
     # Generate coordinates
-    dims, coords = _dims_coordinates(header_coords, bounds, cellsizes, tops, bots, use_cftime)
+    dims, coords = _dims_coordinates(
+        header_coords, bounds, cellsizes, tops, bots, use_cftime
+    )
     # This part have makes use of recursion to deal with an arbitrary number
     # of dimensions. It may therefore be a little hard to read.
     groupbydims = dims[:-2]  # skip y and x
@@ -477,7 +486,9 @@ def _groupdict(stem, pattern):
             d = re_pattern.match(stem).groupdict()
     else:  # Default to "iMOD conventions": {name}_c{species}_{time}_l{layer}
         has_layer = bool(re.search(r"_l\d+$", stem))
-        has_species = bool(re.search(r"conc_c\d{1,3}_\d{8,14}", stem))  # We are strict in recognizing species
+        has_species = bool(
+            re.search(r"conc_c\d{1,3}_\d{8,14}", stem)
+        )  # We are strict in recognizing species
         try:  # try for time
             base_pattern = r"(?P<name>[\w-]+)"
             if has_species:

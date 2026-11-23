@@ -382,13 +382,29 @@ class DRRWriter:
                 for _, dct in self.rrmodel.unpaved.unp_nodes.items():
                     if np.sum([float(d) for d in dct["ar"].split(" ")]) > 0.0:
                         f.write(
-                            "INFC id 'inf_" + dct["id"] + "' nm 'inf_" + dct["id"] + "' ic " + dct["ic"] + " infc\n"
+                            "INFC id 'inf_"
+                            + dct["id"]
+                            + "' nm 'inf_"
+                            + dct["id"]
+                            + "' ic "
+                            + dct["ic"]
+                            + " infc\n"
                         )
 
             filepath = os.path.join(self.output_dir, "UNPAVED.ALF")
             with open(filepath, "w") as f:
                 for _, dct in self.rrmodel.unpaved.ernst_defs.items():
-                    if np.sum([float(d) for d in self.rrmodel.unpaved.unp_nodes[_]["ar"].split(" ")]) > 0.0:
+                    if (
+                        np.sum(
+                            [
+                                float(d)
+                                for d in self.rrmodel.unpaved.unp_nodes[_]["ar"].split(
+                                    " "
+                                )
+                            ]
+                        )
+                        > 0.0
+                    ):
                         f.write(
                             "ERNS id '"
                             + dct["id"]
@@ -409,12 +425,22 @@ class DRRWriter:
             with open(filepath, "w") as f:
                 for _, dct in self.rrmodel.unpaved.unp_nodes.items():
                     if np.sum([float(d) for d in dct["ar"].split(" ")]) > 0.0:
-                        f.write("SEEP id '" + dct["sp"] + "' nm '" + dct["sp"] + "' co 4 PDIN 0 0 pdin ss 0\n")
+                        f.write(
+                            "SEEP id '"
+                            + dct["sp"]
+                            + "' nm '"
+                            + dct["sp"]
+                            + "' co 4 PDIN 0 0 pdin ss 0\n"
+                        )
                         f.write("TBLE\n")
-                        seepage = self.rrmodel.external_forcings.seepage[dct["sp"]]["seepage"]
+                        seepage = self.rrmodel.external_forcings.seepage[dct["sp"]][
+                            "seepage"
+                        ]
                         f.writelines(
                             f"'{time.strftime('%Y/%m/%d;%H:%M:%S')}' {value:.5f} <\n"
-                            for time, value in zip(pd.DatetimeIndex(seepage.index), seepage)
+                            for time, value in zip(
+                                pd.DatetimeIndex(seepage.index), seepage
+                            )
                         )
                         f.write("tble\nseep\n")
 
@@ -496,7 +522,10 @@ class DRRWriter:
                         area_string = " ".join(
                             ["0" for _ in range(int(dct["basin_storage_class"]) - 1)]
                             + [dct["ar"]]
-                            + ["0" for _ in range(10 - (int(dct["basin_storage_class"])))]
+                            + [
+                                "0"
+                                for _ in range(10 - (int(dct["basin_storage_class"])))
+                            ]
                         )
                         f.write(
                             "GRHS id '"
@@ -540,7 +569,15 @@ class DRRWriter:
             with open(filepath, "w") as f:
                 for dct in self.rrmodel.openwater.ow_nodes.values():
                     if float(dct["ar"]) > 0.0:
-                        f.write("OWRR id '" + dct["id"] + "' ar " + dct["ar"] + " ms '" + dct["ms"] + "' owrr\n")
+                        f.write(
+                            "OWRR id '"
+                            + dct["id"]
+                            + "' ar "
+                            + dct["ar"]
+                            + " ms '"
+                            + dct["ms"]
+                            + "' owrr\n"
+                        )
 
     def write_meteo(self) -> None:
         """Write the meteo files ``DEFAULT.BUI`` and ``DEFAULT.EVP``.
@@ -555,7 +592,10 @@ class DRRWriter:
         else:
             # the precipitation per meteo area, written below the header
             self.precip_df = pd.DataFrame(
-                {name: pd.Series(series["precip"]) for name, series in self.rrmodel.external_forcings.precip.items()}
+                {
+                    name: pd.Series(series["precip"])
+                    for name, series in self.rrmodel.external_forcings.precip.items()
+                }
             )
 
             with open(filepath, "w") as f:
@@ -567,14 +607,22 @@ class DRRWriter:
                 f.write("*Namen van stations\n")
                 for ms in self.rrmodel.external_forcings.precip.items():
                     f.write("'" + ms[0] + "'" + "\n")
-                f.write("*Aantal gebeurtenissen (omdat het 1 bui betreft is dit altijd 1)\n")
+                f.write(
+                    "*Aantal gebeurtenissen (omdat het 1 bui betreft is dit altijd 1)\n"
+                )
                 f.write("*en het aantal seconden per waarnemingstijdstap\n")
-                f.write(f"1 {(ms[1]['precip'].index[1] - ms[1]['precip'].index[0]).total_seconds():.0f}\n")
+                f.write(
+                    f"1 {(ms[1]['precip'].index[1] - ms[1]['precip'].index[0]).total_seconds():.0f}\n"
+                )
                 f.write("*Elke commentaarregel wordt begonnen met een * (asterisk).\n")
-                f.write("*Eerste record bevat startdatum en -tijd, lengte van de gebeurtenis in dd hh mm ss\n")
+                f.write(
+                    "*Eerste record bevat startdatum en -tijd, lengte van de gebeurtenis in dd hh mm ss\n"
+                )
                 f.write("*Het format is: yyyymmdd:hhmmss:ddhhmmss")
                 f.write("*Daarna voor elk station de neerslag in mm per tijdstap.\n")
-                duration = (ms[1]["precip"].index[-1] - ms[1]["precip"].index[0]).total_seconds()
+                duration = (
+                    ms[1]["precip"].index[-1] - ms[1]["precip"].index[0]
+                ).total_seconds()
                 f.write(
                     ms[1]["precip"].index[0].strftime("%Y %#m %#d %#H %#M %#S ")
                     + str(int(duration / 86400.0))
@@ -602,7 +650,9 @@ class DRRWriter:
                 f.write("*Verdampingsfile\n")
                 f.write("*Meteo data: evaporation intensity in mm/day\n")
                 f.write("*First record: start date, data in mm/day\n")
-                f.write("*Datum (year month day), verdamping (mm/dag) voor elk weerstation\n")
+                f.write(
+                    "*Datum (year month day), verdamping (mm/dag) voor elk weerstation\n"
+                )
                 f.write("*jaar maand dag verdamping[mm]\n")
             table = next(iter(self.rrmodel.external_forcings.evap.values()))["evap"]
             table = table.sort_index()
@@ -614,7 +664,9 @@ class DRRWriter:
                     date = ts.strftime(date_format)
                     f.write(f"{date}{sep}{float_format % val}\n")
 
-    def _write_dict(self, f: TextIO, dct: dict[str, str], header: str, endline: str) -> None:
+    def _write_dict(
+        self, f: TextIO, dct: dict[str, str], header: str, endline: str
+    ) -> None:
         """Write a dictionary as an INI section, without transforming the values."""
         # Write header
         f.write(f"[{header}]\n")

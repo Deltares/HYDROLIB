@@ -130,7 +130,9 @@ def mesh2d_from_netcdf(network: Network, path: Path | str) -> None:
     reader.read_mesh2d(network._mesh2d)
 
 
-def mesh2d_add_triangular(network: Network, polygon: Polygon | MultiPolygon, edge_length: float | None = None) -> None:
+def mesh2d_add_triangular(
+    network: Network, polygon: Polygon | MultiPolygon, edge_length: float | None = None
+) -> None:
     """Add a triangular mesh to the network.
 
     meshkernel generates an orthogonal mesh, which likely means that the given geometry
@@ -158,7 +160,9 @@ def mesh2d_add_triangular(network: Network, polygon: Polygon | MultiPolygon, edg
 
         # Add triangular mesh within polygon
         # No scale_factor: meshkernel>=8.4 ignores it (Deltares/MeshKernelPy#291)
-        meshkernel.mesh2d_make_triangular_mesh_from_polygon(_geomlist_from_polygon(poly))
+        meshkernel.mesh2d_make_triangular_mesh_from_polygon(
+            _geomlist_from_polygon(poly)
+        )
 
 
 def mesh2d_clip(
@@ -198,7 +202,9 @@ def mesh2d_clip(
     if inside:
         # Clip each single polygon
         for part in common.as_polygon_list(geo):
-            network.mesh2d_clip_mesh(_geomlist_from_polygon(part), deletemeshoption, inside)
+            network.mesh2d_clip_mesh(
+                _geomlist_from_polygon(part), deletemeshoption, inside
+            )
     else:
         # Keep exterior
         clip_pol_ext = _geomlist_from_multipolygon(geo, "exterior")
@@ -227,11 +233,17 @@ def _geomlist_from_polygon(polygon: Polygon | MultiPolygon) -> mk.GeometryList:
     gl = GeometryList()
     gl = gl.from_geometry(polygon)
     return mk.GeometryList(
-        gl.x_coordinates, gl.y_coordinates, gl.values, gl.geometry_separator, gl.inner_outer_separator
+        gl.x_coordinates,
+        gl.y_coordinates,
+        gl.values,
+        gl.geometry_separator,
+        gl.inner_outer_separator,
     )
 
 
-def _geomlist_from_multipolygon(polygons: Polygon | MultiPolygon, mode: str) -> mk.GeometryList:
+def _geomlist_from_multipolygon(
+    polygons: Polygon | MultiPolygon, mode: str
+) -> mk.GeometryList:
     """Convert the exterior or interior rings of polygons to a meshkernel GeometryList.
 
     Parameters
@@ -266,7 +278,9 @@ def _geomlist_from_multipolygon(polygons: Polygon | MultiPolygon, mode: str) -> 
                 x_geom.append(x_int)
                 y_geom.append(y_int)
         else:
-            raise ValueError(f"Expected mode to be either 'interior' or 'exterior' (got: '{mode}')")
+            raise ValueError(
+                f"Expected mode to be either 'interior' or 'exterior' (got: '{mode}')"
+            )
 
         for xc, yc in zip(x_geom, y_geom):
             if len(x_crds) > 0:
@@ -275,7 +289,9 @@ def _geomlist_from_multipolygon(polygons: Polygon | MultiPolygon, mode: str) -> 
             x_crds.extend(xc)
             y_crds.extend(yc)
 
-    gl = mk.GeometryList(x_coordinates=x_crds, y_coordinates=y_crds, inner_outer_separator=-998)
+    gl = mk.GeometryList(
+        x_coordinates=x_crds, y_coordinates=y_crds, inner_outer_separator=-998
+    )
 
     return gl
 
@@ -317,7 +333,9 @@ def mesh2d_refine(
             setattr(parameters, key, refine_parameters[key])
 
     for poly in common.as_polygon_list(polygon):
-        network.mesh2d_refine_mesh(_geomlist_from_polygon(poly), level=steps, parameters=parameters)
+        network.mesh2d_refine_mesh(
+            _geomlist_from_polygon(poly), level=steps, parameters=parameters
+        )
 
 
 def mesh1d_add_branch_from_linestring(
@@ -424,13 +442,18 @@ def mesh1d_add_branches_from_gdf(
             if any(c > 1):
                 logger.warning(
                     "Structures %s have the same location.",
-                    ", ".join(str(v) for v in group.loc[group.chainage.isin(u[c > 1]), "id"].tolist()),
+                    ", ".join(
+                        str(v)
+                        for v in group.loc[group.chainage.isin(u[c > 1]), "id"].tolist()
+                    ),
                 )
             # Add to dictionary
             structure_chainage[branchid] = u.tolist()
 
     # Loop over all branches, and add structures
-    for branchname, geometry in zip(branches[branch_name_col].tolist(), branches["geometry"].tolist()):
+    for branchname, geometry in zip(
+        branches[branch_name_col].tolist(), branches["geometry"].tolist()
+    ):
         # Create branch
         branch = Branch(geometry=np.array(geometry.coords[:]))
         # Generate nodes on branch
@@ -481,7 +504,8 @@ def mesh1d_order_numbers_from_attribute(
     branches["order"] = np.nan
     for value in branches[order_attribute].unique():
         if value is not None and not all(
-            x in missing for x in branches.loc[branches.loc[:, order_attribute] == value, "code"]
+            x in missing
+            for x in branches.loc[branches.loc[:, order_attribute] == value, "code"]
         ):
             branches.loc[branches.loc[:, order_attribute] == value, "order"] = int(j)
             j = j + 1
@@ -496,12 +520,16 @@ def mesh1d_order_numbers_from_attribute(
                 branches.code[branches.order == ordernr].to_list(),
                 idx=int(ordernr),
             )
-            interpolation = interpolation + branches.code[branches.order == ordernr].to_list()
+            interpolation = (
+                interpolation + branches.code[branches.order == ordernr].to_list()
+            )
     missing_after_interpolation = np.setdiff1d(missing, interpolation)
     return missing_after_interpolation.tolist()
 
 
-def mesh1d_set_branch_order(network: Network, branchids: list[str], idx: int | None = None) -> None:
+def mesh1d_set_branch_order(
+    network: Network, branchids: list[str], idx: int | None = None
+) -> None:
     """Give branches the same order number, so cross sections are interpolated along them.
 
     Parameters
@@ -633,7 +661,9 @@ def _new_link_mask(current: np.ndarray, present_links: np.ndarray) -> np.ndarray
         int(max(current[:, 1].max(), present_links[:, 1].max())) + 1,
     )
     current_keys = np.ravel_multi_index((current[:, 0], current[:, 1]), dims)
-    present_keys = np.ravel_multi_index((present_links[:, 0], present_links[:, 1]), dims)
+    present_keys = np.ravel_multi_index(
+        (present_links[:, 0], present_links[:, 1]), dims
+    )
     return ~np.isin(current_keys, present_keys)
 
 
@@ -726,7 +756,9 @@ def links1d2d_add_links_2d_to_1d_embedded(
     maxdiff = np.hypot(diff[:, 0], diff[:, 1]).max()
 
     # Create multilinestring from branches
-    nodes1d = np.stack([network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1)
+    nodes1d = np.stack(
+        [network._mesh1d.mesh1d_node_x, network._mesh1d.mesh1d_node_y], axis=1
+    )
 
     # Buffer the branches with the max cell distances
     mls = MultiLineString(nodes1d[network._mesh1d.mesh1d_edge_nodes].tolist())
@@ -736,7 +768,9 @@ def links1d2d_add_links_2d_to_1d_embedded(
     if within is not None:
         clipped = area.intersection(within)
         if not isinstance(clipped, (Polygon, MultiPolygon)):
-            raise TypeError(f"Expected the clipped area to be a Polygon or MultiPolygon, not a {clipped.geom_type}.")
+            raise TypeError(
+                f"Expected the clipped area to be a Polygon or MultiPolygon, not a {clipped.geom_type}."
+            )
         area = clipped
 
     # Create an array with 2d facecenters and check which intersect the (clipped) area
@@ -772,7 +806,9 @@ def links1d2d_add_links_2d_to_1d_embedded(
     idx[where] = shapely.intersects(face_polygons, mls)
 
     # Use the remaining points to create the links
-    multipoint = mk.GeometryList(x_coordinates=faces2d[idx, 0], y_coordinates=faces2d[idx, 1])
+    multipoint = mk.GeometryList(
+        x_coordinates=faces2d[idx, 0], y_coordinates=faces2d[idx, 1]
+    )
 
     # Get the nodes for the specific branch ids
     node_mask = network._mesh1d.get_node_mask(branchids)
@@ -829,7 +865,9 @@ def links1d2d_add_links_2d_to_1d_lateral(
     geometrylist = network.meshkernel.mesh2d_get_mesh_boundaries_as_polygons()
     mpboundaries = GeometryList(**geometrylist.__dict__).to_geometry()
     if not isinstance(mpboundaries, (Polygon, MultiPolygon)):
-        raise TypeError(f"Expected the mesh boundaries to be polygons, not a {mpboundaries.geom_type}.")
+        raise TypeError(
+            f"Expected the mesh boundaries to be polygons, not a {mpboundaries.geom_type}."
+        )
     if within is not None:
         # If a 'within' polygon was provided, get the intersection with the meshboundaries
         # and convert it to a geometrylist
@@ -843,7 +881,9 @@ def links1d2d_add_links_2d_to_1d_lateral(
                     f"Expected the clipped mesh boundary to be a Polygon or MultiPolygon, not a {part.geom_type}."
                 )
             clipped.append(part)
-        geometrylist = GeometryList.from_geometry(MultiPolygon(common.as_polygon_list(clipped)))
+        geometrylist = GeometryList.from_geometry(
+            MultiPolygon(common.as_polygon_list(clipped))
+        )
 
     # Get the nodes for the specific branch ids
     node_mask = network._mesh1d.get_node_mask(branchids)
@@ -853,14 +893,18 @@ def links1d2d_add_links_2d_to_1d_lateral(
     present_links = network._link1d2d.link1d2d
 
     # Generate links
-    network._link1d2d._link_from_2d_to_1d_lateral(node_mask, polygon=geometrylist, search_radius=max_length)
+    network._link1d2d._link_from_2d_to_1d_lateral(
+        node_mask, polygon=geometrylist, search_radius=max_length
+    )
 
     # If the provided distance factor was None, no further selection is needed, all links are kept.
     if dist_factor is None:
         return
 
     # Create multilinestring
-    multilinestring = MultiLineString([poly.exterior for poly in common.as_polygon_list(mpboundaries)])
+    multilinestring = MultiLineString(
+        [poly.exterior for poly in common.as_polygon_list(mpboundaries)]
+    )
 
     # Find the links that intersect the boundary close to the origin
     id1d = network._link1d2d.link1d2d[:, 0]
@@ -986,7 +1030,9 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
         Network from which the links are removed.
     """
     # Can only be done after links have been generated
-    if not list(network._mesh1d.network1d_node_id) or not list(network._mesh2d.mesh2d_face_nodes):
+    if not list(network._mesh1d.network1d_node_id) or not list(
+        network._mesh2d.mesh2d_face_nodes
+    ):
         logger.warning("1d nodes or 2d faces are not present.")
         return
 
@@ -1096,10 +1142,14 @@ def mesh2d_altitude_from_raster(
     # by its node count so every coordinate is assigned to the correct face.
     face_ids = np.arange(len(face_node_counts))
     face_idx = np.repeat(face_ids, face_node_counts)
-    facedata = gpd.GeoDataFrame(geometry=shapely.polygons(shapely.linearrings(face_coords, indices=face_idx)))
+    facedata = gpd.GeoDataFrame(
+        geometry=shapely.polygons(shapely.linearrings(face_coords, indices=face_idx))
+    )
 
     if where == RasterStatPosition.NODE:
-        logger.info("Generating voronoi polygons around cell centers for determining raster statistics.")
+        logger.info(
+            "Generating voronoi polygons around cell centers for determining raster statistics."
+        )
         facedata = spatial.get_voronoi_around_nodes(xy, facedata)
 
     df = zonal.zonal_stats(
@@ -1117,7 +1167,9 @@ def mesh2d_altitude_from_raster(
     if isnan.any():
         # If interpolation or fill_option, but all are NaN, raise error.
         if isnan.all() and fill_option in [FillOption.NEAREST, FillOption.INTERPOLATE]:
-            raise ValueError("Only NaN values found, interpolation or nearest not possible.")
+            raise ValueError(
+                "Only NaN values found, interpolation or nearest not possible."
+            )
 
         # Fill fill_option values
         if fill_option == FillOption.FILL_VALUE:
@@ -1135,10 +1187,14 @@ def mesh2d_altitude_from_raster(
 
         elif fill_option == FillOption.INTERPOLATE:
             if fill_value is None:
-                raise ValueError("Provide a fill_value (keyword argument) to fill values that cannot be interpolated.")
+                raise ValueError(
+                    "Provide a fill_value (keyword argument) to fill values that cannot be interpolated."
+                )
             # By interpolating
             isnan = np.isnan(zvalues)
-            interp = LinearNDInterpolator(xy[~isnan], zvalues[~isnan], fill_value=fill_value)
+            interp = LinearNDInterpolator(
+                xy[~isnan], zvalues[~isnan], fill_value=fill_value
+            )
             zvalues[isnan] = interp(xy[isnan])
 
     # Set values to mesh geometry

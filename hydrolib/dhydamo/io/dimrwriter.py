@@ -19,8 +19,12 @@ logger = logging.getLogger(__name__)
 class DIMRWriter:
     """Temporary files for DIMR-configuration - to be superseded by Hydrolib-core functionality."""
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def __init__(self, dimr_path: str | None = None, output_path: str | Path | None = None) -> None:
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
+    def __init__(
+        self, dimr_path: str | None = None, output_path: str | Path | None = None
+    ) -> None:
         """Create a DIMR writer.
 
         This is a temporary fix to include writers for RR and RTC, which are not yet
@@ -48,8 +52,12 @@ class DIMRWriter:
 
         self.template_dir = Path(os.path.abspath("."))
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
-    def write_runbat(self, debuglevel: int = 6, runlog: str | Path | None = None) -> None:
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
+    def write_runbat(
+        self, debuglevel: int = 6, runlog: str | Path | None = None
+    ) -> None:
         """Write a run.bat that runs the model with DIMR.
 
         The script calls the ``run_dimr.bat`` given when creating the writer.
@@ -66,11 +74,23 @@ class DIMRWriter:
             f.write("@ echo off\n")
             f.write("set OMP_NUM_THREADS=2\n")
             if runlog is None:
-                f.write('call "' + str(self.run_dimr) + '" -d ' + str(debuglevel) + "\n")
+                f.write(
+                    'call "' + str(self.run_dimr) + '" -d ' + str(debuglevel) + "\n"
+                )
             else:
-                f.write('call "' + str(self.run_dimr) + '" -d ' + str(debuglevel) + " > " + str(runlog) + "\n")
+                f.write(
+                    'call "'
+                    + str(self.run_dimr)
+                    + '" -d '
+                    + str(debuglevel)
+                    + " > "
+                    + str(runlog)
+                    + "\n"
+                )
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def add_crs(self, netcdf_path: str | Path | None = None) -> None:
         """Add the coordinate reference system EPSG:28992 (RD New) to the network file, in place.
 
@@ -146,7 +166,9 @@ class DIMRWriter:
         return True
 
     @staticmethod
-    def _get_complex_coupler_blocks(rtc_model: DRTCModel, name_prefix: str) -> list[ET.Element]:
+    def _get_complex_coupler_blocks(
+        rtc_model: DRTCModel, name_prefix: str
+    ) -> list[ET.Element]:
         """Return the <coupler> blocks from the complex controllers' dimr_config whose name starts with name_prefix."""
         if rtc_model.complex_controllers is None:
             return []
@@ -154,14 +176,21 @@ class DIMRWriter:
         complex_config = rtc_model.complex_controllers["dimr_config"][0]
         blocks = []
         for block in complex_config:
-            block_tag = block.tag.split("}", 1)[-1] if block.tag.startswith("{") else block.tag
-            if block_tag == "coupler" and block.attrib["name"].lower().startswith(name_prefix):
+            block_tag = (
+                block.tag.split("}", 1)[-1] if block.tag.startswith("{") else block.tag
+            )
+            if block_tag == "coupler" and block.attrib["name"].lower().startswith(
+                name_prefix
+            ):
                 blocks.append(block)
         return blocks
 
     # @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def write_dimrconfig(
-        self, fm: FMModel, rr_model: DRRModel | None = None, rtc_model: DRTCModel | None = None
+        self,
+        fm: FMModel,
+        rr_model: DRRModel | None = None,
+        rtc_model: DRTCModel | None = None,
     ) -> None:
         """Write ``dimr_config.xml`` for the FM model, coupled with RR and RTC if given.
 
@@ -187,7 +216,9 @@ class DIMRWriter:
 
         myroot = configfile.getroot()
         if fm.filepath is None:
-            raise ValueError("The FM model has no filepath: save it before writing the DIMR config.")
+            raise ValueError(
+                "The FM model has no filepath: save it before writing the DIMR config."
+            )
         myroot[1][1].text = fm.filepath.parts[-2]
         myroot[1][2].text = fm.filepath.name
 
@@ -205,7 +236,9 @@ class DIMRWriter:
         if rtc_model is not None:
             # a flow_to_rtc coupler is only needed for PID/interval controllers,
             # or complex controllers whose dimr_config defines one themselves
-            complex_flow_to_rtc_blocks = self._get_complex_coupler_blocks(rtc_model, "flow_to_rtc")
+            complex_flow_to_rtc_blocks = self._get_complex_coupler_blocks(
+                rtc_model, "flow_to_rtc"
+            )
             needs_flow_to_rtc_coupler = (
                 bool(rtc_model.pid_controllers)
                 or bool(rtc_model.interval_controllers)
@@ -237,7 +270,9 @@ class DIMRWriter:
             startgrouprr.tail = "\n"
 
             timerr = ET.SubElement(startgrouprr, gn_brackets + "time")
-            timerr.text = f"{0} {rr_model.d3b_parameters['Timestepsize']} {fm.time.tstop}"
+            timerr.text = (
+                f"{0} {rr_model.d3b_parameters['Timestepsize']} {fm.time.tstop}"
+            )
             timerr.tail = "\n"
             couplerrrf = ET.SubElement(startgrouprr, gn_brackets + "coupler")
             couplerrrf.attrib = {"name": "flow_to_rr"}
@@ -365,17 +400,31 @@ class DIMRWriter:
             if rtc_model.complex_controllers is not None:
                 complex_config = rtc_model.complex_controllers["dimr_config"][0]
                 for block in complex_config:
-                    block_tag = block.tag.split("}", 1)[-1] if block.tag.startswith("{") else block.tag
-                    if block_tag == "coupler" and block.attrib["name"].lower().startswith("rtc_to_flow"):
+                    block_tag = (
+                        block.tag.split("}", 1)[-1]
+                        if block.tag.startswith("{")
+                        else block.tag
+                    )
+                    if block_tag == "coupler" and block.attrib[
+                        "name"
+                    ].lower().startswith("rtc_to_flow"):
                         for iblock in block:
-                            iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
+                            iblock_tag = (
+                                iblock.tag.split("}", 1)[-1]
+                                if iblock.tag.startswith("{")
+                                else iblock.tag
+                            )
                             if iblock_tag == "item":
                                 found_source = iblock.find(".//{*}sourceName")
                                 found_target = iblock.find(".//{*}targetName")
                                 if self._add_unique_coupler_item(
                                     couplerrtcfm,
-                                    found_source.text if found_source is not None else None,
-                                    found_target.text if found_target is not None else None,
+                                    found_source.text
+                                    if found_source is not None
+                                    else None,
+                                    found_target.text
+                                    if found_target is not None
+                                    else None,
                                     rtc_to_flow_seen_pairs,
                                     gn_brackets,
                                 ):
@@ -412,21 +461,33 @@ class DIMRWriter:
                 couplerfmrtc.attrib = {"name": "flow_to_rtc"}
                 couplerfmrtc.tail = "\n"
 
-                sourcefmrtc = ET.SubElement(couplerfmrtc, gn_brackets + "sourceComponent")
+                sourcefmrtc = ET.SubElement(
+                    couplerfmrtc, gn_brackets + "sourceComponent"
+                )
                 sourcefmrtc.text = "DFM"
                 sourcefmrtc.tail = "\n"
 
-                targetfmrtc = ET.SubElement(couplerfmrtc, gn_brackets + "targetComponent")
+                targetfmrtc = ET.SubElement(
+                    couplerfmrtc, gn_brackets + "targetComponent"
+                )
                 targetfmrtc.text = "Real_Time_Control"
                 targetfmrtc.tail = "\n"
 
                 for i in rtc_model.pid_controllers:
-                    if rtc_model.pid_controllers[i]["target_variable"] == "Discharge (op)":
+                    if (
+                        rtc_model.pid_controllers[i]["target_variable"]
+                        == "Discharge (op)"
+                    ):
                         source_name = f"observations/{rtc_model.pid_controllers[i]['observation_point']}/discharge"
-                    elif rtc_model.pid_controllers[i]["target_variable"] == "Water level (op)":
+                    elif (
+                        rtc_model.pid_controllers[i]["target_variable"]
+                        == "Water level (op)"
+                    ):
                         source_name = f"observations/{rtc_model.pid_controllers[i]['observation_point']}/water_level"
                     else:
-                        raise ValueError("Invalid target variable in controller: should bo discharge or water level.")
+                        raise ValueError(
+                            "Invalid target variable in controller: should bo discharge or water level."
+                        )
                     target_name = f"[Input]{rtc_model.pid_controllers[i]['observation_point']}/{rtc_model.pid_controllers[i]['target_variable']}"
                     if self._add_unique_coupler_item(
                         couplerfmrtc,
@@ -439,14 +500,20 @@ class DIMRWriter:
 
                 # Loop through all interval controllers
                 for i in rtc_model.interval_controllers:
-                    if rtc_model.interval_controllers[i]["target_variable"] == "Discharge (op)":
+                    if (
+                        rtc_model.interval_controllers[i]["target_variable"]
+                        == "Discharge (op)"
+                    ):
                         source_name = f"observations/{rtc_model.interval_controllers[i]['observation_point']}/discharge"
-                    elif rtc_model.interval_controllers[i]["target_variable"] == "Water level (op)":
-                        source_name = (
-                            f"observations/{rtc_model.interval_controllers[i]['observation_point']}/water_level"
-                        )
+                    elif (
+                        rtc_model.interval_controllers[i]["target_variable"]
+                        == "Water level (op)"
+                    ):
+                        source_name = f"observations/{rtc_model.interval_controllers[i]['observation_point']}/water_level"
                     else:
-                        raise ValueError("Invalid target variable in controller: should be discharge or water level.")
+                        raise ValueError(
+                            "Invalid target variable in controller: should be discharge or water level."
+                        )
                     target_name = f"[Input]{rtc_model.interval_controllers[i]['observation_point']}/{rtc_model.interval_controllers[i]['target_variable']}"
                     if self._add_unique_coupler_item(
                         couplerfmrtc,
@@ -465,17 +532,25 @@ class DIMRWriter:
                     couplerfmrtc.attrib = {"name": "flow_to_rtc"}
                     couplerfmrtc.tail = "\n"
 
-                    sourcefmrtc = ET.SubElement(couplerfmrtc, gn_brackets + "sourceComponent")
+                    sourcefmrtc = ET.SubElement(
+                        couplerfmrtc, gn_brackets + "sourceComponent"
+                    )
                     sourcefmrtc.text = "DFM"
                     sourcefmrtc.tail = "\n"
 
-                    targetfmrtc = ET.SubElement(couplerfmrtc, gn_brackets + "targetComponent")
+                    targetfmrtc = ET.SubElement(
+                        couplerfmrtc, gn_brackets + "targetComponent"
+                    )
                     targetfmrtc.text = "Real_Time_Control"
                     targetfmrtc.tail = "\n"
 
                     coupler_exists = True
                 for iblock in block:
-                    iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
+                    iblock_tag = (
+                        iblock.tag.split("}", 1)[-1]
+                        if iblock.tag.startswith("{")
+                        else iblock.tag
+                    )
                     if iblock_tag == "item":
                         found_source = iblock.find(".//{*}sourceName")
                         found_target = iblock.find(".//{*}targetName")

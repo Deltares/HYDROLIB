@@ -69,9 +69,16 @@ def test_plot_1d_add_branch_from_linestring() -> None:
     ],
 )
 def test_plot_links1d2d_add_links_1d_to_2d(
-    b_within: bool, b_branchids: bool, b_refine: bool, max_length: float, b_plot: bool, outcome: int
+    b_within: bool,
+    b_branchids: bool,
+    b_refine: bool,
+    max_length: float,
+    b_plot: bool,
+    outcome: int,
 ) -> None:
-    test_mesh.test_links1d2d_add_links_1d_to_2d(b_within, b_branchids, b_refine, max_length, b_plot, outcome)
+    test_mesh.test_links1d2d_add_links_1d_to_2d(
+        b_within, b_branchids, b_refine, max_length, b_plot, outcome
+    )
 
 
 @pytest.mark.plot
@@ -86,9 +93,16 @@ def test_plot_links1d2d_add_links_1d_to_2d(
     ],
 )
 def test_plot_links1d2d_add_links_2d_to_1d_lateral(
-    b_within: bool, b_branchids: bool, b_refine: bool, max_length: float, b_plot: bool, outcome: int
+    b_within: bool,
+    b_branchids: bool,
+    b_refine: bool,
+    max_length: float,
+    b_plot: bool,
+    outcome: int,
 ) -> None:
-    test_mesh.test_links1d2d_add_links_2d_to_1d_lateral(b_within, b_branchids, b_refine, max_length, b_plot, outcome)
+    test_mesh.test_links1d2d_add_links_2d_to_1d_lateral(
+        b_within, b_branchids, b_refine, max_length, b_plot, outcome
+    )
 
 
 @pytest.mark.plot
@@ -104,7 +118,9 @@ def test_plot_links1d2d_add_links_2d_to_1d_lateral(
 def test_plot_links1d2d_add_links_2d_to_1d_embedded(
     b_within: bool, b_branchids: bool, b_refine: bool, b_plot: bool, outcome: int
 ) -> None:
-    test_mesh.test_links1d2d_add_links_2d_to_1d_embedded(b_within, b_branchids, b_refine, b_plot, outcome)
+    test_mesh.test_links1d2d_add_links_2d_to_1d_embedded(
+        b_within, b_branchids, b_refine, b_plot, outcome
+    )
 
 
 @pytest.mark.plot
@@ -123,8 +139,12 @@ def test_plot_links1d2d_remove_1d_endpoints() -> None:
 
 
 @pytest.mark.plot
-def test_plot_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint() -> None:
-    test_mesh.test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(do_plot=True)
+def test_plot_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint() -> (
+    None
+):
+    test_mesh.test_links1d2d_remove_1d_endpoints_removes_all_matches_for_same_endpoint(
+        do_plot=True
+    )
 
 
 @pytest.mark.plot

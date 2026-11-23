@@ -277,7 +277,9 @@ def zonal_category_counts(
         }
         if isinstance(classes, np.ndarray)  # None for zones outside the raster
         else {}
-        for classes, frac, count in zip(result["unique"], result["frac"], result["count"])
+        for classes, frac, count in zip(
+            result["unique"], result["frac"], result["count"]
+        )
     ]
     counts = pd.DataFrame(rows, index=zones.index, dtype=np.float64)
     counts = counts.sort_index(axis=1).fillna(0.0)
@@ -331,7 +333,9 @@ def zonal_stats_per_raster(
             chunk = rasters[start : start + _RASTERS_PER_CALL]
             chunk_progress: Progress = False
             if progress:
-                chunk_progress = _rescale_progress(progress, start, len(chunk), len(rasters))
+                chunk_progress = _rescale_progress(
+                    progress, start, len(chunk), len(rasters)
+                )
             result = _extract(
                 zones,
                 chunk,
@@ -361,7 +365,9 @@ class ZonalCache:
     """
 
     # Arguments that do not affect the result.
-    _NOT_IN_KEY = frozenset({"zones", "raster", "strategy", "max_cells_in_memory", "progress"})
+    _NOT_IN_KEY = frozenset(
+        {"zones", "raster", "strategy", "max_cells_in_memory", "progress"}
+    )
 
     def __init__(self) -> None:
         self._results: dict[tuple[object, ...], pd.DataFrame] = {}
@@ -375,19 +381,31 @@ class ZonalCache:
         self._results.clear()
 
     def zonal_stats(
-        self, zones: Zones, raster: Raster, statistics: str | Sequence[str], **kwargs: Unpack[ZonalOptions]
+        self,
+        zones: Zones,
+        raster: Raster,
+        statistics: str | Sequence[str],
+        **kwargs: Unpack[ZonalOptions],
     ) -> pd.DataFrame:
         """:func:`zonal_stats`, reusing an identical earlier result."""
         if isinstance(statistics, str):
             statistics = [statistics]
-        return self._get(zonal_stats, zones, raster, statistics=tuple(statistics), **kwargs)
+        return self._get(
+            zonal_stats, zones, raster, statistics=tuple(statistics), **kwargs
+        )
 
-    def zonal_category_counts(self, zones: Zones, raster: Raster, **kwargs: Unpack[ZonalOptions]) -> pd.DataFrame:
+    def zonal_category_counts(
+        self, zones: Zones, raster: Raster, **kwargs: Unpack[ZonalOptions]
+    ) -> pd.DataFrame:
         """:func:`zonal_category_counts`, reusing an identical earlier result."""
         return self._get(zonal_category_counts, zones, raster, **kwargs)
 
     def _get(
-        self, function: Callable[..., pd.DataFrame], zones: Zones, raster: Raster, **kwargs: object
+        self,
+        function: Callable[..., pd.DataFrame],
+        zones: Zones,
+        raster: Raster,
+        **kwargs: object,
     ) -> pd.DataFrame:
         if not isinstance(raster, (str, os.PathLike)):
             return function(zones, raster, **kwargs)
@@ -455,14 +473,20 @@ def _extract(
     if zones.empty:
         raise ValueError("zones must contain at least one geometry.")
     if not 0 <= min_coverage_frac <= 1:
-        raise ValueError(f"min_coverage_frac must be from 0 to 1, not {min_coverage_frac}.")
+        raise ValueError(
+            f"min_coverage_frac must be from 0 to 1, not {min_coverage_frac}."
+        )
     if coverage_weight not in ("fraction", "none"):
-        raise ValueError(f"coverage_weight must be 'fraction' or 'none', not {coverage_weight!r}.")
+        raise ValueError(
+            f"coverage_weight must be 'fraction' or 'none', not {coverage_weight!r}."
+        )
     coverage = f"{min_coverage_frac=!s},{coverage_weight=!s}"
     ops = []
     for stat in statistics:
         if "min_coverage_frac" in stat or "coverage_weight" in stat:
-            raise ValueError(f"Pass min_coverage_frac and coverage_weight as keywords, not in {stat!r}.")
+            raise ValueError(
+                f"Pass min_coverage_frac and coverage_weight as keywords, not in {stat!r}."
+            )
         if stat.endswith(")"):  # has arguments, such as quantile(q=0.9)
             ops.append(f"{stat[:-1]},{coverage})")
         else:
@@ -492,7 +516,9 @@ def _extract(
 
 def _progress_bar(stack: ExitStack) -> Callable[[float, str], None]:
     """Return an exactextract progress callback that shows a percentage bar."""
-    bar = stack.enter_context(tqdm(total=100, bar_format="{percentage:3.0f}%|{bar}| [{elapsed}<{remaining}]"))
+    bar = stack.enter_context(
+        tqdm(total=100, bar_format="{percentage:3.0f}%|{bar}| [{elapsed}<{remaining}]")
+    )
 
     def update(fraction: float, message: str) -> None:
         bar.update(100 * fraction - bar.n)
@@ -546,4 +572,6 @@ def _check_crs(zones_crs: CRS | None, raster_crs: CRS | str | None) -> None:
     if zones_crs is None or raster_crs is None:
         return
     if not zones_crs.equals(raster_crs, ignore_axis_order=True):
-        raise ValueError(f"Zones CRS {zones_crs.name!r} differs from the raster CRS; reproject the zones first.")
+        raise ValueError(
+            f"Zones CRS {zones_crs.name!r} differs from the raster CRS; reproject the zones first."
+        )

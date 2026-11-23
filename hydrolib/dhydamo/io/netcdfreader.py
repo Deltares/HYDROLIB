@@ -10,7 +10,9 @@ from netCDF4 import Dataset, num2date
 logger = logging.getLogger(__name__)
 
 
-def time_index(dataset: Dataset, time: datetime | pd.Timestamp | str, tolerance: float = 1.0) -> int:
+def time_index(
+    dataset: Dataset, time: datetime | pd.Timestamp | str, tolerance: float = 1.0
+) -> int:
     """Return the index of the time step closest to a given time.
 
     Works for D-Flow FM output files: map, his or fou.
@@ -41,18 +43,27 @@ def time_index(dataset: Dataset, time: datetime | pd.Timestamp | str, tolerance:
     variable = dataset["time"]
     # the netCDF4 stubs return datetime | ndarray; for the array of all times this is always an ndarray
     times = pd.DatetimeIndex(
-        num2date(variable[:], variable.units, only_use_cftime_datetimes=False, only_use_python_datetimes=True)  # type: ignore[arg-type]
+        num2date(
+            variable[:],
+            variable.units,
+            only_use_cftime_datetimes=False,
+            only_use_python_datetimes=True,
+        )  # type: ignore[arg-type]
     )
     requested = pd.Timestamp(time)
     if requested.tzinfo is not None:
         requested = requested.tz_convert("UTC").tz_localize(None)
 
     if requested < times[0] or requested > times[-1]:
-        raise ValueError(f"Time {requested} is outside the period of {dataset.filepath()}: {times[0]} - {times[-1]}.")
+        raise ValueError(
+            f"Time {requested} is outside the period of {dataset.filepath()}: {times[0]} - {times[-1]}."
+        )
     index = int(np.argmin(np.abs((times - requested).total_seconds())))
     difference = abs((times[index] - requested).total_seconds())
     if difference > tolerance:
-        logger.warning(f"No output at {requested}; the nearest time step {times[index]} is used.")
+        logger.warning(
+            f"No output at {requested}; the nearest time step {times[index]} is used."
+        )
     else:
         logger.info(f"Time step {index} ({times[index]}) is used.")
     return index
