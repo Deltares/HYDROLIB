@@ -109,6 +109,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/8b/9d/b3589d3877982d4f2329302ef98a8026e7f4443c765c46cfecc8858c6b4b/pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/91/23/e0c6e3cd09a0ac809953fea698c816b9f03bf0b35b6820c9553e4f5d85a8/pydantic_core-2.50.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/98/02/ea89c6d43860d0f17652128d95afed901e02b294bab2e3007a4f35a2ec33/hydamo_validation-1.7.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/99/5d/8268b644392ee874ee82a635cd0df1773de230bde356c38de28e298392cc/parso-0.8.7-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/99/60/14115e6364fa676c5397c2ad3004e527e9aa487abf5d0706ec81bbd08529/numpy-2.4.6-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/99/91/8acff4f5e50511b911bbccb72b8628a49c68ce14148cd9f6431094859a90/annotated_types-0.8.0-py3-none-any.whl
@@ -117,7 +118,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a1/f5/84eb544579f55452df65a47bcc86147deaddf0e568725987bc69a1bc4cf6/cftime-1.6.6.1-cp311-abi3-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/a5/f8/8b5c10c7f36ab5a3b5c4703669e5b14e44e98782b58e535dd30670e8799a/ipykernel-7.4.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/a6/8e/24e579e49c628c263b93a48a2100f76b90fbc48647da97065027d33895f2/hydamo_validation-1.6.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a8/71/9219fe65ef32bddc0b5d14e1d98dfefe9d2c9c1b1d1e93efca1f29fcbd4d/xyzservices-2026.9.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a9/2c/8de9d2c9a328419b28feb53081460d901e950b8b676914959a6e1beecc83/optype-0.19.0-py3-none-any.whl
@@ -246,13 +246,13 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/86/bf/899e81e4cce32febab4fb42bb97dcdf66bc135272882d1987881a4b519e9/pyyaml-6.0.3-cp312-cp312-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/88/39/799be3f2f0f38cc727ee3b4f1445fe6d5e4133064ec2e4115069418a5bb6/cloudpickle-3.1.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/98/02/ea89c6d43860d0f17652128d95afed901e02b294bab2e3007a4f35a2ec33/hydamo_validation-1.7.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/99/5d/8268b644392ee874ee82a635cd0df1773de230bde356c38de28e298392cc/parso-0.8.7-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/99/91/8acff4f5e50511b911bbccb72b8628a49c68ce14148cd9f6431094859a90/annotated_types-0.8.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9d/7a/d968e294073affff457b041c2be9868a40c1c71f4a35fcc1e45e5493067b/pytest_cov-7.1.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9f/6f/bafd6490fe7b355627fabe95f4417e3d02da93102c8552550eb9a0774e1e/ast_serialize-0.13.1-cp39-abi3-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a5/f8/8b5c10c7f36ab5a3b5c4703669e5b14e44e98782b58e535dd30670e8799a/ipykernel-7.4.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/a6/8e/24e579e49c628c263b93a48a2100f76b90fbc48647da97065027d33895f2/hydamo_validation-1.6.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a8/3a/ad6e96204d85ea6abf3721393ec2e830e025854b51402cfc081a670b61f5/cftime-1.6.6.1-cp311-abi3-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/a8/71/9219fe65ef32bddc0b5d14e1d98dfefe9d2c9c1b1d1e93efca1f29fcbd4d/xyzservices-2026.9.1-py3-none-any.whl
@@ -989,6 +989,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/8b/9d/b3589d3877982d4f2329302ef98a8026e7f4443c765c46cfecc8858c6b4b/pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/91/23/e0c6e3cd09a0ac809953fea698c816b9f03bf0b35b6820c9553e4f5d85a8/pydantic_core-2.50.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/98/02/ea89c6d43860d0f17652128d95afed901e02b294bab2e3007a4f35a2ec33/hydamo_validation-1.7.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/99/5d/8268b644392ee874ee82a635cd0df1773de230bde356c38de28e298392cc/parso-0.8.7-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/99/60/14115e6364fa676c5397c2ad3004e527e9aa487abf5d0706ec81bbd08529/numpy-2.4.6-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/99/91/8acff4f5e50511b911bbccb72b8628a49c68ce14148cd9f6431094859a90/annotated_types-0.8.0-py3-none-any.whl
@@ -997,7 +998,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a1/f5/84eb544579f55452df65a47bcc86147deaddf0e568725987bc69a1bc4cf6/cftime-1.6.6.1-cp311-abi3-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/a5/f8/8b5c10c7f36ab5a3b5c4703669e5b14e44e98782b58e535dd30670e8799a/ipykernel-7.4.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/a6/8e/24e579e49c628c263b93a48a2100f76b90fbc48647da97065027d33895f2/hydamo_validation-1.6.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a8/71/9219fe65ef32bddc0b5d14e1d98dfefe9d2c9c1b1d1e93efca1f29fcbd4d/xyzservices-2026.9.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a9/2c/8de9d2c9a328419b28feb53081460d901e950b8b676914959a6e1beecc83/optype-0.19.0-py3-none-any.whl
@@ -1126,13 +1126,13 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/86/bf/899e81e4cce32febab4fb42bb97dcdf66bc135272882d1987881a4b519e9/pyyaml-6.0.3-cp312-cp312-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/88/39/799be3f2f0f38cc727ee3b4f1445fe6d5e4133064ec2e4115069418a5bb6/cloudpickle-3.1.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/98/02/ea89c6d43860d0f17652128d95afed901e02b294bab2e3007a4f35a2ec33/hydamo_validation-1.7.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/99/5d/8268b644392ee874ee82a635cd0df1773de230bde356c38de28e298392cc/parso-0.8.7-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/99/91/8acff4f5e50511b911bbccb72b8628a49c68ce14148cd9f6431094859a90/annotated_types-0.8.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9d/7a/d968e294073affff457b041c2be9868a40c1c71f4a35fcc1e45e5493067b/pytest_cov-7.1.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9f/6f/bafd6490fe7b355627fabe95f4417e3d02da93102c8552550eb9a0774e1e/ast_serialize-0.13.1-cp39-abi3-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a5/f8/8b5c10c7f36ab5a3b5c4703669e5b14e44e98782b58e535dd30670e8799a/ipykernel-7.4.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/a6/8e/24e579e49c628c263b93a48a2100f76b90fbc48647da97065027d33895f2/hydamo_validation-1.6.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a8/3a/ad6e96204d85ea6abf3721393ec2e830e025854b51402cfc081a670b61f5/cftime-1.6.6.1-cp311-abi3-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/a8/71/9219fe65ef32bddc0b5d14e1d98dfefe9d2c9c1b1d1e93efca1f29fcbd4d/xyzservices-2026.9.1-py3-none-any.whl
@@ -3236,8 +3236,7 @@ packages:
   - ipykernel>=7
   - ipywidgets>=8
   - pillow>=11
-  - hydamo-validation>=1.6.0 ; extra == 'validation'
-  - fiona>=1.10 ; extra == 'validation'
+  - hydamo-validation>=1.7.0,<1.8 ; extra == 'validation'
   requires_python: '>=3.11'
 - pypi: https://files.pythonhosted.org/packages/00/01/e0f5b3d648ddd2eae35c4bcddcc2cffc059279e9d2cdb325bed10458f606/fonttools-4.68.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
   name: fonttools
@@ -6401,6 +6400,34 @@ packages:
   version: 6.0.3
   sha256: 79005a0d97d5ddabfeeea4cf676af11e647e41d81c9a7722a193022accdb6b7c
   requires_python: '>=3.8'
+- pypi: https://files.pythonhosted.org/packages/98/02/ea89c6d43860d0f17652128d95afed901e02b294bab2e3007a4f35a2ec33/hydamo_validation-1.7.0.tar.gz
+  name: hydamo-validation
+  version: 1.7.0
+  sha256: 9ca38b7eab2b7d9cca98543e25589f09ee60d9534bccd4f8688767e0b95e6384
+  requires_dist:
+  - fiona
+  - geopandas
+  - pandas>=2
+  - pyogrio
+  - rasterio
+  - shapely>=2
+  - rasterstats
+  - tqdm
+  - jsonschema<4.23
+  - mkdocs ; extra == 'docs'
+  - mkdocs-material ; extra == 'docs'
+  - mkdocstrings[python] ; extra == 'docs'
+  - pytest ; extra == 'dev'
+  - pytest-cov ; extra == 'dev'
+  - ipykernel ; extra == 'dev'
+  - setuptools ; extra == 'dev'
+  - twine ; extra == 'dev'
+  - pydantic ; extra == 'docker'
+  - fastapi>=0.115,<0.138 ; extra == 'docker'
+  - firebase-admin ; extra == 'docker'
+  - aiofiles>=24,<25 ; extra == 'docker'
+  - hydamo-validation==1.7.0 ; extra == 'docker'
+  requires_python: '>=3.12,<3.13'
 - pypi: https://files.pythonhosted.org/packages/98/4b/9bd370b004b5c9d8045c6c33cf65bae018b27aca550a3f657cdc99acdbd8/contourpy-1.3.3-cp311-cp311-win_amd64.whl
   name: contourpy
   version: 1.3.3
@@ -6696,28 +6723,6 @@ packages:
   - xlsxwriter>=3.0.5 ; extra == 'all'
   - zstandard>=0.19.0 ; extra == 'all'
   requires_python: '>=3.9'
-- pypi: https://files.pythonhosted.org/packages/a6/8e/24e579e49c628c263b93a48a2100f76b90fbc48647da97065027d33895f2/hydamo_validation-1.6.0.tar.gz
-  name: hydamo-validation
-  version: 1.6.0
-  sha256: b6e0f432155bf90f41f462383103f91210f8931733435c0e605dfa499ab5da62
-  requires_dist:
-  - geopandas
-  - pandas>=2
-  - pyogrio
-  - rasterio
-  - shapely>=2
-  - rasterstats
-  - tqdm
-  - jsonschema<4.23
-  - pytest ; extra == 'dev'
-  - pytest-cov ; extra == 'dev'
-  - ipykernel ; extra == 'dev'
-  - setuptools ; extra == 'dev'
-  - twine ; extra == 'dev'
-  - pydantic ; extra == 'docker'
-  - firebase-admin ; extra == 'docker'
-  - hydamo-validation==1.6.0 ; extra == 'docker'
-  requires_python: '>=3.12,<3.13'
 - pypi: https://files.pythonhosted.org/packages/a6/a5/c0b6468d3824fe3fde30dbb5e1f687b291608f9473681bbf7dabbf5a87d7/text_unidecode-1.3-py2.py3-none-any.whl
   name: text-unidecode
   version: '1.3'
