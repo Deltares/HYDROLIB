@@ -136,6 +136,112 @@ def _make_minimal_25_gpkg(tmp_path: Path) -> Path:
     return gpkg_path
 
 
+def _make_roughness_gpkg(
+    tmp_path: Path, roughness_type: str, parameter: str, culvert_shape: str
+) -> Path:
+    """Write the layers whose column names changed in DAMO 2.4 and 2.5.
+
+    The column names are those of the DAMO version under test: *roughness_type*
+    is ``typeruwheid`` in 2.2 and ``typemethoderuwheid`` from 2.4, *parameter*
+    is ``soortparameter`` up to 2.4 and ``typeparameter`` from 2.5, and
+    *culvert_shape* is ``vormkoker`` up to 2.4 and ``vormduikersifonhevel`` from 2.5.
+    """
+    gpkg_path = tmp_path / "roughness.gpkg"
+    _write_layer(
+        gpkg_path,
+        "NormgeparamProfielWaarde",
+        gpd.GeoDataFrame(
+            {
+                "normgeparamprofielid": ["np-guid"],
+                parameter: ["bodembreedte"],
+                "waarde": [2.0],
+                "ruwheidlaag": [30.0],
+                "ruwheidhoog": [20.0],
+                roughness_type: ["Manning"],
+                "geometry": [Point(0, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "Brug",
+        gpd.GeoDataFrame(
+            {
+                "code": ["BR1"],
+                "globalid": ["brug-guid"],
+                "lengte": [5.0],
+                "intreeverlies": [0.5],
+                "uittreeverlies": [1.0],
+                "ruwheid": [30.0],
+                roughness_type: ["Manning"],
+                "geometry": [Point(2, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "DuikerSifonHevel",
+        gpd.GeoDataFrame(
+            {
+                "code": ["DU1"],
+                "globalid": ["duiker-guid"],
+                "lengte": [10.0],
+                "hoogteopening": [1.0],
+                "breedteopening": [1.0],
+                "hoogtebinnenonderkantbene": [0.0],
+                "hoogtebinnenonderkantbov": [0.1],
+                culvert_shape: ["Rond"],
+                "intreeverlies": [0.5],
+                "uittreeverlies": [1.0],
+                "ruwheid": [75.0],
+                roughness_type: ["StricklerKs"],
+                "geometry": [LineString([(3, 0), (4, 0)])],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "RuwheidProfiel",
+        gpd.GeoDataFrame(
+            {
+                "profielpuntid": ["pp-guid"],
+                "ruwheidlaag": [30.0],
+                "ruwheidhoog": [20.0],
+                roughness_type: ["Manning"],
+                "geometry": [Point(0, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    return gpkg_path
+
+
+def _assert_canonical_roughness_columns(hydamo: HyDAMO) -> None:
+    """Assert that the renamed DAMO columns arrive under their 2.2 names."""
+    assert hydamo.param_profile_values["typeruwheid"].tolist() == ["Manning"]
+    assert hydamo.param_profile_values["soortparameter"].tolist() == ["bodembreedte"]
+    assert hydamo.bridges.loc["BR1", "typeruwheid"] == "Manning"
+    assert hydamo.culverts.loc["DU1", "typeruwheid"] == "StricklerKs"
+    assert hydamo.culverts.loc["DU1", "vormkoker"] == "Rond"
+    assert hydamo.profile_roughness["typeruwheid"].tolist() == ["Manning"]
+
+
+def test_load_from_gpkg_maps_damo_24_roughness_type(tmp_path: Path) -> None:
+    gpkg_file = _make_roughness_gpkg(
+        tmp_path,
+        roughness_type="typemethoderuwheid",
+        parameter="soortparameter",
+        culvert_shape="vormkoker",
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.4")
+
+    _assert_canonical_roughness_columns(hydamo)
+
+
 def _make_weir_without_device_gpkg(tmp_path: Path, n_openings: int) -> Path:
     """Write a weir with *n_openings* openings, none of which has a management device.
 

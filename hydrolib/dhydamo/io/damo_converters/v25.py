@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from hydrolib.dhydamo.io.damo_converters.base import LayerSpec, replace_layer_specs
-from hydrolib.dhydamo.io.damo_converters.v22 import Damo22Converter
+from hydrolib.dhydamo.io.damo_converters.v24 import Damo24Converter
 
 
-class Damo25Converter(Damo22Converter):
+class Damo25Converter(Damo24Converter):
     """DAMO v2.5 converter.
 
-    Schema changes relative to v2.2:
+    Schema changes relative to v2.4:
     - HydroObject: categorieoppervlaktewater → categorieoppwaterlichaam
     - Kunstwerkopening: afsluitmiddelid → regelmiddelid
     - Afsluitmiddel replaces Regelmiddel as the management device layer;
@@ -19,7 +19,7 @@ class Damo25Converter(Damo22Converter):
 
     hydamo_version = "2.5"
     layer_specs = replace_layer_specs(
-        Damo22Converter.layer_specs,
+        Damo24Converter.layer_specs,
         LayerSpec(
             "branches",
             "HydroObject",

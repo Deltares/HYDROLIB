@@ -2,15 +2,44 @@
 
 from __future__ import annotations
 
+from hydrolib.dhydamo.io.damo_converters.base import LayerSpec, replace_layer_specs
 from hydrolib.dhydamo.io.damo_converters.v22 import Damo22Converter
+
+# DAMO 2.4 renamed typeruwheid to typemethoderuwheid.
+ROUGHNESS_TYPE_MAPPING = {"typemethoderuwheid": "typeruwheid"}
 
 
 class Damo24Converter(Damo22Converter):
     """DAMO v2.4 converter.
 
-    Schema is identical to v2.2. This class exists as a version sentinel so that
-    files tagged 2.4 load correctly without raising an unsupported-version error.
-    If v2.4 introduces schema differences in the future, override layer_specs here.
+    Schema changes relative to v2.2:
+    - NormgeparamProfielWaarde, Brug, DuikerSifonHevel, RuwheidProfiel:
+      typeruwheid → typemethoderuwheid
     """
 
     hydamo_version = "2.4"
+    layer_specs = replace_layer_specs(
+        Damo22Converter.layer_specs,
+        LayerSpec(
+            "param_profile_values",
+            "NormgeparamProfielWaarde",
+            column_mapping=ROUGHNESS_TYPE_MAPPING,
+        ),
+        LayerSpec(
+            "bridges",
+            "Brug",
+            index_col="code",
+            column_mapping=ROUGHNESS_TYPE_MAPPING,
+        ),
+        LayerSpec(
+            "culverts",
+            "DuikerSifonHevel",
+            index_col="code",
+            column_mapping=ROUGHNESS_TYPE_MAPPING,
+        ),
+        LayerSpec(
+            "profile_roughness",
+            "RuwheidProfiel",
+            column_mapping=ROUGHNESS_TYPE_MAPPING,
+        ),
+    )
