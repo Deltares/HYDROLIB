@@ -57,6 +57,7 @@ class Damo25Converter(Damo24Converter):
             "management",
             "Sturing",
             index_col="code",
+            column_fallbacks={"code": "globalid"},
             column_mapping={
                 "afsluitmiddelid": "regelmiddelid",
                 "typestuurvariabele": "stuurvariabele",

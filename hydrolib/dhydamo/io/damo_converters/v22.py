@@ -41,7 +41,13 @@ class Damo22Converter(BaseDamoConverter):
         LayerSpec("culverts", "DuikerSifonHevel", index_col="code"),
         LayerSpec("pumpstations", "Gemaal", index_col="code"),
         LayerSpec("pumps", "Pomp", index_col="code"),
-        LayerSpec("management", "Sturing", index_col="code"),
+        # DAMO defines no code for Sturing: fill it from globalid when absent.
+        LayerSpec(
+            "management",
+            "Sturing",
+            index_col="code",
+            column_fallbacks={"code": "globalid"},
+        ),
         LayerSpec(
             "boundary_conditions",
             "hydrologischerandvoorwaarde",

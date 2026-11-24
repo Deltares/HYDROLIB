@@ -117,7 +117,6 @@ def _make_minimal_25_gpkg(tmp_path: Path) -> Path:
         "Sturing",
         gpd.GeoDataFrame(
             {
-                "code": ["CTRL1"],
                 "globalid": ["mgmt-guid"],
                 "afsluitmiddelid": ["afsluit-guid"],
                 "pompid": [None],
@@ -376,8 +375,8 @@ def test_load_from_gpkg_maps_damo_25_to_canonical_internal_structure(
 
     assert "regelmiddelid" in hydamo.management.columns
     assert "stuurvariabele" in hydamo.management.columns
-    assert hydamo.management.loc["CTRL1", "regelmiddelid"] == "afsluit-guid"
-    assert hydamo.management.loc["CTRL1", "stuurvariabele"] == "hoogte opening"
+    assert hydamo.management.loc["mgmt-guid", "regelmiddelid"] == "afsluit-guid"
+    assert hydamo.management.loc["mgmt-guid", "stuurvariabele"] == "hoogte opening"
 
     assert "regelmiddelid" in hydamo.opening.columns
     assert hydamo.opening.loc[0, "regelmiddelid"] == "afsluit-guid"
@@ -389,7 +388,7 @@ def test_damo_25_relations_resolve_expected_rows(tmp_path: Path) -> None:
     )
 
     opening = hydamo.opening.loc[[0]]
-    management = hydamo.management.loc[["CTRL1"]]
+    management = hydamo.management.loc[["mgmt-guid"]]
     weir = RelationsHyDAMO.OPENING_WEIR.parents_of(opening, hydamo.weirs)
     device_from_opening = RelationsHyDAMO.OPENING_MANAGEMENT_DEVICE.parents_of(
         opening, hydamo.management_device
@@ -448,6 +447,69 @@ def test_load_from_gpkg_makes_non_spatial_index_unique(tmp_path: Path) -> None:
     hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.2")
 
     assert hydamo.management.index.tolist() == ["CTRL1", "CTRL1_1"]
+
+
+def test_drtc_error_names_management_code_filled_from_globalid(tmp_path: Path) -> None:
+    gpkg_file = _make_minimal_25_gpkg(tmp_path)
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+    hydamo.structures.rweirs_df = pd.DataFrame({"id": ["ST1"]})
+
+    fm = FMModel()
+    fm.time.refdate = 20160601
+    fm.time.tstop = 3600
+    drtc = DRTCModel(hydamo, fm, output_path=tmp_path)
+
+    with pytest.raises(ValueError, match="mgmt-guid contains a PID controller"):
+        drtc.from_hydamo(pid_settings=None)
+
+
+def test_load_from_gpkg_fills_missing_management_code_from_globalid(
+    tmp_path: Path,
+) -> None:
+    # DAMO defines no code for Sturing, so HYDROLIB fills it from globalid.
+    gpkg_path = tmp_path / "sturing_22.gpkg"
+    _write_layer(
+        gpkg_path,
+        "Sturing",
+        gpd.GeoDataFrame(
+            {
+                "globalid": ["mgmt-guid"],
+                "regelmiddelid": ["regel-guid"],
+                "stuurvariabele": ["hoogte opening"],
+                "typecontroller": ["PID"],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.2")
+
+    assert hydamo.management.index.tolist() == ["mgmt-guid"]
+    assert hydamo.management.loc["mgmt-guid", "code"] == "mgmt-guid"
+    assert hydamo.management.loc["mgmt-guid", "regelmiddelid"] == "regel-guid"
+
+
+def test_load_from_gpkg_fills_empty_management_code_from_globalid(
+    tmp_path: Path,
+) -> None:
+    gpkg_path = tmp_path / "sturing_22.gpkg"
+    _write_layer(
+        gpkg_path,
+        "Sturing",
+        gpd.GeoDataFrame(
+            {
+                "code": ["CTRL1", None],
+                "globalid": ["mgmt-guid-1", "mgmt-guid-2"],
+                "geometry": [Point(5, 0), Point(6, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.2")
+
+    assert hydamo.management.index.tolist() == ["CTRL1", "mgmt-guid-2"]
 
 
 def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(

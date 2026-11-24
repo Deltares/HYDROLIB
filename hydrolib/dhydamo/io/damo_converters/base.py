@@ -35,6 +35,10 @@ class LayerSpec:
     column_mapping : dict[str, str], optional
         ``{source_col: target_col}`` renames applied before writing to the
         attribute.
+    column_fallbacks : dict[str, str], optional
+        ``{target_col: source_col}``: after the renames, a missing or empty
+        target column is filled from the source column, e.g. a ``code`` that
+        DAMO does not define, from ``globalid``.
     check_geotype : bool
         Whether to validate that geometries match the expected type declared
         on the target ``ExtendedGeoDataFrame``. Default is ``True``.
@@ -49,6 +53,7 @@ class LayerSpec:
     groupby_column: str | None = None
     order_column: str | None = None
     column_mapping: dict[str, str] = field(default_factory=dict)
+    column_fallbacks: dict[str, str] = field(default_factory=dict)
     check_geotype: bool = True
     optional: bool = True
 
@@ -114,6 +119,7 @@ class BaseDamoConverter(ABC):
                 "layer_name": actual_layer,
                 "index_col": spec.index_col,
                 "column_mapping": spec.column_mapping if spec.column_mapping else None,
+                "column_fallbacks": spec.column_fallbacks or None,
                 "check_geotype": spec.check_geotype,
                 "check_3d": check_3d,
             }

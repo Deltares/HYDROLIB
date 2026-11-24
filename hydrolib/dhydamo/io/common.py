@@ -61,6 +61,21 @@ def _points_to_lines(
     return fields, geometries
 
 
+def _fill_columns(df: pd.DataFrame, column_fallbacks: dict[str, str]) -> None:
+    """Fill missing or empty columns in place from another column, ``{target: source}``.
+
+    A target column that is absent is copied from its source column; empty values
+    in a target column that is present are filled from the source column.
+    """
+    for target, source in column_fallbacks.items():
+        if source not in df.columns:
+            continue
+        if target in df.columns:
+            df[target] = df[target].fillna(df[source])
+        else:
+            df[target] = df[source]
+
+
 def _make_index_unique(gdf: pd.DataFrame, index_col: str) -> None:
     """Suffix repeated `index_col` values in place (`_1`, `_2`, ...); the first occurrence keeps its id."""
     duplicated = gdf.duplicated(subset=index_col, keep="first")
@@ -428,6 +443,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         order_column: str | None = None,
         id_col: str = "code",
         column_mapping: dict | None = None,
+        column_fallbacks: dict[str, str] | None = None,
         check_columns: bool = True,
         check_geotype: bool = True,
         clip: Polygon | MultiPolygon | None = None,
@@ -460,6 +476,9 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
 
         if column_mapping is not None:
             gdf = gdf.rename(columns=column_mapping)
+
+        if column_fallbacks is not None:
+            _fill_columns(gdf, column_fallbacks)
 
         if index_col is not None:
             _make_index_unique(gdf, index_col)
@@ -816,6 +835,7 @@ class ExtendedDataFrame(pd.DataFrame):
         layer_name: str,
         column_mapping: dict | None = None,
         index_col: str | None = None,
+        column_fallbacks: dict[str, str] | None = None,
         # the arguments for geometry layers, which a table ignores
         **kwargs: object,
     ) -> None:
@@ -843,6 +863,9 @@ class ExtendedDataFrame(pd.DataFrame):
         df = layer
         if column_mapping is not None:
             df = df.rename(columns=column_mapping)
+
+        if column_fallbacks is not None:
+            _fill_columns(df, column_fallbacks)
 
         if index_col is not None:
             _make_index_unique(df, index_col)
