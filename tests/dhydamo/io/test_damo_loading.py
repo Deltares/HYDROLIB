@@ -136,6 +136,76 @@ def _make_minimal_25_gpkg(tmp_path: Path) -> Path:
     return gpkg_path
 
 
+def _make_weir_without_device_gpkg(tmp_path: Path, n_openings: int) -> Path:
+    """Write a weir with *n_openings* openings, none of which has a management device.
+
+    The only management device belongs to another opening. The openings have no
+    ``code``: DAMO does not define one for Kunstwerkopening.
+    """
+    gpkg_path = tmp_path / "weir_without_device.gpkg"
+    _write_layer(
+        gpkg_path,
+        "Stuw",
+        gpd.GeoDataFrame(
+            {
+                "code": ["ST1"],
+                "globalid": ["stuw-guid"],
+                "afvoercoefficient": [1.0],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "Kunstwerkopening",
+        gpd.GeoDataFrame(
+            {
+                "globalid": [f"opening-guid-{i}" for i in range(n_openings)],
+                "stuwid": ["stuw-guid"] * n_openings,
+                "laagstedoorstroombreedte": [1.2] * n_openings,
+                "laagstedoorstroomhoogte": [0.4] * n_openings,
+                "afvoercoefficient": [1.0] * n_openings,
+                "geometry": [Point(5, 0)] * n_openings,
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "Afsluitmiddel",
+        gpd.GeoDataFrame(
+            {
+                "code": ["AF1"],
+                "globalid": ["afsluit-guid"],
+                "kunstwerkopeningid": ["other-opening-guid"],
+                "overlaatonderlaat": ["overlaat"],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    return gpkg_path
+
+
+@pytest.mark.parametrize("n_openings", [1, 2])
+def test_weir_opening_without_device_logs_opening_globalid(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, n_openings: int
+) -> None:
+    gpkg_file = _make_weir_without_device_gpkg(tmp_path, n_openings)
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+    hydamo.weirs["branch_id"] = "H1"
+    hydamo.weirs["branch_offset"] = 5.0
+
+    hydamo.structures.convert.weirs(
+        weirs=hydamo.weirs,
+        opening=hydamo.opening,
+        management_device=hydamo.management_device,
+    )
+
+    assert "Skipping opening opening-guid-0 (weir ST1)" in caplog.text
+
+
 def test_supported_damo_converter_versions() -> None:
     assert SUPPORTED_HYDAMO_VERSIONS == ("2.2", "2.3", "2.4", "2.5")
     for version in SUPPORTED_HYDAMO_VERSIONS:

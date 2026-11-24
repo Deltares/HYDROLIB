@@ -823,14 +823,14 @@ class StructuresIO:
                     if weir_mandev.empty:
                         logger.warning(
                             "Skipping opening %s (weir %s) because there is no associated management device.",
-                            op_row.code,
+                            op_row.globalid,
                             weir.code,
                         )
                         continue
                     if weir_mandev.shape[0] > 1:
                         logger.warning(
                             "Multiple management devices associated to opening %s (weir %s). Taking the first one.",
-                            op_row.code,
+                            op_row.globalid,
                             weir.code,
                         )
                         weir_mandev = weir_mandev.iloc[[0]]
@@ -924,14 +924,14 @@ class StructuresIO:
                 if weir_mandev.empty:
                     logger.warning(
                         "Skipping opening %s (weir %s) because there is no associated management device.",
-                        weir_opening.code.squeeze(),
+                        weir_opening.globalid.squeeze(),
                         weir_id,
                     )
                     continue
                 if weir_mandev.shape[0] > 1:
                     logger.warning(
                         "Multiple management devices associated to opening %s (weir %s). Taking the first one.",
-                        weir_opening.code.squeeze(),
+                        weir_opening.globalid.squeeze(),
                         weir_id,
                     )
                     weir_mandev = weir_mandev.iloc[[0]]
