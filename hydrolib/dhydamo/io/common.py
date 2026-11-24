@@ -61,7 +61,7 @@ def _points_to_lines(
     return fields, geometries
 
 
-def _make_index_unique(gdf: gpd.GeoDataFrame, index_col: str) -> None:
+def _make_index_unique(gdf: pd.DataFrame, index_col: str) -> None:
     """Suffix repeated `index_col` values in place (`_1`, `_2`, ...); the first occurrence keeps its id."""
     duplicated = gdf.duplicated(subset=index_col, keep="first")
     if not duplicated.any():
@@ -843,6 +843,9 @@ class ExtendedDataFrame(pd.DataFrame):
         df = layer
         if column_mapping is not None:
             df = df.rename(columns=column_mapping)
+
+        if index_col is not None:
+            _make_index_unique(df, index_col)
 
         # Add data to class GeoDataFrame
         self.set_data(df, index_col=index_col)

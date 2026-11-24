@@ -428,6 +428,28 @@ def test_drtc_resolves_canonical_damo_25_management_links(tmp_path: Path) -> Non
     )
 
 
+def test_load_from_gpkg_makes_non_spatial_index_unique(tmp_path: Path) -> None:
+    # Sturing has no geometry in HYDROLIB; duplicate codes must get a suffix, as
+    # for spatial tables, so that dropping one row by label drops only that row.
+    gpkg_path = tmp_path / "duplicate_sturing.gpkg"
+    _write_layer(
+        gpkg_path,
+        "Sturing",
+        gpd.GeoDataFrame(
+            {
+                "code": ["CTRL1", "CTRL1"],
+                "globalid": ["mgmt-guid-1", "mgmt-guid-2"],
+                "geometry": [Point(5, 0), Point(6, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.2")
+
+    assert hydamo.management.index.tolist() == ["CTRL1", "CTRL1_1"]
+
+
 def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
