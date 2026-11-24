@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from hydrolib.dhydamo.io.damo_converters.base import LayerSpec, replace_layer_specs
-from hydrolib.dhydamo.io.damo_converters.v24 import Damo24Converter
+from hydrolib.dhydamo.io.damo_converters.v24 import (
+    ROUGHNESS_TYPE_MAPPING,
+    Damo24Converter,
+)
 
 
 class Damo25Converter(Damo24Converter):
@@ -15,6 +18,11 @@ class Damo25Converter(Damo24Converter):
     - Afsluitmiddel replaces Regelmiddel as the management device layer;
       typeafsluitmiddel → soortafsluitmiddel, typeregelbaarheid → soortregelbaarheid
     - Sturing: afsluitmiddelid → regelmiddelid, typestuurvariabele → stuurvariabele
+    - NormgeparamProfielWaarde: soortparameter → typeparameter
+    - DuikerSifonHevel: vormkoker → vormduikersifonhevel
+
+    A spec overridden here replaces the 2.4 spec of that table, so it repeats the
+    2.4 renames (``ROUGHNESS_TYPE_MAPPING``).
     """
 
     hydamo_version = "2.5"
@@ -52,6 +60,23 @@ class Damo25Converter(Damo24Converter):
             column_mapping={
                 "afsluitmiddelid": "regelmiddelid",
                 "typestuurvariabele": "stuurvariabele",
+            },
+        ),
+        LayerSpec(
+            "param_profile_values",
+            "NormgeparamProfielWaarde",
+            column_mapping={
+                **ROUGHNESS_TYPE_MAPPING,
+                "typeparameter": "soortparameter",
+            },
+        ),
+        LayerSpec(
+            "culverts",
+            "DuikerSifonHevel",
+            index_col="code",
+            column_mapping={
+                **ROUGHNESS_TYPE_MAPPING,
+                "vormduikersifonhevel": "vormkoker",
             },
         ),
     )

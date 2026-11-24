@@ -242,6 +242,21 @@ def test_load_from_gpkg_maps_damo_24_roughness_type(tmp_path: Path) -> None:
     _assert_canonical_roughness_columns(hydamo)
 
 
+def test_load_from_gpkg_maps_damo_25_parameter_and_culvert_shape(
+    tmp_path: Path,
+) -> None:
+    gpkg_file = _make_roughness_gpkg(
+        tmp_path,
+        roughness_type="typemethoderuwheid",
+        parameter="typeparameter",
+        culvert_shape="vormduikersifonhevel",
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+
+    _assert_canonical_roughness_columns(hydamo)
+
+
 def _make_weir_without_device_gpkg(tmp_path: Path, n_openings: int) -> Path:
     """Write a weir with *n_openings* openings, none of which has a management device.
 
