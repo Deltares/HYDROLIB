@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import types
+import typing
 from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
@@ -15,7 +16,9 @@ from hydrolib.dhydamo import validation
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.core.relations import RelationsHyDAMO
+from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 from hydrolib.dhydamo.io.damo_converters import SUPPORTED_HYDAMO_VERSIONS
+from hydrolib.dhydamo.io.damo_converters.data_model import OWN_TABLES, TABLES
 from hydrolib.dhydamo.validation import HyDAMOValidationError
 from pydantic import ValidationError
 from shapely.geometry import LineString, Point
@@ -74,20 +77,18 @@ def _write_layer(gpkg_path: Path, layer_name: str, gdf: gpd.GeoDataFrame) -> Non
     gdf.to_file(gpkg_path, layer=layer_name, driver="GPKG", mode=mode, engine="pyogrio")
 
 
-def _write_stuw(gpkg_path: Path) -> None:
-    """Write weir ST1 (globalid ``stuw-guid``) at (5, 0)."""
+def _write_stuw(gpkg_path: Path, afvoercoefficient: float | None = 1.0) -> None:
+    """Write weir ST1 (globalid ``stuw-guid``) at (5, 0).
+
+    With *afvoercoefficient* ``None``, the layer has no ``afvoercoefficient`` column.
+    """
+    columns: dict[str, list[object]] = {"code": ["ST1"], "globalid": ["stuw-guid"]}
+    if afvoercoefficient is not None:
+        columns["afvoercoefficient"] = [afvoercoefficient]
     _write_layer(
         gpkg_path,
         "Stuw",
-        gpd.GeoDataFrame(
-            {
-                "code": ["ST1"],
-                "globalid": ["stuw-guid"],
-                "afvoercoefficient": [1.0],
-                "geometry": [Point(5, 0)],
-            },
-            crs="EPSG:28992",
-        ),
+        gpd.GeoDataFrame({**columns, "geometry": [Point(5, 0)]}, crs="EPSG:28992"),
     )
 
 
@@ -447,6 +448,105 @@ def test_load_from_gpkg_passes_undeclared_columns_through(
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
 
     assert hydamo.branches.loc["H1", "opmerking"] == "own column"
+
+
+@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
+def test_load_from_gpkg_names_layer_and_missing_required_column(
+    tmp_path: Path, version: str
+) -> None:
+    gpkg_file = tmp_path / "weir.gpkg"
+    _write_stuw(gpkg_file, afvoercoefficient=None)
+
+    with pytest.raises(KeyError, match=r'layer "Stuw".*"afvoercoefficient"'):
+        HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
+
+
+@pytest.mark.parametrize("missing", ["profiellijnid", "codevolgnummer"])
+def test_load_from_gpkg_names_layer_and_missing_point_grouping_column(
+    tmp_path: Path, missing: str
+) -> None:
+    gpkg_file = tmp_path / "profile.gpkg"
+    points = {
+        "code": ["PP1", "PP2"],
+        "globalid": ["line-guid", "line-guid"],
+        "profiellijnid": ["line-guid", "line-guid"],
+        "codevolgnummer": [1, 2],
+    }
+    del points[missing]
+    _write_layer(
+        gpkg_file,
+        "ProfielPunt",
+        gpd.GeoDataFrame(
+            {**points, "geometry": [Point(0, 0, 1.0), Point(1, 0, 0.0)]},
+            crs="EPSG:28992",
+        ),
+    )
+
+    with pytest.raises(ValueError, match=rf'layer "ProfielPunt".*"{missing}"'):
+        HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.2")
+
+
+def test_load_from_gpkg_replaces_the_data_of_an_earlier_load(tmp_path: Path) -> None:
+    first, second = tmp_path / "first.gpkg", tmp_path / "second.gpkg"
+    _write_layer(
+        first,
+        "Stuw",
+        gpd.GeoDataFrame(
+            {
+                "code": ["A1", "A2"],
+                "globalid": ["a1-guid", "a2-guid"],
+                "afvoercoefficient": [1.0, 1.0],
+                "naam": ["first", "second"],
+                "geometry": [Point(0, 0), Point(1, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(first, "Sturing", _sturing([{"code": "CTRL1"}]))
+    _write_stuw(second)
+    hydamo = HyDAMO().load_from_gpkg(first, hydamo_version="2.2")
+    weirs = hydamo.weirs
+
+    hydamo.load_from_gpkg(second, hydamo_version="2.2")
+
+    # a reference taken before the second load sees its data
+    assert weirs is hydamo.weirs
+    assert weirs.index.tolist() == ["ST1"]
+    assert "naam" not in weirs.columns
+    # the second file has no Sturing layer: nothing of the first file's is left
+    assert hydamo.management.empty
+    assert list(hydamo.management.columns) == list(HyDAMO().management.columns)
+
+
+@pytest.mark.parametrize("table_name", ["sewer_areas", "management"])
+def test_set_data_drops_the_columns_the_new_data_lacks(table_name: str) -> None:
+    table = getattr(HyDAMO(), table_name)
+    first = {"code": ["A"], "globalid": ["a-guid"], "naam": ["first"]}
+    second = {"code": ["B"], "globalid": ["b-guid"]}
+    if table_name == "sewer_areas":
+        area = Point(0, 0).buffer(1)
+        table.set_data(gpd.GeoDataFrame({**first, "geometry": [area]}), "code")
+        table.set_data(gpd.GeoDataFrame({**second, "geometry": [area]}), "code")
+    else:
+        table.set_data(pd.DataFrame(first), "code")
+        table.set_data(pd.DataFrame(second), "code")
+
+    assert table.index.tolist() == ["B"]
+    assert "naam" not in table.columns
+
+
+@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
+def test_load_from_gpkg_loads_without_optional_columns(
+    tmp_path: Path, version: str
+) -> None:
+    gpkg_file = tmp_path / "weir.gpkg"
+    _write_stuw(gpkg_file)
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
+
+    assert hydamo.weirs.index.tolist() == ["ST1"]
+    assert "naam" not in hydamo.weirs.columns
+    assert "laagstedoorstroomhoogte" not in hydamo.weirs.columns
 
 
 def test_load_from_gpkg_leaves_columns_the_version_lacks_absent(
@@ -1434,6 +1534,25 @@ def test_load_from_gpkg_with_validation_strict_raises(
             hydamo_version="2.5",
             validation_mode="strict",
         )
+
+
+def test_hydamo_has_the_data_model_tables_with_their_declared_types() -> None:
+    # HyDAMO creates its tables from the data model, and declares their types in the
+    # class body for mypy: both lists must name the same tables, with the same types.
+    geotypes = {name: table.geotype for name, table in TABLES.items()}
+    geotypes.update({name: table.geotype for name, table in OWN_TABLES.items()})
+    declared = {
+        name: hint
+        for name, hint in typing.get_type_hints(HyDAMO).items()
+        if hint in (ExtendedDataFrame, ExtendedGeoDataFrame)
+    }
+    hydamo = HyDAMO()
+
+    assert set(declared) == set(geotypes)
+    for name, geotype in geotypes.items():
+        expected = ExtendedDataFrame if geotype is None else ExtendedGeoDataFrame
+        assert declared[name] is expected, name
+        assert type(getattr(hydamo, name)) is expected, name
 
 
 def test_source_damo_version_is_none_until_loaded() -> None:

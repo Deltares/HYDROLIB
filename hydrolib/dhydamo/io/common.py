@@ -35,9 +35,15 @@ def _points_to_lines(
     Groups with fewer than two points are skipped with a warning.
     """
     if groupby_column not in layer.columns:
-        raise ValueError("Groupby column not found in feature list.")
-    if order_column is None or order_column not in layer.columns:
-        raise ValueError("Order column not found in feature list.")
+        raise ValueError(
+            f'Column "{groupby_column}" not found; it groups the points into lines.'
+        )
+    if order_column is None:
+        raise ValueError("No column given to order the points of a line.")
+    if order_column not in layer.columns:
+        raise ValueError(
+            f'Column "{order_column}" not found; it orders the points of a line.'
+        )
 
     geom_types = layer.geometry.geom_type.unique()
     if len(geom_types) != 1 or geom_types[0] != "Point":
@@ -267,6 +273,13 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         else:
             logger.debug("No projected CRS is given in ini-file")
 
+    def _drop_columns_not_in(self, data: pd.DataFrame) -> None:
+        """Remove the columns that *data* doesn't have, in place."""
+        stale = [column for column in self.columns if column not in data.columns]
+        if stale:
+            # inplace: returning a copy loses the Extended class
+            self.drop(columns=stale, inplace=True)  # noqa: PD002
+
     def set_data(
         self,
         gdf: gpd.GeoDataFrame,
@@ -275,6 +288,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         check_geotype: bool = True,
     ) -> None:
         """Replace the data with that of a GeoDataFrame, in place.
+
+        Rows and columns that *gdf* doesn't have are removed.
 
         Parameters
         ----------
@@ -296,6 +311,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         """
         if not self.empty:
             self.delete_all()
+        self._drop_columns_not_in(gdf)
 
         # Check columns
         if check_columns:
@@ -739,8 +755,17 @@ class ExtendedDataFrame(pd.DataFrame):
             # inplace: returning a copy of an ExtendedDataFrame gives a plain DataFrame
             self.dropna(inplace=True)  # noqa: PD002
 
+    def _drop_columns_not_in(self, data: pd.DataFrame) -> None:
+        """Remove the columns that *data* doesn't have, in place."""
+        stale = [column for column in self.columns if column not in data.columns]
+        if stale:
+            # inplace: returning a copy loses the Extended class
+            self.drop(columns=stale, inplace=True)  # noqa: PD002
+
     def set_data(self, df: pd.DataFrame, index_col: Hashable | None) -> None:
         """Replace the data with that of a DataFrame, in place.
+
+        Rows and columns that *df* doesn't have are removed.
 
         Parameters
         ----------
@@ -756,6 +781,7 @@ class ExtendedDataFrame(pd.DataFrame):
         """
         if not self.empty:
             self.delete_all()
+        self._drop_columns_not_in(df)
 
         # Copy content
         for col, values in df.items():

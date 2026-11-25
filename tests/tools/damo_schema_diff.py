@@ -190,7 +190,7 @@ def _check_converter(version: str, schema_version: str) -> tuple[list[str], list
         spec = TABLES[name]
         fields = schema.get(layer.lower())
         if fields is None:
-            if spec.optional:
+            if spec.optional_layer:
                 # An optional layer is skipped when absent, e.g. Regelmiddel in 2.5.
                 notes.append(f"There is no layer {layer}, so {table} stays empty.")
             else:

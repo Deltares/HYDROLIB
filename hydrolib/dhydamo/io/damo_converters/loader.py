@@ -50,8 +50,12 @@ def load_layers(
 
     Raises
     ------
+    KeyError
+        If a loaded layer lacks a required column (`data_model.TABLES`); the message
+        names the layer and the column.
     ValueError
-        If a layer that is not optional is missing.
+        If a layer that is not optional is missing, or a layer of points lacks the
+        column that groups or orders them into lines; the message names the layer.
     """
     gpkg_path = Path(gpkg_path)
     available_layers = {
@@ -64,7 +68,7 @@ def load_layers(
         table = TABLES[name]
         actual_layer = available_layers.get(source.layer.lower())
         if actual_layer is None:
-            if table.optional:
+            if table.optional_layer:
                 logger.info(
                     'Skipping optional HyDAMO layer "%s" for DAMO %s.',
                     source.layer,
@@ -91,7 +95,14 @@ def load_layers(
         if clip_layers and name in clip_layers:
             kwargs["clip"], kwargs["cliptype"] = clip_layers[name]
 
-        getattr(hydamo, name)._read_gpkg_layer(**kwargs)
+        try:
+            getattr(hydamo, name)._read_gpkg_layer(**kwargs)
+        except (KeyError, ValueError) as exc:
+            # e.g. a missing column; the table's own message doesn't name the layer.
+            # The type is kept, so callers that catch it still do.
+            raise type(exc)(
+                f'HyDAMO layer "{actual_layer}" (DAMO {hydamo_version}): {exc.args[0]}'
+            ) from exc
 
     # The derived columns of data_model.DERIVED_COLUMNS
     _derive_soortafsluitmiddel(hydamo)

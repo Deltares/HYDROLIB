@@ -17,7 +17,7 @@ from netCDF4 import Dataset, Variable, chartostring
 from pydantic import ConfigDict, Field, validate_call
 from pyproj import CRS
 from scipy.spatial import KDTree
-from shapely.geometry import LineString, MultiPolygon, Point, Polygon
+from shapely.geometry import LineString, Point
 from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
 
@@ -45,6 +45,11 @@ from hydrolib.dhydamo.io.damo_converters import (
     load_layers,
     source_layers,
 )
+from hydrolib.dhydamo.io.damo_converters.data_model import (
+    OWN_TABLES,
+    TABLES,
+    Geotype,
+)
 from hydrolib.dhydamo.io.netcdfreader import time_index
 from hydrolib.dhydamo.validation import (
     HydamoValidationResult,
@@ -55,6 +60,15 @@ from hydrolib.dhydamo.validation import (
 logger = logging.getLogger(__name__)
 
 
+def _new_table(
+    geotype: Geotype | None, required: tuple[str, ...]
+) -> ExtendedGeoDataFrame | ExtendedDataFrame:
+    """Return an empty table: spatial when it has a geometry type."""
+    if geotype is None:
+        return ExtendedDataFrame(required_columns=list(required))
+    return ExtendedGeoDataFrame(geotype=geotype, required_columns=list(required))
+
+
 class HyDAMO:
     """The HyDAMO input data and the model objects derived from it.
 
@@ -62,6 +76,33 @@ class HyDAMO:
     and the cross sections, structures, observation points, storage nodes and external
     forcings of the model.
     """
+
+    # The tables of the data model (damo_converters.data_model), created in __init__.
+    # Only their types are declared here, for type checking.
+    branches: ExtendedGeoDataFrame
+    profile: ExtendedGeoDataFrame
+    profile_roughness: ExtendedDataFrame
+    profile_line: ExtendedGeoDataFrame
+    profile_group: ExtendedDataFrame
+    param_profile: ExtendedDataFrame
+    param_profile_values: ExtendedDataFrame
+    weirs: ExtendedGeoDataFrame
+    opening: ExtendedDataFrame
+    closing_device: ExtendedDataFrame
+    management_device: ExtendedDataFrame
+    bridges: ExtendedGeoDataFrame
+    culverts: ExtendedGeoDataFrame
+    pumpstations: ExtendedGeoDataFrame
+    pumps: ExtendedDataFrame
+    management: ExtendedDataFrame
+    boundary_conditions: ExtendedGeoDataFrame
+    catchments: ExtendedGeoDataFrame
+    laterals: ExtendedGeoDataFrame
+    overflows: ExtendedGeoDataFrame
+    sewer_areas: ExtendedGeoDataFrame
+    greenhouse_areas: ExtendedGeoDataFrame
+    greenhouse_laterals: ExtendedGeoDataFrame
+    storage_areas: ExtendedGeoDataFrame
 
     @validate_call(
         config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
@@ -118,164 +159,13 @@ class HyDAMO:
         self.source_damo_version: str | None = None
         self.validation_result: HydamoValidationResult | None = None
 
-        # Create standard dataframe for network, crosssections, orifices, weirs
-        self.branches = ExtendedGeoDataFrame(
-            geotype=LineString, required_columns=["code", "geometry"]
-        )
-
-        self.profile = ExtendedGeoDataFrame(
-            geotype=LineString,
-            required_columns=["code", "geometry", "globalid", "profiellijnid"],
-        )
-        self.profile_roughness = ExtendedDataFrame(required_columns=["profielpuntid"])
-
-        self.profile_line = ExtendedGeoDataFrame(
-            geotype=LineString, required_columns=["globalid", "profielgroepid"]
-        )
-
-        self.profile_group = ExtendedDataFrame(required_columns=[])
-
-        self.param_profile = ExtendedDataFrame(
-            required_columns=["globalid", "normgeparamprofielid", "hydroobjectid"]
-        )
-
-        self.param_profile_values = ExtendedDataFrame(
-            required_columns=[
-                "normgeparamprofielid",
-                "soortparameter",
-                "waarde",
-                "ruwheidlaag",
-                "ruwheidhoog",
-                "typeruwheid",
-            ]
-        )
-
-        # Weirs
-        self.weirs = ExtendedGeoDataFrame(
-            geotype=Point,
-            required_columns=[
-                "code",
-                "geometry",
-                "globalid",
-                "afvoercoefficient",
-            ],
-        )
-
-        # opening
-        self.opening = ExtendedDataFrame(
-            required_columns=[
-                "globalid",
-                "laagstedoorstroombreedte",
-                "laagstedoorstroomhoogte",
-                "afvoercoefficient",
-            ]
-        )
-
-        # opening
-        self.closing_device = ExtendedDataFrame(required_columns=["code"])
-
-        # opening
-        self.management_device = ExtendedDataFrame(
-            required_columns=["code", "overlaatonderlaat"]
-        )
-
-        # Bridges
-        self.bridges = ExtendedGeoDataFrame(
-            geotype=Point,
-            required_columns=[
-                "code",
-                "globalid",
-                "geometry",
-                "lengte",
-                "intreeverlies",
-                "uittreeverlies",
-                "ruwheid",
-                "typeruwheid",
-            ],
-        )
-
-        # Culverts
-        self.culverts = ExtendedGeoDataFrame(
-            geotype=LineString,
-            required_columns=[
-                "code",
-                "geometry",
-                "lengte",
-                "hoogteopening",
-                "breedteopening",
-                "hoogtebinnenonderkantbene",
-                "hoogtebinnenonderkantbov",
-                "vormkoker",
-                "intreeverlies",
-                "uittreeverlies",
-                "typeruwheid",
-                "ruwheid",
-            ],
-        )
-
-        # Gemalen
-        self.pumpstations = ExtendedGeoDataFrame(
-            geotype=Point,
-            required_columns=[
-                "code",
-                "globalid",
-                "geometry",
-            ],
-        )
-        self.pumps = ExtendedDataFrame(
-            required_columns=["code", "globalid", "gemaalid", "maximalecapaciteit"]
-        )
-        self.management = ExtendedDataFrame(required_columns=["code", "globalid"])
-
-        # Hydraulische randvoorwaarden
-        self.boundary_conditions = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["code", "typerandvoorwaarde", "geometry"]
-        )
-
-        # RR catchments
-        self.catchments = ExtendedGeoDataFrame(
-            geotype=Polygon | MultiPolygon,
-            required_columns=["code", "geometry", "globalid", "lateraleknoopid"],
-        )
-
-        # Laterals
-        self.laterals = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["code", "geometry", "globalid"]
-        )
-
-        # RR overflows
-        self.overflows = ExtendedGeoDataFrame(
-            geotype=Point,
-            required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
-        )
-
-        # RR sewer areas
-        self.sewer_areas = ExtendedGeoDataFrame(
-            geotype=Polygon, required_columns=["code", "geometry"]
-        )
-
-        # RR overflows
-        self.overflows = ExtendedGeoDataFrame(
-            geotype=Point,
-            required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
-        )
-
-        # RR greenhouse areas
-        self.greenhouse_areas = ExtendedGeoDataFrame(
-            geotype=Polygon, required_columns=["code", "geometry"]
-        )
-
-        # RR overflows
-        self.greenhouse_laterals = ExtendedGeoDataFrame(
-            geotype=Point,
-            required_columns=["code", "geometry", "codegerelateerdobject"],
-        )
-
-        # RR overflows
-        self.storage_areas = ExtendedGeoDataFrame(
-            geotype=Polygon,
-            required_columns=["code", "geometry"],
-        )
+        # The DAMO tables and HYDROLIB's own tables, from the data model
+        for name, table in TABLES.items():
+            setattr(self, name, _new_table(table.geotype, table.required_columns))
+        for name, own_table in OWN_TABLES.items():
+            setattr(
+                self, name, _new_table(own_table.geotype, own_table.required_columns)
+            )
 
     @validate_call(
         config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
@@ -433,6 +323,12 @@ class HyDAMO:
 
         Notes
         -----
+        A load replaces every DAMO table, also those whose layer the GeoPackage
+        lacks: nothing of an earlier load is left in them. HYDROLIB's own tables
+        (sewer areas, overflows, greenhouses, storage areas) are kept, and so are
+        model objects built from an earlier load, such as structures and cross
+        sections. For a new model, use a new ``HyDAMO``.
+
         Validation requires Python 3.12 and ``pip install "hydrolib[validation]"``.
         After enabled validation returns normally, ``self.validation_result``
         contains ``success``, ``status``, ``errors`` and ``syntax_findings``
@@ -474,6 +370,7 @@ class HyDAMO:
             ),
         )
 
+        self._reset_damo_tables()
         load_layers(
             self,
             gpkg_path,
@@ -483,6 +380,22 @@ class HyDAMO:
             check_3d=check_3d,
         )
         return self
+
+    def _reset_damo_tables(self) -> None:
+        """Empty every DAMO table in place, as it is after ``HyDAMO()``.
+
+        In place, so references to the tables stay valid. HYDROLIB's own tables
+        (``OWN_TABLES``) are left alone: they are filled from their own files.
+        """
+        for name, definition in TABLES.items():
+            table = getattr(self, name)
+            fresh = _new_table(definition.geotype, definition.required_columns)
+            # inplace: the tables are replaced in place, so references stay valid
+            table.drop(index=table.index, inplace=True)  # noqa: PD002
+            table.drop(columns=list(table.columns), inplace=True)  # noqa: PD002
+            table.index = fresh.index
+            for column in fresh.columns:
+                table[column] = fresh[column]
 
     @validate_call(
         config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
