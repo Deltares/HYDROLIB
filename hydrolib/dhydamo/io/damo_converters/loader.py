@@ -9,7 +9,11 @@ from typing import TYPE_CHECKING
 import geopandas as gpd
 
 from hydrolib.dhydamo.core.relations import RelationsRR
-from hydrolib.dhydamo.io.damo_converters.data_model import FILLED_FROM_GLOBALID, TABLES
+from hydrolib.dhydamo.io.damo_converters.data_model import (
+    FILLED_FROM_GLOBALID,
+    TABLES,
+    VALUE_REWRITES,
+)
 from hydrolib.dhydamo.io.damo_converters.steps import SourceLayer
 
 if TYPE_CHECKING:
@@ -28,7 +32,8 @@ def load_layers(
 ) -> None:
     """Read the layers of a DAMO GeoPackage into *hydamo*, under their DAMO 2.2 names.
 
-    Then computes the derived columns (`data_model.DERIVED_COLUMNS`).
+    Then rewrites values (`data_model.VALUE_REWRITES`) and computes the derived
+    columns (`data_model.DERIVED_COLUMNS`).
 
     Parameters
     ----------
@@ -104,10 +109,21 @@ def load_layers(
                 f'HyDAMO layer "{actual_layer}" (DAMO {hydamo_version}): {exc.args[0]}'
             ) from exc
 
+    _rewrite_values(hydamo)
     # The derived columns of data_model.DERIVED_COLUMNS
     _derive_soortafsluitmiddel(hydamo)
     _derive_profile_code(hydamo)
     _derive_boundary_node(hydamo)
+
+
+def _rewrite_values(hydamo: HyDAMO) -> None:
+    """Apply the value rewrites of `data_model.VALUE_REWRITES`, in place."""
+    for rewrite in VALUE_REWRITES:
+        table = getattr(hydamo, rewrite.table)
+        if rewrite.column in table.columns:
+            table[rewrite.column] = table[rewrite.column].replace(
+                rewrite.old, rewrite.new
+            )
 
 
 def _derive_profile_code(hydamo: HyDAMO) -> None:

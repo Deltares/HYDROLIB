@@ -313,6 +313,48 @@ OWN_COLUMNS: tuple[Extension, ...] = (
     ),
 )
 
+
+@dataclass(frozen=True)
+class ValueRewrite:
+    """A value HYDROLIB rewrites when loading, whatever the DAMO version.
+
+    Only the exact value is rewritten, so no general stripping of whitespace or
+    commas. A table without the column is left alone.
+
+    Parameters
+    ----------
+    table : str
+        HyDAMO attribute of the table.
+    column : str
+        The column, under its DAMO 2.2 name.
+    old : str
+        The value in the file.
+    new : str
+        The value HYDROLIB uses instead.
+    reason : str
+        Why HYDROLIB rewrites it.
+    """
+
+    table: str
+    column: str
+    old: str
+    new: str
+    reason: str
+
+
+# Applied after the renames, before the derived columns.
+VALUE_REWRITES: tuple[ValueRewrite, ...] = (
+    ValueRewrite(
+        "management",
+        "stuurvariabele",
+        "bovenkant afsluitmiddel,",
+        "bovenkant afsluitmiddel",
+        "Every validatiemodule schema from DAMO 2.2 to 2.6 allows only this steering "
+        "variable with a trailing comma, a typo upstream. Files made under those "
+        "versions keep it even after an upstream fix, so the rewrite is permanent.",
+    ),
+)
+
 # Filled from ``globalid`` where the column is absent or empty, before duplicates
 # get a suffix.
 FILLED_FROM_GLOBALID: tuple[Extension, ...] = (

@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo import validation
-from hydrolib.dhydamo.core.drtc import DRTCModel
+from hydrolib.dhydamo.core.drtc import CREST_LEVEL, DRTCModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.core.relations import RelationsHyDAMO
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
@@ -899,6 +899,88 @@ def _drtc_warnings(caplog: pytest.LogCaptureFixture, text: str) -> list[str]:
         if record.name == "hydrolib.dhydamo.core.drtc" and record.levelname == "WARNING"
     ]
     return [message for message in messages if text in message]
+
+
+@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
+@pytest.mark.parametrize(
+    ("in_file", "loaded"),
+    [
+        # every DAMO schema allows only the value with the trailing comma
+        ("bovenkant afsluitmiddel,", "bovenkant afsluitmiddel"),
+        ("bovenkant afsluitmiddel", "bovenkant afsluitmiddel"),
+        ("hoogte opening", "hoogte opening"),
+        # only the exact typo is rewritten: no general stripping
+        ("bovenkant afsluitmiddel, ", "bovenkant afsluitmiddel, "),
+        (" bovenkant afsluitmiddel,", " bovenkant afsluitmiddel,"),
+        (None, None),
+    ],
+    ids=["typo", "correct", "other", "trailing_space", "leading_space", "empty"],
+)
+def test_load_from_gpkg_rewrites_the_steering_variable_typo(
+    tmp_path: Path, version: str, in_file: str | None, loaded: str | None
+) -> None:
+    gpkg_file = tmp_path / "sturing.gpkg"
+    _write_layer(
+        gpkg_file,
+        "Sturing",
+        gpd.GeoDataFrame(
+            {
+                "code": ["CTRL1"],
+                "globalid": ["mgmt-guid"],
+                _damo_names(version)["stuurvariabele"]: [in_file],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
+
+    value = hydamo.management.loc["CTRL1", "stuurvariabele"]
+    if loaded is None:
+        assert pd.isna(value)
+    else:
+        assert value == loaded
+
+
+def _crest_controlled_weir_sturing(steering_variable: str) -> gpd.GeoDataFrame:
+    """Return Sturing ``CTRL_PID``: a PID controller of ``ST1_1`` on *steering_variable*."""
+    return _sturing(
+        [
+            {
+                "code": "CTRL_PID",
+                "afsluitmiddelid": "afsluit-guid-1",
+                "typecontroller": "PID",
+                "streefwaarde": 0.5,
+                "typestuurvariabele": steering_variable,
+            }
+        ]
+    )
+
+
+def test_drtc_builds_a_crest_controller_from_the_schema_steering_variable(
+    tmp_path: Path,
+) -> None:
+    sturing = _crest_controlled_weir_sturing("bovenkant afsluitmiddel,")
+    drtc = _controlled_compound_weir_drtc(tmp_path, sturing)
+
+    drtc.from_hydamo(
+        pid_settings={"global": PID_GLOBAL},
+        interval_settings={"global": INTERVAL_GLOBAL},
+    )
+
+    assert drtc.pid_controllers["ST1_1"]["steering_variable"] == CREST_LEVEL
+
+
+def test_drtc_still_rejects_other_steering_variables(tmp_path: Path) -> None:
+    sturing = _crest_controlled_weir_sturing("bovenkant afsluitmiddel, ")
+    drtc = _controlled_compound_weir_drtc(tmp_path, sturing)
+
+    with pytest.raises(ValueError, match="Invalid value for steering variable"):
+        drtc.from_hydamo(
+            pid_settings={"global": PID_GLOBAL},
+            interval_settings={"global": INTERVAL_GLOBAL},
+        )
 
 
 def test_drtc_applies_settings_keyed_by_compound_weir_opening_id(
