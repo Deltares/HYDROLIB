@@ -800,13 +800,11 @@ class StructuresIO:
             weir_rows = rweirs.loc[[weir.Index]]
             weir_opening = opening_weir.children_of(weir_rows, opening)
 
-            # check if a separate name field is present
-            if "naam" in weirs:
-                name = weir.naam
-                if not name:
-                    name = weir.code
+            # the name, or the code when there is none
+            if "naam" in weirs.columns and pd.notna(weir.naam):
+                name = str(weir.naam)
             else:
-                name = weir.code
+                name = str(weir.code)
 
             if weir_opening.shape[0] > 1:
                 logger.info(
@@ -995,11 +993,11 @@ class StructuresIO:
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
             uweir_rows = uweirs.loc[[uweir.Index]]
-            # check if a separate name field is present
-            if "naam" in uweirs:
-                name = uweir.naam
+            # the name, or the code when there is none
+            if "naam" in uweirs.columns and pd.notna(uweir.naam):
+                name = str(uweir.naam)
             else:
-                name = uweir.code
+                name = str(uweir.code)
 
             prof = pd.DataFrame()
             if (
@@ -1374,10 +1372,11 @@ class StructuresIO:
                 )
                 continue
 
-            if "naam" in pumpstation:
-                name = pumpstation.name
+            # the name, or the code when there is none
+            if "naam" in pumpstations.columns and pd.notna(pumpstation.naam):
+                name = str(pumpstation.naam)
             else:
-                name = pumpstation.code
+                name = str(pumpstation.code)
             is_compound = len(pumps_subset) > 1
             cmp_list = []
             if is_compound:

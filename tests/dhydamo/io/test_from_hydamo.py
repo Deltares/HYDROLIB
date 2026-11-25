@@ -330,7 +330,20 @@ def _convert_structures(hydamo_obj: HyDAMO | None = None) -> HyDAMO:
 
 
 def test_convert_structures() -> None:
-    hydamo = _convert_structures()
+    hydamo, _ = _hydamo_object_from_gpkg()
+    # names: a weir with a name, a weir with an empty name as NaN; the universal weir
+    # S_98635 has an empty name as None in the sample data
+    weirs = hydamo.weirs
+    weirs.loc[weirs["code"] == "BV_152054", "naam"] = "Stuw Noord"
+    weirs.loc[weirs["code"] == "BV_9961", "naam"] = np.nan
+    hydamo = _convert_structures(hydamo)
+
+    rweir_names = hydamo.structures.rweirs_df.set_index("id")["name"]
+    assert rweir_names["BV_152054"] == "Stuw Noord"
+    assert rweir_names["BV_9961"] == "BV_9961"
+    assert hydamo.structures.uweirs_df["name"].tolist() == ["S_98635"]
+    assert hydamo.structures.pumps_df["name"].tolist() == ["Gemaal Smakterbroek"]
+
     # one weir is converted to an orifice, one tol a universal weir. w weirs have in total 4 extra openings, so fictional weirs are added.
     assert hydamo.structures.rweirs_df.shape[0] == hydamo.weirs.shape[0] - 2 + 4
     assert len(hydamo.structures.compounds_df) == 2
@@ -470,6 +483,24 @@ def test_convert_pumps(
         assert compounds.iloc[0].structureids == ";".join(row[0] for row in expected)
     else:
         assert compounds.empty
+
+
+@pytest.mark.parametrize(
+    ("naam", "expected"),
+    [
+        pytest.param("Gemaal Noord", "Gemaal Noord", id="name"),
+        pytest.param(None, "S1", id="none"),
+        pytest.param(np.nan, "S1", id="nan"),
+    ],
+)
+def test_convert_pumps_name(naam: str | float | None, expected: str) -> None:
+    # the name of the pump station, or its code; the name used to be ignored
+    hydamo = _pump_hydamo((1,))
+    hydamo.pumpstations["naam"] = [naam]
+    hydamo.structures.convert.pumps(
+        hydamo.pumpstations, pumps=hydamo.pumps, management=hydamo.management
+    )
+    assert hydamo.structures.pumps_df["name"].tolist() == [expected]
 
 
 @pytest.mark.parametrize(
