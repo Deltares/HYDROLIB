@@ -148,6 +148,7 @@ exclude = [
 module = [
   "cftime.*",
   "exactextract.*",
+  "hydamo_validation.*",
   "meshkernel.*",
   "rasterio.*",
 ]
