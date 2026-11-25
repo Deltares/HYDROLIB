@@ -77,7 +77,11 @@ def _fill_columns(df: pd.DataFrame, column_fallbacks: dict[str, str]) -> None:
 
 
 def _make_index_unique(gdf: pd.DataFrame, index_col: str) -> None:
-    """Suffix repeated `index_col` values in place (`_1`, `_2`, ...); the first occurrence keeps its id."""
+    """Suffix repeated `index_col` values in place (`_1`, `_2`, ...); the first occurrence keeps its id.
+
+    A suffix that is already a value in the column is skipped, so ``ST2, ST2, ST2_1``
+    becomes ``ST2, ST2_2, ST2_1``.
+    """
     duplicated = gdf.duplicated(subset=index_col, keep="first")
     if not duplicated.any():
         return
@@ -86,10 +90,15 @@ def _make_index_unique(gdf: pd.DataFrame, index_col: str) -> None:
         index_col,
         list(gdf.loc[duplicated, index_col].unique()),
     )
-    for dupe_id, group in gdf[duplicated].groupby(by=index_col, sort=False):
-        gdf.loc[group.index, index_col] = [
-            f"{dupe_id}_{i + 1}" for i in range(len(group))
-        ]
+    taken = set(gdf[index_col])
+    for row_index in gdf.index[duplicated]:
+        dupe_id = gdf.loc[row_index, index_col]
+        number = 1
+        while f"{dupe_id}_{number}" in taken:
+            number += 1
+        new_id = f"{dupe_id}_{number}"
+        taken.add(new_id)
+        gdf.loc[row_index, index_col] = new_id
 
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):

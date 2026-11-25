@@ -33,7 +33,7 @@ class Damo22Converter(BaseDamoConverter):
         LayerSpec("profile_group", "profielgroep"),
         LayerSpec("param_profile", "NormgeparamProfiel"),
         LayerSpec("param_profile_values", "NormgeparamProfielWaarde"),
-        LayerSpec("weirs", "Stuw"),
+        LayerSpec("weirs", "Stuw", index_col="code"),
         LayerSpec("opening", "Kunstwerkopening"),
         LayerSpec("closing_device", "Afsluitmiddel"),
         LayerSpec("management_device", "Regelmiddel"),

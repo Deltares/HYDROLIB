@@ -724,6 +724,151 @@ def test_drtc_ignores_sturing_rows_without_supported_controller_for_conflicts(
     assert len(_drtc_warnings(caplog, "not a valid controller type")) == 1
 
 
+@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
+def test_load_from_gpkg_indexes_weirs_by_unique_code(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, version: str
+) -> None:
+    gpkg_path = tmp_path / "weirs.gpkg"
+    _write_layer(
+        gpkg_path,
+        "Stuw",
+        gpd.GeoDataFrame(
+            {
+                "code": ["ST2", "ST1", "ST2"],
+                "globalid": ["stuw-guid-1", "stuw-guid-2", "stuw-guid-3"],
+                "afvoercoefficient": [1.0] * 3,
+                "geometry": [Point(1, 0), Point(2, 0), Point(3, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version=version)
+
+    assert hydamo.weirs.index.tolist() == ["ST2", "ST1", "ST2_1"]
+    assert hydamo.weirs["code"].tolist() == ["ST2", "ST1", "ST2_1"]
+    assert "Index column 'code' contains duplicates (['ST2'])" in caplog.text
+
+
+def test_load_from_gpkg_skips_existing_codes_when_suffixing_duplicates(
+    tmp_path: Path,
+) -> None:
+    gpkg_path = tmp_path / "weirs.gpkg"
+    _write_layer(
+        gpkg_path,
+        "Stuw",
+        gpd.GeoDataFrame(
+            {
+                "code": ["ST2", "ST2", "ST2_1"],
+                "globalid": ["stuw-guid-1", "stuw-guid-2", "stuw-guid-3"],
+                "afvoercoefficient": [1.0] * 3,
+                "geometry": [Point(1, 0), Point(2, 0), Point(3, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.5")
+
+    assert hydamo.weirs.index.tolist() == ["ST2", "ST2_2", "ST2_1"]
+
+
+def _write_weirs_with_openings(gpkg_path: Path, weirs: list[tuple[str, int]]) -> None:
+    """Write weirs, given as ``(code, number of openings)``, on branch H1.
+
+    Each opening gets an overflow closing device, so each becomes a structure.
+    """
+    weir_rows = []
+    opening_rows = []
+    device_rows = []
+    for weir_number, (code, n_openings) in enumerate(weirs):
+        weir_guid = f"stuw-guid-{weir_number}"
+        weir_rows.append(
+            {
+                "code": code,
+                "globalid": weir_guid,
+                "afvoercoefficient": 1.0,
+                "geometry": Point(5, 0),
+            }
+        )
+        for opening_number in range(n_openings):
+            opening_guid = f"opening-guid-{weir_number}-{opening_number}"
+            opening_rows.append(
+                {
+                    "globalid": opening_guid,
+                    "stuwid": weir_guid,
+                    "laagstedoorstroombreedte": 1.2,
+                    "laagstedoorstroomhoogte": 0.4,
+                    "afvoercoefficient": 1.0,
+                    "geometry": Point(5, 0),
+                }
+            )
+            device_rows.append(
+                {
+                    "code": f"AF-{weir_number}-{opening_number}",
+                    "globalid": f"afsluit-guid-{weir_number}-{opening_number}",
+                    "kunstwerkopeningid": opening_guid,
+                    "overlaatonderlaat": "overlaat",
+                    "geometry": Point(5, 0),
+                }
+            )
+    branch = {
+        "code": "H1",
+        "globalid": "hydro-guid",
+        "geometry": LineString([(0, 0), (10, 0)]),
+    }
+    _write_layer(gpkg_path, "HydroObject", gpd.GeoDataFrame([branch], crs="EPSG:28992"))
+    _write_layer(gpkg_path, "Stuw", gpd.GeoDataFrame(weir_rows, crs="EPSG:28992"))
+    _write_layer(
+        gpkg_path, "Kunstwerkopening", gpd.GeoDataFrame(opening_rows, crs="EPSG:28992")
+    )
+    _write_layer(
+        gpkg_path, "Afsluitmiddel", gpd.GeoDataFrame(device_rows, crs="EPSG:28992")
+    )
+
+
+@pytest.mark.parametrize(
+    ("weirs", "message"),
+    [
+        # the second ST2 becomes ST2_1, the id of the first one's first opening
+        (
+            [("ST2", 2), ("ST2", 1)],
+            "Structure id ST2_1 of weir ST2_1 is also the id of opening 1 of weir ST2",
+        ),
+        (
+            [("ST2", 2), ("ST2_1", 1)],
+            "Structure id ST2_1 of weir ST2_1 is also the id of opening 1 of weir ST2",
+        ),
+        (
+            [("ST2_1", 1), ("ST2", 2)],
+            "Structure id ST2_1 of opening 1 of weir ST2 is also the id of weir ST2_1",
+        ),
+    ],
+    ids=["duplicate_code", "compound_first", "single_first"],
+)
+def test_weir_conversion_raises_on_structure_id_collision(
+    tmp_path: Path, weirs: list[tuple[str, int]], message: str
+) -> None:
+    gpkg_path = tmp_path / "colliding_weirs.gpkg"
+    _write_weirs_with_openings(gpkg_path, weirs)
+    hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.5")
+
+    with pytest.raises(ValueError, match=message):
+        _convert_weirs(hydamo)
+
+
+def test_weir_conversion_gives_each_opening_a_unique_structure_id(
+    tmp_path: Path,
+) -> None:
+    gpkg_path = tmp_path / "weirs.gpkg"
+    _write_weirs_with_openings(gpkg_path, [("ST2", 2), ("ST3", 1)])
+    hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.5")
+
+    _convert_weirs(hydamo)
+
+    assert hydamo.structures.rweirs_df["id"].tolist() == ["ST2_1", "ST2_2", "ST3"]
+
+
 def test_load_from_gpkg_makes_non_spatial_index_unique(tmp_path: Path) -> None:
     # Sturing has no geometry in HYDROLIB; duplicate codes must get a suffix, as
     # for spatial tables, so that dropping one row by label drops only that row.

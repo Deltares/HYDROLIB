@@ -633,6 +633,34 @@ class StructuresIO:
     def __init__(self, structures: Structures) -> None:
         self.structures = structures
 
+    @staticmethod
+    def _claim_weir_id(owners: dict[str, str], weir_id: str, owner: str) -> None:
+        """Record that *owner* uses structure id *weir_id*, or raise if it is taken.
+
+        Parameters
+        ----------
+        owners : dict[str, str]
+            The owner of each structure id claimed so far, updated in place.
+        weir_id : str
+            The D-Flow FM structure id.
+        owner : str
+            What the id belongs to, e.g. ``"opening 1 of weir ST2"`` or ``"weir ST3"``.
+
+        Raises
+        ------
+        ValueError
+            If another weir or opening already has *weir_id*.
+        """
+        if weir_id in owners:
+            raise ValueError(
+                f"Structure id {weir_id} of {owner} is also the id of "
+                f"{owners[weir_id]}. D-Flow FM needs unique structure ids: give "
+                "these weirs unique codes in the GeoPackage. A code ending in _<n> "
+                "may have been added by HYDROLIB for a duplicate code; see the "
+                "duplicates warning."
+            )
+        owners[weir_id] = owner
+
     def _name_or_nan(self, row: pd.Series) -> Hashable:
         """Return the index label of the row if it has a name column, otherwise NaN."""
         return row.name if "name" in row.index else np.nan
@@ -795,6 +823,9 @@ class StructuresIO:
                 )
             ] = 1
 
+        # The owner of each structure id. The id of an opening of a compound weir,
+        # weir.code_N, can be the code of another weir.
+        owners: dict[str, str] = {}
         rweirs = weirs[index == 0]
         for weir in rweirs.itertuples():
             weir_rows = rweirs.loc[[weir.Index]]
@@ -842,6 +873,9 @@ class StructuresIO:
                     # this structure id; see Structures.compound_weir_structure_ids
                     # in core/hydamo.py.
                     weir_id = f"{weir.code}_{num_op + 1}"
+                    self._claim_weir_id(
+                        owners, weir_id, f"opening {num_op + 1} of weir {weir.code}"
+                    )
                     self.structures.compound_weir_structure_ids[
                         str(weir_mandev["globalid"].iloc[0])
                     ] = weir_id
@@ -911,6 +945,7 @@ class StructuresIO:
                     continue
 
                 weir_id = weir.code
+                self._claim_weir_id(owners, weir_id, f"weir {weir.code}")
                 # Unlike the compound case above, no need to record this id in
                 # compound_weir_structure_ids: this weir has a single opening, so
                 # its structure id is just weir.code, which
@@ -992,6 +1027,7 @@ class StructuresIO:
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
+            self._claim_weir_id(owners, str(uweir.code), f"weir {uweir.code}")
             uweir_rows = uweirs.loc[[uweir.Index]]
             # the name, or the code when there is none
             if "naam" in uweirs.columns and pd.notna(uweir.naam):
