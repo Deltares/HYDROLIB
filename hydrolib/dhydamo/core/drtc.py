@@ -20,7 +20,7 @@ from typing_extensions import TypedDict
 
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.core.relations import RelationsHyDAMO
+from hydrolib.dhydamo.io.damo_converters.data_model import DamoRelations
 from hydrolib.dhydamo.io.netcdfreader import time_index
 
 logger = logging.getLogger(__name__)
@@ -495,8 +495,8 @@ class DRTCModel:
         all_management = self.hydamo.management
         # The resolver raises for rows referencing neither a pump nor a management device.
         hydamo_controllers = all_management[
-            all_management[RelationsHyDAMO.MANAGEMENT_PUMP.foreign_key].notna()
-            | all_management[RelationsHyDAMO.MANAGEMENT_DEVICE.foreign_key].notna()
+            all_management[DamoRelations.MANAGEMENT_PUMP.foreign_key].notna()
+            | all_management[DamoRelations.MANAGEMENT_DEVICE.foreign_key].notna()
         ]
         for _, management in hydamo_controllers.iterrows():
             resolved = self._resolve_management_structure(management)
@@ -551,8 +551,8 @@ class DRTCModel:
             If neither ``pompid`` nor ``regelmiddelid`` is set on ``management``, since a
             management record must reference one of the two.
         """
-        management_pump = RelationsHyDAMO.MANAGEMENT_PUMP
-        management_device = RelationsHyDAMO.MANAGEMENT_DEVICE
+        management_pump = DamoRelations.MANAGEMENT_PUMP
+        management_device = DamoRelations.MANAGEMENT_DEVICE
         management_rows = management.to_frame().T
         pump_id = management[management_pump.foreign_key]
         if not pd.isna(pump_id):
@@ -605,7 +605,7 @@ class DRTCModel:
             )
             return None
 
-        culvert_relation = RelationsHyDAMO.MANAGEMENT_DEVICE_CULVERT
+        culvert_relation = DamoRelations.MANAGEMENT_DEVICE_CULVERT
         if pd.notna(mandev[culvert_relation.foreign_key]).any():
             struc = culvert_relation.parents_of(
                 mandev.iloc[:1],
@@ -664,7 +664,7 @@ class DRTCModel:
             or None if ``mandev`` has no ``kunstwerkopeningid``, the chain to ``weirs``
             cannot be resolved, or the weir turns out to be compound (multi-opening).
         """
-        opening_relation = RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING
+        opening_relation = DamoRelations.MANAGEMENT_DEVICE_OPENING
         if opening_relation.foreign_key not in mandev.columns:
             return None
         opening_id = mandev[opening_relation.foreign_key].to_numpy()[0]
@@ -675,7 +675,7 @@ class DRTCModel:
             mandev.iloc[:1],
             self.hydamo.opening,
         )
-        weir_relation = RelationsHyDAMO.OPENING_WEIR
+        weir_relation = DamoRelations.OPENING_WEIR
         if opening_row.empty or weir_relation.foreign_key not in opening_row.columns:
             return None
         weir_row = weir_relation.parents_of(opening_row, self.hydamo.weirs)

@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING
 
 import geopandas as gpd
 
-from hydrolib.dhydamo.core.relations import RelationsRR
 from hydrolib.dhydamo.io.damo_converters.data_model import (
     FILLED_FROM_GLOBALID,
     TABLES,
     VALUE_REWRITES,
+    DamoRelations,
 )
 from hydrolib.dhydamo.io.damo_converters.steps import SourceLayer
 
@@ -138,7 +138,7 @@ def _derive_boundary_node(hydamo: HyDAMO) -> None:
     """Set each catchment's ``boundary_node`` to the ``code`` of its lateral, in place."""
     if hydamo.catchments.empty or hydamo.laterals.empty:
         return
-    catchment_lateral = RelationsRR.CATCHMENT_LATERAL
+    catchment_lateral = DamoRelations.CATCHMENT_LATERAL
     mapping = hydamo.laterals.set_index(catchment_lateral.parent_key)["code"]
     hydamo.catchments["boundary_node"] = hydamo.catchments[
         catchment_lateral.foreign_key

@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import UnionType
+from typing import TypeAlias
 
+import pandas as pd
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from shapely.geometry.base import BaseGeometry
 
@@ -280,6 +282,287 @@ OWN_TABLES: dict[str, OwnTable] = {
         ("code", "geometry"),
         "Storage areas that become D-Flow FM storage nodes.",
     ),
+}
+
+
+@dataclass(frozen=True, slots=True)
+class Relation:
+    """A foreign-key relation from a child table to a parent table.
+
+    Following a relation is in `hydrolib.dhydamo.core.relations`; the two methods
+    here only say how its keys match.
+
+    Attributes
+    ----------
+    name : str
+        Name of the relation, for messages.
+    child_table : str
+        HyDAMO attribute of the table with the foreign key.
+    foreign_key : str
+        Column of the child table that refers to the parent.
+    parent_table : str
+        HyDAMO attribute of the table that is referred to.
+    parent_key : str
+        Column of the parent table that is referred to. Defaults to ``"globalid"``.
+    """
+
+    name: str
+    child_table: str
+    foreign_key: str
+    parent_table: str
+    parent_key: str = "globalid"
+
+    def parents_of(
+        self,
+        child_rows: pd.DataFrame,
+        parent_table: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Return parent rows referenced by one or more child rows.
+
+        The ``of`` in ``parents_of`` refers to the first argument,
+        ``child_rows``. This relation supplies the traversal metadata: values
+        from its ``foreign_key`` on ``child_rows`` are matched against its
+        ``parent_key`` on ``parent_table``.
+
+        Parameters
+        ----------
+        child_rows : pandas.DataFrame
+            One or more rows from this relation's ``child_table``. The
+            relation's ``foreign_key`` must be present as a column.
+        parent_table : pandas.DataFrame
+            Candidate rows from this relation's ``parent_table``. The
+            relation's ``parent_key`` must be present as a column.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Rows from ``parent_table`` whose parent key is referenced by
+            ``child_rows``. The original index, column order, and dataframe
+            type are preserved. Null foreign-key values never match.
+
+        Raises
+        ------
+        KeyError
+            If ``foreign_key`` is missing from ``child_rows`` or ``parent_key``
+            is missing from ``parent_table``.
+
+        Notes
+        -----
+        This method does not enforce relation cardinality. It can return zero,
+        one, or multiple parent rows; the caller decides how those cases are
+        handled.
+        """
+        foreign_keys = child_rows[self.foreign_key].dropna()
+        return parent_table.loc[parent_table[self.parent_key].isin(foreign_keys)]
+
+    def children_of(
+        self,
+        parent_rows: pd.DataFrame,
+        child_table: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Return child rows that reference one or more parent rows.
+
+        The ``of`` in ``children_of`` refers to the first argument,
+        ``parent_rows``. This relation supplies the traversal metadata: values
+        from its ``parent_key`` on ``parent_rows`` are matched against its
+        ``foreign_key`` on ``child_table``.
+
+        Parameters
+        ----------
+        parent_rows : pandas.DataFrame
+            One or more rows from this relation's ``parent_table``. The
+            relation's ``parent_key`` must be present as a column.
+        child_table : pandas.DataFrame
+            Candidate rows from this relation's ``child_table``. The
+            relation's ``foreign_key`` must be present as a column.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Rows from ``child_table`` whose foreign key references
+            ``parent_rows``. The original index, column order, and dataframe
+            type are preserved. Null parent-key values never match.
+
+        Raises
+        ------
+        KeyError
+            If ``parent_key`` is missing from ``parent_rows`` or
+            ``foreign_key`` is missing from ``child_table``.
+
+        Notes
+        -----
+        This method does not enforce relation cardinality. It can return zero,
+        one, or multiple child rows; the caller decides how those cases are
+        handled.
+        """
+        parent_keys = parent_rows[self.parent_key].dropna()
+        return child_table.loc[child_table[self.foreign_key].isin(parent_keys)]
+
+
+class DamoRelations:
+    """The DAMO relations between the HyDAMO tables.
+
+    A DAMO foreign key holds the parent's ``globalid``. The one exception is the
+    parameterised-profile values, which share ``normgeparamprofielid`` with their
+    profile, so that is the parent key.
+    """
+
+    PROFILE_LINE = Relation(
+        name="profile_line",
+        child_table="profile",
+        foreign_key="profiellijnid",
+        parent_table="profile_line",
+    )
+    PROFILE_ROUGHNESS = Relation(
+        name="profile_roughness",
+        child_table="profile_roughness",
+        foreign_key="profielpuntid",
+        parent_table="profile",
+    )
+    PROFILE_LINE_GROUP = Relation(
+        name="profile_line_group",
+        child_table="profile_line",
+        foreign_key="profielgroepid",
+        parent_table="profile_group",
+    )
+    PROFILE_GROUP_BRANCH = Relation(
+        name="profile_group_branch",
+        child_table="profile_group",
+        foreign_key="hydroobjectid",
+        parent_table="branches",
+    )
+    PROFILE_GROUP_WEIR = Relation(
+        name="profile_group_weir",
+        child_table="profile_group",
+        foreign_key="stuwid",
+        parent_table="weirs",
+    )
+    PROFILE_GROUP_BRIDGE = Relation(
+        name="profile_group_bridge",
+        child_table="profile_group",
+        foreign_key="brugid",
+        parent_table="bridges",
+    )
+    PARAM_PROFILE_BRANCH = Relation(
+        name="param_profile_branch",
+        child_table="param_profile",
+        foreign_key="hydroobjectid",
+        parent_table="branches",
+    )
+    PARAM_PROFILE_VALUES = Relation(
+        name="param_profile_values",
+        child_table="param_profile_values",
+        foreign_key="normgeparamprofielid",
+        parent_table="param_profile",
+        parent_key="normgeparamprofielid",
+    )
+    OPENING_WEIR = Relation(
+        name="opening_weir",
+        child_table="opening",
+        foreign_key="stuwid",
+        parent_table="weirs",
+    )
+    OPENING_MANAGEMENT_DEVICE = Relation(
+        name="opening_management_device",
+        child_table="opening",
+        foreign_key="regelmiddelid",
+        parent_table="management_device",
+    )
+    MANAGEMENT_DEVICE_OPENING = Relation(
+        name="management_device_opening",
+        child_table="management_device",
+        foreign_key="kunstwerkopeningid",
+        parent_table="opening",
+    )
+    MANAGEMENT_DEVICE_CULVERT = Relation(
+        name="management_device_culvert",
+        child_table="management_device",
+        foreign_key="duikersifonhevelid",
+        parent_table="culverts",
+    )
+    MANAGEMENT_DEVICE_PUMPSTATION = Relation(
+        name="management_device_pumpstation",
+        child_table="management_device",
+        foreign_key="gemaalid",
+        parent_table="pumpstations",
+    )
+    PUMP_PUMPSTATION = Relation(
+        name="pump_pumpstation",
+        child_table="pumps",
+        foreign_key="gemaalid",
+        parent_table="pumpstations",
+    )
+    MANAGEMENT_PUMP = Relation(
+        name="management_pump",
+        child_table="management",
+        foreign_key="pompid",
+        parent_table="pumps",
+    )
+    MANAGEMENT_DEVICE = Relation(
+        name="management_device",
+        child_table="management",
+        foreign_key="regelmiddelid",
+        parent_table="management_device",
+    )
+    MANAGEMENT_BOUNDARY_CONDITION = Relation(
+        name="management_boundary_condition",
+        child_table="management",
+        foreign_key="hydrologischerandvoorwaardeid",
+        parent_table="boundary_conditions",
+    )
+    CATCHMENT_LATERAL = Relation(
+        name="catchment_lateral",
+        child_table="catchments",
+        foreign_key="lateraleknoopid",
+        parent_table="laterals",
+    )
+
+
+class OwnRelations:
+    """The relations of HYDROLIB's own tables (`OWN_TABLES`), an extension.
+
+    These tables aren't DAMO and have no ``globalid``: a child refers to its
+    parent's ``code`` in ``codegerelateerdobject``.
+    """
+
+    OVERFLOW_SEWER_AREA = Relation(
+        name="overflow_sewer_area",
+        child_table="overflows",
+        foreign_key="codegerelateerdobject",
+        parent_table="sewer_areas",
+        parent_key="code",
+    )
+    GREENHOUSE_LATERAL_AREA = Relation(
+        name="greenhouse_lateral_area",
+        child_table="greenhouse_laterals",
+        foreign_key="codegerelateerdobject",
+        parent_table="greenhouse_areas",
+        parent_key="code",
+    )
+
+
+CascadePaths: TypeAlias = tuple[tuple[Relation, ...], ...]
+
+# The rows dropped with a table's rows, by table: each path is followed from the
+# dropped rows, relation by relation, in either direction.
+CASCADE_PATHS: dict[str, CascadePaths] = {
+    "profile": (
+        (DamoRelations.PROFILE_ROUGHNESS,),
+        (DamoRelations.PROFILE_LINE, DamoRelations.PROFILE_LINE_GROUP),
+    ),
+    "profile_line": (
+        (DamoRelations.PROFILE_LINE_GROUP,),
+        (DamoRelations.PROFILE_LINE, DamoRelations.PROFILE_ROUGHNESS),
+    ),
+    "weirs": ((DamoRelations.OPENING_WEIR, DamoRelations.MANAGEMENT_DEVICE_OPENING),),
+    "pumpstations": ((DamoRelations.PUMP_PUMPSTATION, DamoRelations.MANAGEMENT_PUMP),),
+    "culverts": ((DamoRelations.MANAGEMENT_DEVICE_CULVERT,),),
+    "catchments": ((DamoRelations.CATCHMENT_LATERAL,),),
+    "laterals": ((DamoRelations.CATCHMENT_LATERAL,),),
+    "overflows": ((OwnRelations.OVERFLOW_SEWER_AREA,),),
+    "sewer_areas": ((OwnRelations.OVERFLOW_SEWER_AREA,),),
+    "greenhouse_areas": ((OwnRelations.GREENHOUSE_LATERAL_AREA,),),
+    "greenhouse_laterals": ((OwnRelations.GREENHOUSE_LATERAL_AREA,),),
 }
 
 

@@ -16,9 +16,9 @@ from netCDF4 import Dataset, chartostring
 from pydantic import ConfigDict, validate_call
 from shapely.geometry import Point
 
-from hydrolib.dhydamo.core.relations import RelationsHyDAMO
 from hydrolib.dhydamo.geometry.mesh import Network
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
+from hydrolib.dhydamo.io.damo_converters.data_model import DamoRelations
 
 if TYPE_CHECKING:
     from hydrolib.dhydamo.core.hydamo import (
@@ -171,8 +171,8 @@ class CrossSectionsIO:
         if crosssections is not None and profile_groups is not None:
             if profile_lines is None:
                 raise ValueError("profile_lines is required with profile_groups.")
-            profile_group_bridge = RelationsHyDAMO.PROFILE_GROUP_BRIDGE
-            profile_group_weir = RelationsHyDAMO.PROFILE_GROUP_WEIR
+            profile_group_bridge = DamoRelations.PROFILE_GROUP_BRIDGE
+            profile_group_weir = DamoRelations.PROFILE_GROUP_WEIR
             # check for profile_groups items with valid brugid or stuwid. They need to be droppped from profiles.
             structure_group_mask = pd.Series(False, index=profile_groups.index)
             for relation in (profile_group_bridge, profile_group_weir):
@@ -180,11 +180,11 @@ class CrossSectionsIO:
                     structure_group_mask |= profile_groups[relation.foreign_key].notna()
 
             structure_groups = profile_groups.loc[structure_group_mask]
-            structure_lines = RelationsHyDAMO.PROFILE_LINE_GROUP.children_of(
+            structure_lines = DamoRelations.PROFILE_LINE_GROUP.children_of(
                 structure_groups,
                 profile_lines,
             )
-            structure_profiles = RelationsHyDAMO.PROFILE_LINE.children_of(
+            structure_profiles = DamoRelations.PROFILE_LINE.children_of(
                 structure_lines,
                 crosssections,
             )
@@ -804,11 +804,11 @@ class StructuresIO:
         usevelocityheight : bool, optional
             D-Flow FM keyword ``usevelocityheight``. Defaults to True.
         """
-        opening_weir = RelationsHyDAMO.OPENING_WEIR
-        management_device_opening = RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING
-        profile_group_weir = RelationsHyDAMO.PROFILE_GROUP_WEIR
-        profile_line_group = RelationsHyDAMO.PROFILE_LINE_GROUP
-        profile_line = RelationsHyDAMO.PROFILE_LINE
+        opening_weir = DamoRelations.OPENING_WEIR
+        management_device_opening = DamoRelations.MANAGEMENT_DEVICE_OPENING
+        profile_group_weir = DamoRelations.PROFILE_GROUP_WEIR
+        profile_line_group = DamoRelations.PROFILE_LINE_GROUP
+        profile_line = DamoRelations.PROFILE_LINE
         if weirs is None or opening is None or management_device is None:
             raise ValueError("weirs, opening and management_device are required.")
         index = np.zeros(len(weirs.code))
@@ -1155,9 +1155,9 @@ class StructuresIO:
         profile_groups, profile_lines, profiles : optional
             DAMO profile groups, lines and points. Default to None.
         """
-        profile_group_bridge = RelationsHyDAMO.PROFILE_GROUP_BRIDGE
-        profile_line_group = RelationsHyDAMO.PROFILE_LINE_GROUP
-        profile_line = RelationsHyDAMO.PROFILE_LINE
+        profile_group_bridge = DamoRelations.PROFILE_GROUP_BRIDGE
+        profile_line_group = DamoRelations.PROFILE_LINE_GROUP
+        profile_line = DamoRelations.PROFILE_LINE
         if profile_groups is None or profile_lines is None or profiles is None:
             raise ValueError(
                 "profile_groups, profile_lines and profiles are required for bridges."
@@ -1234,7 +1234,7 @@ class StructuresIO:
         management_device : ExtendedDataFrame, optional
             DAMO management devices (regelmiddel). Defaults to None.
         """
-        management_device_culvert = RelationsHyDAMO.MANAGEMENT_DEVICE_CULVERT
+        management_device_culvert = DamoRelations.MANAGEMENT_DEVICE_CULVERT
         if (
             management_device is not None
             and "soortafsluitmiddel" not in management_device.columns
@@ -1390,8 +1390,8 @@ class StructuresIO:
         ValueError
             If ``pumps`` or ``management`` is missing.
         """
-        pump_pumpstation = RelationsHyDAMO.PUMP_PUMPSTATION
-        management_pump = RelationsHyDAMO.MANAGEMENT_PUMP
+        pump_pumpstation = DamoRelations.PUMP_PUMPSTATION
+        management_pump = DamoRelations.MANAGEMENT_PUMP
         if pumps is None or management is None:
             raise ValueError("pumps and management are required.")
 

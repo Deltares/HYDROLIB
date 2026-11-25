@@ -33,10 +33,7 @@ from hydrolib.dhydamo.converters.hydamo2df import (
     StorageNodesIO,
     StructuresIO,
 )
-from hydrolib.dhydamo.core.relations import (
-    RelationsHyDAMO,
-    build_cascade_plan,
-)
+from hydrolib.dhydamo.core.relations import build_cascade_plan
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
@@ -48,6 +45,7 @@ from hydrolib.dhydamo.io.damo_converters import (
 from hydrolib.dhydamo.io.damo_converters.data_model import (
     OWN_TABLES,
     TABLES,
+    DamoRelations,
     Geotype,
 )
 from hydrolib.dhydamo.io.netcdfreader import time_index
@@ -1554,8 +1552,8 @@ class CrossSections:
             Dictionary with attributes of cross sections, usable for dflowfm
         """
         cssdct = {}
-        branch_relation = RelationsHyDAMO.PARAM_PROFILE_BRANCH
-        values_relation = RelationsHyDAMO.PARAM_PROFILE_VALUES
+        branch_relation = DamoRelations.PARAM_PROFILE_BRANCH
+        values_relation = DamoRelations.PARAM_PROFILE_VALUES
 
         # index label of the branch per branch id (the first matching branch)
         branch_index: dict[str, Hashable] = {}

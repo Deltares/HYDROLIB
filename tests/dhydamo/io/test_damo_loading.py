@@ -15,10 +15,13 @@ from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo import validation
 from hydrolib.dhydamo.core.drtc import CREST_LEVEL, DRTCModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.core.relations import RelationsHyDAMO
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 from hydrolib.dhydamo.io.damo_converters import SUPPORTED_HYDAMO_VERSIONS
-from hydrolib.dhydamo.io.damo_converters.data_model import OWN_TABLES, TABLES
+from hydrolib.dhydamo.io.damo_converters.data_model import (
+    OWN_TABLES,
+    TABLES,
+    DamoRelations,
+)
 from hydrolib.dhydamo.validation import HyDAMOValidationError
 from pydantic import ValidationError
 from shapely.geometry import LineString, Point
@@ -740,14 +743,14 @@ def test_damo_25_relations_resolve_expected_rows(tmp_path: Path) -> None:
 
     opening = hydamo.opening.loc[[0]]
     management = hydamo.management.loc[["mgmt-guid"]]
-    weir = RelationsHyDAMO.OPENING_WEIR.parents_of(opening, hydamo.weirs)
-    device_from_opening = RelationsHyDAMO.OPENING_MANAGEMENT_DEVICE.parents_of(
+    weir = DamoRelations.OPENING_WEIR.parents_of(opening, hydamo.weirs)
+    device_from_opening = DamoRelations.OPENING_MANAGEMENT_DEVICE.parents_of(
         opening, hydamo.management_device
     )
-    device_from_management = RelationsHyDAMO.MANAGEMENT_DEVICE.parents_of(
+    device_from_management = DamoRelations.MANAGEMENT_DEVICE.parents_of(
         management, hydamo.management_device
     )
-    opening_from_device = RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING.parents_of(
+    opening_from_device = DamoRelations.MANAGEMENT_DEVICE_OPENING.parents_of(
         device_from_management, hydamo.opening
     )
 
@@ -1262,6 +1265,83 @@ def test_weir_conversion_raises_on_structure_id_collision(
 
     with pytest.raises(ValueError, match=message):
         _convert_weirs(hydamo)
+
+
+def _load_weir_far_from_branches(tmp_path: Path) -> HyDAMO:
+    """Load weir ST1 at (5, 0) with its opening and device, and a branch 100 m away."""
+    gpkg_path = tmp_path / "weir_far_from_branches.gpkg"
+    _write_layer(
+        gpkg_path,
+        "HydroObject",
+        gpd.GeoDataFrame(
+            {
+                "code": ["H1"],
+                "globalid": ["hydro-guid"],
+                "geometry": [LineString([(0, 100), (10, 100)])],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_stuw(gpkg_path)
+    _write_layer(
+        gpkg_path,
+        "Kunstwerkopening",
+        gpd.GeoDataFrame(
+            {
+                "globalid": ["opening-guid"],
+                "stuwid": ["stuw-guid"],
+                "laagstedoorstroombreedte": [1.2],
+                "laagstedoorstroomhoogte": [0.4],
+                "afvoercoefficient": [1.0],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "Afsluitmiddel",
+        gpd.GeoDataFrame(
+            {
+                "code": ["AF1"],
+                "globalid": ["afsluit-guid"],
+                "kunstwerkopeningid": ["opening-guid"],
+                "overlaatonderlaat": ["overlaat"],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    return HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.5")
+
+
+def test_snap_to_branch_and_drop_drops_a_weir_with_its_opening_and_device(
+    tmp_path: Path,
+) -> None:
+    hydamo = _load_weir_far_from_branches(tmp_path)
+
+    hydamo.snap_to_branch_and_drop(
+        hydamo.weirs, hydamo.branches, snap_method="overal", source_table="weirs"
+    )
+
+    assert hydamo.weirs.empty
+    assert hydamo.opening.empty
+    assert hydamo.management_device.empty
+
+
+def test_snap_to_branch_and_drop_rejects_a_misspelt_source_table_before_dropping(
+    tmp_path: Path,
+) -> None:
+    hydamo = _load_weir_far_from_branches(tmp_path)
+
+    with pytest.raises(ValueError, match="'WEIRS'"):
+        hydamo.snap_to_branch_and_drop(
+            hydamo.weirs, hydamo.branches, snap_method="overal", source_table="WEIRS"
+        )
+
+    assert hydamo.weirs.index.tolist() == ["ST1"]
+    assert hydamo.opening["globalid"].tolist() == ["opening-guid"]
+    assert hydamo.management_device["globalid"].tolist() == ["afsluit-guid"]
 
 
 def test_weir_conversion_gives_each_opening_a_unique_structure_id(
