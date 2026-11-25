@@ -1,4 +1,4 @@
-"""Compare HyDAMO DAMO schemas and check the DAMO converters against them.
+"""Compare HyDAMO DAMO schemas and check the DAMO version steps against them.
 
 Uses the schemas of the installed ``hydamo_validation``. Run from the repo root::
 
@@ -18,7 +18,11 @@ import hydamo_validation
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.io.damo_converters import (
     SUPPORTED_HYDAMO_VERSIONS,
-    get_damo_converter,
+    source_layers,
+)
+from hydrolib.dhydamo.io.damo_converters.data_model import (
+    FILLED_FROM_GLOBALID,
+    TABLES,
 )
 
 
@@ -67,24 +71,25 @@ def _field_signature(props: dict[str, Any]) -> dict[str, Any]:
 
 
 def _required_fields() -> dict[str, set[str]]:
-    """Return, per layer a converter loads, the fields HYDROLIB requires.
+    """Return, per layer HYDROLIB loads, the fields HYDROLIB requires.
 
     These are the HyDAMO required columns and the index, group and order columns,
-    under their HYDROLIB names and under the names the converters rename them
-    from. Only these fields get their property changes reported.
+    under their HYDROLIB names and under the names the steps rename them from.
+    Only these fields get their property changes reported.
     """
     hydamo = HyDAMO()
     fields: dict[str, set[str]] = {}
     for version in SUPPORTED_HYDAMO_VERSIONS:
-        for spec in get_damo_converter(version).layer_specs:
-            layer_fields = fields.setdefault(spec.source_layer.lower(), set())
-            layer_fields.update(getattr(hydamo, spec.target_attr).required_columns)
-            for column in (spec.index_col, spec.groupby_column, spec.order_column):
+        for name, source in source_layers(version).items():
+            table = TABLES[name]
+            layer_fields = fields.setdefault(source.layer.lower(), set())
+            layer_fields.update(getattr(hydamo, name).required_columns)
+            for column in (table.index, table.group_by, table.order_by):
                 if column is not None:
                     layer_fields.add(column)
-            for source, target in spec.column_mapping.items():
+            for file_name, target in source.renames.items():
                 if target in layer_fields:
-                    layer_fields.add(source)
+                    layer_fields.add(file_name)
     return fields
 
 
@@ -168,20 +173,21 @@ def _diff_schemas(
 
 
 def _check_converter(version: str, schema_version: str) -> tuple[list[str], list[str]]:
-    """Return the problems and notes of converter *version* on a *schema_version* file.
+    """Return the problems and notes of loading a *schema_version* file as *version*.
 
     A note is something to be aware of that is not a problem, such as an optional
     layer that the schema does not have. The messages do not name the DAMO version,
     so that the messages of two versions can be compared.
     """
     schema = _load_schema(schema_version)
-    converter = get_damo_converter(version)
     hydamo = HyDAMO()
+    filled_from_globalid = {ext.table: ext.column for ext in FILLED_FROM_GLOBALID}
     problems = []
     notes = []
-    for spec in converter.layer_specs:
-        layer = spec.source_layer
-        table = f"HyDAMO.{spec.target_attr}"
+    for name, source in source_layers(version).items():
+        layer = source.layer
+        table = f"HyDAMO.{name}"
+        spec = TABLES[name]
         fields = schema.get(layer.lower())
         if fields is None:
             if spec.optional:
@@ -197,42 +203,38 @@ def _check_converter(version: str, schema_version: str) -> tuple[list[str], list
         # field, but every layer has it.
         available = set(fields) | {"geometry"}
 
-        # The columns the converter reads must be in the source layer.
-        for source, target in spec.column_mapping.items():
-            if source.lower() not in available:
+        # The columns the steps rename must be in the source layer.
+        for file_name, target in source.renames.items():
+            if file_name.lower() not in available:
                 problems.append(
-                    f"{layer} has no column '{source}', which the converter renames "
+                    f"{layer} has no column '{file_name}', which the steps rename "
                     f"to '{target}'."
                 )
-        if (
-            spec.groupby_column is not None
-            and spec.groupby_column.lower() not in available
-        ):
+        if spec.group_by is not None and spec.group_by.lower() not in available:
             problems.append(
-                f"{layer} has no column '{spec.groupby_column}', which the converter "
-                "uses to group points into lines."
+                f"{layer} has no column '{spec.group_by}', which loading uses to "
+                "group points into lines."
             )
-        if spec.order_column is not None and spec.order_column.lower() not in available:
+        if spec.order_by is not None and spec.order_by.lower() not in available:
             problems.append(
-                f"{layer} has no column '{spec.order_column}', which the converter "
-                "uses to order the points of a line."
+                f"{layer} has no column '{spec.order_by}', which loading uses to "
+                "order the points of a line."
             )
 
         # Columns of the loaded table: the source columns after the renames of
-        # the column mapping, plus the columns the converter fills from another.
+        # the steps, plus a column filled from globalid.
         loaded = set()
         for column in available:
-            loaded.add(spec.column_mapping.get(column, column))
-        for target, source in spec.column_fallbacks.items():
-            if source in loaded:
-                loaded.add(target)
+            loaded.add(source.renames.get(column, column))
+        if name in filled_from_globalid and "globalid" in loaded:
+            loaded.add(filled_from_globalid[name])
 
         # The loaded table must have HyDAMO's required columns and the index column.
-        required = set(getattr(hydamo, spec.target_attr).required_columns)
-        if spec.index_col is not None:
-            required.add(spec.index_col)
+        required = set(getattr(hydamo, name).required_columns)
+        if spec.index is not None:
+            required.add(spec.index)
         for column in sorted(required - loaded):
-            purpose = " as its index" if column == spec.index_col else ""
+            purpose = " as its index" if column == spec.index else ""
             problems.append(
                 f"{layer} has no column '{column}', but {table} requires it{purpose}."
             )

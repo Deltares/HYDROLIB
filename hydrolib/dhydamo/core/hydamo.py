@@ -40,7 +40,11 @@ from hydrolib.dhydamo.core.relations import (
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
-from hydrolib.dhydamo.io.damo_converters import BaseDamoConverter, get_damo_converter
+from hydrolib.dhydamo.io.damo_converters import (
+    SourceLayer,
+    load_layers,
+    source_layers,
+)
 from hydrolib.dhydamo.io.netcdfreader import time_index
 from hydrolib.dhydamo.validation import (
     HydamoValidationResult,
@@ -326,9 +330,9 @@ class HyDAMO:
             If generated rules are requested for a version unsupported by the
             installed validator's schemas.
         """
-        # Without a converter for the version, no column counts as read.
+        # Without version steps to the version, no column counts as read.
         try:
-            read_columns = self._read_columns(get_damo_converter(hydamo_version))
+            read_columns = self._read_columns(source_layers(hydamo_version))
         except ValueError:
             read_columns = {}
         result = validate_or_raise(
@@ -343,22 +347,22 @@ class HyDAMO:
         self.validation_result = result
         return result
 
-    def _read_columns(self, converter: BaseDamoConverter) -> dict[str, set[str]]:
+    def _read_columns(self, sources: dict[str, SourceLayer]) -> dict[str, set[str]]:
         """Return, per lowercase DAMO layer, the columns HYDROLIB reads.
 
         The columns are the table's required columns, ``globalid`` and, for a
-        spatial table, ``geometry``, under their names in the converter's DAMO
-        version.
+        spatial table, ``geometry``, under their names in the DAMO version of
+        *sources* (from ``source_layers``).
         """
         read_columns: dict[str, set[str]] = {}
-        for spec in converter.layer_specs:
-            table = getattr(self, spec.target_attr)
+        for name, source in sources.items():
+            table = getattr(self, name)
             columns = {*table.required_columns, "globalid"}
             if isinstance(table, ExtendedGeoDataFrame):
                 columns.add("geometry")
-            source_names = {new: old for old, new in spec.column_mapping.items()}
-            read_columns[spec.source_layer.lower()] = {
-                source_names.get(column, column) for column in columns
+            file_names = {new: old for old, new in source.renames.items()}
+            read_columns[source.layer.lower()] = {
+                file_names.get(column, column) for column in columns
             }
         return read_columns
 
@@ -372,7 +376,7 @@ class HyDAMO:
         validation_coverages: dict | None = None,
         validation_rules_path: Path | str | None = None,
     ) -> HyDAMO:
-        """Load HyDAMO data from a GeoPackage via a versioned DAMO converter.
+        """Load HyDAMO data from a GeoPackage of a supported DAMO version.
 
         Parameters
         ----------
@@ -380,10 +384,11 @@ class HyDAMO:
             Path to the GeoPackage file.
         hydamo_version : str
             DAMO schema version, one of ``SUPPORTED_HYDAMO_VERSIONS``, e.g.
-            ``"2.5"``. Required: it selects the converter; it does not detect or
-            verify the source schema version.
+            ``"2.5"``. Required: it selects the renames back to DAMO 2.2, the
+            names HYDROLIB uses; it does not detect or verify the source schema
+            version.
         clip_layers : dict, optional
-            Per-layer spatial clip. Maps ``target_attr`` name to a
+            Per-table spatial clip. Maps a HyDAMO table name to a
             ``(geometry, cliptype)`` tuple, e.g.
             ``{"branches": (gpd.read_file(extent).union_all(), "clip")}``.
             Layers absent from the dict are loaded without clipping.
@@ -423,7 +428,7 @@ class HyDAMO:
         ImportError
             If validation is enabled and its optional dependency is unavailable.
         ValueError
-            If the converter version is unsupported, or generated validation
+            If the DAMO version is unsupported, or generated validation
             rules require a version unsupported by the installed validator.
 
         Notes
@@ -434,7 +439,7 @@ class HyDAMO:
         (per layer, column and error code). It is ``None`` when
         validation is off. Use ``validate_gpkg()`` to inspect validation failures
         without loading data. Comprehensive schema, type, and relation checks
-        require appropriate custom rules; selecting a converter or using strict
+        require appropriate custom rules; selecting a DAMO version or using strict
         mode alone does not establish that the input is valid DAMO data.
 
         Examples
@@ -453,8 +458,8 @@ class HyDAMO:
         Use ``validation_mode="strict"`` to raise ``HyDAMOValidationError``
         instead of loading after a reported validation failure.
         """
-        # Resolve the converter first so an unsupported version fails before validation runs.
-        converter = get_damo_converter(hydamo_version)
+        # Resolve the layers first so an unsupported version fails before validation runs.
+        sources = source_layers(hydamo_version)
 
         self.validation_result = None
         self.source_damo_version = hydamo_version
@@ -465,11 +470,18 @@ class HyDAMO:
             coverages=validation_coverages,
             validation_rules_path=validation_rules_path,
             read_columns=(
-                self._read_columns(converter) if validation_mode != "off" else None
+                self._read_columns(sources) if validation_mode != "off" else None
             ),
         )
 
-        converter.load_into(self, gpkg_path, clip_layers=clip_layers, check_3d=check_3d)
+        load_layers(
+            self,
+            gpkg_path,
+            sources,
+            hydamo_version,
+            clip_layers=clip_layers,
+            check_3d=check_3d,
+        )
         return self
 
     @validate_call(

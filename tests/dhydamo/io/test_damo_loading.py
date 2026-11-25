@@ -15,10 +15,7 @@ from hydrolib.dhydamo import validation
 from hydrolib.dhydamo.core.drtc import DRTCModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.core.relations import RelationsHyDAMO
-from hydrolib.dhydamo.io.damo_converters import (
-    SUPPORTED_HYDAMO_VERSIONS,
-    get_damo_converter,
-)
+from hydrolib.dhydamo.io.damo_converters import SUPPORTED_HYDAMO_VERSIONS
 from hydrolib.dhydamo.validation import HyDAMOValidationError
 from pydantic import ValidationError
 from shapely.geometry import LineString, Point
@@ -301,6 +298,235 @@ def test_load_from_gpkg_maps_damo_25_parameter_and_culvert_shape(
     _assert_canonical_roughness_columns(hydamo)
 
 
+def _damo_names(version: str) -> dict[str, str]:
+    """Return ``{2.2 name: name in *version*}`` of the columns DAMO renamed.
+
+    The management device is Regelmiddel up to DAMO 2.4 and Afsluitmiddel from 2.5;
+    its type column is ``soortregelmiddel`` on Regelmiddel and ``typeafsluitmiddel``
+    on the 2.5 Afsluitmiddel.
+    """
+    names = {
+        "typeruwheid": "typeruwheid",
+        "soortparameter": "soortparameter",
+        "vormkoker": "vormkoker",
+        "categorieoppwaterlichaam": "categorieoppwaterlichaam",
+        "regelmiddelid": "regelmiddelid",
+        "stuurvariabele": "stuurvariabele",
+        "soortregelbaarheid": "soortregelbaarheid",
+        "device_layer": "Regelmiddel",
+        "device_type": "soortregelmiddel",
+    }
+    if version >= "2.4":
+        names["typeruwheid"] = "typemethoderuwheid"
+    if version >= "2.5":
+        names["soortparameter"] = "typeparameter"
+        names["vormkoker"] = "vormduikersifonhevel"
+        names["categorieoppwaterlichaam"] = "categorieoppervlaktewater"
+        names["regelmiddelid"] = "afsluitmiddelid"
+        names["stuurvariabele"] = "typestuurvariabele"
+        names["soortregelbaarheid"] = "typeregelbaarheid"
+        names["device_layer"] = "Afsluitmiddel"
+        names["device_type"] = "typeafsluitmiddel"
+    return names
+
+
+def _write_control_layers(gpkg_path: Path, names: dict[str, str]) -> None:
+    """Write a branch, an opening, its management device and a Sturing, with *names*."""
+    _write_layer(
+        gpkg_path,
+        "HydroObject",
+        gpd.GeoDataFrame(
+            {
+                "code": ["H1"],
+                "globalid": ["hydro-guid"],
+                names["categorieoppwaterlichaam"]: ["primair"],
+                "geometry": [LineString([(0, 0), (10, 0)])],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "Kunstwerkopening",
+        gpd.GeoDataFrame(
+            {
+                "globalid": ["opening-guid"],
+                "stuwid": ["stuw-guid"],
+                names["regelmiddelid"]: ["device-guid"],
+                "laagstedoorstroombreedte": [1.2],
+                "laagstedoorstroomhoogte": [0.4],
+                "afvoercoefficient": [1.0],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        names["device_layer"],
+        gpd.GeoDataFrame(
+            {
+                "code": ["AF1"],
+                "globalid": ["device-guid"],
+                "kunstwerkopeningid": ["opening-guid"],
+                "overlaatonderlaat": ["onderlaat"],
+                names["device_type"]: ["schuif"],
+                names["soortregelbaarheid"]: ["Regelbaar - lokaal automatisch"],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "Sturing",
+        gpd.GeoDataFrame(
+            {
+                "code": ["CTRL1"],
+                "globalid": ["mgmt-guid"],
+                names["regelmiddelid"]: ["device-guid"],
+                "pompid": [None],
+                names["stuurvariabele"]: ["hoogte opening"],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+
+@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
+def test_load_from_gpkg_delivers_damo_22_column_names(
+    tmp_path: Path, version: str
+) -> None:
+    names = _damo_names(version)
+    gpkg_file = _make_roughness_gpkg(
+        tmp_path,
+        roughness_type=names["typeruwheid"],
+        parameter=names["soortparameter"],
+        culvert_shape=names["vormkoker"],
+    )
+    _write_control_layers(gpkg_file, names)
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
+
+    _assert_canonical_roughness_columns(hydamo)
+    assert hydamo.branches.loc["H1", "categorieoppwaterlichaam"] == "primair"
+    assert hydamo.opening["regelmiddelid"].tolist() == ["device-guid"]
+    assert hydamo.management.loc["CTRL1", "regelmiddelid"] == "device-guid"
+    assert hydamo.management.loc["CTRL1", "stuurvariabele"] == "hoogte opening"
+    device = hydamo.management_device
+    assert device["globalid"].tolist() == ["device-guid"]
+    assert device["soortafsluitmiddel"].tolist() == ["schuif"]
+    assert device["soortregelbaarheid"].tolist() == ["Regelbaar - lokaal automatisch"]
+
+
+def _write_branch(gpkg_path: Path, **columns: list[object]) -> None:
+    """Write branch H1 with the extra *columns*."""
+    _write_layer(
+        gpkg_path,
+        "HydroObject",
+        gpd.GeoDataFrame(
+            {
+                "code": ["H1"],
+                "globalid": ["hydro-guid"],
+                **columns,
+                "geometry": [LineString([(0, 0), (10, 0)])],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+
+@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
+def test_load_from_gpkg_passes_undeclared_columns_through(
+    tmp_path: Path, version: str
+) -> None:
+    gpkg_file = tmp_path / "branch.gpkg"
+    _write_branch(gpkg_file, opmerking=["own column"])
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
+
+    assert hydamo.branches.loc["H1", "opmerking"] == "own column"
+
+
+def test_load_from_gpkg_leaves_columns_the_version_lacks_absent(
+    tmp_path: Path,
+) -> None:
+    # DAMO 2.5 Afsluitmiddel has no hoogteopening, which Regelmiddel had up to 2.4.
+    gpkg_file = tmp_path / "device_25.gpkg"
+    _write_layer(
+        gpkg_file,
+        "Afsluitmiddel",
+        gpd.GeoDataFrame(
+            {
+                "code": ["AF1"],
+                "globalid": ["device-guid"],
+                "kunstwerkopeningid": ["opening-guid"],
+                "overlaatonderlaat": ["onderlaat"],
+                "typeafsluitmiddel": ["schuif"],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+
+    assert hydamo.management_device["globalid"].tolist() == ["device-guid"]
+    assert "hoogteopening" not in hydamo.management_device.columns
+
+
+@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
+def test_load_from_gpkg_derives_profile_code_and_catchment_boundary_node(
+    tmp_path: Path, version: str
+) -> None:
+    gpkg_file = tmp_path / "derived.gpkg"
+    _write_layer(
+        gpkg_file,
+        "ProfielPunt",
+        gpd.GeoDataFrame(
+            {
+                "code": ["PP2", "PP1"],
+                "globalid": ["line-guid", "line-guid"],
+                "profiellijnid": ["line-guid", "line-guid"],
+                "codevolgnummer": [2, 1],
+                "geometry": [Point(1, 0, 0.0), Point(0, 0, 1.0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_file,
+        "lateraleknoop",
+        gpd.GeoDataFrame(
+            {
+                "code": ["LAT1"],
+                "globalid": ["lateral-guid"],
+                "geometry": [Point(5, 5)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_file,
+        "afvoergebiedaanvoergebied",
+        gpd.GeoDataFrame(
+            {
+                "code": ["C1"],
+                "globalid": ["catchment-guid"],
+                "lateraleknoopid": ["lateral-guid"],
+                "geometry": [Point(5, 5).buffer(2)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
+
+    assert hydamo.profile["code"].tolist() == ["line-guid"]
+    assert hydamo.catchments.loc["C1", "boundary_node"] == "LAT1"
+
+
 def _make_weir_without_device_gpkg(tmp_path: Path, n_openings: int) -> Path:
     """Write a weir with *n_openings* openings, none of which has a management device.
 
@@ -355,8 +581,6 @@ def test_weir_opening_without_device_logs_opening_globalid(
 
 def test_supported_damo_converter_versions() -> None:
     assert SUPPORTED_HYDAMO_VERSIONS == ("2.2", "2.3", "2.4", "2.5")
-    for version in SUPPORTED_HYDAMO_VERSIONS:
-        assert get_damo_converter(version).hydamo_version == version
 
 
 def test_load_from_gpkg_uses_versioned_converter_for_damo_22() -> None:
