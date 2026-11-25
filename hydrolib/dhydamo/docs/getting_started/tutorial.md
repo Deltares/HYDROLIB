@@ -831,7 +831,7 @@ if RTC:
     )
 ```
 
-If PID controllers are present, they need settings that are not included in the HyDAMO DAMO2.2 data. We define those in a dictionary. They can be specified for each structure - in that case the key of the dictionary should match the key in the HyDAMO DAMO2.2 'sturing'-object. If no separate settings are provided the 'global' settings are used.
+If PID controllers are present, they need settings that are not included in the HyDAMO DAMO2.2 data. We define those in a dictionary. They can be specified for each structure - in that case the key of the dictionary is the D-Flow FM structure id, such as the weir code, or for a weir with several openings the id of the opening's structure (e.g. 'S_98740_3'). Keys that match no controlled structure are ignored with a warning. If no separate settings are provided the 'global' settings are used.
 
 
 ```python
@@ -843,7 +843,7 @@ if RTC:
         "kd": 0.0,
         "maxspeed": 0.00033,
     }
-    pid_settings["kst_pid"] = {
+    pid_settings["S_98740_3"] = {
         "ki": -0.03,
         "kp": -0.0,
         "kd": 0.0,

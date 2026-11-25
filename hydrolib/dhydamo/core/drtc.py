@@ -153,6 +153,71 @@ class DRTCStructure:
     struct_property: str
 
 
+def _warn_unknown_settings_keys(
+    name: str, settings: dict | None, controlled_structures: set[str]
+) -> None:
+    """Warn once about settings keys that match no controlled structure.
+
+    Such a key is ignored, so a stale or misspelt structure id would otherwise go
+    unnoticed and its controller would silently get the ``"global"`` settings.
+
+    Parameters
+    ----------
+    name : str
+        Name of the settings argument, for the message.
+    settings : dict or None
+        The settings, keyed by structure id and ``"global"``.
+    controlled_structures : set of str
+        Ids of the structures with this type of controller.
+    """
+    if settings is None:
+        return
+    # dict order, not sorted: keys of different types cannot be compared
+    unknown = [
+        key for key in settings if key != "global" and key not in controlled_structures
+    ]
+    if unknown:
+        logger.warning(
+            "%s keys %s match no structure with this type of controller, so they "
+            "are ignored. Keys are D-Flow FM structure ids.",
+            name,
+            unknown,
+        )
+
+
+def _settings_for(name: str, settings: dict, structure_id: str) -> dict:
+    """Return the settings of a structure, or the ``"global"`` settings.
+
+    Parameters
+    ----------
+    name : str
+        Name of the settings argument, for the message.
+    settings : dict
+        The settings, keyed by structure id and ``"global"``.
+    structure_id : str
+        D-Flow FM id of the controlled structure.
+
+    Returns
+    -------
+    dict
+        The settings under ``structure_id``, otherwise those under ``"global"``.
+
+    Raises
+    ------
+    ValueError
+        If ``settings`` has neither key, e.g. because the structure's key is
+        misspelt and there is no ``"global"`` fallback.
+    """
+    if structure_id in settings:
+        return settings[structure_id]
+    if "global" in settings:
+        return settings["global"]
+    raise ValueError(
+        f"{name} has no key '{structure_id}' and no 'global' fallback. "
+        "Keys are D-Flow FM structure ids."
+    )
+
+
 class DRTCModel:
     """Main class to generate RTC-module files."""
 
@@ -1350,15 +1415,20 @@ class DRTCModel:
     ) -> None:
         """Add the time, PID and interval controllers of ``hydamo.management``.
 
-        The settings that HyDAMO lacks are given per structure id, or for all other
-        structures under the key ``"global"``.
+        The settings that HyDAMO lacks are keyed by D-Flow FM structure id: the weir,
+        orifice, pump or culvert code, or for a weir with several openings the id of
+        the opening's structure (e.g. ``S_98740_3``). Structures without their own key
+        get the settings under ``"global"``. Keys that match no structure with that
+        type of controller are listed in one warning per settings dict.
 
         Parameters
         ----------
         pid_settings : dict, optional
-            ``ki``, ``kp``, ``kd`` and ``maxspeed`` of the PID controllers. Defaults to None.
+            ``ki``, ``kp``, ``kd`` and ``maxspeed`` of the PID controllers, per structure
+            id and under ``"global"``. Defaults to None.
         interval_settings : dict, optional
-            ``deadband`` and ``maxspeed`` of the interval controllers. Defaults to None.
+            ``deadband`` and ``maxspeed`` of the interval controllers, per structure id
+            and under ``"global"``. Defaults to None.
         timeseries : pd.DataFrame, optional
             Time series of the time controllers, with the structure ids as columns.
             Defaults to None.
@@ -1368,6 +1438,8 @@ class DRTCModel:
         ValueError
             For inconsistent input, e.g. a PID controller without ``pid_settings``.
         """
+        pid_structures: set[str] = set()
+        interval_structures: set[str] = set()
         for _, management in self.hydamo.management.iterrows():
             resolved = self._resolve_management_structure(management)
             if resolved is None:
@@ -1401,30 +1473,20 @@ class DRTCModel:
                 )
 
             if management.typecontroller == "PID":
-                #  if the ID is not specified separately, use the global settings
                 if pid_settings is None:
                     raise ValueError(
                         f"{management.code} contains a PID controller, but no pid_settings are provided. Please do so."
                     )
-                if struc_id not in pid_settings:
-                    ki = pid_settings["global"]["ki"]
-                    kp = pid_settings["global"]["kp"]
-                    kd = pid_settings["global"]["kd"]
-                    max_speed = pid_settings["global"]["maxspeed"]
-                else:
-                    ki = pid_settings[struc_id]["ki"]
-                    kp = pid_settings[struc_id]["kp"]
-                    kd = pid_settings[struc_id]["kd"]
-                    max_speed = pid_settings[struc_id]["maxspeed"]
-
+                pid_structures.add(struc_id)
+                pid = _settings_for("pid_settings", pid_settings, struc_id)
                 self.add_pid_controller(
                     structure_id=struc_id,
                     steering_variable=steering_variable,
                     target_variable=target_variable,
-                    ki=ki,
-                    kp=kp,
-                    kd=kd,
-                    max_speed=max_speed,
+                    ki=pid["ki"],
+                    kp=pid["kp"],
+                    kd=pid["kd"],
+                    max_speed=pid["maxspeed"],
                     setpoint=management.streefwaarde,
                     lower_bound=management.ondergrens,
                     upper_bound=management.bovengrens,
@@ -1436,22 +1498,18 @@ class DRTCModel:
                     raise ValueError(
                         f"{management.code} contains an interval controller, but no interval_settings are provided. Please do so."
                     )
-
-                if struc_id not in interval_settings:
-                    deadband = interval_settings["global"]["deadband"]
-                    max_speed = interval_settings["global"]["maxspeed"]
-                else:
-                    deadband = interval_settings[struc_id]["deadband"]
-                    max_speed = interval_settings[struc_id]["maxspeed"]
-
+                interval_structures.add(struc_id)
+                interval = _settings_for(
+                    "interval_settings", interval_settings, struc_id
+                )
                 self.add_interval_controller(
                     structure_id=struc_id,
                     steering_variable=steering_variable,
                     target_variable=target_variable,
-                    deadband=deadband,
+                    deadband=interval["deadband"],
                     setting_above=management.bovengrens,
                     setting_below=management.ondergrens,
-                    max_speed=max_speed,
+                    max_speed=interval["maxspeed"],
                     setpoint=management.streefwaarde,
                     observation_location=management.meetlocatieid,
                 )
@@ -1472,6 +1530,11 @@ class DRTCModel:
                 logger.warning(
                     f"{management.typecontroller} is not a valid controller type - skipped."
                 )
+
+        _warn_unknown_settings_keys("pid_settings", pid_settings, pid_structures)
+        _warn_unknown_settings_keys(
+            "interval_settings", interval_settings, interval_structures
+        )
 
     @validate_call(
         config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)

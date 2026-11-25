@@ -76,6 +76,34 @@ def _write_layer(gpkg_path: Path, layer_name: str, gdf: gpd.GeoDataFrame) -> Non
     gdf.to_file(gpkg_path, layer=layer_name, driver="GPKG", mode=mode, engine="pyogrio")
 
 
+def _write_stuw(gpkg_path: Path) -> None:
+    """Write weir ST1 (globalid ``stuw-guid``) at (5, 0)."""
+    _write_layer(
+        gpkg_path,
+        "Stuw",
+        gpd.GeoDataFrame(
+            {
+                "code": ["ST1"],
+                "globalid": ["stuw-guid"],
+                "afvoercoefficient": [1.0],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+
+def _convert_weirs(hydamo: HyDAMO) -> None:
+    """Build the D-Flow FM weirs, with every weir placed on branch H1."""
+    hydamo.weirs["branch_id"] = "H1"
+    hydamo.weirs["branch_offset"] = 5.0
+    hydamo.structures.convert.weirs(
+        weirs=hydamo.weirs,
+        opening=hydamo.opening,
+        management_device=hydamo.management_device,
+    )
+
+
 def _make_minimal_25_gpkg(tmp_path: Path) -> Path:
     gpkg_path = tmp_path / "minimal_25.gpkg"
 
@@ -92,19 +120,7 @@ def _make_minimal_25_gpkg(tmp_path: Path) -> Path:
             crs="EPSG:28992",
         ),
     )
-    _write_layer(
-        gpkg_path,
-        "Stuw",
-        gpd.GeoDataFrame(
-            {
-                "code": ["ST1"],
-                "globalid": ["stuw-guid"],
-                "afvoercoefficient": [1.0],
-                "geometry": [Point(5, 0)],
-            },
-            crs="EPSG:28992",
-        ),
-    )
+    _write_stuw(gpkg_path)
     _write_layer(
         gpkg_path,
         "Kunstwerkopening",
@@ -291,19 +307,7 @@ def _make_weir_without_device_gpkg(tmp_path: Path, n_openings: int) -> Path:
     ``code``: DAMO does not define one for Kunstwerkopening.
     """
     gpkg_path = tmp_path / "weir_without_device.gpkg"
-    _write_layer(
-        gpkg_path,
-        "Stuw",
-        gpd.GeoDataFrame(
-            {
-                "code": ["ST1"],
-                "globalid": ["stuw-guid"],
-                "afvoercoefficient": [1.0],
-                "geometry": [Point(5, 0)],
-            },
-            crs="EPSG:28992",
-        ),
-    )
+    _write_stuw(gpkg_path)
     _write_layer(
         gpkg_path,
         "Kunstwerkopening",
@@ -342,14 +346,8 @@ def test_weir_opening_without_device_logs_opening_globalid(
 ) -> None:
     gpkg_file = _make_weir_without_device_gpkg(tmp_path, n_openings)
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
-    hydamo.weirs["branch_id"] = "H1"
-    hydamo.weirs["branch_offset"] = 5.0
 
-    hydamo.structures.convert.weirs(
-        weirs=hydamo.weirs,
-        opening=hydamo.opening,
-        management_device=hydamo.management_device,
-    )
+    _convert_weirs(hydamo)
 
     assert "Skipping opening opening-guid-0 (weir ST1)" in caplog.text
 
@@ -453,6 +451,182 @@ def test_drtc_resolves_canonical_damo_25_management_links(tmp_path: Path) -> Non
         "weir",
         "ST1",
     )
+
+
+PID_GLOBAL = {"ki": -0.05, "kp": -0.03, "kd": 0.0, "maxspeed": 0.00033}
+PID_OWN = {"ki": -0.03, "kp": -0.0, "kd": 0.0, "maxspeed": 0.00033}
+INTERVAL_GLOBAL = {"deadband": 0.1, "maxspeed": 0.00033}
+INTERVAL_OWN = {"deadband": 0.2, "maxspeed": 0.001}
+
+
+def _controlled_compound_weir_drtc(tmp_path: Path) -> DRTCModel:
+    """Load a compound weir ST1 whose openings get a PID and an interval controller.
+
+    Its two openings become the structures ``ST1_1`` (PID) and ``ST1_2`` (interval).
+    """
+    gpkg_path = tmp_path / "controlled_compound_weir.gpkg"
+    points = [Point(5, 0)] * 2
+    _write_layer(
+        gpkg_path,
+        "HydroObject",
+        gpd.GeoDataFrame(
+            {
+                "code": ["H1"],
+                "globalid": ["hydro-guid"],
+                "geometry": [LineString([(0, 0), (10, 0)])],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_stuw(gpkg_path)
+    _write_layer(
+        gpkg_path,
+        "Kunstwerkopening",
+        gpd.GeoDataFrame(
+            {
+                "globalid": ["opening-guid-1", "opening-guid-2"],
+                "stuwid": ["stuw-guid"] * 2,
+                "laagstedoorstroombreedte": [1.2] * 2,
+                "laagstedoorstroomhoogte": [0.4] * 2,
+                "afvoercoefficient": [1.0] * 2,
+                "geometry": points,
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "Afsluitmiddel",
+        gpd.GeoDataFrame(
+            {
+                "code": ["AF1", "AF2"],
+                "globalid": ["afsluit-guid-1", "afsluit-guid-2"],
+                "kunstwerkopeningid": ["opening-guid-1", "opening-guid-2"],
+                "overlaatonderlaat": ["overlaat"] * 2,
+                "geometry": points,
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "Sturing",
+        gpd.GeoDataFrame(
+            {
+                "code": ["CTRL_PID", "CTRL_INTERVAL"],
+                "globalid": ["mgmt-guid-1", "mgmt-guid-2"],
+                "afsluitmiddelid": ["afsluit-guid-1", "afsluit-guid-2"],
+                "pompid": [None] * 2,
+                "typecontroller": ["PID", "interval"],
+                "typestuurvariabele": ["bovenkant afsluitmiddel"] * 2,
+                "doelvariabele": ["waterstand"] * 2,
+                "meetlocatieid": ["Obs1"] * 2,
+                "bovengrens": [1.0] * 2,
+                "ondergrens": [0.0] * 2,
+                "streefwaarde": [0.5] * 2,
+                "geometry": points,
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.5")
+    _convert_weirs(hydamo)
+
+    fm = FMModel()
+    fm.time.refdate = 20160601
+    fm.time.tstop = 3600
+    return DRTCModel(hydamo, fm, output_path=tmp_path)
+
+
+def _drtc_warnings(caplog: pytest.LogCaptureFixture, text: str) -> list[str]:
+    """Return the D-RTC warnings that contain *text*."""
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "hydrolib.dhydamo.core.drtc" and record.levelname == "WARNING"
+    ]
+    return [message for message in messages if text in message]
+
+
+def test_drtc_applies_settings_keyed_by_compound_weir_opening_id(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    drtc = _controlled_compound_weir_drtc(tmp_path)
+
+    drtc.from_hydamo(
+        pid_settings={"global": PID_GLOBAL, "ST1_1": PID_OWN},
+        interval_settings={"global": INTERVAL_GLOBAL, "ST1_2": INTERVAL_OWN},
+    )
+
+    assert drtc.pid_controllers["ST1_1"]["kp"] == PID_OWN["kp"]
+    assert drtc.pid_controllers["ST1_1"]["ki"] == PID_OWN["ki"]
+    assert drtc.interval_controllers["ST1_2"]["deadband"] == INTERVAL_OWN["deadband"]
+    assert drtc.interval_controllers["ST1_2"]["max_speed"] == INTERVAL_OWN["maxspeed"]
+    assert _drtc_warnings(caplog, "_settings") == []
+
+
+def test_drtc_applies_global_settings_to_controllers_without_own_key(
+    tmp_path: Path,
+) -> None:
+    drtc = _controlled_compound_weir_drtc(tmp_path)
+
+    drtc.from_hydamo(
+        pid_settings={"global": PID_GLOBAL},
+        interval_settings={"global": INTERVAL_GLOBAL},
+    )
+
+    assert drtc.pid_controllers["ST1_1"]["kp"] == PID_GLOBAL["kp"]
+    assert drtc.interval_controllers["ST1_2"]["deadband"] == INTERVAL_GLOBAL["deadband"]
+
+
+def test_drtc_warns_once_per_settings_dict_about_keys_matching_no_structure(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # CTRL_PID is the Sturing code, not a structure id. ST1_2 is a structure, but
+    # it has an interval controller, so it matches no PID-controlled structure.
+    drtc = _controlled_compound_weir_drtc(tmp_path)
+
+    drtc.from_hydamo(
+        pid_settings={"global": PID_GLOBAL, "CTRL_PID": PID_OWN, "ST1_2": PID_OWN},
+        interval_settings={"global": INTERVAL_GLOBAL, "S_unknown": INTERVAL_OWN},
+    )
+
+    (pid_warning,) = _drtc_warnings(caplog, "pid_settings")
+    assert "'CTRL_PID'" in pid_warning
+    assert "'ST1_2'" in pid_warning
+    (interval_warning,) = _drtc_warnings(caplog, "interval_settings")
+    assert "'S_unknown'" in interval_warning
+    assert drtc.pid_controllers["ST1_1"]["kp"] == PID_GLOBAL["kp"]
+
+
+def test_drtc_warns_about_unknown_keys_of_mixed_types(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    drtc = _controlled_compound_weir_drtc(tmp_path)
+
+    drtc.from_hydamo(
+        pid_settings={"global": PID_GLOBAL, 1: PID_OWN, "S_typo": PID_OWN},
+        interval_settings={"global": INTERVAL_GLOBAL},
+    )
+
+    (pid_warning,) = _drtc_warnings(caplog, "pid_settings")
+    assert "1" in pid_warning
+    assert "'S_typo'" in pid_warning
+
+
+def test_drtc_names_structure_without_own_settings_or_global(tmp_path: Path) -> None:
+    # Without "global", every controlled structure needs its own key, so a
+    # misspelt key must show up as the structure id that has no settings.
+    drtc = _controlled_compound_weir_drtc(tmp_path)
+
+    with pytest.raises(
+        ValueError, match="pid_settings has no key 'ST1_1' and no 'global' fallback"
+    ):
+        drtc.from_hydamo(
+            pid_settings={"ST1_l": PID_OWN},
+            interval_settings={"ST1_2": INTERVAL_OWN},
+        )
 
 
 def test_load_from_gpkg_makes_non_spatial_index_unique(tmp_path: Path) -> None:
