@@ -23,6 +23,7 @@ from hydrolib.dhydamo.geometry.spatial import (
     points_to_branch_values,
     polygons_to_branch_values,
 )
+from meshkernel import DeleteMeshOption
 from shapely.geometry import LineString, Point, Polygon, box
 
 
@@ -112,6 +113,381 @@ def test_sample_field_written(tmp_path: Path) -> None:
     )
     xyz = np.loadtxt(tmp_path / "initial_waterlevel_00.xyz")
     np.testing.assert_allclose(xyz[:, 2], [0.3, 0.4, 0.5])
+
+
+def test_sample_settings_written(tmp_path: Path) -> None:
+    # averaging settings on samples for 2D cells, and extrapolation on a raster with triangulation
+    hydamo = HyDAMO()
+    hydamo.external_forcings.set_spatial_field(
+        _points(),
+        quantity="bedlevel",
+        filetype="sample",
+        locationtype="2d",
+        interpolationmethod="averaging",
+        averagingrelsize=2.0,
+        averagingnummin=3,
+        averagingpercentile=10.0,
+    )
+    hydamo.external_forcings.set_spatial_field(
+        _polygons(),
+        "peil",
+        quantity="frictioncoefficient",
+        kind="parameter",
+        filetype="raster",
+        cellsize=5.0,
+        locationtype="2d",
+        interpolationmethod="triangulation",
+        extrapolationmethod=True,
+    )
+    _write(hydamo, tmp_path)
+
+    ini = IniFieldModel(filepath=tmp_path / "initialFields.ini")
+    averaging, triangulation = ini.initial[0], ini.parameter[0]
+    assert averaging.averagingrelsize == pytest.approx(2.0)
+    assert averaging.averagingnummin == 3
+    assert averaging.averagingpercentile == pytest.approx(10.0)
+    assert averaging.extrapolationmethod is False
+    assert triangulation.extrapolationmethod is True
+
+
+def test_unset_sample_settings_not_written(tmp_path: Path) -> None:
+    # without sample settings, the block is as before: only hydrolib-core's own extrapolationMethod = 0
+    hydamo = HyDAMO()
+    hydamo.external_forcings.set_spatial_field(
+        _points(),
+        quantity="bedlevel",
+        filetype="sample",
+        locationtype="2d",
+        interpolationmethod="averaging",
+    )
+    _write(hydamo, tmp_path)
+
+    text = (tmp_path / "initialFields.ini").read_text()
+    for key in ("averagingRelSize", "averagingNumMin", "averagingPercentile"):
+        assert key not in text
+    assert (
+        IniFieldModel(filepath=tmp_path / "initialFields.ini")
+        .initial[0]
+        .extrapolationmethod
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        pytest.param(
+            {"filetype": "sample", "averagingrelsize": 2.0},
+            "only apply to interpolationmethod 'averaging', not 'triangulation'",
+            id="averaging_setting_with_triangulation",
+        ),
+        pytest.param(
+            {"averagingnummin": 2},
+            "only apply to interpolationmethod 'averaging', not None",
+            id="averaging_setting_for_branch_values",
+        ),
+        pytest.param(
+            {
+                "filetype": "sample",
+                "locationtype": "2d",
+                "interpolationmethod": "averaging",
+                "extrapolationmethod": True,
+            },
+            "extrapolationmethod only applies to interpolationmethod 'triangulation', not 'averaging'",
+            id="extrapolation_with_averaging",
+        ),
+    ],
+)
+def test_sample_settings_for_other_interpolation_warn(
+    kwargs: dict, message: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    hydamo = HyDAMO()
+    with caplog.at_level(logging.WARNING, logger="hydrolib.dhydamo.core.hydamo"):
+        hydamo.external_forcings.set_spatial_field(_points(), **kwargs)
+    assert message in caplog.text
+
+
+def _xyz_file(path: Path) -> Path:
+    # an existing .xyz file with a comment line, as D-Flow FM and hydrolib-core accept it
+    path.write_text("* bed level samples\n1.0 1.0 0.3\n5.0 5.0 0.4\n9.0 2.0 0.5\n")
+    return path
+
+
+@pytest.mark.parametrize(
+    ("as_type", "kind", "quantity"),
+    [
+        pytest.param(Path, "initial", "bedlevel", id="path_initial"),
+        pytest.param(str, "parameter", "frictioncoefficient", id="str_parameter"),
+    ],
+)
+def test_xyz_file_field_written(
+    tmp_path: Path, as_type: type, kind: str, quantity: str
+) -> None:
+    source = _xyz_file(tmp_path / "source.xyz")
+    hydamo = HyDAMO()
+    hydamo.external_forcings.set_spatial_field(
+        as_type(source),
+        quantity=quantity,
+        kind=kind,
+        locationtype="2d",
+        interpolationmethod="averaging",
+        averagingnummin=2,
+    )
+    output = tmp_path / "fm"
+    models = _write(hydamo, output)
+
+    field = (models.inifields + models.parameterfields)[0]
+    assert (field.datafiletype, _datafile_name(field)) == (
+        "sample",
+        f"{kind}_{quantity}_00.xyz",
+    )
+    assert field.averagingnummin == 2
+    assert (output / f"{kind}_{quantity}_00.xyz").read_bytes() == source.read_bytes()
+
+
+@pytest.mark.parametrize(
+    ("content", "kwargs", "error", "message"),
+    [
+        pytest.param(None, {}, FileNotFoundError, "does not exist", id="missing_file"),
+        pytest.param(
+            "x y z\n1 1 0.3\n",
+            {},
+            ValueError,
+            "should start with three numbers",
+            id="header_line",
+        ),
+        pytest.param(
+            "1.0 1.0\n",
+            {},
+            ValueError,
+            "should start with three numbers",
+            id="two_columns",
+        ),
+        pytest.param(
+            "", {}, ValueError, "should start with three numbers", id="empty_file"
+        ),
+        pytest.param(
+            "1 1 0.3\n",
+            {"column": "z"},
+            ValueError,
+            "do not pass a column",
+            id="column",
+        ),
+        pytest.param(
+            "1 1 0.3\n",
+            {"filetype": "polygon"},
+            ValueError,
+            "is a sample field",
+            id="other_filetype",
+        ),
+    ],
+)
+def test_xyz_file_invalid_input(
+    tmp_path: Path,
+    content: str | None,
+    kwargs: dict,
+    error: type[Exception],
+    message: str,
+) -> None:
+    path = tmp_path / "samples.xyz"
+    if content is not None:
+        path.write_text(content)
+    hydamo = HyDAMO()
+    with pytest.raises(error, match=message):
+        hydamo.external_forcings.set_spatial_field(
+            path, quantity="bedlevel", locationtype="2d", **kwargs
+        )
+
+
+@pytest.mark.parametrize("quantity", ["waterlevel", "waterdepth", "initialwaterlevel"])
+@pytest.mark.parametrize("locationtype", ["1d", "all"])
+def test_xyz_file_level_or_depth_on_1d_refused(
+    tmp_path: Path, quantity: str, locationtype: str
+) -> None:
+    # D-HyDAMO does not read an .xyz file, so on 1D nodes it could not check it against other level/depth fields
+    hydamo = HyDAMO()
+    with pytest.raises(ValueError, match="only supported for locationtype '2d'"):
+        hydamo.external_forcings.set_spatial_field(
+            _xyz_file(tmp_path / "samples.xyz"),
+            quantity=quantity,
+            locationtype=locationtype,
+        )
+
+
+@pytest.mark.parametrize(
+    ("quantity", "locationtype"),
+    [
+        pytest.param("waterlevel", "2d", id="waterlevel_2d"),
+        pytest.param("frictioncoefficient", "1d", id="other_quantity_1d"),
+    ],
+)
+def test_xyz_file_accepted(tmp_path: Path, quantity: str, locationtype: str) -> None:
+    hydamo = HyDAMO()
+    hydamo.external_forcings.set_spatial_field(
+        _xyz_file(tmp_path / "samples.xyz"),
+        quantity=quantity,
+        locationtype=locationtype,
+    )
+    models = _write(hydamo, tmp_path / "fm")
+
+    assert [(f.quantity, f.datafiletype) for f in models.inifields] == [
+        (quantity, "sample")
+    ]
+
+
+def _fm_with_2d_mesh(bedlevtype: int, bedlevel: str | None) -> FMModel:
+    # a 2 x 2 cell 2D mesh with bedLevType, and a node or face bed level (bedlevel 'node' or 'face') or none
+    fm = FMModel()
+    fm.geometry.bedlevtype = bedlevtype
+    assert isinstance(fm.geometry.netfile, NetworkModel)
+    mesh2d = fm.geometry.netfile.network._mesh2d
+    mesh.mesh2d_add_rectilinear(
+        fm.geometry.netfile.network,
+        box(0, 0, 10, 10),
+        dx=5,
+        dy=5,
+        deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
+    )
+    if bedlevel == "node":
+        mesh2d.mesh2d_node_z = np.zeros(mesh2d.mesh2d_node_x.size)
+    elif bedlevel == "face":
+        mesh2d.mesh2d_face_z = np.zeros(mesh2d.mesh2d_face_x.size)
+    return fm
+
+
+def _bedlevel_warnings(
+    tmp_path: Path, fm: FMModel, field: str | None, caplog: pytest.LogCaptureFixture
+) -> list[str]:
+    # writes the initial fields, with a bed level field ('points', 'xyz' or '1d') or none; returns the warnings
+    hydamo = HyDAMO()
+    if field == "points":
+        # three samples for four cells: a point cloud does not need one point per cell
+        hydamo.external_forcings.set_spatial_field(
+            _points(), quantity="bedlevel", filetype="sample", locationtype="2d"
+        )
+    elif field == "xyz":
+        hydamo.external_forcings.set_spatial_field(
+            _xyz_file(tmp_path / "bed.xyz"), quantity="bedlevel", locationtype="2d"
+        )
+    elif field == "1d":
+        hydamo.external_forcings.set_spatial_field(
+            _points(), quantity="bedlevel", filetype="sample"
+        )
+    models = Df2HydrolibModel(hydamo)
+    with caplog.at_level(
+        logging.WARNING, logger="hydrolib.dhydamo.converters.df2hydrolibmodel"
+    ):
+        inifieldmodel = models.write_initial_fields(fm, tmp_path / "fm")
+    # the model is written in every case
+    assert fm.geometry.inifieldfile is inifieldmodel
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if "bedLevType" in record.getMessage()
+    ]
+
+
+@pytest.mark.parametrize(
+    ("bedlevtype", "bedlevel", "field", "message"),
+    [
+        pytest.param(
+            1,
+            None,
+            None,
+            "bedLevType is 1, but the 2D mesh has no face bed level",
+            id="1_nothing",
+        ),
+        pytest.param(
+            1,
+            "node",
+            None,
+            "bedLevType is 1, but the 2D mesh has no face bed level",
+            id="1_node_bedlevel",
+        ),
+        pytest.param(
+            1,
+            None,
+            "1d",
+            "bedLevType is 1, but the 2D mesh has no face bed level",
+            id="1_1d_field",
+        ),
+        pytest.param(
+            3,
+            None,
+            None,
+            "bedLevType is 3, but the 2D mesh has no node bed level",
+            id="3_nothing",
+        ),
+        pytest.param(
+            3,
+            "face",
+            None,
+            "bedLevType is 3, but the 2D mesh has no node bed level",
+            id="3_face_bedlevel",
+        ),
+        pytest.param(
+            5,
+            None,
+            None,
+            "bedLevType is 5, but the 2D mesh has no node bed level",
+            id="5_nothing",
+        ),
+        pytest.param(
+            6,
+            None,
+            "points",
+            "does not use a bed level field with bedLevType 4 to 6",
+            id="6_field_unused",
+        ),
+    ],
+)
+def test_missing_bedlevel_warns(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    bedlevtype: int,
+    bedlevel: str | None,
+    field: str | None,
+    message: str,
+) -> None:
+    warnings = _bedlevel_warnings(
+        tmp_path, _fm_with_2d_mesh(bedlevtype, bedlevel), field, caplog
+    )
+    assert len(warnings) == 1
+    assert message in warnings[0]
+
+
+@pytest.mark.parametrize(
+    ("bedlevtype", "bedlevel", "field"),
+    [
+        pytest.param(1, "face", None, id="1_face_bedlevel"),
+        pytest.param(1, None, "points", id="1_field"),
+        pytest.param(1, None, "xyz", id="1_xyz_file"),
+        pytest.param(3, "node", None, id="3_node_bedlevel"),
+        pytest.param(3, None, "xyz", id="3_xyz_file"),
+        pytest.param(4, "node", None, id="4_node_bedlevel"),
+        pytest.param(2, None, None, id="2_not_checked"),
+    ],
+)
+def test_bedlevel_for_bedlevtype_gives_no_warning(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    bedlevtype: int,
+    bedlevel: str | None,
+    field: str | None,
+) -> None:
+    assert (
+        _bedlevel_warnings(
+            tmp_path, _fm_with_2d_mesh(bedlevtype, bedlevel), field, caplog
+        )
+        == []
+    )
+
+
+def test_bedlevel_not_checked_without_2d_mesh(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # 1D bed levels come from the cross sections; hydrolib-core's default bedLevType is 3
+    assert _bedlevel_warnings(tmp_path, FMModel(), None, caplog) == []
 
 
 class _SpatialFieldArgs(TypedDict, total=False):
@@ -725,6 +1101,43 @@ def test_initial_conditions_at_nodes_from_samples_and_polygons() -> None:
     )  # samples (inside their convex hull)
     assert on_br1["value"].loc[15.0] == 3.0  # polygon file, added last
     assert set(on_br1["quantity"]) == {"waterlevel"}
+
+
+@pytest.mark.parametrize("filetype", ["polygon", "sample"])
+@pytest.mark.parametrize(
+    ("locationtype", "expected_nodes"), [("1d", 11), ("all", 11), ("2d", 0)]
+)
+def test_initial_conditions_at_nodes_skip_2d_fields(
+    filetype: str, locationtype: str, expected_nodes: int
+) -> None:
+    # a field for 2D only does not give the 1D nodes a value; '1d' and 'all' do
+    hydamo = HyDAMO()
+    hydamo.branches.set_data(_branches())
+    fm = FMModel()
+    assert isinstance(fm.geometry.netfile, NetworkModel)
+    mesh.mesh1d_add_branches_from_gdf(
+        fm.geometry.netfile.network,
+        branches=hydamo.branches,
+        branch_name_col="code",
+        node_distance=5,
+    )
+    if filetype == "polygon":
+        gdf = gpd.GeoDataFrame(
+            {"peil": [1.0]}, geometry=[box(-5, 0, 40, 30)], crs=28992
+        )
+    else:
+        corners = [Point(-5, -5), Point(40, -5), Point(40, 30), Point(-5, 30)]
+        gdf = gpd.GeoDataFrame({"peil": [1.0] * 4}, geometry=corners, crs=28992)
+    hydamo.external_forcings.set_spatial_field(
+        gdf, "peil", filetype=filetype, locationtype=locationtype
+    )
+
+    nodes = Df2HydrolibModel(hydamo).initial_conditions_at_nodes(
+        fm.geometry.netfile.network
+    )
+
+    assert len(nodes) == 11
+    assert nodes["quantity"].notna().sum() == expected_nodes
 
 
 def test_points_on_unknown_branches_are_left_out(

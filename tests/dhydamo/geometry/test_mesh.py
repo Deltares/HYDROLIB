@@ -1,7 +1,9 @@
+from collections.abc import Callable
 from pathlib import Path
 
 import branca
 import geopandas as gpd
+import netCDF4 as nc
 import numpy as np
 import pandas as pd
 import pytest
@@ -1214,3 +1216,205 @@ def test_mesh1d_order_numbers_from_attribute() -> None:
     branch_ids = list(network._mesh1d.network1d_branch_id)
     orders = network._mesh1d.network1d_branch_order
     assert [int(orders[branch_ids.index(name)]) for name in lines] == [1, 1, 2, 2]
+
+
+def _netfile(mesh_origin: tuple[float, float] | None = None) -> NetworkModel:
+    # an empty net file, or with a 5 x 5 node, 4 x 4 face rectilinear mesh of 10 x 10 m at mesh_origin
+    netfile = FMModel().geometry.netfile
+    assert isinstance(netfile, NetworkModel)
+    if mesh_origin is not None:
+        mesh.mesh2d_add_rectilinear(
+            netfile.network,
+            translate(box(0, 0, 10, 10), *mesh_origin),
+            dx=2.5,
+            dy=2.5,
+            deletemeshoption=DeleteMeshOption.INSIDE_AND_INTERSECTED,
+        )
+    return netfile
+
+
+def _netfile_with_bedlevel() -> NetworkModel:
+    # the mesh of _netfile at (0, 0), with a node and a face bed level
+    netfile = _netfile(mesh_origin=(0, 0))
+    netfile.network._mesh2d.mesh2d_node_z = np.arange(25, dtype=float)
+    netfile.network._mesh2d.mesh2d_face_z = np.arange(16, dtype=float)
+    return netfile
+
+
+def _copy_netcdf_without_bedlevel(source: Path, target: Path) -> None:
+    # hydrolib-core always writes mesh2d_node_z and mesh2d_face_z; other net files may not have them
+    with nc.Dataset(source) as src, nc.Dataset(target, "w") as dst:
+        dst.setncatts(src.__dict__)
+        for name, dimension in src.dimensions.items():
+            dst.createDimension(
+                name, None if dimension.isunlimited() else len(dimension)
+            )
+        for name, variable in src.variables.items():
+            if name in ("mesh2d_node_z", "mesh2d_face_z"):
+                continue
+            fill_value = (
+                variable.getncattr("_FillValue")
+                if "_FillValue" in variable.ncattrs()
+                else None
+            )
+            copy = dst.createVariable(
+                name, variable.datatype, variable.dimensions, fill_value=fill_value
+            )
+            copy.setncatts(
+                {
+                    key: variable.getncattr(key)
+                    for key in variable.ncattrs()
+                    if key != "_FillValue"
+                }
+            )
+            copy[:] = variable[:]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        pytest.param(
+            lambda network: mesh.mesh2d_clip(network, box(-1, -1, 4, 4)), id="clip"
+        ),
+        pytest.param(
+            lambda network: mesh.mesh2d_refine(
+                network,
+                box(-1, -1, 11, 11),
+                steps=2,
+                refine_parameters={"min_edge_size": 0.001},
+            ),
+            id="refine",
+        ),
+        pytest.param(
+            lambda network: mesh.mesh2d_add_rectilinear(
+                network, box(20, 0, 30, 10), dx=2.5, dy=2.5
+            ),
+            id="rectilinear",
+        ),
+        pytest.param(
+            lambda network: mesh.mesh2d_add_triangular(
+                network, box(20, 0, 30, 10), edge_length=2.5
+            ),
+            id="triangular",
+        ),
+    ],
+)
+def test_mesh2d_change_drops_stale_bedlevel(
+    change: Callable[[Network], None], caplog: pytest.LogCaptureFixture
+) -> None:
+    network = _netfile_with_bedlevel().network
+
+    with caplog.at_level("WARNING", logger="hydrolib.dhydamo.geometry.mesh"):
+        change(network)
+
+    assert network._mesh2d.mesh2d_node_z.size == 0
+    assert network._mesh2d.mesh2d_face_z.size == 0
+    assert "The 2D node bed level no longer fits the 2D mesh" in caplog.text
+    assert "The 2D face bed level no longer fits the 2D mesh" in caplog.text
+    assert "set_spatial_field" in caplog.text
+
+
+def test_mesh2d_clip_without_change_keeps_bedlevel(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    network = _netfile_with_bedlevel().network
+
+    with caplog.at_level("WARNING", logger="hydrolib.dhydamo.geometry.mesh"):
+        mesh.mesh2d_clip(network, box(100, 100, 110, 110))
+
+    np.testing.assert_array_equal(network._mesh2d.mesh2d_node_z, np.arange(25))
+    np.testing.assert_array_equal(network._mesh2d.mesh2d_face_z, np.arange(16))
+    assert "bed level" not in caplog.text
+
+
+def test_mesh2d_save_after_clip_with_bedlevel(tmp_path: Path) -> None:
+    # saving used to fail with "shape mismatch", because the bed level kept its old size
+    netfile = _netfile_with_bedlevel()
+    mesh.mesh2d_clip(netfile.network, box(-1, -1, 4, 4))
+
+    netfile.save(filepath=tmp_path / "net.nc")
+
+    assert (tmp_path / "net.nc").exists()
+
+
+def test_mesh2d_from_netcdf_keeps_node_bedlevel_and_drops_face_bedlevel_of_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # MeshKernel keeps the nodes, but rebuilds the faces, so a face bed level from a file cannot be matched to them
+    _netfile_with_bedlevel().save(filepath=tmp_path / "net.nc")
+    network = _netfile().network
+
+    with caplog.at_level("WARNING", logger="hydrolib.dhydamo.geometry.mesh"):
+        mesh.mesh2d_from_netcdf(network, tmp_path / "net.nc")
+
+    np.testing.assert_array_equal(network._mesh2d.mesh2d_node_z, np.arange(25))
+    assert network._mesh2d.mesh2d_face_z.size == 0
+    assert "The 2D face bed level cannot be matched to the faces" in caplog.text
+    assert "node bed level" not in caplog.text
+
+
+def test_mesh2d_from_netcdf_drops_bedlevel_of_replaced_mesh_of_same_size(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # a mesh of the same size, but moved, saved without a bed level (hydrolib-core writes fill values): the bed
+    # level of the network no longer fits
+    _netfile(mesh_origin=(1, 1)).save(filepath=tmp_path / "moved.nc")
+    network = _netfile_with_bedlevel().network
+
+    with caplog.at_level("WARNING", logger="hydrolib.dhydamo.geometry.mesh"):
+        mesh.mesh2d_from_netcdf(network, tmp_path / "moved.nc")
+
+    assert network._mesh2d.get_mesh2d().node_x.size == 25
+    assert network._mesh2d.mesh2d_node_z.size == 0
+    assert network._mesh2d.mesh2d_face_z.size == 0
+    assert "The 2D node bed level no longer fits the 2D mesh" in caplog.text
+
+
+def test_mesh2d_clip_drops_bedlevel_of_wrong_size(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a bed level without one value per node would make saving fail, also if the mesh does not change
+    network = _netfile_with_bedlevel().network
+    network._mesh2d.mesh2d_node_z = np.arange(24, dtype=float)
+
+    with caplog.at_level("WARNING", logger="hydrolib.dhydamo.geometry.mesh"):
+        mesh.mesh2d_clip(network, box(100, 100, 110, 110))
+
+    assert network._mesh2d.mesh2d_node_z.size == 0
+    np.testing.assert_array_equal(network._mesh2d.mesh2d_face_z, np.arange(16))
+    assert "The 2D node bed level no longer fits the 2D mesh" in caplog.text
+
+
+def test_mesh2d_from_netcdf_without_bedlevel_keeps_node_bedlevel_of_same_mesh(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # the network's own node bed level still fits the same nodes; its face bed level is always dropped on a read
+    netfile = _netfile_with_bedlevel()
+    netfile.save(filepath=tmp_path / "net.nc")
+    _copy_netcdf_without_bedlevel(tmp_path / "net.nc", tmp_path / "net_without_z.nc")
+    network = netfile.network
+
+    with caplog.at_level("WARNING", logger="hydrolib.dhydamo.geometry.mesh"):
+        mesh.mesh2d_from_netcdf(network, tmp_path / "net_without_z.nc")
+
+    np.testing.assert_array_equal(network._mesh2d.mesh2d_node_z, np.arange(25))
+    assert network._mesh2d.mesh2d_face_z.size == 0
+    assert "The 2D face bed level cannot be matched to the faces" in caplog.text
+    assert "node bed level" not in caplog.text
+
+
+def test_mesh2d_without_bedlevel_gives_no_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # the usual case: no bed level in the network or in the net file. hydrolib-core writes the bed levels with
+    # only fill values, which count as no bed level, so there is nothing to check or drop
+    _netfile(mesh_origin=(0, 0)).save(filepath=tmp_path / "net.nc")
+    network = _netfile().network
+
+    with caplog.at_level("WARNING", logger="hydrolib.dhydamo.geometry.mesh"):
+        mesh.mesh2d_from_netcdf(network, tmp_path / "net.nc")
+        mesh.mesh2d_clip(network, box(-1, -1, 4, 4))
+
+    assert network._mesh2d.mesh2d_node_z.size == 0
+    assert network._mesh2d.mesh2d_face_z.size == 0
+    assert "bed level" not in caplog.text

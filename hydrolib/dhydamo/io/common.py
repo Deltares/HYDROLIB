@@ -1,5 +1,7 @@
 """DataFrames and GeoDataFrames with required columns and a geometry type check."""
 
+from __future__ import annotations
+
 import logging
 import warnings
 from collections.abc import Hashable
@@ -125,7 +127,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         self.geotype = geotype
 
     # pandas-stubs marks DataFrame.copy as final; this override keeps the geotype and required columns
-    def copy(self, deep: bool = True) -> "ExtendedGeoDataFrame":  # type: ignore[misc]
+    def copy(self, deep: bool = True) -> ExtendedGeoDataFrame:  # type: ignore[misc]
         """Return a copy that keeps the geometry type and the required columns."""
         index = self.index.tolist() if not deep else deepcopy(self.index.tolist())
         columns = self.columns.tolist() if not deep else deepcopy(self.columns.tolist())
@@ -571,7 +573,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         rename_col: str | None = None,
         prefix: str = "",
         suffix: str = "",
-    ) -> "ExtendedGeoDataFrame":
+    ) -> ExtendedGeoDataFrame:
         """Return a point on each branch, e.g. to place a profile.
 
         Parameters

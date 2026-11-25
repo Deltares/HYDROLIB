@@ -1,5 +1,7 @@
 """The HyDAMO data model: input data, cross sections, structures, forcings and storage nodes."""
 
+from __future__ import annotations
+
 import logging
 import numbers
 from collections.abc import Hashable, Mapping
@@ -23,6 +25,7 @@ from hydrolib import dhydamo
 
 # the network of hydrolib-core; Network in this module is the legacy one of delft3dfmpy
 from hydrolib.core.dflowfm.net import models as netmodels
+from hydrolib.dhydamo.converters.df2hydrolibmodel import level_or_depth
 from hydrolib.dhydamo.converters.hydamo2df import (
     CrossSectionsIO,
     ExternalForcingsIO,
@@ -335,7 +338,7 @@ class HyDAMO:
         validation_mode: ValidationMode = "off",
         validation_coverages: dict | None = None,
         validation_rules_path: Path | str | None = None,
-    ) -> "HyDAMO":
+    ) -> HyDAMO:
         """Load HyDAMO data from a GeoPackage via a versioned DAMO converter.
 
         Parameters
@@ -2418,7 +2421,7 @@ class ExternalForcings:
 
     def set_spatial_field(
         self,
-        gdf: gpd.GeoDataFrame,
+        gdf: gpd.GeoDataFrame | Path | str,
         column: str | None = None,
         quantity: str = "waterlevel",
         kind: str = "initial",
@@ -2430,6 +2433,10 @@ class ExternalForcings:
         operand: str = "O",
         nodata: float = -999.0,
         max_snap_distance: float = 5.0,
+        averagingrelsize: float | None = None,
+        averagingnummin: int | None = None,
+        averagingpercentile: float | None = None,
+        extrapolationmethod: bool | None = None,
     ) -> None:
         """Add a spatially varying field to the initial fields file (initialFields.ini).
 
@@ -2460,12 +2467,24 @@ class ExternalForcings:
         or samples everywhere, also outside its own area; water levels per branch are kept. Add water depth
         fields before water level fields.
 
+        For samples and rasters on 2D cells, choose the interpolation by the density of the data: 'averaging' for
+        dense data (several values per cell, e.g. a point cloud or a fine raster), 'triangulation' for sparse data
+        (fewer values than cells, e.g. measured points). Averaging combines the values inside each cell, as set by
+        averagingtype and the averaging settings below; triangulation interpolates linearly between the values, and
+        only within their convex hull unless extrapolationmethod is True. Settings left at None are not written, so
+        D-Flow FM uses its defaults.
+
         The data files are written by Df2HydrolibModel.write_initial_fields().
 
         Parameters
         ----------
-        gdf : gpd.GeoDataFrame
-            Polygons or points with values.
+        gdf : gpd.GeoDataFrame or Path or str
+            Polygons or points with values, or the path to an existing .xyz file (x, y
+            and value per line). An .xyz file becomes a sample field (filetype
+            ``'sample'``, no column) and is copied unchanged under the generated name
+            when the model is written. For initial water levels and depths, only with
+            locationtype ``'2d'``: D-HyDAMO does not read its values, so it cannot check
+            them against other water level and depth fields on the 1D nodes.
         column : str, optional
             Column with the values. For points, None means the Z coordinate is used.
         quantity : str, optional
@@ -2496,40 +2515,85 @@ class ExternalForcings:
         max_snap_distance : float, optional
             Maximum distance to snap points to a branch for filetype ``'branch'``. Defaults
             to 5.0.
+        averagingrelsize : float, optional
+            With ``'averaging'``, the size of the area around a cell that is searched for
+            values, relative to the cell size (D-Flow FM default 1.01). Larger values
+            smooth more, and fill cells with few values. Defaults to None (not written).
+        averagingnummin : int, optional
+            With ``'averaging'``, the minimum number of values in that area; a cell with
+            fewer gets no value from this field (D-Flow FM default 1). Defaults to None
+            (not written).
+        averagingpercentile : float, optional
+            With ``'averaging'``, the percentile of the values to use instead of all
+            values, e.g. a low percentile for the lowest part of a cell (D-Flow FM
+            default 0, off). Defaults to None (not written).
+        extrapolationmethod : bool, optional
+            With ``'triangulation'``, True also gives values outside the convex hull of
+            the data. Defaults to None: not set, which hydrolib-core writes as
+            ``extrapolationMethod = 0``.
         """
         if kind not in ("initial", "parameter"):
             raise ValueError(f"kind should be 'initial' or 'parameter', not '{kind}'.")
-        if gdf.empty:
-            raise ValueError("The provided GeoDataFrame is empty.")
         if quantity.lower() == "initialvelocity":
             raise ValueError(
                 "D-Flow FM (2026.02) does not support 'initialvelocity' in the initial fields file. "
                 "Use set_initial_velocity, which writes the x and y components."
             )
 
-        geomtypes = set(gdf.geom_type)
-        filetype = self._resolve_filetype(geomtypes, filetype)
-        if filetype == "branch" and locationtype != "1d":
-            raise ValueError(
-                "Filetype 'branch' is only available for locationtype '1d'."
-            )
-        if filetype == "raster" and cellsize is None:
-            raise ValueError("A cellsize is required to rasterize polygons.")
+        xyz_file: Path | None = None
+        field_gdf: gpd.GeoDataFrame | None = None
+        if isinstance(gdf, (str, Path)):
+            if column is not None:
+                raise ValueError(
+                    "An .xyz file has its values in the third column; do not pass a column."
+                )
+            if filetype not in {None, "sample"}:
+                raise ValueError(
+                    f"An .xyz file is a sample field, not filetype '{filetype}'."
+                )
+            if level_or_depth(quantity) is not None and locationtype != "2d":
+                raise ValueError(
+                    "An .xyz file for an initial water level or depth is only supported for locationtype '2d'. "
+                    "D-HyDAMO does not read the file, so on 1D nodes it cannot check the field against other water "
+                    "level and depth fields or export it with initial_conditions_at_nodes. Read the points into a "
+                    "GeoDataFrame and pass that instead (filetype 'branch' is the default for 1D)."
+                )
+            xyz_file = self._xyz_file(gdf)
+            filetype = "sample"
+        else:
+            if gdf.empty:
+                raise ValueError("The provided GeoDataFrame is empty.")
+            geomtypes = set(gdf.geom_type)
+            filetype = self._resolve_filetype(geomtypes, filetype)
+            if filetype == "branch" and locationtype != "1d":
+                raise ValueError(
+                    "Filetype 'branch' is only available for locationtype '1d'."
+                )
+            if filetype == "raster" and cellsize is None:
+                raise ValueError("A cellsize is required to rasterize polygons.")
+            self._warn_spatial_field_options(gdf, filetype, locationtype)
+            gdf, column = self._value_column(gdf, column, geomtypes)
+            columns = [column, "geometry"]
+            if filetype == "branch" and {"branchid", "chainage"} <= set(gdf.columns):
+                columns = ["branchid", "chainage"] + columns
+            field_gdf = gpd.GeoDataFrame(gdf[columns].copy())
 
         interpolationmethod = self._resolve_interpolation(
             filetype, locationtype, interpolationmethod
         )
-        self._warn_spatial_field_options(gdf, filetype, locationtype)
-        gdf, column = self._value_column(gdf, column, geomtypes)
+        sample_settings = {
+            "averagingrelsize": averagingrelsize,
+            "averagingnummin": averagingnummin,
+            "averagingpercentile": averagingpercentile,
+            "extrapolationmethod": extrapolationmethod,
+        }
+        self._warn_sample_settings(interpolationmethod, sample_settings)
         filename = self._next_field_filename(kind, quantity, filetype)
-
-        columns = [column, "geometry"]
-        if filetype == "branch" and {"branchid", "chainage"} <= set(gdf.columns):
-            columns = ["branchid", "chainage"] + columns
 
         self.spatial_fields.append(
             {
-                "gdf": gpd.GeoDataFrame(gdf[columns].copy()),
+                "gdf": field_gdf,
+                "xyz_file": xyz_file,
                 "column": column,
                 "quantity": quantity,
                 "kind": kind,
@@ -2542,8 +2606,54 @@ class ExternalForcings:
                 "operand": operand,
                 "nodata": nodata,
                 "max_snap_distance": max_snap_distance,
+                "sample_settings": sample_settings,
             }
         )
+
+    @staticmethod
+    def _xyz_file(path: Path | str) -> Path:
+        """Check an existing .xyz file for a spatial field, without reading the whole file.
+
+        Parameters
+        ----------
+        path : Path or str
+            Path to the .xyz file.
+
+        Returns
+        -------
+        Path
+            The absolute path to the file.
+
+        Raises
+        ------
+        ValueError
+            If the first data line does not start with three numbers.
+        FileNotFoundError
+            If the file does not exist.
+        """
+        path = Path(path)
+        if not path.is_file():
+            raise FileNotFoundError(f"The .xyz file {path} does not exist.")
+        first_line = ""
+        with path.open(encoding="utf-8", errors="replace") as file:
+            for line in file:
+                # like hydrolib-core's XYZ parser: skip empty lines and comment lines
+                # starting with '*'
+                if line.strip() and not line.lstrip().startswith("*"):
+                    first_line = line
+                    break
+        values = first_line.split()[:3]
+        try:
+            for value in values:
+                float(value)
+        except ValueError:
+            values = []
+        if len(values) < 3:
+            raise ValueError(
+                f"The first data line of {path} should start with three numbers (x, y, value), "
+                f"not {first_line.strip()!r}."
+            )
+        return path.resolve()
 
     @staticmethod
     def _resolve_filetype(geomtypes: set[str], filetype: str | None) -> str:
@@ -2630,6 +2740,40 @@ class ExternalForcings:
                 "Use filetype 'branch' or 'polygon' for polygons, or 'triangulation' for samples."
             )
         return interpolationmethod
+
+    @staticmethod
+    def _warn_sample_settings(
+        interpolationmethod: str | None, sample_settings: dict
+    ) -> None:
+        """Warn for sample settings that do not apply to the interpolation method.
+
+        Such a setting is still written, but has no effect. The values themselves are
+        checked by hydrolib-core when the field is converted.
+
+        Parameters
+        ----------
+        interpolationmethod : str or None
+            The resolved interpolation method, or None for ``'branch'``.
+        sample_settings : dict
+            averagingrelsize, averagingnummin, averagingpercentile and
+            extrapolationmethod, None when not set.
+        """
+        if interpolationmethod != "averaging":
+            for name in ["averagingrelsize", "averagingnummin", "averagingpercentile"]:
+                if sample_settings[name] is not None:
+                    logger.warning(
+                        "averagingrelsize, averagingnummin and averagingpercentile only apply to "
+                        f"interpolationmethod 'averaging', not {interpolationmethod!r}, and have no effect."
+                    )
+                    break
+        if (
+            sample_settings["extrapolationmethod"] is not None
+            and interpolationmethod != "triangulation"
+        ):
+            logger.warning(
+                "extrapolationmethod only applies to interpolationmethod 'triangulation', "
+                f"not {interpolationmethod!r}, and has no effect."
+            )
 
     @staticmethod
     def _warn_spatial_field_options(
