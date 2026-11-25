@@ -1421,6 +1421,11 @@ class DRTCModel:
         get the settings under ``"global"``. Keys that match no structure with that
         type of controller are listed in one warning per settings dict.
 
+        A structure gets one controller: when several Sturing rows with a supported
+        controller type (PID, interval or time) resolve to the same structure, the
+        first of them is used and the others are skipped with a warning. Rows with
+        another type are skipped with a warning before any other check.
+
         Parameters
         ----------
         pid_settings : dict, optional
@@ -1438,6 +1443,8 @@ class DRTCModel:
         ValueError
             For inconsistent input, e.g. a PID controller without ``pid_settings``.
         """
+        # the Sturing code of the row that controls each structure: the first wins
+        controlled_by: dict[str, str] = {}
         pid_structures: set[str] = set()
         interval_structures: set[str] = set()
         for _, management in self.hydamo.management.iterrows():
@@ -1445,6 +1452,21 @@ class DRTCModel:
             if resolved is None:
                 continue
             structype, struc_id = resolved
+            # only rows that create a controller compete for a structure
+            if management.typecontroller not in ("PID", "interval", "time"):
+                logger.warning(
+                    f"{management.typecontroller} is not a valid controller type - skipped."
+                )
+                continue
+            if struc_id in controlled_by:
+                logger.warning(
+                    "Structure %s is controlled by Sturing %s and %s. Using %s.",
+                    struc_id,
+                    controlled_by[struc_id],
+                    management.code,
+                    controlled_by[struc_id],
+                )
+                continue
             if (
                 structype == "weir"
                 and management.stuurvariabele == "bovenkant afsluitmiddel"
@@ -1526,10 +1548,7 @@ class DRTCModel:
                         steering_variable=steering_variable,
                         data=data,
                     )
-            else:
-                logger.warning(
-                    f"{management.typecontroller} is not a valid controller type - skipped."
-                )
+            controlled_by[struc_id] = management.code
 
         _warn_unknown_settings_keys("pid_settings", pid_settings, pid_structures)
         _warn_unknown_settings_keys(

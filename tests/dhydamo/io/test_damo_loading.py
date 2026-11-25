@@ -459,11 +459,54 @@ INTERVAL_GLOBAL = {"deadband": 0.1, "maxspeed": 0.00033}
 INTERVAL_OWN = {"deadband": 0.2, "maxspeed": 0.001}
 
 
-def _controlled_compound_weir_drtc(tmp_path: Path) -> DRTCModel:
-    """Load a compound weir ST1 whose openings get a PID and an interval controller.
+def _sturing(rows: list[dict[str, object]]) -> gpd.GeoDataFrame:
+    """Return Sturing rows, in the given order, that steer a weir crest.
 
-    Its two openings become the structures ``ST1_1`` (PID) and ``ST1_2`` (interval).
+    Each row gives at least ``code``, ``afsluitmiddelid``, ``typecontroller`` and
+    ``streefwaarde``. Its ``globalid`` is derived from the code, and the other columns
+    get shared defaults, which a row can override.
     """
+    defaults = {
+        "pompid": None,
+        "typestuurvariabele": "bovenkant afsluitmiddel",
+        "doelvariabele": "waterstand",
+        "meetlocatieid": "Obs1",
+        "bovengrens": 1.0,
+        "ondergrens": 0.0,
+        "geometry": Point(5, 0),
+    }
+    records = []
+    for row in rows:
+        records.append({**defaults, "globalid": f"mgmt-guid-{row['code']}", **row})
+    return gpd.GeoDataFrame(records, crs="EPSG:28992")
+
+
+def _controlled_compound_weir_drtc(
+    tmp_path: Path, sturing: gpd.GeoDataFrame | None = None
+) -> DRTCModel:
+    """Load a compound weir ST1 with two openings, controlled by *sturing*.
+
+    The openings become the structures ``ST1_1`` (closing device ``afsluit-guid-1``)
+    and ``ST1_2`` (``afsluit-guid-2``). By default, ``CTRL_PID`` gives ``ST1_1`` a PID
+    controller and ``CTRL_INTERVAL`` gives ``ST1_2`` an interval controller.
+    """
+    if sturing is None:
+        sturing = _sturing(
+            [
+                {
+                    "code": "CTRL_PID",
+                    "afsluitmiddelid": "afsluit-guid-1",
+                    "typecontroller": "PID",
+                    "streefwaarde": 0.5,
+                },
+                {
+                    "code": "CTRL_INTERVAL",
+                    "afsluitmiddelid": "afsluit-guid-2",
+                    "typecontroller": "interval",
+                    "streefwaarde": 0.5,
+                },
+            ]
+        )
     gpkg_path = tmp_path / "controlled_compound_weir.gpkg"
     points = [Point(5, 0)] * 2
     _write_layer(
@@ -511,23 +554,7 @@ def _controlled_compound_weir_drtc(tmp_path: Path) -> DRTCModel:
     _write_layer(
         gpkg_path,
         "Sturing",
-        gpd.GeoDataFrame(
-            {
-                "code": ["CTRL_PID", "CTRL_INTERVAL"],
-                "globalid": ["mgmt-guid-1", "mgmt-guid-2"],
-                "afsluitmiddelid": ["afsluit-guid-1", "afsluit-guid-2"],
-                "pompid": [None] * 2,
-                "typecontroller": ["PID", "interval"],
-                "typestuurvariabele": ["bovenkant afsluitmiddel"] * 2,
-                "doelvariabele": ["waterstand"] * 2,
-                "meetlocatieid": ["Obs1"] * 2,
-                "bovengrens": [1.0] * 2,
-                "ondergrens": [0.0] * 2,
-                "streefwaarde": [0.5] * 2,
-                "geometry": points,
-            },
-            crs="EPSG:28992",
-        ),
+        sturing,
     )
 
     hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.5")
@@ -627,6 +654,74 @@ def test_drtc_names_structure_without_own_settings_or_global(tmp_path: Path) -> 
             pid_settings={"ST1_l": PID_OWN},
             interval_settings={"ST1_2": INTERVAL_OWN},
         )
+
+
+@pytest.mark.parametrize("second_type", ["PID", "interval"])
+def test_drtc_uses_first_sturing_row_for_a_structure_controlled_twice(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, second_type: str
+) -> None:
+    # Z_FIRST sorts after A_SECOND, so a sort by code or globalid would fail here.
+    sturing = _sturing(
+        [
+            {
+                "code": "Z_FIRST",
+                "afsluitmiddelid": "afsluit-guid-1",
+                "typecontroller": "PID",
+                "streefwaarde": 0.5,
+            },
+            {
+                "code": "A_SECOND",
+                "afsluitmiddelid": "afsluit-guid-1",
+                "typecontroller": second_type,
+                "streefwaarde": 0.7,
+            },
+        ]
+    )
+    drtc = _controlled_compound_weir_drtc(tmp_path, sturing)
+
+    drtc.from_hydamo(
+        pid_settings={"global": PID_GLOBAL},
+        interval_settings={"global": INTERVAL_GLOBAL},
+    )
+
+    assert drtc.pid_controllers["ST1_1"]["setpoint"] == 0.5
+    assert "ST1_1" not in drtc.interval_controllers
+    (warning,) = _drtc_warnings(caplog, "controlled by")
+    assert "ST1_1" in warning
+    assert "Z_FIRST" in warning
+    assert "A_SECOND" in warning
+
+
+@pytest.mark.parametrize(
+    "types", [("nvt", "PID"), ("PID", "nvt")], ids=["nvt_first", "nvt_last"]
+)
+def test_drtc_ignores_sturing_rows_without_supported_controller_for_conflicts(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, types: tuple[str, str]
+) -> None:
+    # An "nvt" row creates no controller, so it doesn't compete with the PID row.
+    sturing = _sturing(
+        [
+            {
+                "code": "Z_FIRST",
+                "afsluitmiddelid": "afsluit-guid-1",
+                "typecontroller": types[0],
+                "streefwaarde": 0.5,
+            },
+            {
+                "code": "A_SECOND",
+                "afsluitmiddelid": "afsluit-guid-1",
+                "typecontroller": types[1],
+                "streefwaarde": 0.5,
+            },
+        ]
+    )
+    drtc = _controlled_compound_weir_drtc(tmp_path, sturing)
+
+    drtc.from_hydamo(pid_settings={"global": PID_GLOBAL})
+
+    assert list(drtc.pid_controllers) == ["ST1_1"]
+    assert _drtc_warnings(caplog, "controlled by") == []
+    assert len(_drtc_warnings(caplog, "not a valid controller type")) == 1
 
 
 def test_load_from_gpkg_makes_non_spatial_index_unique(tmp_path: Path) -> None:
