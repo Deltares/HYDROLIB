@@ -40,7 +40,7 @@ from hydrolib.dhydamo.core.relations import (
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
-from hydrolib.dhydamo.io.damo_converters import get_damo_converter
+from hydrolib.dhydamo.io.damo_converters import BaseDamoConverter, get_damo_converter
 from hydrolib.dhydamo.io.netcdfreader import time_index
 from hydrolib.dhydamo.validation import (
     HydamoValidationResult,
@@ -305,9 +305,12 @@ class HyDAMO:
         -------
         HydamoValidationResult
             Also stored as ``self.validation_result``. Inspect ``success``,
-            ``status``, and ``errors`` to handle validation failures. A reported
-            failure is returned rather than raised as ``HyDAMOValidationError``.
-            Diagnostic warnings and errors are logged by the
+            ``status``, ``errors`` and ``syntax_findings`` to handle validation
+            failures. Findings in columns HYDROLIB reads are logged as one
+            warning per layer by the ``hydrolib.dhydamo.validation`` logger, the
+            number of other findings as one INFO line. A reported failure is
+            returned rather than raised as ``HyDAMOValidationError``. The
+            validatiemodule's own diagnostics are logged by the
             ``hydamo_validation.validator`` logger.
 
         Raises
@@ -318,16 +321,41 @@ class HyDAMO:
             If generated rules are requested for a version unsupported by the
             installed validator's schemas.
         """
+        # Without a converter for the version, no column counts as read.
+        try:
+            read_columns = self._read_columns(get_damo_converter(hydamo_version))
+        except ValueError:
+            read_columns = {}
         result = validate_or_raise(
             gpkg_path=gpkg_path,
             hydamo_version=hydamo_version,
             validation_mode="warn",
             coverages=validation_coverages,
             validation_rules_path=validation_rules_path,
+            read_columns=read_columns,
         )
         assert result is not None
         self.validation_result = result
         return result
+
+    def _read_columns(self, converter: BaseDamoConverter) -> dict[str, set[str]]:
+        """Return, per lowercase DAMO layer, the columns HYDROLIB reads.
+
+        The columns are the table's required columns, ``globalid`` and, for a
+        spatial table, ``geometry``, under their names in the converter's DAMO
+        version.
+        """
+        read_columns: dict[str, set[str]] = {}
+        for spec in converter.layer_specs:
+            table = getattr(self, spec.target_attr)
+            columns = {*table.required_columns, "globalid"}
+            if isinstance(table, ExtendedGeoDataFrame):
+                columns.add("geometry")
+            source_names = {new: old for old, new in spec.column_mapping.items()}
+            read_columns[spec.source_layer.lower()] = {
+                source_names.get(column, column) for column in columns
+            }
+        return read_columns
 
     def load_from_gpkg(
         self,
@@ -359,13 +387,16 @@ class HyDAMO:
             them into lines. Other layers are not checked for Z coordinates.
             Pass ``False`` to allow 2D profile points. Default is ``True``.
         validation_mode : str
-            ``"off"`` skips validation (default). ``"warn"`` validates and
-            continues after a reported failure; diagnostic warnings and errors
-            are logged by the ``hydamo_validation.validator`` logger. Inspect
-            ``validation_result`` for the full result.
-            ``"strict"`` raises ``HyDAMOValidationError`` on a reported failure
-            before loading layers. Validation setup errors can raise in either
-            enabled mode.
+            ``"off"`` skips validation (default). Both other modes act on the
+            values the syntax check rejected in columns HYDROLIB reads (its
+            required columns, ``globalid`` and, for spatial tables, the
+            geometry): ``"warn"`` logs them as one warning per layer, by the
+            ``hydrolib.dhydamo.validation`` logger, and continues; ``"strict"``
+            raises ``HyDAMOValidationError`` before loading layers, as it does
+            when the validation run fails. Rejected values in other columns
+            only give one INFO line with their number. Inspect
+            ``validation_result.syntax_findings`` for all of them. Validation
+            setup errors can raise in either enabled mode.
         validation_coverages : dict, optional
             Coverage dict forwarded to the validator.
         validation_rules_path : str or Path, optional
@@ -382,7 +413,8 @@ class HyDAMO:
         Raises
         ------
         HyDAMOValidationError
-            If validation reports failure in ``"strict"`` mode.
+            In ``"strict"`` mode, if the validation run fails or rejected values
+            in a column HYDROLIB reads.
         ImportError
             If validation is enabled and its optional dependency is unavailable.
         ValueError
@@ -393,7 +425,8 @@ class HyDAMO:
         -----
         Validation requires Python 3.12 and ``pip install "hydrolib[validation]"``.
         After enabled validation returns normally, ``self.validation_result``
-        contains ``success``, ``status``, and ``errors``. It is ``None`` when
+        contains ``success``, ``status``, ``errors`` and ``syntax_findings``
+        (per layer, column and error code). It is ``None`` when
         validation is off. Use ``validate_gpkg()`` to inspect validation failures
         without loading data. Comprehensive schema, type, and relation checks
         require appropriate custom rules; selecting a converter or using strict
@@ -426,6 +459,9 @@ class HyDAMO:
             validation_mode=validation_mode,
             coverages=validation_coverages,
             validation_rules_path=validation_rules_path,
+            read_columns=(
+                self._read_columns(converter) if validation_mode != "off" else None
+            ),
         )
 
         converter.load_into(self, gpkg_path, clip_layers=clip_layers, check_3d=check_3d)

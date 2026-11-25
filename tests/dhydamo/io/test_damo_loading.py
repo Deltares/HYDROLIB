@@ -25,8 +25,11 @@ from shapely.geometry import LineString, Point
 DATA_PATH = Path("hydrolib/sample_data/data").resolve()
 
 # A fake hydamo_validation.validator(**settings) returns this function, called as
-# validate(directory=..., raise_error=...)
-Validate = Callable[..., tuple[None, None, types.SimpleNamespace]]
+# validate(directory=..., raise_error=...). It returns (datamodel, layers_summary,
+# result_summary); the layers summary may be None when a test doesn't need it.
+Validate = Callable[
+    ..., tuple[None, types.SimpleNamespace | None, types.SimpleNamespace]
+]
 
 
 def _install_fake_validator(
@@ -41,6 +44,31 @@ def _install_fake_validator(
     monkeypatch.setattr(
         validation, "_schema_version_for_damo", lambda _module, _version: ("1.4", [])
     )
+
+
+def _syntax_validator(layers: dict[str, pd.DataFrame]) -> Callable[..., Validate]:
+    """Return a fake validator factory whose run reports *layers* as syntax results.
+
+    Each layer frame holds ``syntax_<column>`` strings in the validatiemodule's
+    format, e.g. ``"{guid} -> NULL (fouten: 3)"``, or ``""`` for a valid value.
+    """
+    layers_summary = types.SimpleNamespace(
+        geo_types={layer: "Point" for layer in layers}, **layers
+    )
+
+    def _factory(**kwargs: object) -> Validate:
+        def _run(
+            directory: Path, raise_error: bool = False
+        ) -> tuple[None, types.SimpleNamespace, types.SimpleNamespace]:
+            return (
+                None,
+                layers_summary,
+                types.SimpleNamespace(success=True, status="finished", error=[]),
+            )
+
+        return _run
+
+    return _factory
 
 
 def _write_layer(gpkg_path: Path, layer_name: str, gdf: gpd.GeoDataFrame) -> None:
@@ -560,6 +588,185 @@ def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
     assert any(obj["object"] == "hydroobject" for obj in rules["objects"])
 
 
+def test_validation_reports_syntax_findings_per_layer_and_column(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gpkg_file = _make_minimal_25_gpkg(tmp_path)
+    stuw = pd.DataFrame(
+        {
+            "code": ["ST1", "ST2", "ST3", "ST4"],
+            "syntax_globalid": [
+                "{dup} -> NULL (fouten: 3)",
+                "{dup} -> NULL (fouten: 3)",
+                "None -> NULL (fouten: 4)",
+                "",
+            ],
+            "syntax_oordeel": [False, False, False, True],
+        }
+    )
+    _install_fake_validator(monkeypatch, _syntax_validator({"stuw": stuw}))
+
+    hydamo = HyDAMO().load_from_gpkg(
+        gpkg_file, hydamo_version="2.5", validation_mode="warn"
+    )
+
+    assert hydamo.validation_result is not None
+    findings = {
+        (f.layer, f.column, f.code): f.row_count
+        for f in hydamo.validation_result.syntax_findings
+    }
+    assert findings == {("stuw", "globalid", 3): 2, ("stuw", "globalid", 4): 1}
+
+
+def test_validation_findings_read_the_validatiemodule_result_format(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The strings as hydamo_validation 1.7.0 writes them: the value shown is the
+    # one after emptying, so an unconvertible "bogus" and an empty value both
+    # read "nan -> NULL (fouten: 1)".
+    gpkg_file = _make_minimal_25_gpkg(tmp_path)
+    stuw = pd.DataFrame(
+        {
+            "code": ["ST1", "ST2", "ST3"],
+            # converted (2) is no rejection; unconvertible (1) always is
+            "syntax_kruinbreedte": [
+                "(fouten: 2)",
+                "nan -> NULL (fouten: 1)",
+                "NaT -> NULL (fouten: 1)",
+            ],
+            "syntax_geometry": ["", "Point -> NULL (7)", ""],
+            # a rejected value that itself looks like an error marker
+            "syntax_naam": ["foo (fouten: 3) -> NULL (fouten: 6)", "", ""],
+            # a whole missing required column: no value, only the codes
+            "syntax_afvoercoefficient": ["(fouten: 4)", "(fouten: 4)", "(fouten: 4)"],
+        }
+    )
+    _install_fake_validator(monkeypatch, _syntax_validator({"stuw": stuw}))
+
+    hydamo = HyDAMO().load_from_gpkg(
+        gpkg_file, hydamo_version="2.5", validation_mode="warn"
+    )
+
+    assert hydamo.validation_result is not None
+    findings = {
+        (f.column, f.code): (f.row_count, f.examples)
+        for f in hydamo.validation_result.syntax_findings
+    }
+    assert findings == {
+        ("kruinbreedte", 1): (2, ["ST2", "ST3"]),
+        ("geometry", 7): (1, ["Point"]),
+        ("naam", 6): (1, ["foo (fouten: 3)"]),
+        ("afvoercoefficient", 4): (3, ["ST1", "ST2", "ST3"]),
+    }
+
+
+@pytest.mark.parametrize(
+    ("layer", "column"),
+    [
+        ("stuw", "globalid"),
+        # DAMO 2.5 name of the culvert shape HYDROLIB reads as vormkoker
+        ("duikersifonhevel", "vormduikersifonhevel"),
+        # a spatial table whose required columns omit its geometry
+        ("profiellijn", "geometry"),
+    ],
+)
+def test_validation_strict_raises_on_findings_in_columns_hydrolib_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, layer: str, column: str
+) -> None:
+    gpkg_file = _make_minimal_25_gpkg(tmp_path)
+    results = pd.DataFrame({f"syntax_{column}": ["None -> NULL (fouten: 4)"]})
+    _install_fake_validator(monkeypatch, _syntax_validator({layer: results}))
+
+    with pytest.raises(HyDAMOValidationError, match=f"{layer}.{column}"):
+        HyDAMO().load_from_gpkg(
+            gpkg_file, hydamo_version="2.5", validation_mode="strict"
+        )
+
+
+def test_validation_strict_loads_despite_findings_in_columns_hydrolib_ignores(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gpkg_file = _make_minimal_25_gpkg(tmp_path)
+    stuw = pd.DataFrame({"syntax_objectid": ["nan -> NULL (fouten: 3,4)"]})
+    _install_fake_validator(monkeypatch, _syntax_validator({"stuw": stuw}))
+
+    hydamo = HyDAMO().load_from_gpkg(
+        gpkg_file, hydamo_version="2.5", validation_mode="strict"
+    )
+
+    assert hydamo.validation_result is not None
+    assert [
+        (f.column, f.code, f.read_by_hydrolib)
+        for f in hydamo.validation_result.syntax_findings
+    ] == [("objectid", 3, False), ("objectid", 4, False)]
+    assert not hydamo.weirs.empty
+
+
+def test_validation_warn_logs_findings_in_columns_hydrolib_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    gpkg_file = _make_minimal_25_gpkg(tmp_path)
+    stuw = pd.DataFrame(
+        {
+            "code": ["ST1", "ST2", "ST3"],
+            "syntax_globalid": [
+                "{dup} -> NULL (fouten: 3)",
+                "{dup} -> NULL (fouten: 3)",
+                "None -> NULL (fouten: 4)",
+            ],
+            "syntax_objectid": ["nan -> NULL (fouten: 3,4)", "", ""],
+        }
+    )
+    pomp = pd.DataFrame(
+        {"code": ["P1"], "syntax_pomprichting": ["x -> NULL (fouten: 6)"]}
+    )
+    _install_fake_validator(
+        monkeypatch, _syntax_validator({"stuw": stuw, "pomp": pomp})
+    )
+
+    with caplog.at_level("INFO", logger="hydrolib.dhydamo.validation"):
+        hydamo = HyDAMO().load_from_gpkg(
+            gpkg_file, hydamo_version="2.5", validation_mode="warn"
+        )
+
+    assert hydamo.validation_result is not None
+    assert [
+        (f.column, f.code, f.meaning, f.examples)
+        for f in hydamo.validation_result.syntax_findings
+        if f.layer == "stuw" and f.column == "globalid"
+    ] == [
+        ("globalid", 3, "not unique", ["{dup}"]),
+        # a missing value has no value to show: name the row by its code
+        ("globalid", 4, "missing", ["ST3"]),
+    ]
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "stuw" in warnings[0]
+    assert "globalid: 2 rows not unique (e.g. {dup})" in warnings[0]
+    assert "globalid: 1 rows missing (e.g. ST3)" in warnings[0]
+    assert "objectid" not in warnings[0]
+    infos = [r.getMessage() for r in caplog.records if r.levelname == "INFO"]
+    # stuw.objectid (codes 3 and 4) and pomp.pomprichting
+    assert any("3 other findings" in message for message in infos)
+
+
+def test_validation_strict_loads_a_clean_geopackage_without_findings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gpkg_file = _make_minimal_25_gpkg(tmp_path)
+    stuw = pd.DataFrame(
+        {"code": ["ST1"], "syntax_globalid": [""], "syntax_kruinbreedte": [""]}
+    )
+    _install_fake_validator(monkeypatch, _syntax_validator({"stuw": stuw}))
+
+    hydamo = HyDAMO().load_from_gpkg(
+        gpkg_file, hydamo_version="2.5", validation_mode="strict"
+    )
+
+    assert hydamo.validation_result is not None
+    assert hydamo.validation_result.syntax_findings == []
+
+
 def test_load_from_gpkg_with_validation_strict_raises(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -694,27 +901,32 @@ def test_validate_gpkg_returns_result_and_stores_on_instance(
     sys.version_info[:2] != (3, 12),
     reason="hydamo-validation is only available for Python 3.12",
 )
-def test_load_from_gpkg_real_validation_succeeds(tmp_path: Path) -> None:
-    """Integration test: runs the real hydamo_validation library against Example_model.gpkg.
+def test_real_validation_reports_example_model_globalid_findings(
+    tmp_path: Path,
+) -> None:
+    """Run the real validatiemodule on the example model and read its findings.
 
-    Skipped unless hydamo-validation is installed (Python 3.12, pip install hydrolib[validation]).
-    Verifies that our wrapper correctly calls the library and that the minimal auto-generated
-    rules pass for the bundled example model.
+    Skipped unless hydamo-validation is installed (Python 3.12, pip install
+    hydrolib[validation]).
     """
-    # hydamo_validation 1.5.0 crashes in syntax validation when rows have NULL
-    # geometries. Strip them from every layer before passing to the validator.
+    # The validatiemodule crashes on a layer stored without the geometry its
+    # schema requires (Regelmiddel in the example) and on NULL geometries. Give
+    # those rows a placeholder point, so every layer is validated.
     original = DATA_PATH / "Example_model.gpkg"
     clean_gpkg = tmp_path / "clean_for_validation.gpkg"
     placeholder = Point(0, 0)
     mode: Literal["w", "a"] = "w"
     for layer_name in gpd.list_layers(original).name.tolist():
-        gdf = gpd.read_file(original, layer=layer_name, engine="pyogrio")
-        if not isinstance(gdf, gpd.GeoDataFrame):
-            continue  # non-spatial layers have no to_file; skip them
-        geometries = gdf.geometry.to_numpy()
-        geometries[pd.isna(geometries)] = placeholder
-        gdf.geometry = geometries
-        gdf.to_file(
+        layer = gpd.read_file(original, layer=layer_name, engine="pyogrio")
+        if isinstance(layer, gpd.GeoDataFrame):
+            geometries = layer.geometry.to_numpy()
+            geometries[pd.isna(geometries)] = placeholder
+            layer.geometry = geometries
+        else:
+            layer = gpd.GeoDataFrame(
+                layer, geometry=[placeholder] * len(layer), crs="EPSG:28992"
+            )
+        layer.to_file(
             clean_gpkg, layer=layer_name, driver="GPKG", mode=mode, engine="pyogrio"
         )
         mode = "a"
@@ -722,6 +934,17 @@ def test_load_from_gpkg_real_validation_succeeds(tmp_path: Path) -> None:
     hydamo = HyDAMO()
     result = hydamo.validate_gpkg(clean_gpkg, hydamo_version="2.2")
 
-    assert result is not None
     assert result.success is True
-    assert result.status is not None
+    findings = {
+        (f.layer, f.column, f.code): f
+        for f in result.syntax_findings
+        if f.column == "globalid"
+    }
+    # split branches share their globalid on purpose
+    assert findings[("hydroobject", "globalid", 3)].read_by_hydrolib
+    # the example's control data (ticket 07)
+    assert findings[("sturing", "globalid", 3)].row_count > 0
+    assert findings[("sturing", "globalid", 4)].row_count > 0
+    assert findings[("regelmiddel", "globalid", 3)].examples == [
+        "{bb24467d-3de6-4a5f-a3a4-b89e334c6824}"
+    ]
