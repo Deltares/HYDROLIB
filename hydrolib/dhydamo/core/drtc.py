@@ -1495,9 +1495,9 @@ class DRTCModel:
         data : pd.Series
             Time series of the setting.
         interpolation_option : str, optional
-            Interpolation option. Defaults to ``'LINEAR'``.
+            Interpolation option. Defaults to ``"LINEAR"``.
         extrapolation_option : str, optional
-            Extrapolation option. Defaults to ``'BLOCK'``.
+            Extrapolation option. Defaults to ``"BLOCK"``.
         """
         self.time_controllers[structure_id] = {
             "type": "Time",
@@ -1554,9 +1554,9 @@ class DRTCModel:
         max_speed : float, optional
             Maximum speed of change of the setting. Defaults to 0.00033.
         interpolation_option : str, optional
-            Interpolation option. Defaults to ``'LINEAR'``.
+            Interpolation option. Defaults to ``"LINEAR"``.
         extrapolation_option : str, optional
-            Extrapolation option. Defaults to ``'BLOCK'``.
+            Extrapolation option. Defaults to ``"BLOCK"``.
         """
         self.pid_controllers[structure_id] = {
             "type": "PID",
@@ -1619,9 +1619,9 @@ class DRTCModel:
         observation_location : str
             Id of the observation point.
         interpolation_option : str, optional
-            Interpolation option. Defaults to ``'LINEAR'``.
+            Interpolation option. Defaults to ``"LINEAR"``.
         extrapolation_option : str, optional
-            Extrapolation option. Defaults to ``'BLOCK'``.
+            Extrapolation option. Defaults to ``"BLOCK"``.
         """
         self.interval_controllers[structure_id] = {
             "type": "Interval",

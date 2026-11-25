@@ -177,16 +177,16 @@ def zonal_stats(
         result columns, e.g. ``"mean"`` and ``"quantile_90"``. Set the coverage
         arguments below, not in these strings.
     strategy : {'feature-sequential', 'raster-sequential'}
-        exactextract processing strategy. ``'feature-sequential'`` reads the
+        exactextract processing strategy. ``"feature-sequential"`` reads the
         raster under each zone in turn, which suits few, large zones.
-        ``'raster-sequential'`` reads the raster once, which suits many small
+        ``"raster-sequential"`` reads the raster once, which suits many small
         zones such as mesh cells.
     min_coverage_frac : float, default 0
         Smallest fraction of a pixel the zone must cover for the pixel to
         count, from 0 (every touched pixel) to 1.
     coverage_weight : {'fraction', 'none'}, default 'fraction'
-        How the selected pixels count: ``'fraction'`` by the fraction of them
-        the zone covers, ``'none'`` fully.
+        How the selected pixels count: ``"fraction"`` by the fraction of them
+        the zone covers, ``"none"`` fully.
     affine : affine.Affine, optional
         North-up transform of an array raster.
     raster_crs : pyproj.CRS or str, optional

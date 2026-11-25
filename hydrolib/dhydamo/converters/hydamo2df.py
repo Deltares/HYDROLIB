@@ -514,13 +514,13 @@ class ExternalForcingsIO:
         his_file : Path or str
             The his file (``*_his.nc``) of the other model.
         location_type : str
-            Type of location: ``'weir'``, ``'observation_point'``, ``'pump'``, ``'uweir'``,
-            ``'bridge'``, ``'culvert'`` or ``'compound'``.
+            Type of location: ``"weir"``, ``"observation_point"``, ``"pump"``, ``"uweir"``,
+            ``"bridge"``, ``"culvert"`` or ``"compound"``.
         location_id : str
             Id of the location in the his file.
         variable : str
-            ``'discharge'``, ``'waterlevel'``, ``'waterlevel_upstream'`` or
-            ``'waterlevel_downstream'``.
+            ``"discharge"``, ``"waterlevel"``, ``"waterlevel_upstream"`` or
+            ``"waterlevel_downstream"``.
         starttime, endtime : str or datetime, optional
             Period of the output. Default to None: the whole period.
 

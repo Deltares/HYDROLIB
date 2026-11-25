@@ -1836,7 +1836,7 @@ class ExternalForcings:
         initial_values : float or gpd.GeoDataFrame
             Uniform water level, or polygons with water levels.
         locationtype : str, optional
-            ``'1d'``, ``'2d'`` or ``'all'``. Defaults to ``"1d"``.
+            ``"1d"``, ``"2d"`` or ``"all"``. Defaults to ``"1d"``.
         value_column : str, optional
             Column with the water levels, required for polygons. Defaults to None.
         """
@@ -1878,7 +1878,7 @@ class ExternalForcings:
         initial_values : float or gpd.GeoDataFrame
             Uniform water depth, or polygons with water depths.
         locationtype : str, optional
-            ``'1d'``, ``'2d'`` or ``'all'``. Defaults to ``"1d"``.
+            ``"1d"``, ``"2d"`` or ``"all"``. Defaults to ``"1d"``.
         value_column : str, optional
             Column with the water depths, required for polygons. Defaults to None.
         """
@@ -2123,7 +2123,7 @@ class ExternalForcings:
         netcdf_path : str or Path
             Path to the netCDF file.
         netcdf_field : str
-            Variable to read, e.g. ``'mesh1d_s1'`` (map) or ``'mesh1d_fourier001_max'`` (fou).
+            Variable to read, e.g. ``"mesh1d_s1"`` (map) or ``"mesh1d_fourier001_max"`` (fou).
         netcdf_index : int, optional
             Time index, e.g. 0 for the first time step. Defaults to None: without a
             time, the last time step.
@@ -2384,7 +2384,7 @@ class ExternalForcings:
     ) -> None:
         """Set the initial velocity on the 1D flow links from a model result.
 
-        E.g. ``'mesh1d_u1'`` read with `read_values_from_modelrun`.
+        E.g. ``"mesh1d_u1"`` read with `read_values_from_modelrun`.
 
         D-Flow FM (2026.02) does not accept 'initialvelocity' in the initial fields file, only the components
         'initialvelocityx' and 'initialvelocityy'. The velocity along each link is therefore decomposed with
@@ -2481,31 +2481,31 @@ class ExternalForcings:
         gdf : gpd.GeoDataFrame or Path or str
             Polygons or points with values, or the path to an existing .xyz file (x, y
             and value per line). An .xyz file becomes a sample field (filetype
-            ``'sample'``, no column) and is copied unchanged under the generated name
+            ``"sample"``, no column) and is copied unchanged under the generated name
             when the model is written. For initial water levels and depths, only with
-            locationtype ``'2d'``: D-HyDAMO does not read its values, so it cannot check
+            locationtype ``"2d"``: D-HyDAMO does not read its values, so it cannot check
             them against other water level and depth fields on the 1D nodes.
         column : str, optional
             Column with the values. For points, None means the Z coordinate is used.
         quantity : str, optional
-            D-Flow FM quantity, e.g. ``'waterlevel'`` or ``'waterdepth'``. For velocities,
+            D-Flow FM quantity, e.g. ``"waterlevel"`` or ``"waterdepth"``. For velocities,
             use `set_initial_velocity`. Defaults to ``"waterlevel"``.
         kind : str, optional
-            ``'initial'`` ([Initial] block) or ``'parameter'`` ([Parameter] block).
+            ``"initial"`` ([Initial] block) or ``"parameter"`` ([Parameter] block).
             Defaults to ``"initial"``.
         filetype : str, optional
-            ``'branch'`` (default), or the advanced types ``'sample'``, ``'polygon'`` or
-            ``'raster'``.
+            ``"branch"`` (default), or the advanced types ``"sample"``, ``"polygon"`` or
+            ``"raster"``.
         cellsize : float, optional
-            Raster cell size, required for filetype ``'raster'``.
+            Raster cell size, required for filetype ``"raster"``.
         locationtype : str, optional
-            ``'1d'``, ``'2d'`` or ``'all'``. Defaults to ``"1d"``.
+            ``"1d"``, ``"2d"`` or ``"all"``. Defaults to ``"1d"``.
         interpolationmethod : str, optional
-            ``'constant'`` (polygon), ``'triangulation'`` or ``'averaging'``. Not used for
-            ``'branch'``. Defaults to ``'triangulation'`` for samples, ``'constant'`` for
-            polygon files, and ``'averaging'`` for rasters (2D) or ``'triangulation'`` (1D).
+            ``"constant"`` (polygon), ``"triangulation"`` or ``"averaging"``. Not used for
+            ``"branch"``. Defaults to ``"triangulation"`` for samples, ``"constant"`` for
+            polygon files, and ``"averaging"`` for rasters (2D) or ``"triangulation"`` (1D).
         averagingtype : str, optional
-            Averaging type, if interpolationmethod is ``'averaging'``. Defaults to
+            Averaging type, if interpolationmethod is ``"averaging"``. Defaults to
             ``"nearestNb"``.
         operand : str, optional
             How the field is combined with previous fields. Defaults to ``"O"`` (override).
@@ -2513,22 +2513,22 @@ class ExternalForcings:
             Nodata value for rasters, and the [Global] value of 1dField files (branch),
             which D-Flow FM treats as no value. Defaults to -999.0.
         max_snap_distance : float, optional
-            Maximum distance to snap points to a branch for filetype ``'branch'``. Defaults
+            Maximum distance to snap points to a branch for filetype ``"branch"``. Defaults
             to 5.0.
         averagingrelsize : float, optional
-            With ``'averaging'``, the size of the area around a cell that is searched for
+            With ``"averaging"``, the size of the area around a cell that is searched for
             values, relative to the cell size (D-Flow FM default 1.01). Larger values
             smooth more, and fill cells with few values. Defaults to None (not written).
         averagingnummin : int, optional
-            With ``'averaging'``, the minimum number of values in that area; a cell with
+            With ``"averaging"``, the minimum number of values in that area; a cell with
             fewer gets no value from this field (D-Flow FM default 1). Defaults to None
             (not written).
         averagingpercentile : float, optional
-            With ``'averaging'``, the percentile of the values to use instead of all
+            With ``"averaging"``, the percentile of the values to use instead of all
             values, e.g. a low percentile for the lowest part of a cell (D-Flow FM
             default 0, off). Defaults to None (not written).
         extrapolationmethod : bool, optional
-            With ``'triangulation'``, True also gives values outside the convex hull of
+            With ``"triangulation"``, True also gives values outside the convex hull of
             the data. Defaults to None: not set, which hydrolib-core writes as
             ``extrapolationMethod = 0``.
         """
@@ -2753,7 +2753,7 @@ class ExternalForcings:
         Parameters
         ----------
         interpolationmethod : str or None
-            The resolved interpolation method, or None for ``'branch'``.
+            The resolved interpolation method, or None for ``"branch"``.
         sample_settings : dict
             averagingrelsize, averagingnummin, averagingpercentile and
             extrapolationmethod, None when not set.

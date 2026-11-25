@@ -109,16 +109,16 @@ def find_nearest_branch(
     geometries : geopandas.GeoDataFrame
         Geometries to snap. With a ``code`` column, the code is used in the log messages.
     method : str, optional
-        How the nearest branch is found. Defaults to ``'overal'``.
+        How the nearest branch is found. Defaults to ``"overal"``.
 
-        - ``'overal'``: the nearest branch to the geometry as a whole;
-        - ``'centroid'``: the nearest branch to the centroid;
-        - ``'ends'``: the smallest mean distance to both ends of a line;
-        - ``'intersecting'``: each branch that intersects the geometry; the offset is
+        - ``"overal"``: the nearest branch to the geometry as a whole;
+        - ``"centroid"``: the nearest branch to the centroid;
+        - ``"ends"``: the smallest mean distance to both ends of a line;
+        - ``"intersecting"``: each branch that intersects the geometry; the offset is
           at the centroid of the intersection, and a geometry intersecting more
           branches gets the last one.
     maxdist : float, optional
-        Maximum distance to a branch. Not used for ``'intersecting'``. Defaults to 5.
+        Maximum distance to a branch. Not used for ``"intersecting"``. Defaults to 5.
 
     Raises
     ------
