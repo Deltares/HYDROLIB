@@ -110,7 +110,8 @@ class HyDAMO:
             "dimr_version": "Deltares, DIMR_EXE Version 2.00.00.140737 (Win64) (Win64)",
             "suite_version": "D-HYDRO Suite 2024.03 1D2D,",
         }
-        self.source_damo_version = "2.2"
+        # the DAMO version the data was loaded as; None until load_from_gpkg
+        self.source_damo_version: str | None = None
         self.validation_result: HydamoValidationResult | None = None
 
         # Create standard dataframe for network, crosssections, orifices, weirs
@@ -278,7 +279,7 @@ class HyDAMO:
     def validate_gpkg(
         self,
         gpkg_path: Path | str,
-        hydamo_version: str = "2.2",
+        hydamo_version: str,
         validation_coverages: dict | None = None,
         validation_rules_path: Path | str | None = None,
     ) -> HydamoValidationResult:
@@ -292,8 +293,12 @@ class HyDAMO:
         gpkg_path : str or Path
             Path to the GeoPackage file.
         hydamo_version : str
-            DAMO version to validate against. Default is ``"2.2"``. This
-            selects the requested version; it does not detect the source version.
+            DAMO version to validate against, e.g. ``"2.6"``. Required: it selects
+            the version; it does not detect the source version. Any version that the
+            installed validatiemodule has a schema for is accepted, which can include
+            versions that ``load_from_gpkg`` cannot load yet (see
+            ``SUPPORTED_HYDAMO_VERSIONS``). For such a version no column counts as
+            read by HYDROLIB, so every finding goes into the INFO line.
         validation_coverages : dict, optional
             Coverage dict forwarded to the validator.
         validation_rules_path : str or Path, optional
@@ -360,7 +365,7 @@ class HyDAMO:
     def load_from_gpkg(
         self,
         gpkg_path: Path | str,
-        hydamo_version: str = "2.2",
+        hydamo_version: str,
         clip_layers: dict | None = None,
         check_3d: bool = True,
         validation_mode: ValidationMode = "off",
@@ -374,9 +379,9 @@ class HyDAMO:
         gpkg_path : str or Path
             Path to the GeoPackage file.
         hydamo_version : str
-            DAMO schema version string: ``"2.2"``, ``"2.3"``, ``"2.4"``, or
-            ``"2.5"``. Selects the converter; it does not detect or verify the
-            source schema version. Default is ``"2.2"``.
+            DAMO schema version, one of ``SUPPORTED_HYDAMO_VERSIONS``, e.g.
+            ``"2.5"``. Required: it selects the converter; it does not detect or
+            verify the source schema version.
         clip_layers : dict, optional
             Per-layer spatial clip. Maps ``target_attr`` name to a
             ``(geometry, cliptype)`` tuple, e.g.

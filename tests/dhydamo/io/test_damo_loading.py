@@ -20,6 +20,7 @@ from hydrolib.dhydamo.io.damo_converters import (
     get_damo_converter,
 )
 from hydrolib.dhydamo.validation import HyDAMOValidationError
+from pydantic import ValidationError
 from shapely.geometry import LineString, Point
 
 DATA_PATH = Path("hydrolib/sample_data/data").resolve()
@@ -1209,6 +1210,23 @@ def test_load_from_gpkg_with_validation_strict_raises(
             hydamo_version="2.5",
             validation_mode="strict",
         )
+
+
+def test_source_damo_version_is_none_until_loaded() -> None:
+    assert HyDAMO().source_damo_version is None
+
+
+def test_load_from_gpkg_requires_hydamo_version() -> None:
+    # Without a version, a 2.5 or 2.6 file would be read as another version and
+    # columns would go missing without an error. The call fails before the file
+    # is opened, so the path is a placeholder.
+    with pytest.raises(TypeError, match="hydamo_version"):
+        HyDAMO().load_from_gpkg("irrelevant.gpkg")  # type: ignore[call-arg]
+
+
+def test_validate_gpkg_requires_hydamo_version() -> None:
+    with pytest.raises(ValidationError, match="hydamo_version"):
+        HyDAMO().validate_gpkg("irrelevant.gpkg")  # type: ignore[call-arg]
 
 
 def test_load_from_gpkg_raises_for_unsupported_version() -> None:
