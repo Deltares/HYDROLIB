@@ -1,5 +1,6 @@
 import itertools
 import logging
+import shutil
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +34,8 @@ from hydrolib.core.dflowfm.inifield.models import (
     InitialField,
     ParameterField,
 )
+from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.core.dflowfm.net.models import NetworkModel
 from hydrolib.core.dflowfm.obs.models import ObservationPoint
 from hydrolib.core.dflowfm.onedfield.models import (
     OneDFieldBranch,
@@ -71,6 +74,27 @@ EXT_FILE_VERSION = "2.02"
 # The D-HYDRO GUI holds one 1D initial condition per quantity and always writes it to these files. All 1D fields
 # per branch of a quantity are therefore combined into one file with this name.
 ONEDFIELD_FILES = {"waterlevel": "InitialWaterLevel.ini", "waterdepth": "InitialWaterDepth.ini"}
+
+
+def level_or_depth(quantity: str) -> str | None:
+    """Return the initial water level or depth that a D-Flow FM quantity stands for.
+
+    Accepts the old and new names of these quantities, case-insensitively: ``"initialwaterlevel"`` and
+    ``"waterlevel"`` both give ``"waterlevel"``.
+
+    Parameters
+    ----------
+    quantity : str
+        D-Flow FM quantity of an initial or parameter field, e.g. ``"waterlevel"``, ``"InitialWaterDepth"`` or
+        ``"bedlevel"``.
+
+    Returns
+    -------
+    str or None
+        ``"waterlevel"`` or ``"waterdepth"``, or None for any other quantity.
+    """
+    kind = quantity.lower().replace("initial", "")
+    return kind if kind in ("waterlevel", "waterdepth") else None
 
 
 class ConstantWithInterpolation(Constant):
@@ -597,7 +621,7 @@ class Df2HydrolibModel:
         # order of the blocks: ("combined", kind) or ("blocks", spatial field, [(filename, datafiletype, value)])
         order: list[tuple] = []
         for sf in self.hydamo.external_forcings.spatial_fields:
-            kind = self._level_or_depth(sf["quantity"]) if sf["kind"] == "initial" else None
+            kind = level_or_depth(sf["quantity"]) if sf["kind"] == "initial" else None
             if sf["filetype"] == "branch" and kind is not None:
                 # combined with the other fields of this quantity, at the position of the last one; see the docstring
                 branch_values = self._branch_values(sf)
@@ -779,6 +803,10 @@ class Df2HydrolibModel:
         list[tuple[str, str, float | None]]
             One block (filename, 'sample', None).
         """
+        if sf.get("xyz_file") is not None:
+            # an existing .xyz file: copied unchanged by write_spatial_fields(), its values are not read
+            self.spatial_data[sf["filename"]] = {"filetype": "xyz_file", "path": sf["xyz_file"]}
+            return [(sf["filename"], "sample", None)]
         gdf = sf["gdf"]
         self.spatial_data[sf["filename"]] = {
             "filetype": "sample",
@@ -840,6 +868,10 @@ class Df2HydrolibModel:
             del kwargs["interpolationmethod"], kwargs["locationtype"]
         if sf["interpolationmethod"] == "averaging":
             kwargs["averagingtype"] = sf["averagingtype"]
+        # only the sample settings that are set: unset ones are left to D-Flow FM's defaults
+        for setting, setting_value in sf.get("sample_settings", {}).items():
+            if setting_value is not None:
+                kwargs[setting] = setting_value
 
         if sf["kind"] == "initial":
             field = InitialField(**kwargs)
@@ -849,12 +881,6 @@ class Df2HydrolibModel:
             field = ParameterField(**kwargs)
             self._clear_comments(field)
             self.parameterfields.append(field)
-
-    @staticmethod
-    def _level_or_depth(quantity: str) -> str | None:
-        """'waterlevel' or 'waterdepth' for the (old and new) names of these quantities, otherwise None."""
-        kind = quantity.lower().replace("initial", "")
-        return kind if kind in ("waterlevel", "waterdepth") else None
 
     def _level_depth_footprint(self, sf: dict, data: dict | None) -> dict | None:
         """Where an initial water level or depth field gives values on the 1D network.
@@ -866,7 +892,7 @@ class Df2HydrolibModel:
 
         Returns None for other quantities, parameter fields and 2D-only fields.
         """
-        kind = self._level_or_depth(sf["quantity"])
+        kind = level_or_depth(sf["quantity"])
         if sf["kind"] != "initial" or kind is None:
             return None
         if sf["filetype"] != "branch" and sf["locationtype"] not in ("1d", "all"):
@@ -1101,6 +1127,8 @@ class Df2HydrolibModel:
                         )
                     )
                 PolyFile(objects=objects).save(filepath=path)
+            elif data["filetype"] == "xyz_file":
+                shutil.copyfile(data["path"], path)
             elif data["filetype"] == "raster":
                 write_raster(
                     path,
@@ -1123,6 +1151,8 @@ class Df2HydrolibModel:
 
         This writes the 1dField files (uniform values), rasters and sample files to fm_dir, and links them
         in initialFields.ini, using paths relative to the fm folder. Call this before saving the FM model.
+        It logs a warning when D-Flow FM would use the uniform bed level (BedlevUni) for the whole 2D mesh,
+        see _warn_missing_bedlevel.
 
         Args:
             fm (FMModel): the FM model
@@ -1140,10 +1170,52 @@ class Df2HydrolibModel:
             onedfieldmodel.save(filepath=fm_dir / inifield.datafile.filepath.name)
 
         self.write_spatial_fields(fm_dir)
+        self._warn_missing_bedlevel(fm)
 
         inifieldmodel = IniFieldModel(initial=self.inifields, parameter=self.parameterfields)
         fm.geometry.inifieldfile = inifieldmodel
         return inifieldmodel
+
+    def _warn_missing_bedlevel(self, fm: FMModel) -> None:
+        """Warn when the 2D mesh gets no bed level for the bedLevType of the model.
+
+        D-Flow FM then uses the uniform bed level (BedlevUni). Where it takes the bed level from (D-Flow FM source,
+        2026): with bedLevType 1 the face bed level of the net file and a 2D bed level field, with 3 the node
+        bed level and a 2D bed level field, with 4 to 6 only the node bed level (a bed level field is not used).
+        bedLevType 2 is not checked. Models without a 2D mesh are not checked: 1D bed levels come from the cross
+        sections.
+
+        Parameters
+        ----------
+        fm : FMModel
+            The FM model, with the network and bedLevType.
+        """
+        netfile = fm.geometry.netfile
+        if not isinstance(netfile, NetworkModel) or netfile.network._mesh2d.is_empty():
+            return
+        mesh2d = netfile.network._mesh2d
+        bedlevtype = fm.geometry.bedlevtype
+        bedlevel_field = any(
+            field.quantity.lower() == "bedlevel" and str(field.locationtype).lower() in ("2d", "all")
+            for field in self.inifields
+        )
+        hint = "Use mesh2d_altitude_from_raster with where='{}', or a bed level field from set_spatial_field."
+        if bedlevtype == 1 and mesh2d.mesh2d_face_z.size == 0 and not bedlevel_field:
+            logger.warning(
+                "bedLevType is 1, but the 2D mesh has no face bed level and there is no 2D bed level field, so "
+                f"D-Flow FM uses BedlevUni everywhere. {hint.format('face')}"
+            )
+        elif bedlevtype == 3 and mesh2d.mesh2d_node_z.size == 0 and not bedlevel_field:
+            logger.warning(
+                "bedLevType is 3, but the 2D mesh has no node bed level and there is no 2D bed level field, so "
+                f"D-Flow FM uses BedlevUni everywhere. {hint.format('node')}"
+            )
+        elif bedlevtype in (4, 5, 6) and mesh2d.mesh2d_node_z.size == 0:
+            unused = " D-Flow FM does not use a bed level field with bedLevType 4 to 6." if bedlevel_field else ""
+            logger.warning(
+                f"bedLevType is {bedlevtype}, but the 2D mesh has no node bed level, so D-Flow FM uses BedlevUni "
+                f"everywhere.{unused} Use mesh2d_altitude_from_raster with where='node', or bedLevType 1 or 3."
+            )
 
     def initial_conditions_at_nodes(
         self, network, output_file: Path | str | None = None, crs=None
@@ -1241,7 +1313,7 @@ class Df2HydrolibModel:
             also for 2D-only fields (locationtype '2d').
         """
         filename = inifield.datafile.filepath.name if inifield.datafile and inifield.datafile.filepath else None
-        kind = self._level_or_depth(inifield.quantity)
+        kind = level_or_depth(inifield.quantity)
         data = self.spatial_data.get(filename)
         if data is None and inifield.datafiletype == "1dField":
             onedfield = next(uniform_fields)
