@@ -882,9 +882,6 @@ class Df2HydrolibModel:
             return None
         if sf["filetype"] != "branch" and sf["locationtype"] not in ("1d", "all"):
             return None
-        if data is not None and data.get("filetype") == "xyz_file":
-            logger.info(f"The overlap check of initial water levels and depths skips {sf['filename']} (an .xyz file).")
-            return None
         footprint = {
             "kind": kind,
             "quantity": sf["quantity"],
@@ -1380,9 +1377,6 @@ class Df2HydrolibModel:
         elif data["filetype"] == "polygon":
             inside = gpd.GeoSeries(nodes.points).intersects(shapely.union_all(data["polygons"]))
             values[inside.to_numpy()] = float(inifield.value)
-        elif data["filetype"] == "xyz_file":
-            logger.info(f"Sample field {filename} (an .xyz file) is not evaluated at the nodes.")
-            return None
         else:
             logger.warning(f"Raster field {filename} is not evaluated at the nodes.")
             return None
