@@ -1297,7 +1297,8 @@ class Df2HydrolibModel:
         -------
         tuple[str, np.ndarray, str | None, str] | None
             (kind, value per node, data file, filetype), with kind 'waterlevel' or 'waterdepth' and filetype
-            'uniform' or that of the spatial data; None if the field gives no water level or depth at the nodes.
+            'uniform' or that of the spatial data; None if the field gives no water level or depth at the nodes,
+            also for 2D-only fields (locationtype '2d').
         """
         filename = inifield.datafile.filepath.name if inifield.datafile and inifield.datafile.filepath else None
         kind = self._level_or_depth(inifield.quantity)
@@ -1306,7 +1307,8 @@ class Df2HydrolibModel:
             onedfield = next(uniform_fields)
             values = self._uniform_values_at_nodes(inifield, kind, float(onedfield.value), len(nodes.x))
             filetype = "uniform"
-        elif kind is None or data is None:
+        elif kind is None or data is None or str(inifield.locationtype).lower() == "2d":
+            # a 2D-only field does not reach the 1D nodes
             return None
         else:
             values = self._spatial_values_at_nodes(inifield, filename, data, nodes)

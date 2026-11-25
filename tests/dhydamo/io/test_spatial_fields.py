@@ -796,6 +796,27 @@ def test_initial_conditions_at_nodes_from_samples_and_polygons():
     assert set(on_br1["quantity"]) == {"waterlevel"}
 
 
+@pytest.mark.parametrize("filetype", ["polygon", "sample"])
+@pytest.mark.parametrize(("locationtype", "expected_nodes"), [("1d", 11), ("all", 11), ("2d", 0)])
+def test_initial_conditions_at_nodes_skip_2d_fields(filetype, locationtype, expected_nodes):
+    # a field for 2D only does not give the 1D nodes a value; '1d' and 'all' do
+    hydamo = HyDAMO()
+    hydamo.branches = _branches()
+    fm = FMModel()
+    mesh.mesh1d_add_branches_from_gdf(fm.geometry.netfile.network, branches=hydamo.branches, branch_name_col="code", node_distance=5)
+    if filetype == "polygon":
+        gdf = gpd.GeoDataFrame({"peil": [1.0]}, geometry=[box(-5, 0, 40, 30)], crs=28992)
+    else:
+        corners = [Point(-5, -5), Point(40, -5), Point(40, 30), Point(-5, 30)]
+        gdf = gpd.GeoDataFrame({"peil": [1.0] * 4}, geometry=corners, crs=28992)
+    hydamo.external_forcings.set_spatial_field(gdf, "peil", filetype=filetype, locationtype=locationtype)
+
+    nodes = Df2HydrolibModel(hydamo).initial_conditions_at_nodes(fm.geometry.netfile.network)
+
+    assert len(nodes) == 11
+    assert nodes["quantity"].notna().sum() == expected_nodes
+
+
 def test_points_on_unknown_branches_are_left_out(caplog):
     points = gpd.GeoDataFrame(
         {"value": [1.0, 2.0], "branchid": ["br1", "unknown"], "chainage": [5.0, 5.0]},
