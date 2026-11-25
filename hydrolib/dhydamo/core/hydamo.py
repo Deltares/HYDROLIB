@@ -14,6 +14,7 @@ from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from tqdm.auto import tqdm
 
 from hydrolib import dhydamo
+from hydrolib.dhydamo.converters.df2hydrolibmodel import level_or_depth
 from hydrolib.dhydamo.converters.hydamo2df import (
     CrossSectionsIO,
     ExternalForcingsIO,
@@ -2257,7 +2258,7 @@ class ExternalForcings:
                 raise ValueError("An .xyz file has its values in the third column; do not pass a column.")
             if filetype not in (None, "sample"):
                 raise ValueError(f"An .xyz file is a sample field, not filetype '{filetype}'.")
-            if quantity.lower().replace("initial", "") in ("waterlevel", "waterdepth") and locationtype != "2d":
+            if level_or_depth(quantity) is not None and locationtype != "2d":
                 raise ValueError(
                     "An .xyz file for an initial water level or depth is only supported for locationtype '2d'. "
                     "D-HyDAMO does not read the file, so on 1D nodes it cannot check the field against other water "

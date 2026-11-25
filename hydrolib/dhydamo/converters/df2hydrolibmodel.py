@@ -76,6 +76,27 @@ EXT_FILE_VERSION = "2.02"
 ONEDFIELD_FILES = {"waterlevel": "InitialWaterLevel.ini", "waterdepth": "InitialWaterDepth.ini"}
 
 
+def level_or_depth(quantity: str) -> str | None:
+    """Return the initial water level or depth that a D-Flow FM quantity stands for.
+
+    Accepts the old and new names of these quantities, case-insensitively: ``"initialwaterlevel"`` and
+    ``"waterlevel"`` both give ``"waterlevel"``.
+
+    Parameters
+    ----------
+    quantity : str
+        D-Flow FM quantity of an initial or parameter field, e.g. ``"waterlevel"``, ``"InitialWaterDepth"`` or
+        ``"bedlevel"``.
+
+    Returns
+    -------
+    str or None
+        ``"waterlevel"`` or ``"waterdepth"``, or None for any other quantity.
+    """
+    kind = quantity.lower().replace("initial", "")
+    return kind if kind in ("waterlevel", "waterdepth") else None
+
+
 class ConstantWithInterpolation(Constant):
     """Constant [Forcing] block that also writes timeInterpolation.
 
@@ -600,7 +621,7 @@ class Df2HydrolibModel:
         # order of the blocks: ("combined", kind) or ("blocks", spatial field, [(filename, datafiletype, value)])
         order: list[tuple] = []
         for sf in self.hydamo.external_forcings.spatial_fields:
-            kind = self._level_or_depth(sf["quantity"]) if sf["kind"] == "initial" else None
+            kind = level_or_depth(sf["quantity"]) if sf["kind"] == "initial" else None
             if sf["filetype"] == "branch" and kind is not None:
                 # combined with the other fields of this quantity, at the position of the last one; see the docstring
                 branch_values = self._branch_values(sf)
@@ -861,12 +882,6 @@ class Df2HydrolibModel:
             self._clear_comments(field)
             self.parameterfields.append(field)
 
-    @staticmethod
-    def _level_or_depth(quantity: str) -> str | None:
-        """'waterlevel' or 'waterdepth' for the (old and new) names of these quantities, otherwise None."""
-        kind = quantity.lower().replace("initial", "")
-        return kind if kind in ("waterlevel", "waterdepth") else None
-
     def _level_depth_footprint(self, sf: dict, data: dict | None) -> dict | None:
         """Where an initial water level or depth field gives values on the 1D network.
 
@@ -877,7 +892,7 @@ class Df2HydrolibModel:
 
         Returns None for other quantities, parameter fields and 2D-only fields.
         """
-        kind = self._level_or_depth(sf["quantity"])
+        kind = level_or_depth(sf["quantity"])
         if sf["kind"] != "initial" or kind is None:
             return None
         if sf["filetype"] != "branch" and sf["locationtype"] not in ("1d", "all"):
@@ -1298,7 +1313,7 @@ class Df2HydrolibModel:
             also for 2D-only fields (locationtype '2d').
         """
         filename = inifield.datafile.filepath.name if inifield.datafile and inifield.datafile.filepath else None
-        kind = self._level_or_depth(inifield.quantity)
+        kind = level_or_depth(inifield.quantity)
         data = self.spatial_data.get(filename)
         if data is None and inifield.datafiletype == "1dField":
             onedfield = next(uniform_fields)
