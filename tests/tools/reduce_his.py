@@ -33,23 +33,40 @@ TIME_SERIES = [
     "orifice_gate_lower_edge_level",
 ]
 # names and locations of stations and structures
-STATIC = re.compile(r"^(time|(?!lateral).*_name|.*_input_geom_.*|station_[xy]_coordinate|projected_coordinate_system)$")
+STATIC = re.compile(
+    r"^(time|(?!lateral).*_name|.*_input_geom_.*|station_[xy]_coordinate|projected_coordinate_system)$"
+)
 
 
 def reduce_his(src_path, dst_path):
     with Dataset(src_path) as src, Dataset(dst_path, "w", format="NETCDF4") as dst:
         dst.setncatts({name: src.getncattr(name) for name in src.ncattrs()})
-        dst.setncattr("history", f"{datetime.now():%Y-%m-%d} reduced to the variables used by the tests (reduce_his.py)")
-        names = [name for name in src.variables if STATIC.match(name) or name in TIME_SERIES]
+        dst.setncattr(
+            "history",
+            f"{datetime.now():%Y-%m-%d} reduced to the variables used by the tests (reduce_his.py)",
+        )
+        names = [
+            name for name in src.variables if STATIC.match(name) or name in TIME_SERIES
+        ]
         dimensions = {dim for name in names for dim in src[name].dimensions}
         for dim in dimensions:
             size = src.dimensions[dim]
             dst.createDimension(dim, None if size.isunlimited() else len(size))
         for name in names:
             var = src[name]
-            fill = var.getncattr("_FillValue") if "_FillValue" in var.ncattrs() else None
-            new = dst.createVariable(name, var.datatype, var.dimensions, fill_value=fill, zlib=True)
-            new.setncatts({key: var.getncattr(key) for key in var.ncattrs() if key != "_FillValue"})
+            fill = (
+                var.getncattr("_FillValue") if "_FillValue" in var.ncattrs() else None
+            )
+            new = dst.createVariable(
+                name, var.datatype, var.dimensions, fill_value=fill, zlib=True
+            )
+            new.setncatts(
+                {
+                    key: var.getncattr(key)
+                    for key in var.ncattrs()
+                    if key != "_FillValue"
+                }
+            )
             new[:] = var[:]
         missing = sorted(set(TIME_SERIES) - set(names))
         if missing:

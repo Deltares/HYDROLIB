@@ -1,3 +1,5 @@
+"""Converter for DAMO 2.4."""
+
 from __future__ import annotations
 
 from hydrolib.dhydamo.io.damo_converters.v22 import Damo22Converter

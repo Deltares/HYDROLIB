@@ -1,0 +1,6 @@
+# Formatting-only commits, skipped by git blame:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub uses this file automatically.
+
+# style: ruff format hydrolib/dhydamo and tests, line length 120 (R-5)
+84a272f13464b5b9e5fc5ee5ed32724d2f0e5987

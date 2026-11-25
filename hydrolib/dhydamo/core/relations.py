@@ -1,3 +1,5 @@
+"""Foreign-key relations between the DAMO tables, and helpers to follow them."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,6 +13,22 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class Relation:
+    """A foreign-key relation from a child table to a parent table.
+
+    Attributes
+    ----------
+    name : str
+        Name of the relation, for messages.
+    child_table : str
+        HyDAMO attribute of the table with the foreign key.
+    foreign_key : str
+        Column of the child table that refers to the parent.
+    parent_table : str
+        HyDAMO attribute of the table that is referred to.
+    parent_key : str
+        Column of the parent table that is referred to. Defaults to ``"globalid"``.
+    """
+
     name: str
     child_table: str
     foreign_key: str
@@ -50,13 +68,13 @@ class Relation:
         KeyError
             If ``foreign_key`` is missing from ``child_rows`` or ``parent_key``
             is missing from ``parent_table``.
+
         Notes
         -----
         This method does not enforce relation cardinality. It can return zero,
         one, or multiple parent rows; the caller decides how those cases are
         handled.
         """
-
         foreign_keys = child_rows[self.foreign_key].dropna()
         return parent_table.loc[parent_table[self.parent_key].isin(foreign_keys)]
 
@@ -93,13 +111,13 @@ class Relation:
         KeyError
             If ``parent_key`` is missing from ``parent_rows`` or
             ``foreign_key`` is missing from ``child_table``.
+
         Notes
         -----
         This method does not enforce relation cardinality. It can return zero,
         one, or multiple child rows; the caller decides how those cases are
         handled.
         """
-
         parent_keys = parent_rows[self.parent_key].dropna()
         return child_table.loc[child_table[self.foreign_key].isin(parent_keys)]
 
@@ -151,7 +169,6 @@ def follow_relation(
     KeyError
         If the required source or target relation key is missing.
     """
-
     if from_table == relation.child_table:
         target_table = relation.parent_table
         target_rows = relation.parents_of(rows, getattr(hydamo, target_table))
@@ -203,7 +220,6 @@ def build_cascade_plan(
         unconfigured source table returns an empty dictionary.
 
     """
-
     paths = getattr(CascadeRelations, source_table.upper(), ())
     if not paths:
         return {}

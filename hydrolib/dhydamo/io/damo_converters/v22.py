@@ -1,7 +1,14 @@
+"""Converter for DAMO 2.2."""
+
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from hydrolib.dhydamo.core.relations import RelationsRR
 from hydrolib.dhydamo.io.damo_converters.base import BaseDamoConverter, LayerSpec
+
+if TYPE_CHECKING:
+    from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 
 class Damo22Converter(BaseDamoConverter):
@@ -13,7 +20,7 @@ class Damo22Converter(BaseDamoConverter):
     """
 
     hydamo_version = "2.2"
-    layer_specs = (
+    layer_specs: tuple[LayerSpec, ...] = (
         LayerSpec("branches", "HydroObject", index_col="code"),
         LayerSpec(
             "profile",
@@ -49,7 +56,13 @@ class Damo22Converter(BaseDamoConverter):
         LayerSpec("laterals", "lateraleknoop"),
     )
 
-    def postprocess(self, hydamo) -> None:
+    def postprocess(self, hydamo: HyDAMO) -> None:
+        """Fill the columns that DAMO 2.2 lacks or names differently, in place.
+
+        - ``management_device.soortafsluitmiddel``: copied from ``soortregelmiddel``;
+        - ``profile.code``: the profile line id, instead of the code of each point;
+        - ``catchments.boundary_node``: the code of the lateral of each catchment.
+        """
         device = hydamo.management_device
         if (
             not device.empty

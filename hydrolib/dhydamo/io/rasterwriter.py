@@ -1,7 +1,10 @@
+"""Write rasters."""
+
 from pathlib import Path
 
 import numpy as np
 import rasterio
+from rasterio.crs import CRS
 from rasterio.transform import Affine
 
 DRIVERS = {".tif": "GTiff", ".tiff": "GTiff", ".asc": "AAIGrid"}
@@ -11,22 +14,39 @@ def write_raster(
     path: Path | str,
     array: np.ndarray,
     transform: Affine,
-    crs=None,
+    crs: CRS | str | None = None,
     nodata: float = -999.0,
     compress: bool = True,
 ) -> Path:
-    """Write a single band raster. The format follows from the extension (.tif/.tiff or .asc).
+    """Write a single band raster.
 
-    Args:
-        path (Path | str): output file
-        array (np.ndarray): 2D array with values
-        transform (Affine): raster transform
-        crs (optional): coordinate reference system. Defaults to None.
-        nodata (float, optional): nodata value. Defaults to -999.0.
-        compress (bool, optional): deflate compression for GeoTIFF. Defaults to True.
+    The format follows from the extension: GeoTIFF for ``.tif`` and ``.tiff``, ASCII
+    grid for ``.asc``. Missing folders are created.
 
-    Returns:
-        Path: path of the written raster
+    Parameters
+    ----------
+    path : Path or str
+        Output file.
+    array : np.ndarray
+        2D array with values.
+    transform : Affine
+        Raster transform.
+    crs : CRS or str, optional
+        Coordinate reference system. Defaults to None.
+    nodata : float, optional
+        Nodata value. Defaults to -999.0.
+    compress : bool, optional
+        Deflate compression for GeoTIFF. Defaults to True.
+
+    Returns
+    -------
+    Path
+        Path of the written raster.
+
+    Raises
+    ------
+    ValueError
+        If the extension is not supported.
     """
     path = Path(path)
     suffix = path.suffix.lower()

@@ -1,10 +1,14 @@
+"""Create and edit the 1D mesh, the 2D mesh and the 1D2D links of a D-Flow FM network."""
+
 import logging
+from collections.abc import Hashable
 from enum import Enum
 from pathlib import Path
 
 import geopandas as gpd
 import meshkernel as mk
 import numpy as np
+import pandas as pd
 import shapely
 from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import KDTree
@@ -28,12 +32,16 @@ logger = logging.getLogger(__name__)
 
 
 class FillOption(Enum):
+    """How to fill nodes or faces without a value from the raster."""
+
     INTERPOLATE = "interpolate"
     FILL_VALUE = "fill_value"
     NEAREST = "nearest"
 
 
 class RasterStatPosition(Enum):
+    """Where a 2D mesh gets the raster statistic: at the nodes or at the faces."""
+
     NODE = "node"
     FACE = "face"
 
@@ -45,20 +53,28 @@ def mesh2d_add_rectilinear(
     dy: float,
     deletemeshoption: mk.DeleteMeshOption = mk.DeleteMeshOption.INSIDE_NOT_INTERSECTED,
 ) -> None:
-    """Add 2d rectilinear mesh to network. A new network is created, clipped, and merged
-    with the existing network.
+    """Add a 2D rectilinear mesh to the network.
 
-    Args:
-        network (Network): Network object to which the mesh is added
-        polygon (Polygon | MultiPolygon): Geometry within which the mesh is generated
-        dx (float): Horizontal mesh spacing
-        dy (float): Vertical mesh spacing
-        deletemeshoption (mk.DeleteMeshOption, optional): Option for clipping mesh.
-            Defaults to mk.DeleteMeshOption.INSIDE_NOT_INTERSECTED.
+    A new mesh is created over the bounds of each polygon, clipped to the polygon, and
+    merged with the existing 2D mesh.
+
+    Parameters
+    ----------
+    network : Network
+        Network to which the mesh is added.
+    polygon : Polygon or MultiPolygon
+        Geometry within which the mesh is generated.
+    dx : float
+        Horizontal mesh spacing.
+    dy : float
+        Vertical mesh spacing.
+    deletemeshoption : mk.DeleteMeshOption, optional
+        Option for clipping the mesh. Defaults to
+        ``mk.DeleteMeshOption.INSIDE_NOT_INTERSECTED``.
     """
-
-    before = network._mesh2d.get_mesh2d() if _has_bedlevel(network) else None
-
+    before = None
+    if _has_bedlevel(network):
+        before = network._mesh2d.get_mesh2d()
     # Loop over polygons and create a grid for each polygon bounds
     mesh2d_hc = Mesh2d(meshkernel=mk.MeshKernel())
     polygon_list = GeometryList.from_geometry(polygon)
@@ -95,80 +111,100 @@ def mesh2d_add_rectilinear(
         network._mesh2d._set_mesh2d(
             np.concatenate([existing_mesh2d.node_x, new_mesh2d.node_x]),
             np.concatenate([existing_mesh2d.node_y, new_mesh2d.node_y]),
-            np.concatenate([
-                existing_mesh2d.edge_nodes,
-                new_mesh2d.edge_nodes + existing_mesh2d.edge_nodes.max() + 1,
-            ]),
+            np.concatenate(
+                [
+                    existing_mesh2d.edge_nodes,
+                    new_mesh2d.edge_nodes + existing_mesh2d.edge_nodes.max() + 1,
+                ]
+            ),
         )
 
     _drop_stale_bedlevel(network, before)
 
+
 def mesh2d_from_netcdf(network: Network, path: Path | str) -> None:
     """Read a 2d mesh from a UGRID netCDF file into the network.
 
-    A face bed level is always dropped, with a warning: MeshKernel rebuilds the faces from the edges, so neither a face
-    bed level from the file nor one of the network can be matched to them. A node bed level from the file is kept if
-    it has one value per node; a node bed level of the network that the file does not replace is kept only if the
-    nodes did not change. A bed level in the file with only fill values, as hydrolib-core writes when there is no bed
-    level, counts as no bed level.
+    A face bed level is always dropped, with a warning: MeshKernel rebuilds the faces
+    from the edges, so neither a face bed level from the file nor one of the network can
+    be matched to them. A node bed level from the file is kept if it has one value per
+    node; a node bed level of the network that the file does not replace is kept only if
+    the nodes did not change. A bed level in the file with only fill values, as
+    hydrolib-core writes when there is no bed level, counts as no bed level.
 
-    Args:
-        network (Network): Network object to which the mesh is added
-        path (Path | str): Path to the UGRID netCDF file
+    Parameters
+    ----------
+    network : Network
+        Network to which the mesh is added.
+    path : Path or str
+        Path to the UGRID netCDF file.
     """
-    before = network._mesh2d.get_mesh2d() if _has_bedlevel(network) else None
-    node_z, face_z = network._mesh2d.mesh2d_node_z, network._mesh2d.mesh2d_face_z
-    reader = UgridReader(path)
+    before = None
+    if _has_bedlevel(network):
+        before = network._mesh2d.get_mesh2d()
+    node_z = network._mesh2d.mesh2d_node_z
+    face_z = network._mesh2d.mesh2d_face_z
+    reader = UgridReader(Path(path))
     reader.read_mesh2d(network._mesh2d)
 
-    # hydrolib-core always writes mesh2d_node_z and mesh2d_face_z, filled with its fill value when there is no bed
-    # level, and reads them back as that value. Such a bed level is no bed level: keep the network's own instead.
+    # hydrolib-core always writes mesh2d_node_z and mesh2d_face_z, filled with its fill
+    # value when there is no bed level, and reads them back as that value. Such a bed
+    # level is no bed level: keep the network's own instead.
     fill_value = FillValueConfiguration().float64_fill_value
-    for bedlevel_name, own in (("mesh2d_node_z", node_z), ("mesh2d_face_z", face_z)):
+    for bedlevel_name, own in [("mesh2d_node_z", node_z), ("mesh2d_face_z", face_z)]:
         bedlevel = getattr(network._mesh2d, bedlevel_name)
         if bedlevel is not own and np.all(bedlevel == fill_value):
             setattr(network._mesh2d, bedlevel_name, own)
 
-    # hydrolib-core passes only the nodes and edges to MeshKernel, which derives the faces from the edges and closes
-    # small holes into extra faces; even when faces are given, MeshKernel (8.4) puts them in its own order. A face bed
-    # level, from the file or of the network, does not follow:
-    # https://github.com/Deltares/HYDROLIB-core/issues/1318 (order), https://github.com/Deltares/HYDROLIB-core/issues/577
-    # (extra faces)
+    # hydrolib-core passes only the nodes and edges to MeshKernel, which derives the
+    # faces from the edges and closes small holes into extra faces; even when faces are
+    # given, MeshKernel (8.4) puts them in its own order. A face bed level, from the file
+    # or of the network, does not follow:
+    # https://github.com/Deltares/HYDROLIB-core/issues/1318 (order)
+    # https://github.com/Deltares/HYDROLIB-core/issues/577 (extra faces)
     if network._mesh2d.mesh2d_face_z.size > 0:
         network._mesh2d.mesh2d_face_z = np.empty(0, dtype=np.double)
         logger.warning(
-            "The 2D face bed level cannot be matched to the faces MeshKernel rebuilds when reading a mesh and is "
-            "dropped. Recompute it after the last mesh change (mesh2d_altitude_from_raster) or add it as samples to "
-            "the initial fields (set_spatial_field)."
+            "The 2D face bed level cannot be matched to the faces MeshKernel rebuilds "
+            "when reading a mesh and is dropped. Recompute it after the last mesh change "
+            "(mesh2d_altitude_from_raster) or add it as samples to the initial fields "
+            "(set_spatial_field)."
         )
 
-    # hydrolib-core replaces the node bed level only if the file has one. That one belongs to the loaded mesh, since
-    # MeshKernel keeps the nodes, so only its number of values is checked; the network's own belongs to the mesh
-    # before the read.
-    bedlevel_mesh = before if network._mesh2d.mesh2d_node_z is node_z else network._mesh2d.get_mesh2d()
+    # hydrolib-core replaces the node bed level only if the file has one. That one
+    # belongs to the loaded mesh, since MeshKernel keeps the nodes, so only its number of
+    # values is checked; the network's own belongs to the mesh before the read.
+    bedlevel_mesh = before
+    if network._mesh2d.mesh2d_node_z is not node_z:
+        bedlevel_mesh = network._mesh2d.get_mesh2d()
     _drop_stale_bedlevel(network, bedlevel_mesh)
 
 
 def mesh2d_add_triangular(
     network: Network, polygon: Polygon | MultiPolygon, edge_length: float | None = None
 ) -> None:
-    """Add triangular mesh to existing network. An orthogonal mesh is generated by the
-    meshkernel, which likely means that the given geometry is not completely filled. The
-    triangle size follows only from the spacing of the coordinates on the boundary of
-    the provided geometry: triangles are small where boundary points are close together
-    and larger where they are far apart. Giving an edge_length will discretize the
-    polygon for you, but you can also do this yourself.
+    """Add a triangular mesh to the network.
 
-    Args:
-        network (Network): Network object to which the mesh is added
-        polygon (Polygon | MultiPolygon): Geometry within which the mesh is generated
-        edge_length (float | None, optional): Distance for which the polygon boundary is
-            discretized (by approximation). This is also the approximate edge length of
-            the triangles. If None, the existing boundary coordinates determine the
-            triangle size. Defaults to None.
+    meshkernel generates an orthogonal mesh, which likely means that the given geometry
+    is not completely filled. The triangle size follows only from the spacing of the
+    coordinates on the boundary of the geometry: triangles are small where boundary
+    points are close together and larger where they are far apart. Giving an
+    ``edge_length`` discretizes the polygon for you, but you can also do this yourself.
+
+    Parameters
+    ----------
+    network : Network
+        Network to which the mesh is added.
+    polygon : Polygon or MultiPolygon
+        Geometry within which the mesh is generated.
+    edge_length : float, optional
+        Distance at which the polygon boundary is discretized (by approximation). This
+        is also the approximate edge length of the triangles. Defaults to None: the
+        existing boundary coordinates determine the triangle size.
     """
-
-    before = network._mesh2d.get_mesh2d() if _has_bedlevel(network) else None
+    before = None
+    if _has_bedlevel(network):
+        before = network._mesh2d.get_mesh2d()
     meshkernel = network._mesh2d.meshkernel
     for poly in common.as_polygon_list(polygon):
         # Interpolate coordinates on polygon with edge_length distance
@@ -177,8 +213,11 @@ def mesh2d_add_triangular(
 
         # Add triangular mesh within polygon
         # No scale_factor: meshkernel>=8.4 ignores it (Deltares/MeshKernelPy#291)
-        meshkernel.mesh2d_make_triangular_mesh_from_polygon(_geomlist_from_polygon(poly))
+        meshkernel.mesh2d_make_triangular_mesh_from_polygon(
+            _geomlist_from_polygon(poly)
+        )
     _drop_stale_bedlevel(network, before)
+
 
 def mesh2d_clip(
     network: Network,
@@ -188,14 +227,26 @@ def mesh2d_clip(
 ) -> None:
     """Clip the mesh (currently implemented for 2d) and clean remaining hanging edges.
 
-    Args:
-        network (Network): Network for which the mesh is clipped
-        polygon (GeometryList | Polygon | MultiPolygon): Polygon within which the mesh is clipped
-        deletemeshoption (mk.DeleteMeshOption, optional): Option for deleting nodes inside/outside
-            polygon. Defaults to mk.DeleteMeshOption.INSIDE_AND_INTERSECTED.
-        inside (bool, optional): Whether to clip inside or outside the polygon. Defaults to True.
+    Parameters
+    ----------
+    network : Network
+        Network for which the mesh is clipped.
+    polygon : GeometryList, Polygon or MultiPolygon
+        Polygon within which the mesh is clipped.
+    deletemeshoption : mk.DeleteMeshOption, optional
+        Option for deleting nodes inside or outside the polygon. Defaults to
+        ``mk.DeleteMeshOption.INSIDE_AND_INTERSECTED``.
+    inside : bool, optional
+        Delete the mesh inside the polygon (True) or outside it (False). Defaults to True.
+
+    Raises
+    ------
+    TypeError
+        If a GeometryList is not a Polygon or MultiPolygon.
     """
-    before = network._mesh2d.get_mesh2d() if _has_bedlevel(network) else None
+    before = None
+    if _has_bedlevel(network):
+        before = network._mesh2d.get_mesh2d()
 
     if isinstance(polygon, GeometryList):
         geo = polygon.to_geometry()
@@ -203,16 +254,18 @@ def mesh2d_clip(
             raise TypeError(
                 f"Expected to provided geometrylist to be interpreted as Polygon or MultiPolygon, not a {type(geo)}."
             )
-    elif isinstance(polygon, (Polygon, MultiPolygon)):
-        polygon = GeometryList.from_geometry(polygon)
+    else:
+        geo = polygon
 
     if inside:
         # Clip each single polygon
-        for part in polygon.geoms:
-            network.mesh2d_clip_mesh(_geomlist_from_polygon(part), deletemeshoption, inside)
+        for part in common.as_polygon_list(geo):
+            network.mesh2d_clip_mesh(
+                _geomlist_from_polygon(part), deletemeshoption, inside
+            )
     else:
         # Keep exterior
-        clip_pol_ext = _geomlist_from_multipolygon(polygon, "exterior")
+        clip_pol_ext = _geomlist_from_multipolygon(geo, "exterior")
         if clip_pol_ext.x_coordinates.size > 0:
             network._mesh2d.meshkernel.mesh2d_delete(
                 geometry_list=clip_pol_ext,
@@ -220,7 +273,7 @@ def mesh2d_clip(
                 invert_deletion=True,
             )
         # # Clip interior
-        clip_pol_int = _geomlist_from_multipolygon(polygon, "interior")
+        clip_pol_int = _geomlist_from_multipolygon(geo, "interior")
         if clip_pol_int.x_coordinates.size > 0:
             network._mesh2d.meshkernel.mesh2d_delete(
                 geometry_list=clip_pol_int,
@@ -229,31 +282,50 @@ def mesh2d_clip(
             )
 
     # Remove hanging edges
-    network._mesh2d.meshkernel.mesh2d_delete_hanging_edges()    
+    network._mesh2d.meshkernel.mesh2d_delete_hanging_edges()
     network._mesh2d.meshkernel.mesh2d_get()
     _drop_stale_bedlevel(network, before)
 
-def _geomlist_from_polygon(polygon: Polygon) -> mk.GeometryList:
-    """Convert a shapely Polygon to a meshkernel GeometryList.
 
-    Args:
-        polygon (Polygon): Polygon to convert
-    """
+def _geomlist_from_polygon(polygon: Polygon | MultiPolygon) -> mk.GeometryList:
+    """Convert a shapely Polygon or MultiPolygon to a meshkernel GeometryList."""
     gl = GeometryList()
     gl = gl.from_geometry(polygon)
-    return mk.GeometryList(gl.x_coordinates, gl.y_coordinates, gl.values, gl.geometry_separator, gl.inner_outer_separator)
+    return mk.GeometryList(
+        gl.x_coordinates,
+        gl.y_coordinates,
+        gl.values,
+        gl.geometry_separator,
+        gl.inner_outer_separator,
+    )
 
 
-def _geomlist_from_multipolygon(polygons: GeometryList, mode: str) -> mk.GeometryList:
-    """Convert a GeometryList's exterior or interior rings to a meshkernel GeometryList.
+def _geomlist_from_multipolygon(
+    polygons: Polygon | MultiPolygon, mode: str
+) -> mk.GeometryList:
+    """Convert the exterior or interior rings of polygons to a meshkernel GeometryList.
 
-    Args:
-        polygons (GeometryList): Polygon(s) to convert
-        mode (str): Either "exterior" or "interior", selecting which rings to convert
+    Parameters
+    ----------
+    polygons : Polygon or MultiPolygon
+        Polygon(s) to convert.
+    mode : str
+        ``"exterior"`` or ``"interior"``: which rings to convert.
+
+    Returns
+    -------
+    mk.GeometryList
+        The rings, separated by -999.
+
+    Raises
+    ------
+    ValueError
+        If the mode is not ``"exterior"`` or ``"interior"``.
     """
     poly_separator = -999
-    x_crds, y_crds = [], []
-    for polygon in polygons.geoms:
+    x_crds: list[float] = []
+    y_crds: list[float] = []
+    for polygon in common.as_polygon_list(polygons):
         x_geom, y_geom = [], []
         if mode == "exterior":
             x_ext, y_ext = np.array(polygon.exterior.coords[:]).T
@@ -265,21 +337,23 @@ def _geomlist_from_multipolygon(polygons: GeometryList, mode: str) -> mk.Geometr
                 x_geom.append(x_int)
                 y_geom.append(y_int)
         else:
-            raise ValueError(f"Expected mode to be either 'interior' or 'exterior' (got: '{mode}')")
+            raise ValueError(
+                f"Expected mode to be either 'interior' or 'exterior' (got: '{mode}')"
+            )
 
         for xc, yc in zip(x_geom, y_geom):
             if len(x_crds) > 0:
-                x_crds.append([poly_separator])
-                y_crds.append([poly_separator])
-            x_crds.append(xc)
-            y_crds.append(yc)
+                x_crds.append(poly_separator)
+                y_crds.append(poly_separator)
+            x_crds.extend(xc)
+            y_crds.extend(yc)
 
-    if len(x_crds) > 0 and len(y_crds) > 0:
-        x_crds = np.concatenate(x_crds)
-        y_crds = np.concatenate(y_crds)
-    gl = mk.GeometryList(x_coordinates=x_crds, y_coordinates=y_crds, inner_outer_separator=-998)
+    gl = mk.GeometryList(
+        x_coordinates=x_crds, y_coordinates=y_crds, inner_outer_separator=-998
+    )
 
     return gl
+
 
 def mesh2d_refine(
     network: Network,
@@ -287,57 +361,65 @@ def mesh2d_refine(
     steps: int,
     refine_parameters: dict | None = None,
 ) -> None:
-    """Refine mesh 2d within (list of) polygon or multipolygon, with a certain
-    number of refinement steps.
+    """Refine the 2D mesh within a polygon, with a number of refinement steps.
 
-    Args:
-        network (Network): Network for which the mesh is refined
-        polygon (Polygon | MultiPolygon): Polygon within which the mesh is refined
-        steps (int): Number of steps in the refinement
-        refine_parameters (dict | None, optional): Overrides for the default
-            mk.MeshRefinementParameters attributes. Defaults to None.
+    Parameters
+    ----------
+    network : Network
+        Network for which the mesh is refined.
+    polygon : Polygon or MultiPolygon
+        Polygon within which the mesh is refined.
+    steps : int
+        Number of steps in the refinement.
+    refine_parameters : dict, optional
+        Overrides for the default ``mk.MeshRefinementParameters`` attributes. Defaults
+        to None.
     """
-    parameters = mk.MeshRefinementParameters(   
-                refine_intersected=True,
-                use_mass_center_when_refining=True,
-                min_edge_size=1.0,
-                refinement_type=2,
-                connect_hanging_nodes=True,
-                account_for_samples_outside_face=True,
-                max_refinement_iterations=1,
-                smoothing_iterations=5,
-                max_courant_time=120.0,
-                directional_refinement=False
+    parameters = mk.MeshRefinementParameters(
+        refine_intersected=True,
+        use_mass_center_when_refining=True,
+        min_edge_size=1.0,
+        refinement_type=2,
+        connect_hanging_nodes=True,
+        account_for_samples_outside_face=True,
+        max_refinement_iterations=1,
+        smoothing_iterations=5,
+        max_courant_time=120.0,
+        directional_refinement=False,
     )
     if refine_parameters is not None:
         for key in refine_parameters:
             setattr(parameters, key, refine_parameters[key])
 
-    before = network._mesh2d.get_mesh2d() if _has_bedlevel(network) else None
+    before = None
+    if _has_bedlevel(network):
+        before = network._mesh2d.get_mesh2d()
     for poly in common.as_polygon_list(polygon):
         network.mesh2d_refine_mesh(
-            _geomlist_from_polygon(poly),
-            level=steps,            
-            parameters=parameters)                      
+            _geomlist_from_polygon(poly), level=steps, parameters=parameters
+        )
     _drop_stale_bedlevel(network, before)
 
 
 def _has_bedlevel(network: Network) -> bool:
-    """Whether the 2D mesh of the network has a stored node or face bed level."""
-    return bool(network._mesh2d.mesh2d_node_z.size > 0 or network._mesh2d.mesh2d_face_z.size > 0)
+    """Return whether the 2D mesh of the network has a stored node or face bed level."""
+    mesh2d = network._mesh2d
+    return bool(mesh2d.mesh2d_node_z.size > 0 or mesh2d.mesh2d_face_z.size > 0)
 
 
 def _drop_stale_bedlevel(network: Network, bedlevel_mesh: mk.Mesh2d | None) -> None:
-    """Drop the stored node and face bed level of the 2D mesh of the network if they no longer fit, with a warning.
+    """Drop the stored bed level of the 2D mesh if it no longer fits, with a warning.
 
-    A node bed level is kept if the nodes are unchanged; a face bed level if the nodes and the faces are unchanged,
-    with the same positions and in the same order. A bed level without one value per node or face is always dropped.
+    A node bed level is kept if the nodes are unchanged; a face bed level if the nodes
+    and the faces are unchanged, with the same positions and in the same order. A bed
+    level without one value per node or face is always dropped.
 
-    MeshKernel stores no bed level, and hydrolib-core does not sync ``mesh2d_node_z`` and ``mesh2d_face_z`` with the
-    mesh: after the mesh changes they no longer fit, and saving the network fails with "shape mismatch". The D-HyDAMO
-    functions that change the 2D mesh therefore call this function. The values cannot be remapped: a node or face index
-    is only a position in an array, and every change renumbers them. Calling hydrolib-core's own mesh functions
-    directly still bypasses this.
+    MeshKernel stores no bed level, and hydrolib-core does not sync ``mesh2d_node_z``
+    and ``mesh2d_face_z`` with the mesh: after the mesh changes they no longer fit, and
+    saving the network fails with "shape mismatch". The D-HyDAMO functions that change
+    the 2D mesh therefore call this function. The values cannot be remapped: a node or
+    face index is only a position in an array, and every change renumbers them. Calling
+    hydrolib-core's own mesh functions directly still bypasses this.
 
     Parameters
     ----------
@@ -346,34 +428,46 @@ def _drop_stale_bedlevel(network: Network, bedlevel_mesh: mk.Mesh2d | None) -> N
     bedlevel_mesh : mk.Mesh2d or None
         The mesh to which the stored bed level belongs; None if no bed level was stored.
     """
-    # fetching the mesh from MeshKernel is expensive for large meshes: only do it if there is a bed level to check
+    # fetching the mesh from MeshKernel is expensive for large meshes: only do it if
+    # there is a bed level to check
     if not _has_bedlevel(network):
         return
     mesh2d = network._mesh2d
     current = mesh2d.get_mesh2d()
-    for location, n_locations, mesh_arrays in (
-        ("node", current.node_x.size, ("node_x", "node_y")),
-        ("face", current.nodes_per_face.size, ("node_x", "node_y", "face_nodes", "nodes_per_face")),
-    ):
-        # unchanged is True only if bedlevel_mesh and the mesh now have the same nodes (for a face bed level: also the
-        # same faces), at the same positions and in the same order.
-        unchanged = False
+    checks = [
+        ("node", current.node_x.size, ["node_x", "node_y"]),
+        (
+            "face",
+            current.nodes_per_face.size,
+            ["node_x", "node_y", "face_nodes", "nodes_per_face"],
+        ),
+    ]
+    for location, n_locations, mesh_arrays in checks:
+        # unchanged is True only if bedlevel_mesh and the mesh now have the same nodes
+        # (for a face bed level: also the same faces), at the same positions and in the
+        # same order.
+        unchanged = bedlevel_mesh is not None
         if bedlevel_mesh is not None:
-            unchanged = all(
-                np.array_equal(getattr(bedlevel_mesh, name), getattr(current, name)) for name in mesh_arrays
-            )
+            for name in mesh_arrays:
+                if not np.array_equal(
+                    getattr(bedlevel_mesh, name), getattr(current, name)
+                ):
+                    unchanged = False
+                    break
 
         bedlevel_name = f"mesh2d_{location}_z"
         size = getattr(mesh2d, bedlevel_name).size
         if size == 0 or (size == n_locations and unchanged):
-            # nothing to drop: no bed level is stored, or it has one value per node or face of an unchanged mesh
+            # nothing to drop: no bed level is stored, or it has one value per node or
+            # face of an unchanged mesh
             continue
 
-        # Bedlevel is stale, drop the old values and log a warning.
+        # the bed level is stale: drop the old values and log a warning
         setattr(mesh2d, bedlevel_name, np.empty(0, dtype=np.double))
         logger.warning(
-            f"The 2D {location} bed level no longer fits the 2D mesh and is dropped. Recompute it after the last mesh "
-            "change (mesh2d_altitude_from_raster) or add it as samples to the initial fields (set_spatial_field)."
+            f"The 2D {location} bed level no longer fits the 2D mesh and is dropped. "
+            "Recompute it after the last mesh change (mesh2d_altitude_from_raster) or "
+            "add it as samples to the initial fields (set_spatial_field)."
         )
 
 
@@ -385,32 +479,40 @@ def mesh1d_add_branch_from_linestring(
     structure_chainage: list[float] | None = None,
     max_dist_to_struc: float | None = None,
 ) -> str:
-    """Add branch to 1d mesh, from a LineString geometry.
-    The branch is discretized with the given node distance.
-    The position of a structure can be provided, just like the max distance
-    of a mesh node to a structure
+    """Add a branch to the 1D mesh, from a LineString geometry.
 
-    Args:
-        network (Network): Network to which the branch is added
-        linestring (LineString): The geometry of the new branch
-        node_distance (float | int): Preferred node distance between branch nodes
-        name (str | None, optional): Name of the branch. If not given, a name is generated. Defaults to None.
-        structure_chainage (list[float] | None, optional): Positions of structures along the branch. Defaults to None.
-        max_dist_to_struc (float | None, optional): Max distance of a mesh point to a structure. Defaults to None.
+    The branch is discretized with the given node distance. The position of structures
+    can be provided, as well as the maximum distance of a mesh node to a structure.
 
-    Returns:
-        str: name of added branch
+    Parameters
+    ----------
+    network : Network
+        Network to which the branch is added.
+    linestring : LineString
+        Geometry of the new branch.
+    node_distance : float
+        Preferred distance between the branch nodes.
+    name : str, optional
+        Name of the branch. Defaults to None: a name is generated.
+    structure_chainage : list[float], optional
+        Positions of structures along the branch. Defaults to None.
+    max_dist_to_struc : float, optional
+        Maximum distance of a mesh node to a structure. Defaults to None.
+
+    Returns
+    -------
+    str
+        Name of the added branch.
     """
-
     branch = Branch(geometry=np.array(linestring.coords[:]))
     branch.generate_nodes(
         mesh1d_edge_length=node_distance,
         structure_chainage=structure_chainage,
         max_dist_to_struc=max_dist_to_struc,
     )
-    branchid = network.mesh1d_add_branch(branch, name=name)
-
-    return branchid
+    # hydrolib-core annotates mesh1d_add_branch with -> None, but it returns the branch name:
+    # https://github.com/Deltares/HYDROLIB-core/issues/1313
+    return network.mesh1d_add_branch(branch, name=name)  # type: ignore[func-returns-value, return-value]
 
 
 def mesh1d_add_branches_from_gdf(
@@ -419,21 +521,31 @@ def mesh1d_add_branches_from_gdf(
     branch_name_col: str,
     node_distance: float,
     max_dist_to_struc: float | None = None,
-    structures: gpd.GeoDataFrame | None = None,
+    structures: pd.DataFrame | None = None,
 ) -> None:
-    """Function to generate branches from geodataframe
+    """Add the branches of a GeoDataFrame to the 1D mesh.
 
-    Args:
-        network (Network): The network to which the branches are added
-        branches (gpd.GeoDataFrame): GeoDataFrame with branches
-        branch_name_col (str): Name of the column in the GeoDataFrame with the branchnames
-        node_distance (float): Preferred 1d mesh distance
-        max_dist_to_struc (float | None, optional): Maximum distance to structure. Defaults to None.
-        structures (gpd.GeoDataFrame | None, optional): GeoDataFrame with structures. Must contain a column branchid and chainage. Defaults to None.
+    With ``structures``, each branch gets a mesh node between its structures. Structures
+    without a branch, or at the same location, are logged.
+
+    Parameters
+    ----------
+    network : Network
+        Network to which the branches are added.
+    branches : gpd.GeoDataFrame
+        Branches, with LineString geometries.
+    branch_name_col : str
+        Column with the branch names.
+    node_distance : float
+        Preferred distance between the mesh nodes.
+    max_dist_to_struc : float, optional
+        Maximum distance of a mesh node to a structure. Defaults to None.
+    structures : pd.DataFrame, optional
+        Structures, with the columns ``id``, ``branchid`` and ``chainage``. Defaults to
+        None.
     """
-
     # Create empty dictionary for structure chainage
-    structure_chainage = {}
+    structure_chainage: dict[Hashable, list[float]] = {}
 
     # If structures are given, collect offsets per branch
     if structures is not None:
@@ -463,10 +575,13 @@ def mesh1d_add_branches_from_gdf(
             if any(c > 1):
                 logger.warning(
                     "Structures %s have the same location.",
-                    ", ".join(str(v) for v in group.loc[group.chainage.isin(u[c > 1]), "id"].tolist()),
+                    ", ".join(
+                        str(v)
+                        for v in group.loc[group.chainage.isin(u[c > 1]), "id"].tolist()
+                    ),
                 )
             # Add to dictionary
-            structure_chainage[branchid] = u
+            structure_chainage[branchid] = u.tolist()
 
     # Loop over all branches, and add structures
     for branchname, geometry in zip(
@@ -490,31 +605,47 @@ def mesh1d_order_numbers_from_attribute(
     network: Network,
     exceptions: list[str] | None = None,
 ) -> list[str]:
-    """Method to allocate order numbers to branches based on a common attribute.
+    """Give branches with the same attribute value the same order number.
 
-    Args:
-        branches (gpd.GeoDataFrame): HyDAMO GeoDataFrame containing branches.
-        missing (list[str]): list of branches that have so far not been allocated a cross section.
-        order_attribute (str): Attribute of branches based on which order numbers are allocated.
-        network (Network): FM network geometry to which the order numbers should be written
-        exceptions (list[str] | None, optional): List of branch codes that should not be given an order number. Defaults to None.
+    Cross sections are interpolated along branches with the same order number. Each
+    attribute value that has at least one branch with a cross section gets a number.
+    The column ``order`` is added to ``branches``.
 
-    Returns:
-        list[str]: list of branches that still do not have a cross section
+    Parameters
+    ----------
+    branches : gpd.GeoDataFrame
+        HyDAMO branches, with a ``code`` column.
+    missing : list[str]
+        Codes of the branches that have no cross section so far.
+    order_attribute : str
+        Column of ``branches`` by which the order numbers are given.
+    network : Network
+        Network to which the order numbers are written.
+    exceptions : list[str], optional
+        Codes of the branches that get no order number. Defaults to None.
+
+    Returns
+    -------
+    list[str]
+        Sorted codes of the branches that still have no cross section.
     """
     if exceptions is None:
         exceptions = []
 
-    j = 0
+    # order numbers start at 1: only numbers > 0 are written to the network below
+    j = 1
     branches["order"] = np.nan
     for value in branches[order_attribute].unique():
-        if value is not None and not all(x in missing for x in branches.loc[branches.loc[:, order_attribute] == value, "code"]):
+        if value is not None and not all(
+            x in missing
+            for x in branches.loc[branches.loc[:, order_attribute] == value, "code"]
+        ):
             branches.loc[branches.loc[:, order_attribute] == value, "order"] = int(j)
             j = j + 1
     for exception in exceptions:
-        branches.loc[branches.code == exception, 'order']  = -1
+        branches.loc[branches.code == exception, "order"] = -1
 
-    interpolation = []
+    interpolation: list[str] = []
     for ordernr in branches.order.unique():
         if ordernr > 0:
             mesh1d_set_branch_order(
@@ -526,20 +657,28 @@ def mesh1d_order_numbers_from_attribute(
                 interpolation + branches.code[branches.order == ordernr].to_list()
             )
     missing_after_interpolation = np.setdiff1d(missing, interpolation)
-    return missing_after_interpolation
+    return missing_after_interpolation.tolist()
 
 
 def mesh1d_set_branch_order(
     network: Network, branchids: list[str], idx: int | None = None
 ) -> None:
-    """Group branch ids so that the cross sections are
-    interpolated along the branch.
+    """Give branches the same order number, so cross sections are interpolated along them.
 
-    Args:
-        network (Network): Network in which the branch order is set
-        branchids (list[str]): List of branches to group
-        idx (int | None, optional): Order number with which to update a branch. If
-            None, the group is appended after the current highest order. Defaults to None.
+    Parameters
+    ----------
+    network : Network
+        Network in which the branch order is set.
+    branchids : list[str]
+        Branches to group.
+    idx : int, optional
+        Order number to give the branches. Defaults to None: one more than the current
+        highest order number.
+
+    Raises
+    ------
+    TypeError
+        If ``idx`` is not an integer.
     """
     # Get the ids (integers) of the branch names given by the user
     branchidx = np.isin(network._mesh1d.network1d_branch_id, branchids)
@@ -562,15 +701,18 @@ def links1d2d_add_links_1d_to_2d(
     within: Polygon | MultiPolygon | None = None,
     max_length: float = np.inf,
 ) -> None:
-    """Function to add 1d2d links to network, by generating them from 1d to 2d.
-    Branchids can be specified for 1d branches that need to be linked.
-    A (Multi)Polygon can be provided were links should be made.
+    """Add 1D2D links to the network, generated from the 1D nodes to the 2D faces.
 
-    Args:
-        network (Network): Network in which the connections are made
-        branchids (list[str] | None, optional): List of branchid's to connect. If None, all branches are connected. Defaults to None.
-        within (Polygon | MultiPolygon | None, optional): Area within which connections are made. Defaults to None.
-        max_length (float, optional): Max edge length. Defaults to np.inf.
+    Parameters
+    ----------
+    network : Network
+        Network in which the links are made.
+    branchids : list[str], optional
+        Branches to link. Defaults to None: all branches.
+    within : Polygon or MultiPolygon, optional
+        Area within which links are made. Defaults to None: the extent of both meshes.
+    max_length : float, optional
+        Maximum length of a link. Defaults to ``np.inf``.
     """
     # Fetch the 2d mesh once and reuse it below - each network._mesh2d.mesh2d_*
     # property otherwise re-fetches and re-validates the whole mesh from meshkernel.
@@ -601,7 +743,9 @@ def links1d2d_add_links_1d_to_2d(
     # Filter the newly generated links that are longer than the max distance.
     # Links that were already present are never subject to this filter.
     current_links = network._link1d2d.link1d2d
-    is_new = _new_link_mask(current_links, present_links)
+    # TODO: fix in hydrolib-core, link1d2d is annotated np.ndarray[np.int32] (int32 read as shape):
+    # https://github.com/Deltares/HYDROLIB-core/issues/1314
+    is_new = _new_link_mask(current_links, present_links)  # type: ignore[arg-type]
     id1d = current_links[is_new, 0]
     id2d = current_links[is_new, 1]
     nodes1d = np.stack(
@@ -616,7 +760,9 @@ def links1d2d_add_links_1d_to_2d(
     keep_mask = ~is_new
     keep_mask[is_new] = lengths < max_length
     keep = np.nonzero(keep_mask)[0]
-    _filter_links_on_idx(network, keep, present_links)
+    # TODO: fix in hydrolib-core, link1d2d is annotated np.ndarray[np.int32] (int32 read as shape):
+    # https://github.com/Deltares/HYDROLIB-core/issues/1314
+    _filter_links_on_idx(network, keep, present_links)  # type: ignore[arg-type]
 
 
 def _new_link_mask(current: np.ndarray, present_links: np.ndarray) -> np.ndarray:
@@ -630,10 +776,12 @@ def _new_link_mask(current: np.ndarray, present_links: np.ndarray) -> np.ndarray
     tested independently and any duplicates that end up in `keep` are removed later
     by _filter_links_on_idx's final np.unique.
 
-    Args:
-        current (np.ndarray): Current (mesh1d_idx, mesh2d_idx) contacts, shape (N, 2)
-        present_links (np.ndarray): Snapshot of contacts taken before the meshkernel
-            compute call, shape (M, 2)
+    Parameters
+    ----------
+    current : np.ndarray
+        Current (mesh1d_idx, mesh2d_idx) contacts, shape (N, 2).
+    present_links : np.ndarray
+        Snapshot of contacts taken before the meshkernel compute call, shape (M, 2).
     """
     if not len(current) or not len(present_links):
         return np.ones(len(current), dtype=bool)
@@ -646,13 +794,15 @@ def _new_link_mask(current: np.ndarray, present_links: np.ndarray) -> np.ndarray
         int(max(current[:, 1].max(), present_links[:, 1].max())) + 1,
     )
     current_keys = np.ravel_multi_index((current[:, 0], current[:, 1]), dims)
-    present_keys = np.ravel_multi_index((present_links[:, 0], present_links[:, 1]), dims)
+    present_keys = np.ravel_multi_index(
+        (present_links[:, 0], present_links[:, 1]), dims
+    )
     return ~np.isin(current_keys, present_keys)
 
 
 def _filter_links_on_idx(
     network: Network,
-    keep: np.ndarray,
+    keep: np.ndarray | list[int],
     present_links: np.ndarray | None = None,
 ) -> None:
     """Set the network's 1d2d contacts to `keep`, merged with `present_links`.
@@ -669,12 +819,15 @@ def _filter_links_on_idx(
     Functions that only *remove* links (filtering the current contacts without
     an intervening compute call) have nothing to restore and can omit it.
 
-    Args:
-        network (Network): Network whose 1d2d contacts are set
-        keep (np.ndarray): Boolean mask or integer indices into the current contacts,
-            selecting which of them to keep
-        present_links (np.ndarray | None, optional): Snapshot of contacts to merge back
-            in regardless of `keep`. Defaults to None.
+    Parameters
+    ----------
+    network : Network
+        Network whose 1d2d contacts are set.
+    keep : np.ndarray or list[int]
+        Boolean mask or integer indices into the current contacts, selecting which of
+        them to keep.
+    present_links : np.ndarray, optional
+        Snapshot of contacts to merge back in regardless of `keep`. Defaults to None.
     """
     # Select the remaining links
     contacts = network._link1d2d.meshkernel.contacts_get()
@@ -700,17 +853,29 @@ def links1d2d_add_links_2d_to_1d_embedded(
     branchids: list[str] | None = None,
     within: Polygon | MultiPolygon | None = None,
 ) -> None:
-    """Generates links from 2d to 1d, where the 2d mesh intersects the 1d mesh: the 'embedded' links.
+    """Add 1D2D links where the 2D mesh overlaps the 1D mesh: the 'embedded' links.
 
-    To find the intersecting cells in an efficient way, we follow we the next steps. 1) Get the
-    maximum length of a face edge. 2) Buffer the branches with this length. 3) Find all face nodes
-    within this buffered geometry. 4) Check for each of the corresponding faces if it crossed the
-    branches.
+    Each 2D face that crosses a branch is linked to the 1D mesh. To find these faces
+    efficiently:
 
-    Args:
-        network (Network): Network in which the links are made. Should contain a 1d and 2d mesh
-        branchids (list[str] | None, optional): List is branch id's for which the connections are made. Defaults to None.
-        within (Polygon | MultiPolygon | None, optional): Clipping polygon for 2d mesh that is. Defaults to None.
+    1. get the maximum length of a face edge;
+    2. buffer the branches with this length;
+    3. find the face centers within this buffer;
+    4. check for each of these faces if it crosses the branches.
+
+    Parameters
+    ----------
+    network : Network
+        Network in which the links are made, with a 1D and a 2D mesh.
+    branchids : list[str], optional
+        Branches to link. Defaults to None: all branches.
+    within : Polygon or MultiPolygon, optional
+        Area within which links are made. Defaults to None: everywhere.
+
+    Raises
+    ------
+    TypeError
+        If clipping the buffered branches with ``within`` does not give a polygon.
     """
     # Fetch the 2d mesh once and reuse it below - each network._mesh2d.mesh2d_*
     # property otherwise re-fetches and re-validates the whole mesh from meshkernel.
@@ -730,11 +895,16 @@ def links1d2d_add_links_2d_to_1d_embedded(
 
     # Buffer the branches with the max cell distances
     mls = MultiLineString(nodes1d[network._mesh1d.mesh1d_edge_nodes].tolist())
-    area = mls.buffer(maxdiff)
+    area: Polygon | MultiPolygon = mls.buffer(maxdiff)
 
     # If a within polygon is provided, clip the buffered area with this polygon.
     if within is not None:
-        area = area.intersection(within)
+        clipped = area.intersection(within)
+        if not isinstance(clipped, (Polygon, MultiPolygon)):
+            raise TypeError(
+                f"Expected the clipped area to be a Polygon or MultiPolygon, not a {clipped.geom_type}."
+            )
+        area = clipped
 
     # Create an array with 2d facecenters and check which intersect the (clipped) area
     faces2d = np.stack([mesh2d_output.face_x, mesh2d_output.face_y], axis=1)
@@ -744,7 +914,8 @@ def links1d2d_add_links_2d_to_1d_embedded(
     for subarea in common.as_polygon_list(area):
         subarea = GeometryList.from_polygon(subarea)
         sub_idx = network.meshkernel.polygon_get_included_points(subarea, mpgl)
-        idx |= sub_idx.values == 1
+        # values of a meshkernel GeometryList, not pandas
+        idx |= sub_idx.values == 1  # noqa: PD011
 
     # Check for each of the remaining faces, if it actually crosses the branches
     where = np.nonzero(idx)[0]
@@ -757,8 +928,8 @@ def links1d2d_add_links_2d_to_1d_embedded(
     candidate_face_nodes = network._mesh2d.mesh2d_face_nodes[idx]
     face_polygons = []
     for face_idxs in candidate_face_nodes:
-        # nodes2d always has 4 columns if the grid is a mix of triangular and 
-        # rectangular, but a triangular cell only has 3 nodes. A triangular 
+        # nodes2d always has 4 columns if the grid is a mix of triangular and
+        # rectangular, but a triangular cell only has 3 nodes. A triangular
         # cell will then have a column of invalid indices. This needs to be
         # checked per cell.
         # Use a polygon instead of linestring to enforce a closed ring and to
@@ -784,7 +955,9 @@ def links1d2d_add_links_2d_to_1d_embedded(
 
     # Nothing computed here is filtered on its own merits, so keep it all
     keep = np.arange(len(network._link1d2d.link1d2d))
-    _filter_links_on_idx(network, keep, present_links)
+    # TODO: fix in hydrolib-core, link1d2d is annotated np.ndarray[np.int32] (int32 read as shape):
+    # https://github.com/Deltares/HYDROLIB-core/issues/1314
+    _filter_links_on_idx(network, keep, present_links)  # type: ignore[arg-type]
 
 
 def links1d2d_add_links_2d_to_1d_lateral(
@@ -794,42 +967,56 @@ def links1d2d_add_links_2d_to_1d_lateral(
     within: Polygon | MultiPolygon | None = None,
     max_length: float = np.inf,
 ) -> None:
-    """Generate 1d2d links from the 2d mesh to the 1d mesh, with a lateral connection.
-    If a link is kept, is determined based on the distance between the face center and
-    the intersection with the 2d mesh exterior. By default, links with an intersection
-    distance larger than 2 times the center to edge distance of the cell, are removed.
-    Note that for a square cell with a direct link out of the cell (without passing any
-    other cells) this max distance is sqrt(2) = 1.414. The default value of 2 provides
-    some flexibility. Note that a link with more than 1 intersection with the 2d mesh
-    boundary is removed anyway.
+    """Add lateral 1D2D links, from the 2D mesh boundary to the 1D mesh beside it.
 
-    Furthermore:
-    - Branch ids can be specified to connect only specific branches.
-    - A 'within' polygon can be given to only connect 2d cells within this polygon.
-    - A max link length can be given to limit the link length.
+    Whether a link is kept depends on the distance from the face center to where the
+    link crosses the boundary of the 2D mesh. By default, links that cross further than
+    2 times the mean distance from the face center to its nodes are removed. For a
+    square cell with a direct link out of the cell (without passing other cells) this
+    ratio is at most sqrt(2) = 1.414; the default of 2 gives some margin. A link that
+    crosses the 2D mesh boundary more than once is always removed.
 
-    Args:
-        network (Network): Network in which the links are made. Should contain a 1d and 2d mesh
-        dist_factor (float | None, optional): Factor to determine which links are kept (see description above). Defaults to 2.0.
-        branchids (list[str] | None, optional): List is branch id's for which the conncetions are made. Defaults to None.
-        within (Polygon | MultiPolygon | None, optional): Clipping polygon for 2d mesh that is. Defaults to None.
-        max_length (float, optional): Max edge length. Defaults to np.inf.
+    Parameters
+    ----------
+    network : Network
+        Network in which the links are made, with a 1D and a 2D mesh.
+    dist_factor : float, optional
+        Factor that determines which links are kept, see above. Defaults to 2.0. With
+        None, all links are kept.
+    branchids : list[str], optional
+        Branches to link. Defaults to None: all branches.
+    within : Polygon or MultiPolygon, optional
+        Area within which 2D faces are linked. Defaults to None: everywhere.
+    max_length : float, optional
+        Maximum length of a link. Defaults to ``np.inf``.
+
+    Raises
+    ------
+    TypeError
+        If the mesh boundaries, or their intersection with ``within``, are not polygons.
     """
-
     geometrylist = network.meshkernel.mesh2d_get_mesh_boundaries_as_polygons()
     mpboundaries = GeometryList(**geometrylist.__dict__).to_geometry()
+    if not isinstance(mpboundaries, (Polygon, MultiPolygon)):
+        raise TypeError(
+            f"Expected the mesh boundaries to be polygons, not a {mpboundaries.geom_type}."
+        )
     if within is not None:
         # If a 'within' polygon was provided, get the intersection with the meshboundaries
         # and convert it to a geometrylist
         # Note that the provided meshboundaries is a (list of) polygon(s). Holes are provided
         # as polygons as well, which dont make it a valid MultiPolygon
-        if isinstance(mpboundaries, Polygon):
-            geom = MultiPolygon([mpboundaries.intersection(within)])
-            geometrylist = GeometryList.from_geometry(geom)
-        else:
-            geom = [geom.intersection(within) for geom in mpboundaries.geoms]
-            geom = MultiPolygon(common.as_polygon_list(geom))
-            geometrylist = GeometryList.from_geometry(geom)
+        clipped: list[Polygon | MultiPolygon] = []
+        for boundary in common.as_polygon_list(mpboundaries):
+            part = boundary.intersection(within)
+            if not isinstance(part, (Polygon, MultiPolygon)):
+                raise TypeError(
+                    f"Expected the clipped mesh boundary to be a Polygon or MultiPolygon, not a {part.geom_type}."
+                )
+            clipped.append(part)
+        geometrylist = GeometryList.from_geometry(
+            MultiPolygon(common.as_polygon_list(clipped))
+        )
 
     # Get the nodes for the specific branch ids
     node_mask = network._mesh1d.get_node_mask(branchids)
@@ -848,12 +1035,11 @@ def links1d2d_add_links_2d_to_1d_lateral(
         return
 
     # Create multilinestring
-    if isinstance(mpboundaries, Polygon):
-        multilinestring = MultiLineString([mpboundaries.exterior])
-    else:
-        multilinestring = MultiLineString([poly.exterior for poly in mpboundaries.geoms])
+    multilinestring = MultiLineString(
+        [poly.exterior for poly in common.as_polygon_list(mpboundaries)]
+    )
 
-    # Find the links that intersect the boundary close to the origin    
+    # Find the links that intersect the boundary close to the origin
     id1d = network._link1d2d.link1d2d[:, 0]
     id2d = network._link1d2d.link1d2d[:, 1]
 
@@ -871,21 +1057,19 @@ def links1d2d_add_links_2d_to_1d_lateral(
     nodes2d = np.stack([mesh2d_output.node_x, mesh2d_output.node_y], axis=1)
     nodes2d_idx = network._mesh2d.mesh2d_face_nodes[id2d]
     keep = []
-    for i, (node1d, face2d, node2d) in enumerate(
-        zip(nodes1d, faces2d, nodes2d_idx)
-    ):
-        # nodes2d always has 4 columns if the grid is a mix of triangular and 
-        # rectangular, but a triangular cell only has 3 nodes. A triangular 
+    for i, (node1d, face2d, node2d) in enumerate(zip(nodes1d, faces2d, nodes2d_idx)):
+        # nodes2d always has 4 columns if the grid is a mix of triangular and
+        # rectangular, but a triangular cell only has 3 nodes. A triangular
         # cell will then have a column of invalid indices. This needs to be
         # checked per cell.
-        face_node_crds = nodes2d[node2d[node2d >= 0]]                
+        face_node_crds = nodes2d[node2d[node2d >= 0]]
 
         # Calculate distance between face edge and face center
-        x1 = face_node_crds[:,0]
-        y1 = face_node_crds[:,1]
+        x1 = face_node_crds[:, 0]
+        y1 = face_node_crds[:, 1]
         x0, y0 = face2d[0], face2d[1]
-        distance = np.hypot(x1-x0, y1-y0).mean() 
-    
+        distance = np.hypot(x1 - x0, y1 - y0).mean()
+
         isect = multilinestring.intersection(LineString([face2d, node1d]))
 
         # If the intersection is for some reason not a Point of Multipoint, skip it.
@@ -904,26 +1088,29 @@ def links1d2d_add_links_2d_to_1d_lateral(
             keep.append(i)
 
     # Select the remaining links
-    _filter_links_on_idx(network, keep, present_links=present_links)
+    # TODO: fix in hydrolib-core, link1d2d is annotated np.ndarray[np.int32] (int32 read as shape):
+    # https://github.com/Deltares/HYDROLIB-core/issues/1314
+    _filter_links_on_idx(network, keep, present_links=present_links)  # type: ignore[arg-type]
 
 
-def links1d2d_remove_within(
-    network: Network, within: Polygon | MultiPolygon
-) -> None:
-    """Remove 1d2d links within a given polygon or multipolygon
+def links1d2d_remove_within(network: Network, within: Polygon | MultiPolygon) -> None:
+    """Remove the 1D2D links with the 1D node or the 2D face center inside a polygon.
 
-    Args:
-        network (Network): The network from which the links are removed
-        within (Polygon | MultiPolygon): The polygon that indicates which to remove
+    Parameters
+    ----------
+    network : Network
+        Network from which the links are removed.
+    within : Polygon or MultiPolygon
+        Area in which links are removed.
     """
-
     # Create an array with 2d facecenters and 1d nodes, that form the links
     links = network._link1d2d.link1d2d
     nodes1d = np.stack(
         [
             network._mesh1d.mesh1d_node_x[links[:, 0]],
             network._mesh1d.mesh1d_node_y[links[:, 0]],
-        ], axis=1
+        ],
+        axis=1,
     )
     # Fetch the 2d mesh once and reuse it below - each network._mesh2d.mesh2d_*
     # property otherwise re-fetches and re-validates the whole mesh from meshkernel.
@@ -932,7 +1119,8 @@ def links1d2d_remove_within(
         [
             mesh2d_output.face_x[links[:, 1]],
             mesh2d_output.face_y[links[:, 1]],
-        ], axis=1
+        ],
+        axis=1,
     )
 
     # Create GeometryList MultiPoint object (dedupe to avoid MK duplicate-point issues)
@@ -946,12 +1134,13 @@ def links1d2d_remove_within(
     # Check which links intersect the provided area
     for polygon in common.as_polygon_list(within):
         subarea = GeometryList.from_geometry(polygon)
+        # values of a meshkernel GeometryList, not pandas
         idx_faces |= (
-            network.meshkernel.polygon_get_included_points(subarea, mpgl_faces2d).values
+            network.meshkernel.polygon_get_included_points(subarea, mpgl_faces2d).values  # noqa: PD011
             == 1
         )
         idx_nodes |= (
-            network.meshkernel.polygon_get_included_points(subarea, mpgl_nodes1d).values
+            network.meshkernel.polygon_get_included_points(subarea, mpgl_nodes1d).values  # noqa: PD011
             == 1
         )
 
@@ -962,10 +1151,16 @@ def links1d2d_remove_within(
 
 
 def links1d2d_remove_1d_endpoints(network: Network) -> None:
-    """Method to remove 1d2d links from end points of the 1d mesh. The GUI
-    will interpret every endpoint as a boundary conditions, which does not
-    allow a 1d 2d link at the same node. To avoid problems with this, use
-    this method.
+    """Remove the 1D2D links at the end points of the 1D mesh.
+
+    The GUI interprets every end point as a boundary condition, which does not allow a
+    1D2D link at the same node. Logs a warning if there are no 1D nodes, 2D faces or
+    links.
+
+    Parameters
+    ----------
+    network : Network
+        Network from which the links are removed.
     """
     # Can only be done after links have been generated
     if not list(network._mesh1d.network1d_node_id) or not list(
@@ -977,7 +1172,9 @@ def links1d2d_remove_1d_endpoints(network: Network) -> None:
     # Fetch the current 1d2d links once - like network._mesh2d.mesh2d_*, this
     # property re-fetches and re-validates the contacts from meshkernel on every access.
     link1d2d = network._link1d2d.link1d2d
-    if link1d2d.shape[0] == 0:
+    # TODO: fix in hydrolib-core, link1d2d is annotated np.ndarray[np.int32] (int32 read as shape):
+    # https://github.com/Deltares/HYDROLIB-core/issues/1314
+    if link1d2d.shape[0] == 0:  # type: ignore[index]
         logger.warning("No 1d2d-links present.")
         return
 
@@ -1006,32 +1203,45 @@ def mesh2d_altitude_from_raster(
     min_coverage_frac: float = 0.0,
     coverage_weight: zonal.CoverageWeight = "fraction",
 ) -> None:
-    """Method to determine level of nodes
+    """Set the level of the 2D faces or nodes from a raster.
 
-    This function works faster for large amounts of cells, since it does not
-    draw polygons but checks for nearest neighbours (voronoi) based
-    on interpolation.
+    For faces, the statistic is taken over the face polygons; for nodes, over the
+    Voronoi cells around the nodes, clipped to the mesh.
 
     Note that the raster is not clipped. Any values outside the bounds are
     also taken into account.
 
-    Args:
-        network (Network): Network for which the altitude is determined. Should contain a 2d mesh
-        rasterpath (Path | str): Path to the raster file from which altitude values are read
-        where (RasterStatPosition | str, optional): Whether to determine altitude at cell
-            "face" centers or "node" locations. Defaults to "face".
-        stat (str, optional): exactextract statistic to derive from the raster cells per
-            face/node, such as "mean", "median" or "quantile(q=0.9)". Defaults to "mean".
-        fill_option (FillOption | str, optional): How to fill locations without a raster value:
-            "fill_value", "nearest", or "interpolate". Defaults to "fill_value".
-        fill_value (float | None, optional): Value used when fill_option is "fill_value", or the
-            fallback for values that cannot be interpolated. Defaults to None.
-        min_coverage_frac (float, optional): Smallest fraction of a raster cell a face or
-            node polygon must cover for the cell to count. Defaults to 0, every touched cell.
-        coverage_weight (str, optional): "fraction" counts raster cells by the fraction of
-            them the polygon covers, "none" counts them fully. Defaults to "fraction".
-    """
+    Parameters
+    ----------
+    network : Network
+        Network for which the level is determined, with a 2D mesh.
+    rasterpath : Path or str
+        Raster file from which the levels are read.
+    where : RasterStatPosition or str, optional
+        Set the level of the faces (``"face"``) or of the nodes (``"node"``). Defaults
+        to ``"face"``.
+    stat : str, optional
+        exactextract statistic of the raster cells per face or node, such as ``"mean"``,
+        ``"median"`` or ``"quantile(q=0.9)"``. Defaults to ``"mean"``.
+    fill_option : FillOption or str, optional
+        How to fill faces or nodes without a raster value: ``"fill_value"``,
+        ``"nearest"`` or ``"interpolate"``. Defaults to ``"fill_value"``.
+    fill_value : float, optional
+        Value for ``"fill_value"``, and for values that cannot be interpolated with
+        ``"interpolate"``. Defaults to None.
+    min_coverage_frac : float, optional
+        Smallest fraction of a raster cell a face or node polygon must cover for the
+        cell to count. Defaults to 0: every touched cell.
+    coverage_weight : str, optional
+        ``"fraction"`` counts raster cells by the fraction of them the polygon covers,
+        ``"none"`` counts them fully. Defaults to ``"fraction"``.
 
+    Raises
+    ------
+    ValueError
+        If all values are missing with ``"nearest"`` or ``"interpolate"``, or if
+        ``fill_value`` is needed but not given.
+    """
     if isinstance(fill_option, str):
         fill_option = FillOption(fill_option)
 

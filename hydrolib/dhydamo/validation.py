@@ -1,3 +1,5 @@
+"""Validate HyDAMO GeoPackages with the hydamo_validation package."""
+
 from __future__ import annotations
 
 import importlib
@@ -14,11 +16,25 @@ ValidationMode = Literal["off", "warn", "strict"]
 
 
 class HyDAMOValidationError(RuntimeError):
-    pass
+    """A HyDAMO GeoPackage failed validation in strict mode."""
 
 
 @dataclass
 class HydamoValidationResult:
+    """Result of validating a HyDAMO GeoPackage.
+
+    Attributes
+    ----------
+    success : bool
+        Whether the validation succeeded.
+    status : str or None
+        Status reported by hydamo_validation.
+    errors : list[str]
+        Error messages.
+    raw_result : Any
+        The result object of hydamo_validation.
+    """
+
     success: bool
     status: str | None
     errors: list[str]
@@ -58,7 +74,9 @@ def validate_hydamo_package(
         if validation_rules_path is not None:
             shutil.copy2(validation_rules_path, rules_target)
         else:
-            schema_version, valid_objects = _schema_version_for_damo(_hydamo_validation, hydamo_version)
+            schema_version, valid_objects = _schema_version_for_damo(
+                _hydamo_validation, hydamo_version
+            )
             rules_target.write_text(
                 json.dumps(
                     _build_minimal_validation_rules(
@@ -129,6 +147,31 @@ def validate_or_raise(
     coverages: dict | None = None,
     validation_rules_path: str | Path | None = None,
 ) -> HydamoValidationResult | None:
+    """Validate a HyDAMO GeoPackage, depending on the validation mode.
+
+    Parameters
+    ----------
+    gpkg_path : str or Path
+        The GeoPackage.
+    hydamo_version : str
+        DAMO version, e.g. ``"2.4"``.
+    validation_mode : {"off", "warn", "strict"}
+        ``"off"`` skips the validation; ``"strict"`` raises when it fails.
+    coverages : dict, optional
+        Coverages for hydamo_validation. Defaults to None.
+    validation_rules_path : str or Path, optional
+        Rules file; see `validate_hydamo_package`. Defaults to None.
+
+    Returns
+    -------
+    HydamoValidationResult or None
+        The result, or None with ``"off"``.
+
+    Raises
+    ------
+    HyDAMOValidationError
+        With ``"strict"``, if the validation fails.
+    """
     if validation_mode == "off":
         return None
 
@@ -146,7 +189,9 @@ def validate_or_raise(
     return result
 
 
-def _schema_version_for_damo(hv_module: Any, hydamo_version: str) -> tuple[str, list[str]]:
+def _schema_version_for_damo(
+    hv_module: Any, hydamo_version: str
+) -> tuple[str, list[str]]:
     """Return ``(schema_version, valid_object_names)`` for *hydamo_version*.
 
     Scans the schema files shipped with the installed package to find the highest
@@ -162,7 +207,9 @@ def _schema_version_for_damo(hv_module: Any, hydamo_version: str) -> tuple[str, 
     best_schema: dict | None = None
     for schema_file in sorted(schema_dir.glob("rules_*.json")):
         schema = json.loads(schema_file.read_text())
-        supported = schema.get("properties", {}).get("hydamo_version", {}).get("enum", [])
+        supported = (
+            schema.get("properties", {}).get("hydamo_version", {}).get("enum", [])
+        )
         if hydamo_version in supported:
             best_version = schema_file.stem.split("_")[1]
             best_schema = schema
@@ -190,7 +237,11 @@ def _build_minimal_validation_rules(
         sample.columns = [col.lower() for col in sample.columns]
 
         parameter = next(
-            (candidate for candidate in ("globalid", "code", "nen3610id") if candidate in sample.columns),
+            (
+                candidate
+                for candidate in ("globalid", "code", "nen3610id")
+                if candidate in sample.columns
+            ),
             None,
         )
         if parameter is None:
@@ -216,4 +267,8 @@ def _build_minimal_validation_rules(
             }
         )
 
-    return {"schema": schema_version, "hydamo_version": hydamo_version, "objects": objects}
+    return {
+        "schema": schema_version,
+        "hydamo_version": hydamo_version,
+        "objects": objects,
+    }

@@ -1,11 +1,13 @@
 # coding: latin-1
+"""Write the DIMR configuration and a run.bat for a coupled FM, RR and RTC model."""
+
 import logging
 import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import netCDF4 as nc
-from pydantic.v1 import validate_arguments
+from pydantic import ConfigDict, validate_call
 
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo.core.drr import DRRModel
@@ -17,15 +19,26 @@ logger = logging.getLogger(__name__)
 class DIMRWriter:
     """Temporary files for DIMR-configuration - to be superseded by Hydrolib-core functionality."""
 
-    @validate_arguments
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
     def __init__(
-        self, dimr_path: str = None, output_path: str | Path = None
+        self, dimr_path: str | None = None, output_path: str | Path | None = None
     ) -> None:
-        """Class initialization for the DIMR writer. This is a temporary fix to include writers for RR and RTC, that are not yet fully included in Hydrolib-core, or have bugs. Eventually, this file should be redundant as this functionality is fully included in Hydrolib-core
+        """Create a DIMR writer.
 
-        Args:
-            dimr_path (Union[str, Path], optional): _description_. Defaults to None.
-            output_path (Union[str, Path], optional): _description_. Defaults to None.
+        This is a temporary fix to include writers for RR and RTC, which are not yet
+        fully included in HYDROLIB-core, or have bugs. Eventually this class should be
+        redundant, when HYDROLIB-core includes this functionality.
+
+        Parameters
+        ----------
+        dimr_path : str, optional
+            The ``run_dimr.bat`` script that `write_runbat` calls. Defaults to None: the
+            script of a D-HYDRO Suite 2022.04 installation.
+        output_path : str or Path, optional
+            Model folder in which the files are written. Defaults to None: the current
+            working directory.
         """
         if dimr_path is None:
             self.run_dimr = r"C:\Program Files\Deltares\D-HYDRO Suite 2022.04 1D2D\plugins\DeltaShell.Dimr\kernels\x64\dimr\scripts\run_dimr.bat"
@@ -35,56 +48,99 @@ class DIMRWriter:
         if output_path is None:
             self.output_path = Path(os.path.abspath("."))
         else:
-            self.output_path = output_path
+            self.output_path = Path(output_path)
 
         self.template_dir = Path(os.path.abspath("."))
 
-    @validate_arguments
-    def write_runbat(self, debuglevel=6, runlog=None) -> None:
-        """Generates a run.bat to run the model in DIMR. The path to the executable is provided by the user in the class initialization, or set to the default D-Hydro installation folder."""
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
+    def write_runbat(
+        self, debuglevel: int = 6, runlog: str | Path | None = None
+    ) -> None:
+        """Write a run.bat that runs the model with DIMR.
 
+        The script calls the ``run_dimr.bat`` given when creating the writer.
+
+        Parameters
+        ----------
+        debuglevel : int, optional
+            DIMR debug level (``-d``). Defaults to 6.
+        runlog : str or Path, optional
+            File to which the output of DIMR is redirected. Defaults to None: no
+            redirection.
+        """
         with open(os.path.join(self.output_path, "run.bat"), "w") as f:
             f.write("@ echo off\n")
             f.write("set OMP_NUM_THREADS=2\n")
             if runlog is None:
-                f.write('call "' + str(self.run_dimr) + '" -d ' + str(debuglevel) + '\n')
+                f.write(
+                    'call "' + str(self.run_dimr) + '" -d ' + str(debuglevel) + "\n"
+                )
             else:
-                f.write('call "' + str(self.run_dimr) + '" -d ' + str(debuglevel) + ' > ' + str(runlog) + '\n')
+                f.write(
+                    'call "'
+                    + str(self.run_dimr)
+                    + '" -d '
+                    + str(debuglevel)
+                    + " > "
+                    + str(runlog)
+                    + "\n"
+                )
 
-    @validate_arguments
-    def add_crs(self, netcdf_path: str | Path = None) -> None:
-        """Reads the Netcdf file and addes the required attributes for a valid CRS."""        
+    @validate_call(
+        config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
+    )
+    def add_crs(self, netcdf_path: str | Path | None = None) -> None:
+        """Add the coordinate reference system EPSG:28992 (RD New) to the network file, in place.
+
+        Parameters
+        ----------
+        netcdf_path : str or Path, optional
+            Network file, or a folder with it (the first ``*.nc`` file is used). Defaults
+            to None: the first ``*.nc`` file in the ``dflowfm`` folder of the output path.
+
+        Raises
+        ------
+        FileNotFoundError
+            If no netCDF file is found.
+        """
         if netcdf_path is None:
-            netfile = list((self.output_path / 'dflowfm').glob('*.nc'))[0]
-            if not netfile.exists():
-                raise FileNotFoundError(f"Netcdf file not found in {self.output_path / 'dflowfm'}. Provide the correct path via the netcdf_path argument.")
+            netfile = next((self.output_path / "dflowfm").glob("*.nc"), None)
+            if netfile is None:
+                raise FileNotFoundError(
+                    f"Netcdf file not found in {self.output_path / 'dflowfm'}. Provide the correct path via the netcdf_path argument."
+                )
         else:
+            netcdf_path = Path(netcdf_path)
             if netcdf_path.is_dir():
-                netfile = list(netcdf_path.glob('*.nc'))[0]
+                netfile = next(netcdf_path.glob("*.nc"), None)
+                if netfile is None:
+                    raise FileNotFoundError(f"Netcdf file not found in {netcdf_path}.")
             elif netcdf_path.is_file():
-                netfile = netcdf_path  
-            else:        
-                raise FileNotFoundError(f"Netcdf file not found at {netcdf_path}.")   
-        netf = nc.Dataset(netfile, 'r+')
-        netf.Conventions =  'CF-1.8 UGRID-1.0 Deltares-0.10'
-        proj = netf.createVariable('projected_coordinate_system','i4')
+                netfile = netcdf_path
+            else:
+                raise FileNotFoundError(f"Netcdf file not found at {netcdf_path}.")
+        netf = nc.Dataset(netfile, "r+")
+        netf.Conventions = "CF-1.8 UGRID-1.0 Deltares-0.10"
+        proj = netf.createVariable("projected_coordinate_system", "i4")
         proj.epsg = 28992
-        proj.grid_mapping_name = "Amersfoort / RD New" #"Rijksdriehoeksstelsel"
-        proj.longitude_of_prime_meridian = 0.0#; // double
-        proj.semi_major_axis = 6377397.155#; // double
-        proj.semi_minor_axis = 6356078.962818189#; // double
-        proj.inverse_flattening = 299.1528128#; // double
-        proj.proj4_params = "+prdoj=sterea +lat_0=52.1561605555556 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +units=m +no_defs"
+        proj.grid_mapping_name = "Amersfoort / RD New"  # "Rijksdriehoeksstelsel"
+        proj.longitude_of_prime_meridian = 0.0  # ; // double
+        proj.semi_major_axis = 6377397.155  # ; // double
+        proj.semi_minor_axis = 6356078.962818189  # ; // double
+        proj.inverse_flattening = 299.1528128  # ; // double
+        proj.proj4_params = "+proj=sterea +lat_0=52.1561605555556 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +units=m +no_defs"
         proj.EPSG_code = "EPSG:28992"
         proj.value = "value is equal to EPSG code"
-        proj.wkt = "PROJCS[\"Amersfoort / RD New\",\n    GEOGCS[\"Amersfoort\",\n        DATUM[\"Amersfoort\",\n            SPHEROID[\"Bessel 1841\",6377397.155,299.1528128,\n"             
-        netf.close()   
+        proj.wkt = 'PROJCS["Amersfoort / RD New",\n    GEOGCS["Amersfoort",\n        DATUM["Amersfoort",\n            SPHEROID["Bessel 1841",6377397.155,299.1528128,\n'
+        netf.close()
 
     @staticmethod
     def _add_unique_coupler_item(
         coupler: ET.Element,
-        source_name: str,
-        target_name: str,
+        source_name: str | None,
+        target_name: str | None,
         seen_pairs: set[tuple[str, str]],
         gn_brackets: str,
     ) -> bool:
@@ -120,30 +176,33 @@ class DIMRWriter:
         complex_config = rtc_model.complex_controllers["dimr_config"][0]
         blocks = []
         for block in complex_config:
-            block_tag = block.tag.split("}", 1)[-1] if block.tag.startswith("{") else block.tag
-            if block_tag == "coupler" and block.attrib["name"].lower().startswith(name_prefix):
+            block_tag = (
+                block.tag.split("}", 1)[-1] if block.tag.startswith("{") else block.tag
+            )
+            if block_tag == "coupler" and block.attrib["name"].lower().startswith(
+                name_prefix
+            ):
                 blocks.append(block)
         return blocks
 
-    #@validate_arguments(config=ConfigDict(arbitrary_types_allowed=True))
+    # @validate_call(config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True))
     def write_dimrconfig(
-        self, fm: FMModel, rr_model: DRRModel = None, rtc_model: DRTCModel = None
+        self,
+        fm: FMModel,
+        rr_model: DRRModel | None = None,
+        rtc_model: DRTCModel | None = None,
     ) -> None:
-        """Construct the contents of a DIMR-config file, using elements from FM, RTC and RR models.
+        """Write ``dimr_config.xml`` for the FM model, coupled with RR and RTC if given.
 
-        Args:
-            fm (instance of class FM-model): Hydrolib-core model object. When only fm is set, only a 1d2d model is generated.
-            rr_model (instance of a DRRModel object, optional): Class containig all information from the RR-model. Defaults to None.
-            rtc_model (instance of a DRTCmodel, optional): Class containig all information from the RTC-model. Defaults to None.
+        Parameters
+        ----------
+        fm : FMModel
+            The D-Flow FM model. Without RR and RTC, only FM is run.
+        rr_model : DRRModel, optional
+            The RR model. Defaults to None.
+        rtc_model : DRTCModel, optional
+            The RTC model. Defaults to None.
         """
-        # initiate flags for RR and RTC blocks
-        RR = False
-        RTC = False
-        if rr_model is not None:
-            RR = True
-        if rtc_model is not None:
-            RTC = True
-
         generalname = "http://schemas.deltares.nl/dimr"  # Config
         xsi_name = "http://www.w3.org/2001/XMLSchema-instance"
         gn_brackets = "{" + generalname + "}"
@@ -156,6 +215,10 @@ class DIMRWriter:
         configfile = ET.parse(self.template_dir / "dimr_config.xml")
 
         myroot = configfile.getroot()
+        if fm.filepath is None:
+            raise ValueError(
+                "The FM model has no filepath: save it before writing the DIMR config."
+            )
         myroot[1][1].text = fm.filepath.parts[-2]
         myroot[1][2].text = fm.filepath.name
 
@@ -165,12 +228,12 @@ class DIMRWriter:
         control.tail = "\n"
         myroot.insert(1, control)
 
-        if RR or RTC:
+        if rr_model is not None or rtc_model is not None:
             parallel = ET.SubElement(control, gn_brackets + "parallel")
             parallel.tail = "\n"
             parallel.text = ""
 
-        if RTC:
+        if rtc_model is not None:
             # a flow_to_rtc coupler is only needed for PID/interval controllers,
             # or complex controllers whose dimr_config defines one themselves
             complex_flow_to_rtc_blocks = self._get_complex_coupler_blocks(
@@ -201,7 +264,7 @@ class DIMRWriter:
             couplerrtc.attrib = {"name": "rtc_to_flow"}
             couplerrtc.tail = "\n"
 
-        if RR:
+        if rr_model is not None:
             startgrouprr = ET.SubElement(parallel, gn_brackets + "startGroup")
             startgrouprr.text = ""
             startgrouprr.tail = "\n"
@@ -220,7 +283,7 @@ class DIMRWriter:
             couplerfrr = ET.SubElement(startgrouprr, gn_brackets + "coupler")
             couplerfrr.attrib = {"name": "rr_to_flow"}
             couplerfrr.tail = "\n"
-        if RR or RTC:
+        if rr_model is not None or rtc_model is not None:
             startfm = ET.SubElement(parallel, gn_brackets + "start")
         else:
             startfm = ET.SubElement(control, gn_brackets + "start")
@@ -228,7 +291,7 @@ class DIMRWriter:
         startfm.tail = "\n"
 
         # component blocks
-        if RTC:
+        if rtc_model is not None:
             comprtc = ET.Element(gn_brackets + "component")
             comprtc.attrib = {"name": "Real_Time_Control"}
             comprtc.tail = "\n"
@@ -243,7 +306,7 @@ class DIMRWriter:
             frtc.tail = "\n"
             myroot.insert(2, comprtc)
 
-        if RR:
+        if rr_model is not None:
             comprr = ET.Element(gn_brackets + "component")
             comprr.attrib = {"name": "RR"}
             comprr.tail = "\n"
@@ -271,7 +334,7 @@ class DIMRWriter:
             targetfmrr.text = "RR"
             targetfmrr.tail = "\n"
 
-            for i in rr_model.external_forcings.boundary_nodes.keys():
+            for i in rr_model.external_forcings.boundary_nodes:
                 item = ET.SubElement(couplerfmrr, gn_brackets + "item")
                 item.text = ""
                 item.tail = "\n"
@@ -297,7 +360,7 @@ class DIMRWriter:
             flogfmrr.tail = "\n"
             myroot.append(couplerfmrr)
 
-        if RTC:
+        if rtc_model is not None:
             # RTC to FM coupler
             couplerrtcfm = ET.Element(gn_brackets + "coupler")
             couplerrtcfm.attrib = {"name": "rtc_to_flow"}
@@ -312,18 +375,18 @@ class DIMRWriter:
             targetrtcfm.tail = "\n"
 
             rtcdict = {
-                      "Crest level (s)": ["weirs","crestLevel"],
-                      "Gate lower edge level (s)": ["orifices","gateLowerEdgeLevel"],
-                      "Capacity (p)": ["pumps","capacity"],
-                      "Valve opening (s)": ["culverts", "valveOpeningHeight"]
-                      }
+                "Crest level (s)": ["weirs", "crestLevel"],
+                "Gate lower edge level (s)": ["orifices", "gateLowerEdgeLevel"],
+                "Capacity (p)": ["pumps", "capacity"],
+                "Valve opening (s)": ["culverts", "valveOpeningHeight"],
+            }
 
-            rtc_to_flow_seen_pairs = set()
+            rtc_to_flow_seen_pairs: set[tuple[str, str]] = set()
             rtc_to_flow_simple_count = 0
             rtc_to_flow_complex_count = 0
 
-            for i in rtc_model.all_controllers.keys():
-                svar=rtc_model.all_controllers[i]['steering_variable']
+            for i in rtc_model.all_controllers:
+                svar = rtc_model.all_controllers[i]["steering_variable"]
                 if self._add_unique_coupler_item(
                     couplerrtcfm,
                     f"[Output]{i}/{svar}",
@@ -337,26 +400,38 @@ class DIMRWriter:
             if rtc_model.complex_controllers is not None:
                 complex_config = rtc_model.complex_controllers["dimr_config"][0]
                 for block in complex_config:
-                    block_tag = block.tag.split("}", 1)[-1] if block.tag.startswith("{") else block.tag
-                    if block_tag == "coupler":
-                        if block.attrib["name"].lower().startswith("rtc_to_flow"):
-                            for iblock in block:
-                                iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
-                                if iblock_tag == "item":
-                                    source = iblock.find(".//{*}sourceName")
-                                    target = iblock.find(".//{*}targetName")
-                                    if self._add_unique_coupler_item(
-                                        couplerrtcfm,
-                                        source.text if source is not None else None,
-                                        target.text if target is not None else None,
-                                        rtc_to_flow_seen_pairs,
-                                        gn_brackets,
-                                    ):
-                                        rtc_to_flow_complex_count += 1
+                    block_tag = (
+                        block.tag.split("}", 1)[-1]
+                        if block.tag.startswith("{")
+                        else block.tag
+                    )
+                    if block_tag == "coupler" and block.attrib[
+                        "name"
+                    ].lower().startswith("rtc_to_flow"):
+                        for iblock in block:
+                            iblock_tag = (
+                                iblock.tag.split("}", 1)[-1]
+                                if iblock.tag.startswith("{")
+                                else iblock.tag
+                            )
+                            if iblock_tag == "item":
+                                found_source = iblock.find(".//{*}sourceName")
+                                found_target = iblock.find(".//{*}targetName")
+                                if self._add_unique_coupler_item(
+                                    couplerrtcfm,
+                                    found_source.text
+                                    if found_source is not None
+                                    else None,
+                                    found_target.text
+                                    if found_target is not None
+                                    else None,
+                                    rtc_to_flow_seen_pairs,
+                                    gn_brackets,
+                                ):
+                                    rtc_to_flow_complex_count += 1
 
             logger.info(
-                "dimr_config.xml: Wrote rtc_to_flow coupler with %d items "
-                "(%d simple, %d complex).",
+                "dimr_config.xml: Wrote rtc_to_flow coupler with %d items (%d simple, %d complex).",
                 len(rtc_to_flow_seen_pairs),
                 rtc_to_flow_simple_count,
                 rtc_to_flow_complex_count,
@@ -378,7 +453,7 @@ class DIMRWriter:
 
             # the Fm to RTC coupler is not always needed. It is for PID controllers.
             coupler_exists = False
-            flow_to_rtc_seen_pairs = set()
+            flow_to_rtc_seen_pairs: set[tuple[str, str]] = set()
             flow_to_rtc_simple_count = 0
             flow_to_rtc_complex_count = 0
             if bool(rtc_model.pid_controllers) or bool(rtc_model.interval_controllers):
@@ -398,13 +473,21 @@ class DIMRWriter:
                 targetfmrtc.text = "Real_Time_Control"
                 targetfmrtc.tail = "\n"
 
-                for i in rtc_model.pid_controllers.keys():
-                    if rtc_model.pid_controllers[i]['target_variable'] == 'Discharge (op)':
+                for i in rtc_model.pid_controllers:
+                    if (
+                        rtc_model.pid_controllers[i]["target_variable"]
+                        == "Discharge (op)"
+                    ):
                         source_name = f"observations/{rtc_model.pid_controllers[i]['observation_point']}/discharge"
-                    elif rtc_model.pid_controllers[i]['target_variable'] == 'Water level (op)':
+                    elif (
+                        rtc_model.pid_controllers[i]["target_variable"]
+                        == "Water level (op)"
+                    ):
                         source_name = f"observations/{rtc_model.pid_controllers[i]['observation_point']}/water_level"
                     else:
-                        raise ValueError('Invalid target variable in controller: should bo discharge or water level.')
+                        raise ValueError(
+                            "Invalid target variable in controller: should bo discharge or water level."
+                        )
                     target_name = f"[Input]{rtc_model.pid_controllers[i]['observation_point']}/{rtc_model.pid_controllers[i]['target_variable']}"
                     if self._add_unique_coupler_item(
                         couplerfmrtc,
@@ -416,13 +499,21 @@ class DIMRWriter:
                         flow_to_rtc_simple_count += 1
 
                 # Loop through all interval controllers
-                for i in rtc_model.interval_controllers.keys():
-                    if rtc_model.interval_controllers[i]["target_variable"] == "Discharge (op)":
+                for i in rtc_model.interval_controllers:
+                    if (
+                        rtc_model.interval_controllers[i]["target_variable"]
+                        == "Discharge (op)"
+                    ):
                         source_name = f"observations/{rtc_model.interval_controllers[i]['observation_point']}/discharge"
-                    elif rtc_model.interval_controllers[i]["target_variable"] == "Water level (op)":
+                    elif (
+                        rtc_model.interval_controllers[i]["target_variable"]
+                        == "Water level (op)"
+                    ):
                         source_name = f"observations/{rtc_model.interval_controllers[i]['observation_point']}/water_level"
                     else:
-                        raise ValueError("Invalid target variable in controller: should be discharge or water level.")
+                        raise ValueError(
+                            "Invalid target variable in controller: should be discharge or water level."
+                        )
                     target_name = f"[Input]{rtc_model.interval_controllers[i]['observation_point']}/{rtc_model.interval_controllers[i]['target_variable']}"
                     if self._add_unique_coupler_item(
                         couplerfmrtc,
@@ -455,14 +546,18 @@ class DIMRWriter:
 
                     coupler_exists = True
                 for iblock in block:
-                    iblock_tag = iblock.tag.split("}", 1)[-1] if iblock.tag.startswith("{") else iblock.tag
+                    iblock_tag = (
+                        iblock.tag.split("}", 1)[-1]
+                        if iblock.tag.startswith("{")
+                        else iblock.tag
+                    )
                     if iblock_tag == "item":
-                        source = iblock.find(".//{*}sourceName")
-                        target = iblock.find(".//{*}targetName")
+                        found_source = iblock.find(".//{*}sourceName")
+                        found_target = iblock.find(".//{*}targetName")
                         if self._add_unique_coupler_item(
                             couplerfmrtc,
-                            source.text if source is not None else None,
-                            target.text if target is not None else None,
+                            found_source.text if found_source is not None else None,
+                            found_target.text if found_target is not None else None,
                             flow_to_rtc_seen_pairs,
                             gn_brackets,
                         ):
@@ -470,8 +565,7 @@ class DIMRWriter:
             # in any of those two cases, add the controllers and the logger
             if coupler_exists:
                 logger.info(
-                    "dimr_config.xml: Wrote flow_to_rtc coupler with %d items "
-                    "(%d simple, %d complex).",
+                    "dimr_config.xml: Wrote flow_to_rtc coupler with %d items (%d simple, %d complex).",
                     len(flow_to_rtc_seen_pairs),
                     flow_to_rtc_simple_count,
                     flow_to_rtc_complex_count,
@@ -491,7 +585,7 @@ class DIMRWriter:
 
                 myroot.append(couplerfmrtc)
 
-        if RR:
+        if rr_model is not None:
             # finally the RR to FM coupler
             couplerrrfm = ET.Element(gn_brackets + "coupler")
             couplerrrfm.attrib = {"name": "rr_to_flow"}
@@ -505,7 +599,7 @@ class DIMRWriter:
             targetrrfm.text = "DFM"
             targetrrfm.tail = "\n"
 
-            for i in rr_model.external_forcings.boundary_nodes.keys():
+            for i in rr_model.external_forcings.boundary_nodes:
                 item = ET.SubElement(couplerrrfm, gn_brackets + "item")
                 item.text = ""
                 item.tail = "\n"
@@ -532,4 +626,4 @@ class DIMRWriter:
 
             myroot.append(couplerrrfm)
         # use the function from DRTC to finish the file with the correct namespace
-        DRTCModel.finish_file(myroot, configfile, self.output_path / "dimr_config.xml")
+        DRTCModel.finish_file(myroot, self.output_path / "dimr_config.xml")
