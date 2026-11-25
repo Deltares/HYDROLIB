@@ -224,29 +224,35 @@ def test_xyz_file_invalid_input(
         path.write_text(content)
     hydamo = HyDAMO()
     with pytest.raises(error, match=message):
-        hydamo.external_forcings.set_spatial_field(path, **kwargs)
+        hydamo.external_forcings.set_spatial_field(path, quantity="bedlevel", locationtype="2d", **kwargs)
 
 
-def test_xyz_file_skipped_at_nodes_and_in_overlap_check(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+@pytest.mark.parametrize("quantity", ["waterlevel", "waterdepth", "initialwaterlevel"])
+@pytest.mark.parametrize("locationtype", ["1d", "all"])
+def test_xyz_file_level_or_depth_on_1d_refused(tmp_path: Path, quantity: str, locationtype: str) -> None:
+    # D-HyDAMO does not read an .xyz file, so on 1D nodes it could not check it against other level/depth fields
     hydamo = HyDAMO()
-    hydamo.branches = _branches()
-    fm = FMModel()
-    mesh.mesh1d_add_branches_from_gdf(
-        fm.geometry.netfile.network, branches=hydamo.branches, branch_name_col="code", node_distance=5
+    with pytest.raises(ValueError, match="only supported for locationtype '2d'"):
+        hydamo.external_forcings.set_spatial_field(
+            _xyz_file(tmp_path / "samples.xyz"), quantity=quantity, locationtype=locationtype
+        )
+
+
+@pytest.mark.parametrize(
+    ("quantity", "locationtype"),
+    [
+        pytest.param("waterlevel", "2d", id="waterlevel_2d"),
+        pytest.param("frictioncoefficient", "1d", id="other_quantity_1d"),
+    ],
+)
+def test_xyz_file_accepted(tmp_path: Path, quantity: str, locationtype: str) -> None:
+    hydamo = HyDAMO()
+    hydamo.external_forcings.set_spatial_field(
+        _xyz_file(tmp_path / "samples.xyz"), quantity=quantity, locationtype=locationtype
     )
-    # a water level on br1, then a water depth from an .xyz file, whose values D-HyDAMO does not read
-    levels = gpd.GeoDataFrame({"peil": [1.0]}, geometry=[box(0, 0, 20, 10)], crs=28992)
-    hydamo.external_forcings.set_spatial_field(levels, "peil", quantity="waterlevel", filetype="polygon")
-    hydamo.external_forcings.set_spatial_field(_xyz_file(tmp_path / "depth.xyz"), quantity="waterdepth")
+    models = _write(hydamo, tmp_path / "fm")
 
-    with caplog.at_level(logging.INFO, logger="hydrolib.dhydamo.converters.df2hydrolibmodel"):
-        models = Df2HydrolibModel(hydamo)
-        nodes = models.initial_conditions_at_nodes(fm.geometry.netfile.network)
-
-    assert "overlap check of initial water levels and depths skips initial_waterdepth_01.xyz" in caplog.text
-    assert "initial_waterdepth_01.xyz (an .xyz file) is not evaluated at the nodes" in caplog.text
-    on_br1 = nodes[nodes["branchid"] == "br1"].set_index("chainage")
-    assert on_br1.loc[5.0, "quantity"] == "waterlevel"
+    assert [(f.quantity, f.datafiletype) for f in models.inifields] == [(quantity, "sample")]
 
 
 def _fm_with_2d_mesh(bedlevtype: int, bedlevel: str | None) -> FMModel:

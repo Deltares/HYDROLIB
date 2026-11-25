@@ -2214,9 +2214,9 @@ class ExternalForcings:
         Args:
             gdf (gpd.GeoDataFrame | Path | str): polygons or points with values, or the path to an existing .xyz
                 file (x, y and value per line). An .xyz file becomes a sample field (filetype 'sample', no column)
-                and is copied unchanged under the generated name when the model is written. D-HyDAMO does not
-                read its values, so Df2HydrolibModel.initial_conditions_at_nodes and the overlap check of water
-                levels and depths skip it.
+                and is copied unchanged under the generated name when the model is written. For initial water
+                levels and depths, only with locationtype '2d': D-HyDAMO does not read its values, so it cannot
+                check them against other water level and depth fields on the 1D nodes.
             column (str, optional): column with values. For points, None means the Z-coordinate is used.
             quantity (str, optional): D-Flow FM quantity, e.g. 'waterlevel' or 'waterdepth'. For velocities, use
                 set_initial_velocity. Defaults to "waterlevel".
@@ -2257,6 +2257,13 @@ class ExternalForcings:
                 raise ValueError("An .xyz file has its values in the third column; do not pass a column.")
             if filetype not in (None, "sample"):
                 raise ValueError(f"An .xyz file is a sample field, not filetype '{filetype}'.")
+            if quantity.lower().replace("initial", "") in ("waterlevel", "waterdepth") and locationtype != "2d":
+                raise ValueError(
+                    "An .xyz file for an initial water level or depth is only supported for locationtype '2d'. "
+                    "D-HyDAMO does not read the file, so on 1D nodes it cannot check the field against other water "
+                    "level and depth fields or export it with initial_conditions_at_nodes. Read the points into a "
+                    "GeoDataFrame and pass that instead (filetype 'branch' is the default for 1D)."
+                )
             xyz_file = self._xyz_file(gdf)
             field_gdf, filetype = None, "sample"
         else:
