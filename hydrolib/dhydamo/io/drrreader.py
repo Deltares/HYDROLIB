@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
-import warnings
 from pathlib import Path
 
 import geopandas as gpd
@@ -127,7 +125,6 @@ class UnpavedIO:
         px_area, reference_crs = _raster_metadata(landuse)
 
         # required rasters
-        warnings.filterwarnings("ignore")
         lu_counts = self.unpaved.drrmodel.zonal_cache.zonal_category_counts(
             gpd.GeoDataFrame(catchments),
             landuse,
@@ -1013,13 +1010,12 @@ class ExternalForcingsIO:
             ``"fraction"`` counts pixels by the fraction of them the zone covers,
             ``"none"`` counts them fully. Defaults to ``"fraction"``.
         """
-        warnings.filterwarnings("ignore")
         rasters: list[zonal.Raster] = []
         times: list[pd.Timestamp] = []
         affine = raster_crs = nodata = None
-        for file in sorted(os.listdir(seepage_folder)):
-            path = os.path.join(seepage_folder, file)
-            if file.endswith(".idf"):
+        # sorted: the time series follows the order of the files
+        for path in sorted(Path(seepage_folder).iterdir()):
+            if path.suffix == ".idf":
                 # Lazy: zonal_stats_per_raster reads it when its turn comes.
                 dataset = idfreader.open(path).squeeze()
                 if affine is None:
@@ -1028,7 +1024,7 @@ class ExternalForcingsIO:
                     nodata = dataset.attrs.get("nodata", np.nan)
                 elif idfreader.affine_from_idf(dataset) != affine:
                     raise ValueError(
-                        f"IDF seepage file {file} differs in grid from the others."
+                        f"IDF seepage file {path.name} differs in grid from the others."
                     )
                 rasters.append(dataset)
                 # the one time of the file
@@ -1099,11 +1095,8 @@ class ExternalForcingsIO:
         if precip_file is None:
             if precip_folder is None:
                 raise ValueError("Provide precip_folder or precip_file.")
-            warnings.filterwarnings("ignore")
-            paths = [
-                os.path.join(precip_folder, file)
-                for file in sorted(os.listdir(precip_folder))
-            ]
+            # sorted: the time series follows the order of the files
+            paths = sorted(Path(precip_folder).iterdir())
             stats = zonal.zonal_stats_per_raster(
                 gpd.GeoDataFrame(areas),
                 paths,
@@ -1164,14 +1157,11 @@ class ExternalForcingsIO:
         if evap_file is None:
             if evap_folder is None:
                 raise ValueError("Provide evap_folder or evap_file.")
-            warnings.filterwarnings("ignore")
             # aggregated evap
             # areas['dissolve'] = 1
             # agg_areas = areas.iloc[0:len(areas),:].dissolve(by='dissolve',aggfunc='mean')
-            paths = [
-                os.path.join(evap_folder, file)
-                for file in sorted(os.listdir(evap_folder))
-            ]
+            # sorted: the time series follows the order of the files
+            paths = sorted(Path(evap_folder).iterdir())
             stats = zonal.zonal_stats_per_raster(
                 gpd.GeoDataFrame(areas),
                 paths,
