@@ -143,3 +143,24 @@ def test_relations_check_fails_on_a_table_that_does_not_exist(
     relation: Relation, cascade_table: str
 ) -> None:
     assert _unknown_tables([relation], [cascade_table]) == {"weir"}
+
+
+def test_the_declared_roughness_types_are_those_hydamo_translates() -> None:
+    # The code looks a roughness type up in HyDAMO.roughness_mapping, so the values
+    # the contract test checks must be its keys.
+    from hydrolib.dhydamo.core.hydamo import HyDAMO
+
+    mapped = set(HyDAMO().roughness_mapping)
+    tables = []
+    for name, table in TABLES.items():
+        for column in table.columns:
+            if column.name == "typeruwheid":
+                tables.append(name)
+                assert set(column.values) == mapped, name
+
+    assert tables == [
+        "profile_roughness",
+        "param_profile_values",
+        "bridges",
+        "culverts",
+    ]

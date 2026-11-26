@@ -1,10 +1,12 @@
-"""Compare HyDAMO DAMO schemas and check the DAMO version steps against them.
+"""Diff the HyDAMO schemas of two DAMO versions, as a help for writing a version step.
 
 Uses the schemas of the installed ``hydamo_validation``. Run from the repo root::
 
     pixi run python tests/tools/damo_schema_diff.py
 
-or call ``diff("2.5", "2.6")`` or ``check_all()`` for a single comparison.
+or call ``diff("2.5", "2.6")`` for a single comparison. The steps and the data model
+are checked against the schemas by the contract test,
+``tests/dhydamo/io/test_damo_contract.py``.
 """
 
 from __future__ import annotations
@@ -16,7 +18,6 @@ from typing import Any
 
 import hydamo_validation
 from hydrolib.dhydamo.core.data_model import TABLES
-from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.io.damo_versions import (
     SUPPORTED_HYDAMO_VERSIONS,
     source_layers,
@@ -67,21 +68,20 @@ def _field_signature(props: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _required_fields() -> dict[str, set[str]]:
-    """Return, per layer HYDROLIB loads, the fields HYDROLIB requires.
+def _declared_fields() -> dict[str, set[str]]:
+    """Return, per layer HYDROLIB loads, the fields the data model declares.
 
-    These are the HyDAMO required columns and the index, group and order columns,
-    under their HYDROLIB names and under the names the steps rename them from.
-    Only these fields get their property changes reported.
+    These are the declared columns and the group and order columns, under their
+    DAMO 2.2 names and under the names the steps rename them from. Only these
+    fields get their property changes reported.
     """
-    hydamo = HyDAMO()
     fields: dict[str, set[str]] = {}
     for version in SUPPORTED_HYDAMO_VERSIONS:
         for name, source in source_layers(version).items():
             table = TABLES[name]
             layer_fields = fields.setdefault(source.layer.lower(), set())
-            layer_fields.update(getattr(hydamo, name).required_columns)
-            for column in (table.identity_column, table.group_by, table.order_by):
+            layer_fields.update(column.name for column in table.columns)
+            for column in (table.group_by, table.order_by):
                 if column is not None:
                     layer_fields.add(column)
             for file_name, target in source.renames.items():
@@ -109,11 +109,11 @@ def _diff_schemas(
 ) -> list[str]:
     """Return the report lines of the differences from *old* to *new*.
 
-    Only layers that a converter loads are reported. Added and removed fields are
-    all listed, because a removed field may have been renamed; property changes
-    only for the fields HYDROLIB requires. Everything else is only counted.
+    Only layers that HYDROLIB loads are reported. Added and removed fields are all
+    listed, because a removed field may have been renamed; property changes only for
+    the fields the data model declares. Everything else is only counted.
     """
-    required = _required_fields()
+    required = _declared_fields()
     lines = []
 
     removed_layers = sorted((set(old) - set(new)) & set(required))
@@ -155,7 +155,7 @@ def _diff_schemas(
         lines.append("Fields added:")
         lines.extend(_group_by_layers(added_fields))
     if property_lines:
-        lines.append("Changed properties of fields HYDROLIB requires:")
+        lines.append("Changed properties of fields HYDROLIB reads:")
         lines.extend(property_lines)
 
     other_layers = 0
@@ -164,186 +164,42 @@ def _diff_schemas(
             other_layers += 1
     lines.append(
         f"Not shown: {hidden_properties} property change(s) of fields HYDROLIB "
-        f"does not require, {other_layers} changed layer(s) no converter loads."
+        f"doesn't read, {other_layers} changed layer(s) HYDROLIB doesn't load."
     )
     return lines
 
 
-def _check_converter(version: str, schema_version: str) -> tuple[list[str], list[str]]:
-    """Return the problems and notes of loading a *schema_version* file as *version*.
+def diff(old: str, new: str) -> None:
+    """Print the differences between the HyDAMO schemas of two DAMO versions.
 
-    A note is something to be aware of that is not a problem, such as an optional
-    layer that the schema does not have. The messages do not name the DAMO version,
-    so that the messages of two versions can be compared.
-    """
-    schema = _load_schema(schema_version)
-    hydamo = HyDAMO()
-    problems = []
-    notes = []
-    for name, source in source_layers(version).items():
-        layer = source.layer
-        table = f"HyDAMO.{name}"
-        spec = TABLES[name]
-        fields = schema.get(layer.lower())
-        if fields is None:
-            if spec.optional_layer:
-                # An optional layer is skipped when absent, e.g. Regelmiddel in 2.5.
-                notes.append(f"There is no layer {layer}, so {table} stays empty.")
-            else:
-                problems.append(
-                    f"There is no layer {layer}, which the converter needs for {table}."
-                )
-            continue
-
-        # Columns in the source layer. The schema does not list geometry as a
-        # field, but every layer has it.
-        available = set(fields) | {"geometry"}
-
-        # The columns the steps rename must be in the source layer.
-        for file_name, target in source.renames.items():
-            if file_name.lower() not in available:
-                problems.append(
-                    f"{layer} has no column '{file_name}', which the steps rename "
-                    f"to '{target}'."
-                )
-        if spec.group_by is not None and spec.group_by.lower() not in available:
-            problems.append(
-                f"{layer} has no column '{spec.group_by}', which loading uses to "
-                "group points into lines."
-            )
-        if spec.order_by is not None and spec.order_by.lower() not in available:
-            problems.append(
-                f"{layer} has no column '{spec.order_by}', which loading uses to "
-                "order the points of a line."
-            )
-
-        # Columns of the loaded table: the source columns after the renames of
-        # the steps, plus a column filled from globalid.
-        loaded = set()
-        for column in available:
-            loaded.add(source.renames.get(column, column))
-        filled = spec.column_filled_from_globalid
-        if filled is not None and "globalid" in loaded:
-            loaded.add(filled)
-
-        # The loaded table must have HyDAMO's required columns and the index column.
-        required = set(getattr(hydamo, name).required_columns)
-        if spec.identity_column is not None:
-            required.add(spec.identity_column)
-        for column in sorted(required - loaded):
-            purpose = " as its index" if column == spec.identity_column else ""
-            problems.append(
-                f"{layer} has no column '{column}', but {table} requires it{purpose}."
-            )
-    return problems, notes
-
-
-def _print_check(heading: str, problems: list[str], notes: list[str]) -> None:
-    """Print a check result: the heading, then the problems, then the notes."""
-    print(f"{heading}: ", end="")
-    print("OK" if not problems else f"{len(problems)} problem(s)")
-    for problem in problems:
-        print(f"  {problem}")
-    for note in notes:
-        print(f"  note: {note}")
-
-
-def diff(old: str, new: str) -> bool:
-    """Diff two HyDAMO schemas and show what the change breaks in the old converter.
-
-    Prints the layers and fields added or removed from *old* to *new*, and the
-    fields whose type, allowed values, mandatory flag or reference changed. Layers
-    that the converters load are marked with ``*``.
-
-    Then prints the problems that the converter of *old* gets on a *new* GeoPackage
-    but not on an *old* one: the problems the schema change causes, which the new
-    converter has to solve. Problems the converter already has on *old*, such as
-    columns HYDROLIB requires that DAMO does not define, are counted but not
-    listed; ``check_all`` lists them. Run this on a new schema before adding its
-    converter.
+    Prints the layers and fields added or removed from *old* to *new*, for the layers
+    HYDROLIB loads, and the fields HYDROLIB reads whose type, allowed values,
+    mandatory flag or reference changed. A removed field next to an added one may be
+    a rename, for the step from *old* to *new*.
 
     Parameters
     ----------
     old : str
-        DAMO version of the current schema and converter, e.g. ``"2.5"``.
+        The older DAMO version, e.g. ``"2.5"``.
     new : str
-        DAMO version of the new schema, e.g. ``"2.6"``.
-
-    Returns
-    -------
-    bool
-        ``True`` when the schema change causes a problem for the converter of *old*.
+        The newer DAMO version, e.g. ``"2.6"``.
 
     Raises
     ------
     FileNotFoundError
         If the installed ``hydamo_validation`` has no schema for *old* or *new*.
-    ValueError
-        If there is no converter for *old*.
 
     Examples
     --------
     >>> diff("2.5", "2.6")  # doctest: +SKIP
     """
     lines = _diff_schemas(_load_schema(old), _load_schema(new))
-    print("\n".join(lines) if lines else "No differences.", end="\n\n")
-
-    # Keep only the problems and notes that the old schema does not have already.
-    old_problems, old_notes = _check_converter(old, old)
-    new_problems, new_notes = _check_converter(old, new)
-    problems = [problem for problem in new_problems if problem not in old_problems]
-    notes = [note for note in new_notes if note not in old_notes]
-    existing = len(new_problems) - len(problems)
-
-    heading = f"New problems of converter {old} reading a DAMO {new} GeoPackage"
-    if existing:
-        heading += f" ({existing} existing problem(s) of DAMO {old} not shown)"
-    _print_check(heading, problems, notes)
-    return bool(problems)
-
-
-def check_all() -> bool:
-    """Check every supported converter against the schema of its own version.
-
-    For each version in ``SUPPORTED_HYDAMO_VERSIONS``, prints the layers,
-    column-mapping sources and index/group/order columns of the converter that are
-    missing from the schema, and the HyDAMO required columns that the loaded layer
-    will not have.
-
-    Returns
-    -------
-    bool
-        ``True`` when the check of any converter finds a problem.
-
-    Raises
-    ------
-    FileNotFoundError
-        If the installed ``hydamo_validation`` has no schema for a supported version.
-
-    Examples
-    --------
-    >>> check_all()  # doctest: +SKIP
-    """
-    failed = False
-    for version in SUPPORTED_HYDAMO_VERSIONS:
-        problems, notes = _check_converter(version, version)
-        heading = f"Converter {version} reading a DAMO {version} GeoPackage"
-        _print_check(heading, problems, notes)
-        failed |= bool(problems)
-    return failed
+    print("\n".join(lines) if lines else "No differences.")
 
 
 if __name__ == "__main__":
     # A step is two consecutive versions of the installed schemas, e.g. 2.5 and 2.6.
-    # diff checks the converter of the older version, so steps without one are
-    # skipped.
     for old, new in pairwise(_schema_versions()):
-        if old not in SUPPORTED_HYDAMO_VERSIONS:
-            print(f"Skipping DAMO {old} -> {new}: there is no converter for {old}.")
-            continue
         print(f"===== DAMO {old} -> {new} =====")
         diff(old, new)
         print()
-
-    print("===== Every converter on its own DAMO version =====")
-    check_all()

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import dataclasses
+import subprocess
+import sys
 
 import pytest
 from hydrolib.dhydamo.io.damo_versions import (
@@ -88,3 +90,18 @@ def test_source_layers_rejects_a_step_naming_a_table_that_does_not_exist(
 def test_source_layers_rejects_an_unsupported_version() -> None:
     with pytest.raises(ValueError, match='Unsupported HyDAMO DAMO version "9.9"'):
         source_layers("9.9")
+
+
+def test_loading_does_not_import_hydamo_validation() -> None:
+    # The steps and the data model are plain data; only validation and the contract
+    # test use the validatiemodule, which exists only for Python 3.12.
+    code = (
+        "import sys\n"
+        "from hydrolib.dhydamo.core.hydamo import HyDAMO\n"
+        "from hydrolib.dhydamo.io.damo_versions import source_layers\n"
+        "source_layers('2.6')\n"
+        "HyDAMO()\n"
+        "assert 'hydamo_validation' not in sys.modules\n"
+    )
+
+    subprocess.run([sys.executable, "-c", code], check=True)

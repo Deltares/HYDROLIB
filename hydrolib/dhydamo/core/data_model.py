@@ -46,6 +46,9 @@ class Column:
         Whether the column is the table's identity: its index and the id of its model
         objects. An empty value raises an error, duplicates get a suffix. Default is
         ``False``.
+    values : tuple[str, ...]
+        The values the code compares the column against, as DAMO spells them. The
+        contract test checks that each DAMO version allows them. Default is none.
     """
 
     name: str
@@ -54,6 +57,7 @@ class Column:
     fill_from_globalid: bool = False
     rewrite: tuple[str, str] | None = None
     identity: bool = False
+    values: tuple[str, ...] = ()
 
 
 # The reason of the code identity, which tightens DAMO.
@@ -61,6 +65,25 @@ _IDENTITY = (
     "Tightens DAMO, where code is optional and not unique. It is the table's index, "
     "the id of its model objects and their name in logs and settings, so an empty "
     "code is an error and duplicates get a suffix."
+)
+
+
+# The roughness types, the keys of HyDAMO.roughness_mapping. Declared on every table
+# whose typeruwheid becomes a D-Flow FM friction type.
+_ROUGHNESS_TYPE = Column(
+    "typeruwheid",
+    "The roughness formula, translated to D-Flow FM's by HyDAMO.roughness_mapping; "
+    "a type it lacks raises a KeyError.",
+    values=(
+        "Bos en Bijkerk",
+        "Chezy",
+        "Manning",
+        "Onbekend",
+        "Overig",
+        "StricklerKn",
+        "StricklerKs",
+        "White Colebrook",
+    ),
 )
 
 
@@ -199,7 +222,7 @@ TABLES: dict[str, Table] = {
         "RuwheidProfiel",
         geotype=None,
         required_columns=("profielpuntid",),
-        optional_columns=("ruwheidhoog", "ruwheidlaag", "typeruwheid"),
+        optional_columns=("ruwheidhoog", "ruwheidlaag", _ROUGHNESS_TYPE),
     ),
     "profile_line": Table(
         "profiellijn",
@@ -222,11 +245,23 @@ TABLES: dict[str, Table] = {
         geotype=None,
         required_columns=(
             "normgeparamprofielid",
-            "soortparameter",
+            Column(
+                "soortparameter",
+                "Which dimension of the profile the row's waarde gives.",
+                values=(
+                    "bodembreedte",
+                    "bodemhoogte benedenstrooms",
+                    "bodemhoogte bovenstrooms",
+                    "hoogte insteek linkerzijde",
+                    "hoogte insteek rechterzijde",
+                    "taludhelling linkerzijde",
+                    "taludhelling rechterzijde",
+                ),
+            ),
             "waarde",
             "ruwheidlaag",
             "ruwheidhoog",
-            "typeruwheid",
+            _ROUGHNESS_TYPE,
         ),
     ),
     "weirs": Table(
@@ -269,13 +304,20 @@ TABLES: dict[str, Table] = {
             Column(
                 "overlaatonderlaat",
                 "Mandatory in DAMO up to 2.4, optional from 2.5, where the layer also "
-                "holds the closing devices of locks, coupures and tunnels.",
+                "holds the closing devices of locks, coupures and tunnels. Compared "
+                "case-insensitively: it makes a weir opening an overflow or an orifice.",
+                values=("Overlaat", "Onderlaat"),
             ),
             "globalid",
             "kunstwerkopeningid",
             "duikersifonhevelid",
             "gemaalid",
-            "soortregelmiddel",
+            Column(
+                "soortregelmiddel",
+                "On a culvert, a terugslagklep allows flow in one direction only, and "
+                "a schuif becomes a valve.",
+                values=("schuif", "terugslagklep"),
+            ),
             "hoogteopening",
             "afvoercoefficient",
             Column(
@@ -297,7 +339,7 @@ TABLES: dict[str, Table] = {
             "intreeverlies",
             "uittreeverlies",
             "ruwheid",
-            "typeruwheid",
+            _ROUGHNESS_TYPE,
         ),
         optional_columns=("naam",),
     ),
@@ -312,10 +354,24 @@ TABLES: dict[str, Table] = {
             "breedteopening",
             "hoogtebinnenonderkantbene",
             "hoogtebinnenonderkantbov",
-            "vormkoker",
+            Column(
+                "vormkoker",
+                "The culvert's shape, compared case-insensitively: round and "
+                "elliptical shapes become a circle, the others listed a rectangle. "
+                "Any other shape gets a round profile of 40 cm.",
+                values=(
+                    "Rond",
+                    "Ellipsvormig",
+                    "Rechthoekig",
+                    "Onbekend",
+                    "Eivormig",
+                    "Muilprofiel",
+                    "Heulprofiel",
+                ),
+            ),
             "intreeverlies",
             "uittreeverlies",
-            "typeruwheid",
+            _ROUGHNESS_TYPE,
             "ruwheid",
         ),
         optional_columns=("globalid", "naam"),
@@ -357,7 +413,12 @@ TABLES: dict[str, Table] = {
             "regelmiddelid",
             "pompid",
             "hydrologischerandvoorwaardeid",
-            "typecontroller",
+            Column(
+                "typecontroller",
+                "The kind of RTC controller; a Sturing row of another kind is skipped "
+                "with a warning.",
+                values=("PID", "interval", "time"),
+            ),
             Column(
                 "stuurvariabele",
                 "Every validatiemodule schema from DAMO 2.2 to 2.6 allows only this "
@@ -365,8 +426,13 @@ TABLES: dict[str, Table] = {
                 "under those versions keep it even after an upstream fix, so the "
                 "rewrite is permanent.",
                 rewrite=("bovenkant afsluitmiddel,", "bovenkant afsluitmiddel"),
+                values=("bovenkant afsluitmiddel", "hoogte opening", "pompdebiet"),
             ),
-            "doelvariabele",
+            Column(
+                "doelvariabele",
+                "Whether the controller steers to a water level or a discharge.",
+                values=("waterstand", "debiet"),
+            ),
             "meetlocatieid",
             "bovengrens",
             "ondergrens",
@@ -378,7 +444,18 @@ TABLES: dict[str, Table] = {
         geotype=Point,
         required_columns=(
             Column("code", _IDENTITY, identity=True),
-            "typerandvoorwaarde",
+            Column(
+                "typerandvoorwaarde",
+                "Whether the boundary is a water level or a discharge: the code looks "
+                "for 'waterstand' or 'debiet' in the value.",
+                values=(
+                    "waterstand vaste waarde",
+                    "waterstand variabel",
+                    "waterstand getijdebeweging",
+                    "debiet vaste waarde",
+                    "debiet variabel",
+                ),
+            ),
             "geometry",
         ),
         optional_columns=("globalid", "waterstand", "debiet"),
