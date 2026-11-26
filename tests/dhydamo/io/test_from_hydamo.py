@@ -843,6 +843,156 @@ def test_convert_boundaries() -> None:
     assert len(hydamo.external_forcings.boundary_nodes.keys()) == 1
 
 
+def _converted_boundaries(
+    rows: list[dict], drop: tuple[str, ...] = ()
+) -> list[tuple[str, str, float]]:
+    """Convert a boundary table of *rows*; return ``(code, quantity, value)`` per boundary.
+
+    ``add_boundary_condition`` is replaced, so no 1D mesh is needed.
+    """
+    hydamo = HyDAMO()
+    table = gpd.GeoDataFrame(
+        [{**row, "geometry": Point(i, 0)} for i, row in enumerate(rows)],
+        crs="EPSG:28992",
+    ).drop(columns=list(drop))
+    hydamo.boundary_conditions.set_data(table, index_col="code", check_columns=False)
+    added = []
+
+    def add(name: str, pt: Point, quantity: str, value: float, mesh1d: None) -> None:
+        added.append((name, quantity, value))
+
+    with mock.patch.object(
+        hydamo.external_forcings, "add_boundary_condition", side_effect=add
+    ):
+        hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions)
+    return added
+
+
+def _boundary(
+    code: str, kind: str | None, waterstand: float | None, debiet: float | None
+) -> dict:
+    return {
+        "code": code,
+        "typerandvoorwaarde": kind,
+        "waterstand": waterstand,
+        "debiet": debiet,
+    }
+
+
+def test_convert_boundaries_reads_the_value_of_the_boundary_type() -> None:
+    # Before, the water level was taken whenever it was filled, also for a discharge.
+    added = _converted_boundaries(
+        [
+            _boundary("B1", "waterstand vaste waarde", 10.0, 5.0),
+            _boundary("B2", "debiet vaste waarde", 10.0, 2.0),
+        ]
+    )
+
+    assert added == [("B1", "waterlevelbnd", 10.0), ("B2", "dischargebnd", 2.0)]
+
+
+def test_convert_boundaries_reads_a_discharge_when_no_water_level_is_filled() -> None:
+    # A column empty in every row loads as None, which made isnan fail.
+    added = _converted_boundaries([_boundary("B1", "debiet variabel", None, 2.0)])
+
+    assert added == [("B1", "dischargebnd", 2.0)]
+
+
+def test_convert_boundaries_reads_a_boundary_without_the_other_column() -> None:
+    added = _converted_boundaries(
+        [_boundary("B1", "waterstand vaste waarde", 10.0, None)], drop=("debiet",)
+    )
+
+    assert added == [("B1", "waterlevelbnd", 10.0)]
+
+
+def test_convert_boundaries_uses_a_variable_boundary_as_a_constant(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # The example model's only boundary is such a one; the table has no time series.
+    with caplog.at_level(logging.INFO):
+        added = _converted_boundaries(
+            [_boundary("B1", "waterstand getijdebeweging", 11.0, None)]
+        )
+
+    assert added == [("B1", "waterlevelbnd", 11.0)]
+    assert (
+        'Boundary condition B1 is of type "waterstand getijdebeweging", but the DAMO '
+        "table has no time series: its waterstand 11.0 is used as a constant."
+    ) in caplog.text
+
+
+def test_convert_boundaries_skips_a_qh_relation_with_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # Before, it raised as the first row, and took the type of the row before it
+    # otherwise.
+    added = _converted_boundaries(
+        [
+            _boundary("B1", "Qh-relatie", 7.0, None),
+            _boundary("B2", "debiet vaste waarde", None, 2.0),
+        ]
+    )
+
+    assert added == [("B2", "dischargebnd", 2.0)]
+    assert "Boundary condition B1 is a Q-h relation" in caplog.text
+    assert 'quantity="qhbnd"' in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("row", "drop", "problem"),
+    [
+        (
+            _boundary("B1", "waterstand vaste waarde", None, 5.0),
+            (),
+            'B1 is of type "waterstand vaste waarde", but its waterstand is empty',
+        ),
+        (
+            _boundary("B1", "waterstand variabel", np.nan, np.nan),
+            (),
+            'B1 is of type "waterstand variabel", but its waterstand is empty',
+        ),
+        (
+            _boundary("B1", "debiet vaste waarde", 10.0, None),
+            ("debiet",),
+            'B1 is of type "debiet vaste waarde", but its debiet is empty',
+        ),
+        (
+            _boundary("B1", None, 10.0, None),
+            (),
+            "B1 has no typerandvoorwaarde",
+        ),
+        (
+            _boundary("B1", "Waterstand vaste waarde", 10.0, None),
+            (),
+            "B1 has an unknown typerandvoorwaarde 'Waterstand vaste waarde'",
+        ),
+    ],
+    ids=["no-water-level", "nan-water-level", "no-debiet-column", "no-type", "case"],
+)
+def test_convert_boundaries_rejects_a_boundary_it_cannot_read(
+    row: dict, drop: tuple[str, ...], problem: str
+) -> None:
+    with pytest.raises(ValueError, match="Cannot convert 1 boundary condition") as info:
+        _converted_boundaries([row], drop=drop)
+
+    assert problem in str(info.value)
+
+
+def test_convert_boundaries_names_every_boundary_it_cannot_read() -> None:
+    with pytest.raises(ValueError, match="Cannot convert 2 boundary condition") as info:
+        _converted_boundaries(
+            [
+                _boundary("B1", None, 10.0, None),
+                _boundary("B2", "waterstand vaste waarde", 10.0, None),
+                _boundary("B3", "debiet vaste waarde", None, None),
+            ]
+        )
+
+    assert "B1 has no typerandvoorwaarde" in str(info.value)
+    assert "B3 is of type" in str(info.value)
+
+
 def test_add_boundaries() -> None:
     hydamo, _ = _hydamo_object_from_gpkg()
 

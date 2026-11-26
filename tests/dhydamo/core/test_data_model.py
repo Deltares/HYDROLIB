@@ -164,3 +164,20 @@ def test_the_declared_roughness_types_are_those_hydamo_translates() -> None:
         "bridges",
         "culverts",
     ]
+
+
+def test_the_declared_boundary_types_are_those_the_converter_reads() -> None:
+    from hydrolib.dhydamo.converters import hydamo2df
+
+    declared = next(
+        column
+        for column in TABLES["boundary_conditions"].columns
+        if column.name == "typerandvoorwaarde"
+    )
+    read = {
+        *hydamo2df._WATER_LEVEL_BOUNDARIES,
+        *hydamo2df._DISCHARGE_BOUNDARIES,
+        hydamo2df._QH_BOUNDARY,
+    }
+
+    assert set(declared.values) == read

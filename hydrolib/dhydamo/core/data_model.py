@@ -449,14 +449,16 @@ TABLES: dict[str, Table] = {
             Column("code", _IDENTITY, identity=True),
             Column(
                 "typerandvoorwaarde",
-                "Whether the boundary is a water level or a discharge: the code looks "
-                "for 'waterstand' or 'debiet' in the value.",
+                "Whether the boundary is a water level, read from waterstand, or a "
+                "discharge, read from debiet. A Q-h relation is skipped with a "
+                "warning: the table can't hold its table of values.",
                 values=(
                     "waterstand vaste waarde",
                     "waterstand variabel",
                     "waterstand getijdebeweging",
                     "debiet vaste waarde",
                     "debiet variabel",
+                    "Qh-relatie",
                 ),
             ),
             "geometry",

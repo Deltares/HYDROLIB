@@ -7,7 +7,7 @@ from collections.abc import Hashable
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, no_type_check
+from typing import TYPE_CHECKING, cast, no_type_check
 
 import geopandas as gpd
 import numpy as np
@@ -327,6 +327,65 @@ class CrossSectionsIO:
                 )
 
 
+# typerandvoorwaarde: the DAMO values of a water level and of a discharge boundary
+_WATER_LEVEL_BOUNDARIES = (
+    "waterstand vaste waarde",
+    "waterstand variabel",
+    "waterstand getijdebeweging",
+)
+_DISCHARGE_BOUNDARIES = ("debiet vaste waarde", "debiet variabel")
+_QH_BOUNDARY = "Qh-relatie"
+
+
+def _read_boundary(
+    code: str,
+    kind: str | float | None,
+    waterstand: float | None,
+    debiet: float | None,
+) -> tuple[str, float] | None:
+    """Return the quantity and the constant value of a boundary condition.
+
+    Returns None for a Q-h relation, which is skipped with a warning.
+
+    Raises
+    ------
+    ValueError
+        If *kind* is empty or unknown, or the value of its kind is empty.
+    """
+    if kind == _QH_BOUNDARY:
+        logger.warning(
+            "Boundary condition %s is a Q-h relation, which the DAMO table can't "
+            "hold; it is skipped. Add it with ExternalForcings.add_boundary_condition"
+            '(..., quantity="qhbnd", value={"Q": [...], "H": [...]}).',
+            code,
+        )
+        return None
+    if kind in _WATER_LEVEL_BOUNDARIES:
+        quantity, column, value = "waterlevelbnd", "waterstand", waterstand
+    elif kind in _DISCHARGE_BOUNDARIES:
+        quantity, column, value = "dischargebnd", "debiet", debiet
+    elif kind is None or pd.isna(kind):
+        raise ValueError(f"{code} has no typerandvoorwaarde")
+    else:
+        allowed = (*_WATER_LEVEL_BOUNDARIES, *_DISCHARGE_BOUNDARIES, _QH_BOUNDARY)
+        raise ValueError(
+            f"{code} has an unknown typerandvoorwaarde {kind!r}, expected one of "
+            f"{', '.join(allowed)}"
+        )
+    if value is None or pd.isna(value):
+        raise ValueError(f'{code} is of type "{kind}", but its {column} is empty')
+    if kind not in ("waterstand vaste waarde", "debiet vaste waarde"):
+        logger.info(
+            'Boundary condition %s is of type "%s", but the DAMO table has no time '
+            "series: its %s %s is used as a constant.",
+            code,
+            kind,
+            column,
+            value,
+        )
+    return quantity, float(value)
+
+
 class ExternalForcingsIO:
     """Add boundary conditions and laterals from DAMO tables.
 
@@ -347,46 +406,57 @@ class ExternalForcingsIO:
     ) -> None:
         """Add constant boundary conditions from the DAMO table randvoorwaarden.
 
-        The table has no time series; to add one, use
-        ``ExternalForcings.add_boundary_condition``.
+        ``typerandvoorwaarde`` decides the kind: a water level, read from
+        ``waterstand``, or a discharge, read from ``debiet``. The table has no time
+        series, so a variable or tidal boundary gets its value as a constant, which is
+        logged; to add a time series, use ``ExternalForcings.add_boundary_condition``.
+        A Q-h relation can't be held by the table either: it is skipped with a
+        warning, to be added with ``add_boundary_condition``.
 
         Parameters
         ----------
         boundary_conditions : ExtendedGeoDataFrame
             Locations and properties of the boundary conditions: ``code``,
-            ``typerandvoorwaarde`` (water level or discharge), ``waterstand`` and ``debiet``.
+            ``typerandvoorwaarde``, ``waterstand`` and ``debiet``. A missing
+            ``waterstand`` or ``debiet`` column counts as empty.
         mesh1d : Network, optional
             Network with the 1D mesh, to find the node of each boundary. Defaults to None.
-        """
-        # Read from Hydamo
-        bcdct = {}
 
+        Raises
+        ------
+        ValueError
+            If a boundary has no or an unknown ``typerandvoorwaarde``, or its value
+            is empty. The message names every such boundary by ``code``; none is
+            added then.
+        """
+        empty = pd.Series(None, index=boundary_conditions.index, dtype=object)
         boundary_columns = zip(
             boundary_conditions["code"],
             boundary_conditions["typerandvoorwaarde"],
-            boundary_conditions["waterstand"],
-            boundary_conditions["debiet"],
+            boundary_conditions.get("waterstand", empty),
+            boundary_conditions.get("debiet", empty),
             boundary_conditions.geometry,
         )
+        boundaries = []
+        problems = []
         for code, kind, waterstand, debiet, geometry in boundary_columns:
-            if "waterstand" in kind:
-                quantity = "waterlevelbnd"
-            elif "debiet" in kind:
-                quantity = "dischargebnd"
+            try:
+                read = _read_boundary(code, kind, waterstand, debiet)
+            except ValueError as exc:
+                problems.append(str(exc))
+                continue
+            if read is not None:
+                boundaries.append((code, geometry, *read))
+        if problems:
+            raise ValueError(
+                f"Cannot convert {len(problems)} boundary condition(s): "
+                + "; ".join(problems)
+            )
 
-            # Add boundary condition
-            bcdct[code] = {
-                "code": code,
-                "quantity": quantity,
-                "value": waterstand if not np.isnan(waterstand) else debiet,
-                "time": None,
-                "geometry": geometry,
-            }
-
-        # Add all items
-        for key, item in bcdct.items():
+        for code, geometry, quantity, value in boundaries:
+            # The boundary_conditions table has Point geometries (data model).
             self.external_forcings.add_boundary_condition(
-                key, item["geometry"], item["quantity"], item["value"], mesh1d=mesh1d
+                code, cast("Point", geometry), quantity, value, mesh1d=mesh1d
             )
 
     @validate_call(
