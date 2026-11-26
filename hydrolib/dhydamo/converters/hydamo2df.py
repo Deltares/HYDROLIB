@@ -246,11 +246,14 @@ class CrossSectionsIO:
             if param_profile_values is None:
                 raise ValueError("param_profile_values is required with param_profile.")
             # Derive norm cross sections for norm parametrised
+            # Resolved against all branches, so that a link matching several split
+            # parts always warns; the branches with a cross section get none.
             param_profiles_converted = self.crosssections.parametrised_to_profiles(
                 param_profile,
                 param_profile_values,
-                no_crosssection,
+                list(branches.itertuples()),
                 roughness_variant=roughness_variant,
+                with_crosssection=set(branches.index).difference(no_crosssection_id),
             )
             # Get branch information
             branchdata = self.crosssections.hydamo.branches.loc[

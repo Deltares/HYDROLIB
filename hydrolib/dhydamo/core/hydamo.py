@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import numbers
-from collections.abc import Hashable, Mapping
+from collections.abc import Collection, Hashable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, no_type_check
@@ -1544,12 +1544,20 @@ class CrossSections:
         parametrised_values: ExtendedDataFrame,
         branches: list,
         roughness_variant: RoughnessVariant | None = None,
+        with_crosssection: Collection[Hashable] = (),
     ) -> dict:
         """Generate the parametrised cross sections of *branches*.
 
         Each link row gives its branch a profile, so a profile linked to several
         branches applies to each of them. A branch linked to several profiles gets
-        the first, with a warning. Links to other branches are skipped.
+        the first, with a warning. A link is resolved against all *branches*; if
+        its branch is in *with_crosssection*, it is skipped. Links to other
+        branches are skipped too.
+
+        A profile without ``taludhelling linkerzijde`` is a rectangle, otherwise
+        a trapezium. A profile that lacks a dimension it needs (a bottom width and
+        both bottom levels, and for a trapezium also the right slope and both
+        insteek heights) is skipped with a warning.
 
         Parameters
         ----------
@@ -1559,10 +1567,12 @@ class CrossSections:
         parametrised_values : ExtendedDataFrame
             The values of the profiles (NormgeparamProfielWaarde).
         branches : list
-            The branches to give a profile, as rows of ``DataFrame.itertuples``:
-            those without a cross section.
+            The branches, as rows of ``DataFrame.itertuples``.
         roughness_variant : RoughnessVariant, optional
             Use the high or the low roughness value of the profiles.
+        with_crosssection : Collection[Hashable], optional
+            The indices of the branches that already have a cross section, and so
+            get no parametrised one. Default is none.
 
         Returns
         -------
@@ -1572,151 +1582,145 @@ class CrossSections:
         """
         cssdct = {}
         values_relation = DamoRelations.PARAM_PROFILE_VALUES
-
-        for index, param in _param_profile_of_branch(parametrised, branches).items():
-            param_row = param.to_frame().T
+        chosen = _param_profile_of_branch(parametrised, branches, with_crosssection)
+        for index, param in chosen.items():
             profile_id = param[values_relation.parent_key]
-            values = values_relation.children_of(param_row, parametrised_values)
-
-            # Drop profiles for which not enough data is available to write (as rectangle)
-            # nulls = pd.isna(parambranches[['bodembreedte', 'bodemhoogtebenedenstrooms', 'bodemhoogtebovenstrooms']]).any(axis=1).to_numpy()
-            # parambranches = parambranches.drop(ExtendedGeoDataFrame(geotype=LineString), parambranches.index[nulls], index_col='code',axis=0)
-            # parambranches.drop(parambranches.index[nulls], inplace=True)
-
-            if pd.isna(
-                values[values.soortparameter == "bodemhoogte benedenstrooms"].waarde
-            ).to_numpy()[0]:
-                logger.warning(
-                    "bodemhoogte benedenstrooms not available for profile %s.",
-                    profile_id,
-                )
-            if pd.isna(
-                values[values.soortparameter == "bodembreedte"].waarde
-            ).to_numpy()[0]:
-                logger.warning(
-                    "bodembreedte not available for profile %s.",
-                    profile_id,
-                )
-            if pd.isna(
-                values[values.soortparameter == "bodemhoogte bovenstrooms"].waarde
-            ).to_numpy()[0]:
-                logger.warning(
-                    "bodemhoogte bovenstrooms not available for profile %s.",
-                    profile_id,
-                )
-
-            # Determine characteristics
-            botlev_upper = values[
-                values.soortparameter == "bodemhoogte bovenstrooms"
-            ].waarde.to_numpy()[0]
-            botlev_lower = values[
-                values.soortparameter == "bodemhoogte benedenstrooms"
-            ].waarde.to_numpy()[0]
-
-            if pd.isna(
-                values[values.soortparameter == "taludhelling linkerzijde"].waarde
-            ).to_numpy()[0]:
-                css_type = "rectangle"
-            else:
-                css_type = "trapezium"
-                dh1 = (
-                    values[
-                        values.soortparameter == "hoogte insteek linkerzijde"
-                    ].waarde.to_numpy()[0]
-                    - (botlev_upper + botlev_lower) / 2.0
-                )
-                dh2 = (
-                    values[
-                        values.soortparameter == "hoogte insteek rechterzijde"
-                    ].waarde.to_numpy()[0]
-                    - (botlev_upper + botlev_lower) / 2.0
-                )
-                # height = (dh1 + dh2) / 2.0
-                # Determine maximum flow width and slope (both needed for output)
-                maxflowwidth = (
-                    values[values.soortparameter == "bodembreedte"].waarde.to_numpy()[0]
-                    + values[
-                        values.soortparameter == "taludhelling linkerzijde"
-                    ].waarde.to_numpy()[0]
-                    * dh1
-                    + values[
-                        values.soortparameter == "taludhelling rechterzijde"
-                    ].waarde.to_numpy()[0]
-                    * dh2
-                )
-                slope = (
-                    values[
-                        values.soortparameter == "taludhelling linkerzijde"
-                    ].waarde.to_numpy()[0]
-                    + values[
-                        values.soortparameter == "taludhelling rechterzijde"
-                    ].waarde.to_numpy()[0]
-                ) / 2.0
-
-            if roughness_variant == RoughnessVariant.LOW:
-                roughness = values.ruwheidlaag.to_numpy()[0]
-            elif roughness_variant == RoughnessVariant.HIGH:
-                roughness = values.ruwheidhoog.to_numpy()[0]
-            else:
-                raise ValueError(
-                    'Invalid value for roughness_variant; should be "High" or "Low".'
-                )
-            # Determine name for cross section
-            if css_type == "trapezium":
-                cssdct[index] = {
-                    "type": css_type,
-                    "slope": round(slope, 2),
-                    "maximumflowwidth": round(maxflowwidth, 1),
-                    "bottomwidth": round(
-                        values[
-                            values.soortparameter == "bodembreedte"
-                        ].waarde.to_numpy()[0],
-                        3,
-                    ),
-                    "closed": 0,
-                    "thalweg": 0.0,
-                    "typeruwheid": values.typeruwheid.to_numpy()[0],
-                    "ruwheid": roughness,
-                    "bottomlevel_upper": botlev_upper,
-                    "bottomlevel_lower": botlev_lower,
-                }
-            elif css_type == "rectangle":
-                cssdct[index] = {
-                    "type": css_type,
-                    "height": 5.0,
-                    "width": round(
-                        values[
-                            values.soortparameter == "bodembreedte"
-                        ].waarde.to_numpy()[0],
-                        3,
-                    ),
-                    "closed": 0,
-                    "thalweg": 0.0,
-                    "typeruwheid": values.typeruwheid.to_numpy()[0],
-                    "ruwheid": roughness,
-                    "bottomlevel_upper": botlev_upper,
-                    "bottomlevel_lower": botlev_lower,
-                }
-
+            values = values_relation.children_of(
+                param.to_frame().T, parametrised_values
+            )
+            crosssection = _param_cross_section(
+                values, profile_id, index, roughness_variant
+            )
+            if crosssection is not None:
+                cssdct[index] = crosssection
         return cssdct
 
 
+# The dimensions every parametrised profile needs, and those a trapezium also needs
+_PARAM_DIMENSIONS = (
+    "bodembreedte",
+    "bodemhoogte bovenstrooms",
+    "bodemhoogte benedenstrooms",
+)
+_TRAPEZIUM_DIMENSIONS = (
+    "taludhelling rechterzijde",
+    "hoogte insteek linkerzijde",
+    "hoogte insteek rechterzijde",
+)
+
+
+def _param_cross_section(
+    values: pd.DataFrame,
+    profile_id: str,
+    branch: Hashable,
+    roughness_variant: RoughnessVariant | None,
+) -> dict | None:
+    """Return the cross section of a parametrised profile, or None if it lacks a dimension.
+
+    Parameters
+    ----------
+    values : pd.DataFrame
+        The NormgeparamProfielWaarde rows of the profile, one per ``soortparameter``.
+        An absent row counts as an empty value.
+    profile_id : str
+        The profile's ``normgeparamprofielid``, for the messages.
+    branch : Hashable
+        The index of the branch that gets the profile, for the messages.
+    roughness_variant : RoughnessVariant or None
+        Use the high or the low roughness value.
+
+    Returns
+    -------
+    dict or None
+        A rectangle without ``taludhelling linkerzijde``, a trapezium with it. None,
+        with a warning, if the profile lacks a dimension it needs.
+
+    Raises
+    ------
+    ValueError
+        If *roughness_variant* is neither high nor low.
+    """
+    by_parameter = values.drop_duplicates("soortparameter").set_index("soortparameter")[
+        "waarde"
+    ]
+
+    def value(parameter: str) -> np.float64:
+        # numpy floats, so that round() rounds 3.35 to 3.4 as before, not to 3.3
+        found = by_parameter.get(parameter)
+        return np.float64("nan" if found is None or pd.isna(found) else found)
+
+    trapezium = not np.isnan(value("taludhelling linkerzijde"))
+    needed = _PARAM_DIMENSIONS + (_TRAPEZIUM_DIMENSIONS if trapezium else ())
+    missing = [parameter for parameter in needed if np.isnan(value(parameter))]
+    if missing:
+        logger.warning(
+            "Parameterised profile %s has no %s; branch %s gets no parameterised "
+            "profile.",
+            profile_id,
+            ", ".join(missing),
+            branch,
+        )
+        return None
+
+    if roughness_variant == RoughnessVariant.LOW:
+        roughness = values.ruwheidlaag.to_numpy()[0]
+    elif roughness_variant == RoughnessVariant.HIGH:
+        roughness = values.ruwheidhoog.to_numpy()[0]
+    else:
+        raise ValueError(
+            'Invalid value for roughness_variant; should be "High" or "Low".'
+        )
+    width = value("bodembreedte")
+    upper, lower = (
+        value("bodemhoogte bovenstrooms"),
+        value("bodemhoogte benedenstrooms"),
+    )
+    common = {
+        "closed": 0,
+        "thalweg": 0.0,
+        "typeruwheid": values.typeruwheid.to_numpy()[0],
+        "ruwheid": roughness,
+        "bottomlevel_upper": upper,
+        "bottomlevel_lower": lower,
+    }
+    if not trapezium:
+        return {"type": "rectangle", "height": 5.0, "width": round(width, 3), **common}
+
+    # The insteek heights above the mean bottom level
+    dh1 = value("hoogte insteek linkerzijde") - (upper + lower) / 2.0
+    dh2 = value("hoogte insteek rechterzijde") - (upper + lower) / 2.0
+    left, right = value("taludhelling linkerzijde"), value("taludhelling rechterzijde")
+    return {
+        "type": "trapezium",
+        "slope": round((left + right) / 2.0, 2),
+        "maximumflowwidth": round(width + left * dh1 + right * dh2, 1),
+        "bottomwidth": round(width, 3),
+        **common,
+    }
+
+
 def _param_profile_of_branch(
-    links: pd.DataFrame, branches: list
+    links: pd.DataFrame,
+    branches: list,
+    with_crosssection: Collection[Hashable] = (),
 ) -> dict[Hashable, pd.Series]:
     """Return the link row of the parametrised profile each branch gets, by branch index.
 
     A link's ``hydroobjectid`` is a branch ``globalid``. When it matches several
     branches (split parts sharing a ``globalid``, invalid DAMO), only the first gets
-    the profile, with a warning. A branch linked to several profiles gets the first,
-    with a warning. Links to none of *branches* are skipped.
+    the profile, with a warning, whether or not it has a cross section already. A
+    branch in *with_crosssection* then gets none. A branch linked to several
+    profiles gets the first, with a warning. Links to none of *branches* are
+    skipped.
 
     Parameters
     ----------
     links : pd.DataFrame
         The ``hydroobject_normgp`` rows.
     branches : list
-        The branches, as rows of ``DataFrame.itertuples``.
+        All branches, as rows of ``DataFrame.itertuples``.
+    with_crosssection : Collection[Hashable], optional
+        The indices of the branches that already have a cross section.
 
     Returns
     -------
@@ -1748,6 +1752,8 @@ def _param_profile_of_branch(
                 ", ".join(str(other.code) for other in matching),
                 branch.code,
             )
+        if branch.Index in with_crosssection:
+            continue
         chosen.setdefault(branch.Index, link)
         profiles_of_branch.setdefault(branch.Index, []).append(link[profile_key])
 
