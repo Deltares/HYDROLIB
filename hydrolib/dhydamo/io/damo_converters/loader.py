@@ -111,7 +111,6 @@ def load_layers(
 
     _rewrite_values(hydamo)
     # The derived columns of data_model.DERIVED_COLUMNS
-    _derive_soortafsluitmiddel(hydamo)
     _derive_profile_code(hydamo)
     _derive_boundary_node(hydamo)
 
@@ -143,14 +142,3 @@ def _derive_boundary_node(hydamo: HyDAMO) -> None:
     hydamo.catchments["boundary_node"] = hydamo.catchments[
         catchment_lateral.foreign_key
     ].map(mapping)
-
-
-def _derive_soortafsluitmiddel(hydamo: HyDAMO) -> None:
-    """Copy ``soortregelmiddel`` to ``soortafsluitmiddel`` on the management devices, in place."""
-    device = hydamo.management_device
-    if (
-        not device.empty
-        and "soortregelmiddel" in device.columns
-        and "soortafsluitmiddel" not in device.columns
-    ):
-        device["soortafsluitmiddel"] = device["soortregelmiddel"]

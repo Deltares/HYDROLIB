@@ -151,7 +151,7 @@ def _make_minimal_25_gpkg(tmp_path: Path) -> Path:
                 "overlaatonderlaat": ["onderlaat"],
                 "typeafsluitmiddel": ["schuif"],
                 "typeregelbaarheid": ["Regelbaar - lokaal automatisch - elektronisch"],
-                "hoogteopening": [0.3],
+                "maximalehoogteonderkant": [0.3],
                 "afvoercoefficient": [0.8],
                 "geometry": [Point(5, 0)],
             },
@@ -307,7 +307,11 @@ def _damo_names(version: str) -> dict[str, str]:
 
     The management device is Regelmiddel up to DAMO 2.4 and Afsluitmiddel from 2.5;
     its type column is ``soortregelmiddel`` on Regelmiddel and ``typeafsluitmiddel``
-    on the 2.5 Afsluitmiddel.
+    on the 2.5 Afsluitmiddel, and its opening height ``hoogteopening`` and
+    ``maximalehoogteonderkant``.
+
+    Two keys are not columns: ``device_layer`` is the management device's layer, and
+    ``onderlaat`` is the schema's value of ``overlaatonderlaat``, capitalised from 2.5.
     """
     names = {
         "typeruwheid": "typeruwheid",
@@ -318,7 +322,9 @@ def _damo_names(version: str) -> dict[str, str]:
         "stuurvariabele": "stuurvariabele",
         "soortregelbaarheid": "soortregelbaarheid",
         "device_layer": "Regelmiddel",
-        "device_type": "soortregelmiddel",
+        "soortregelmiddel": "soortregelmiddel",
+        "hoogteopening": "hoogteopening",
+        "onderlaat": "onderlaat",
     }
     if version >= "2.4":
         names["typeruwheid"] = "typemethoderuwheid"
@@ -330,7 +336,9 @@ def _damo_names(version: str) -> dict[str, str]:
         names["stuurvariabele"] = "typestuurvariabele"
         names["soortregelbaarheid"] = "typeregelbaarheid"
         names["device_layer"] = "Afsluitmiddel"
-        names["device_type"] = "typeafsluitmiddel"
+        names["soortregelmiddel"] = "typeafsluitmiddel"
+        names["hoogteopening"] = "maximalehoogteonderkant"
+        names["onderlaat"] = "Onderlaat"
     return names
 
 
@@ -374,7 +382,7 @@ def _write_control_layers(gpkg_path: Path, names: dict[str, str]) -> None:
                 "globalid": ["device-guid"],
                 "kunstwerkopeningid": ["opening-guid"],
                 "overlaatonderlaat": ["onderlaat"],
-                names["device_type"]: ["schuif"],
+                names["soortregelmiddel"]: ["schuif"],
                 names["soortregelbaarheid"]: ["Regelbaar - lokaal automatisch"],
                 "geometry": [Point(5, 0)],
             },
@@ -420,7 +428,8 @@ def test_load_from_gpkg_delivers_damo_22_column_names(
     assert hydamo.management.loc["CTRL1", "stuurvariabele"] == "hoogte opening"
     device = hydamo.management_device
     assert device["globalid"].tolist() == ["device-guid"]
-    assert device["soortafsluitmiddel"].tolist() == ["schuif"]
+    assert device["soortregelmiddel"].tolist() == ["schuif"]
+    assert "soortafsluitmiddel" not in device.columns
     assert device["soortregelbaarheid"].tolist() == ["Regelbaar - lokaal automatisch"]
 
 
@@ -555,7 +564,7 @@ def test_load_from_gpkg_loads_without_optional_columns(
 def test_load_from_gpkg_leaves_columns_the_version_lacks_absent(
     tmp_path: Path,
 ) -> None:
-    # DAMO 2.5 Afsluitmiddel has no hoogteopening, which Regelmiddel had up to 2.4.
+    # This 2.5 Afsluitmiddel has no maximalehoogteonderkant, the source of hoogteopening.
     gpkg_file = tmp_path / "device_25.gpkg"
     _write_layer(
         gpkg_file,
@@ -577,6 +586,367 @@ def test_load_from_gpkg_leaves_columns_the_version_lacks_absent(
 
     assert hydamo.management_device["globalid"].tolist() == ["device-guid"]
     assert "hoogteopening" not in hydamo.management_device.columns
+
+
+def _write_weir_with_opening(gpkg_path: Path) -> None:
+    """Write branch H1 and weir ST1 with opening ``opening-guid``, crest at 0.4 m."""
+    _write_branch(gpkg_path)
+    _write_stuw(gpkg_path)
+    _write_layer(
+        gpkg_path,
+        "Kunstwerkopening",
+        gpd.GeoDataFrame(
+            {
+                "globalid": ["opening-guid"],
+                "stuwid": ["stuw-guid"],
+                "laagstedoorstroombreedte": [1.2],
+                "laagstedoorstroomhoogte": [0.4],
+                "afvoercoefficient": [1.0],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+
+def _write_culvert(gpkg_path: Path, names: dict[str, str]) -> None:
+    """Write culvert DU1 (globalid ``duiker-guid``, 2 m high) on branch H1."""
+    _write_layer(
+        gpkg_path,
+        "DuikerSifonHevel",
+        gpd.GeoDataFrame(
+            {
+                "code": ["DU1"],
+                "globalid": ["duiker-guid"],
+                "lengte": [1.0],
+                "hoogteopening": [2.0],
+                "breedteopening": [1.0],
+                "hoogtebinnenonderkantbene": [0.0],
+                "hoogtebinnenonderkantbov": [0.1],
+                names["vormkoker"]: ["rond"],
+                "intreeverlies": [0.5],
+                "uittreeverlies": [1.0],
+                names["typeruwheid"]: ["StricklerKs"],
+                "ruwheid": [75.0],
+                "geometry": [LineString([(3, 0), (4, 0)])],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+
+def _write_devices(
+    gpkg_path: Path, names: dict[str, str], rows: list[dict[str, object]]
+) -> None:
+    """Write the management devices *rows*, keyed by their DAMO 2.2 names, under *names*."""
+    renamed = [
+        {names.get(column, column): value for column, value in row.items()}
+        for row in rows
+    ]
+    for row in renamed:
+        row["geometry"] = Point(5, 0)
+    _write_layer(
+        gpkg_path,
+        names["device_layer"],
+        gpd.GeoDataFrame(renamed, crs="EPSG:28992"),
+    )
+
+
+def _convert_culverts(hydamo: HyDAMO) -> pd.DataFrame:
+    """Build the D-Flow FM culverts on branch H1 and return them, by id."""
+    hydamo.culverts["branch_id"] = "H1"
+    hydamo.culverts["branch_offset"] = 3.5
+    hydamo.structures.convert.culverts(
+        hydamo.culverts, management_device=hydamo.management_device
+    )
+    return hydamo.structures.culverts_df.set_index("id")
+
+
+@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
+def test_load_from_gpkg_gives_an_orifice_the_gate_height_of_its_device(
+    tmp_path: Path, version: str
+) -> None:
+    names = _damo_names(version)
+    gpkg_file = tmp_path / "orifice.gpkg"
+    _write_weir_with_opening(gpkg_file)
+    _write_devices(
+        gpkg_file,
+        names,
+        [
+            {
+                "code": "AF1",
+                "globalid": "device-guid",
+                "kunstwerkopeningid": "opening-guid",
+                "overlaatonderlaat": names["onderlaat"],
+                "soortregelmiddel": "schuif",
+                "hoogteopening": 0.3,
+            }
+        ],
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
+    _convert_weirs(hydamo)
+
+    orifice = hydamo.structures.orifices_df.set_index("id").loc["ST1"]
+    # The gate's lower edge is the crest plus the device's opening height.
+    assert orifice["gateloweredgelevel"] == pytest.approx(0.4 + 0.3)
+
+
+@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
+def test_load_from_gpkg_gives_a_culvert_the_valve_of_its_device(
+    tmp_path: Path, version: str
+) -> None:
+    names = _damo_names(version)
+    gpkg_file = tmp_path / "valve.gpkg"
+    _write_branch(gpkg_file)
+    _write_culvert(gpkg_file, names)
+    _write_devices(
+        gpkg_file,
+        names,
+        [
+            {
+                "code": "AF1",
+                "globalid": "device-guid",
+                "duikersifonhevelid": "duiker-guid",
+                "overlaatonderlaat": None,
+                "soortregelmiddel": "schuif",
+                "hoogteopening": 0.3,
+                "afvoercoefficient": 0.8,
+            }
+        ],
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
+    culvert = _convert_culverts(hydamo).loc["DU1"]
+
+    assert culvert["valveonoff"] == 1
+    assert culvert["valveopeningheight"] == pytest.approx(0.3)
+    # Relative to the culvert's opening height of 2 m.
+    assert culvert["relopening"] == pytest.approx([0.15])
+    assert culvert["allowedflowdir"] == "both"
+
+
+@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
+def test_load_from_gpkg_gives_a_culvert_the_non_return_valve_of_its_device(
+    tmp_path: Path, version: str
+) -> None:
+    names = _damo_names(version)
+    gpkg_file = tmp_path / "non_return.gpkg"
+    _write_branch(gpkg_file)
+    _write_culvert(gpkg_file, names)
+    _write_devices(
+        gpkg_file,
+        names,
+        [
+            {
+                "code": "AF1",
+                "globalid": "device-guid",
+                "duikersifonhevelid": "duiker-guid",
+                "overlaatonderlaat": None,
+                "soortregelmiddel": "terugslagklep",
+            }
+        ],
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
+    culvert = _convert_culverts(hydamo).loc["DU1"]
+
+    assert culvert["allowedflowdir"] == "positive"
+    assert culvert["valveonoff"] == 0
+
+
+def test_load_from_gpkg_leaves_closing_devices_of_locks_coupures_and_tunnels_out_of_the_model(
+    tmp_path: Path,
+) -> None:
+    # From DAMO 2.5, Afsluitmiddel also holds the closing devices of locks, coupures
+    # and tunnels. They load as management devices, but nothing joins on them.
+    names = _damo_names("2.5")
+    gpkg_file = tmp_path / "closing_devices.gpkg"
+    _write_weir_with_opening(gpkg_file)
+    _write_culvert(gpkg_file, names)
+    structure_device = {"overlaatonderlaat": "Nvt", "hoogteopening": 2.0}
+    _write_devices(
+        gpkg_file,
+        names,
+        [
+            {
+                "code": "AF-ST1",
+                "globalid": "weir-device-guid",
+                "kunstwerkopeningid": "opening-guid",
+                "overlaatonderlaat": "Onderlaat",
+                "soortregelmiddel": "schuif",
+                "hoogteopening": 0.3,
+            },
+            {
+                "code": "AF-DU1",
+                "globalid": "culvert-device-guid",
+                "duikersifonhevelid": "duiker-guid",
+                "overlaatonderlaat": "Nvt",
+                "soortregelmiddel": "schuif",
+                "hoogteopening": 0.3,
+                "afvoercoefficient": 0.8,
+            },
+            {
+                **structure_device,
+                "code": "AF-SL",
+                "globalid": "lock-device-guid",
+                "sluisid": "sluis-guid",
+                "soortregelmiddel": "deur",
+            },
+            {
+                **structure_device,
+                "code": "AF-CP",
+                "globalid": "coupure-device-guid",
+                "coupureid": "coupure-guid",
+                "soortregelmiddel": "schotbalk sponning",
+            },
+            {
+                **structure_device,
+                "code": "AF-TN",
+                "globalid": "tunnel-device-guid",
+                "tunnelid": "tunnel-guid",
+                "soortregelmiddel": "zandzakken",
+            },
+        ],
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+    _convert_weirs(hydamo)
+    culverts = _convert_culverts(hydamo)
+
+    assert len(hydamo.management_device) == 5
+    orifices = hydamo.structures.orifices_df.set_index("id")
+    assert orifices.index.tolist() == ["ST1"]
+    assert orifices.loc["ST1", "gateloweredgelevel"] == pytest.approx(0.4 + 0.3)
+    assert hydamo.structures.rweirs_df.empty
+    assert culverts.index.tolist() == ["DU1"]
+    assert culverts.loc["DU1", "relopening"] == pytest.approx([0.15])
+
+
+@pytest.mark.parametrize("old_first", [False, True], ids=["new_first", "old_first"])
+def test_load_from_gpkg_prefers_the_versioned_column_over_a_stale_old_one(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, old_first: bool
+) -> None:
+    # A 2.5 file that still carries the 2.4 Regelmiddel columns next to the 2.5 ones,
+    # e.g. after a migration. The 2.5 columns count, whatever the column order.
+    gpkg_file = tmp_path / "stale_columns.gpkg"
+    _write_weir_with_opening(gpkg_file)
+    _write_culvert(gpkg_file, _damo_names("2.5"))
+    stale = {"hoogteopening": 0.1, "soortregelmiddel": "terugslagklep"}
+    current = {"maximalehoogteonderkant": 0.3, "typeafsluitmiddel": "schuif"}
+    device_columns = {**stale, **current} if old_first else {**current, **stale}
+    _write_layer(
+        gpkg_file,
+        "Afsluitmiddel",
+        gpd.GeoDataFrame(
+            [
+                {
+                    "code": "AF-ST1",
+                    "globalid": "weir-device-guid",
+                    "kunstwerkopeningid": "opening-guid",
+                    "overlaatonderlaat": "Onderlaat",
+                    **device_columns,
+                    "geometry": Point(5, 0),
+                },
+                {
+                    "code": "AF-DU1",
+                    "globalid": "culvert-device-guid",
+                    "duikersifonhevelid": "duiker-guid",
+                    "overlaatonderlaat": "Nvt",
+                    **device_columns,
+                    "afvoercoefficient": 0.8,
+                    "geometry": Point(5, 0),
+                },
+            ],
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+    _convert_weirs(hydamo)
+    culverts = _convert_culverts(hydamo)
+
+    assert not hydamo.management_device.columns.duplicated().any()
+    orifices = hydamo.structures.orifices_df.set_index("id")
+    assert orifices.loc["ST1", "gateloweredgelevel"] == pytest.approx(0.4 + 0.3)
+    assert culverts.loc["DU1", "valveonoff"] == 1
+    assert culverts.loc["DU1", "relopening"] == pytest.approx([0.15])
+    assert culverts.loc["DU1", "allowedflowdir"] == "both"
+    assert (
+        'HyDAMO layer "Afsluitmiddel" has both "maximalehoogteonderkant" and '
+        '"hoogteopening"' in caplog.text
+    )
+
+
+def test_load_from_gpkg_loads_closing_devices_without_overlaatonderlaat(
+    tmp_path: Path,
+) -> None:
+    # Optional on the 2.5 Afsluitmiddel, which also holds the devices of locks.
+    gpkg_file = tmp_path / "lock_devices.gpkg"
+    _write_layer(
+        gpkg_file,
+        "Afsluitmiddel",
+        gpd.GeoDataFrame(
+            {
+                "code": ["AF-SL"],
+                "globalid": ["lock-device-guid"],
+                "sluisid": ["sluis-guid"],
+                "typeafsluitmiddel": ["deur"],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+
+    assert hydamo.management_device["globalid"].tolist() == ["lock-device-guid"]
+    assert "overlaatonderlaat" not in hydamo.management_device.columns
+
+
+@pytest.mark.parametrize(
+    ("kind_column", "reason"),
+    [
+        ({}, 'has no "overlaatonderlaat"'),
+        ({"overlaatonderlaat": ["Nvt"]}, 'has "overlaatonderlaat" "Nvt"'),
+    ],
+    ids=["column_absent", "neither_kind"],
+)
+def test_weir_conversion_skips_a_weir_whose_device_is_neither_overflow_nor_underflow(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    kind_column: dict[str, list[object]],
+    reason: str,
+) -> None:
+    gpkg_file = tmp_path / "weir_without_kind.gpkg"
+    _write_weir_with_opening(gpkg_file)
+    _write_layer(
+        gpkg_file,
+        "Afsluitmiddel",
+        gpd.GeoDataFrame(
+            {
+                "code": ["AF1"],
+                "globalid": ["device-guid"],
+                "kunstwerkopeningid": ["opening-guid"],
+                "typeafsluitmiddel": ["schuif"],
+                **kind_column,
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+
+    _convert_weirs(hydamo)
+
+    assert hydamo.structures.orifices_df.empty
+    assert hydamo.structures.rweirs_df.empty
+    assert f"Skipping weir ST1: its management device AF1 {reason}" in caplog.text
+
+
+def test_hydamo_has_no_closing_device_table() -> None:
+    # DAMO 2.2 Afsluitmiddel was loaded as closing_device, but nothing read it.
+    assert not hasattr(HyDAMO(), "closing_device")
 
 
 @pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
@@ -719,8 +1089,8 @@ def test_load_from_gpkg_maps_damo_25_to_canonical_internal_structure(
     assert "categorieoppwaterlichaam" in hydamo.branches.columns
     assert hydamo.branches.loc["H1", "categorieoppwaterlichaam"] == "primair"
 
-    assert "soortafsluitmiddel" in hydamo.management_device.columns
-    assert hydamo.management_device.loc[0, "soortafsluitmiddel"] == "schuif"
+    assert hydamo.management_device.loc[0, "soortregelmiddel"] == "schuif"
+    assert hydamo.management_device.loc[0, "hoogteopening"] == 0.3
     assert "soortregelbaarheid" in hydamo.management_device.columns
     assert (
         hydamo.management_device.loc[0, "soortregelbaarheid"]
@@ -1738,41 +2108,6 @@ def test_load_from_gpkg_raises_for_unsupported_version() -> None:
     hydamo = HyDAMO()
     with pytest.raises(ValueError, match="Unsupported"):
         hydamo.load_from_gpkg("irrelevant.gpkg", hydamo_version="9.9")
-
-
-def test_load_from_gpkg_v22_postprocess_copies_soortregelmiddel(tmp_path: Path) -> None:
-    gpkg_path = tmp_path / "v22_postprocess.gpkg"
-    _write_layer(
-        gpkg_path,
-        "HydroObject",
-        gpd.GeoDataFrame(
-            {
-                "code": ["H1"],
-                "globalid": ["h-guid"],
-                "geometry": [LineString([(0, 0), (10, 0)])],
-            },
-            crs="EPSG:28992",
-        ),
-    )
-    _write_layer(
-        gpkg_path,
-        "Regelmiddel",
-        gpd.GeoDataFrame(
-            {
-                "code": ["AF1"],
-                "globalid": ["af-guid"],
-                "soortregelmiddel": ["schuif"],
-                "overlaatonderlaat": ["onderlaat"],
-                "geometry": [Point(5, 0)],
-            },
-            crs="EPSG:28992",
-        ),
-    )
-
-    hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.2")
-
-    assert "soortafsluitmiddel" in hydamo.management_device.columns
-    assert hydamo.management_device.loc[0, "soortafsluitmiddel"] == "schuif"
 
 
 def test_load_from_gpkg_validation_warn_failure_does_not_raise(

@@ -1,9 +1,12 @@
 """The DAMO version steps: the renames DAMO made in each version, for what HYDROLIB reads.
 
 A step is written forward, from the older version to the newer, like the DAMO release
-notes. Loading applies the steps backward, from the file's version to DAMO 2.2, the
-version of HYDROLIB's data model (`data_model`). Each rename is written once, in the
-step where DAMO made it.
+notes. Each rename is written once, in the step where DAMO made it.
+
+Loading doesn't convert the data step by step. `source_layers` chains the steps into,
+per HyDAMO table, the layer to read in the file's version and the renames from that
+version's column names to DAMO 2.2, the version of HYDROLIB's data model
+(`data_model`). The layer is then read and renamed once.
 """
 
 from __future__ import annotations
@@ -26,7 +29,9 @@ class Step:
     layers : dict[str, str]
         The tables whose layer changed: ``{HyDAMO attribute: layer in new}``.
     columns : dict[str, dict[str, str]]
-        ``{layer in new: {column in old: column in new}}``.
+        ``{layer in new: {column in old: column in new}}``. For a table that moves to
+        another layer in this step (see *layers*), the column in old is its name in the
+        table's old layer.
     """
 
     old: str
@@ -53,20 +58,17 @@ STEPS: tuple[Step, ...] = (
         layers={
             # DAMO merged Regelmiddel into Afsluitmiddel.
             "management_device": "Afsluitmiddel",
-            # Not a DAMO change: 2.5 has no Regelmiddel. Kept from the old 2.5
-            # converter until closing_device is removed (ticket 12).
-            "closing_device": "Regelmiddel",
         },
         columns={
             "HydroObject": {"categorieoppwaterlichaam": "categorieoppervlaktewater"},
             "Kunstwerkopening": {"regelmiddelid": "afsluitmiddelid"},
-            # DAMO's own renames on Afsluitmiddel. Because management_device reads
-            # Afsluitmiddel from 2.5 on, its device type arrives under Afsluitmiddel's
-            # 2.4 name soortafsluitmiddel, not Regelmiddel's 2.2 name
-            # soortregelmiddel. Ticket 12 maps it to soortregelmiddel.
+            # The 2.5 Afsluitmiddel takes the 2.4 Regelmiddel's role, the only one
+            # HYDROLIB reads it in, so the old names are Regelmiddel's.
             "Afsluitmiddel": {
-                "soortafsluitmiddel": "typeafsluitmiddel",
+                "soortregelmiddel": "typeafsluitmiddel",
                 "soortregelbaarheid": "typeregelbaarheid",
+                # Both in m, relative to the opening.
+                "hoogteopening": "maximalehoogteonderkant",
             },
             "Sturing": {
                 "regelmiddelid": "afsluitmiddelid",

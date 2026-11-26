@@ -621,6 +621,39 @@ class ExternalForcingsIO:
         return loc_geom, loc_series
 
 
+def _overlaatonderlaat(device: pd.DataFrame) -> str | None:
+    """Return the first device's ``overlaatonderlaat``, or None when absent or empty.
+
+    The column is optional: from DAMO 2.5, Afsluitmiddel also holds closing devices
+    that are neither overflow nor underflow.
+    """
+    if "overlaatonderlaat" not in device.columns:
+        return None
+    value = device["overlaatonderlaat"].iloc[0]
+    return None if pd.isna(value) else str(value)
+
+
+def _warn_unknown_weir_kind(
+    structure: str, device: pd.DataFrame, overlaatonderlaat: str | None
+) -> None:
+    """Warn that *structure* is skipped: its *device* is neither overflow nor underflow."""
+    device_id = device["code"].iloc[0] if "code" in device.columns else None
+    if pd.isna(device_id):
+        device_id = device["globalid"].iloc[0]
+    if overlaatonderlaat is None:
+        reason = 'has no "overlaatonderlaat"'
+    else:
+        reason = f'has "overlaatonderlaat" "{overlaatonderlaat}"'
+    logger.warning(
+        "Skipping %s: its management device %s %s, so it is unknown whether it is "
+        'an overflow or an underflow. Set "overlaatonderlaat" to "Overlaat" or '
+        '"Onderlaat".',
+        structure,
+        device_id,
+        reason,
+    )
+
+
 class StructuresIO:
     """Add structures from DAMO tables.
 
@@ -879,7 +912,8 @@ class StructuresIO:
                     self.structures.compound_weir_structure_ids[
                         str(weir_mandev["globalid"].iloc[0])
                     ] = weir_id
-                    kind = str(weir_mandev["overlaatonderlaat"].iloc[0]).lower()
+                    overlaatonderlaat = _overlaatonderlaat(weir_mandev)
+                    kind = (overlaatonderlaat or "").lower()
                     if kind == "overlaat":
                         cmp_list.append(weir_id)
                         self.structures.add_rweir(
@@ -927,10 +961,10 @@ class StructuresIO:
                             limitflowneg=maxq,
                         )
                     else:
-                        logger.warning(
-                            'Skipping weir %s - from "overlaatonderlaat" %s the type of structure could not be determined.',
-                            weir.code,
-                            weir_mandev.overlaatonderlaat,
+                        _warn_unknown_weir_kind(
+                            f"opening {num_op + 1} of weir {weir.code}",
+                            weir_mandev,
+                            overlaatonderlaat,
                         )
                 self.structures.add_compound(
                     id=f"cmp_{weir.code}", structureids=cmp_list
@@ -971,9 +1005,10 @@ class StructuresIO:
                     )
                     weir_mandev = weir_mandev.iloc[[0]]
 
-                overlaatonderlaat = str(weir_mandev["overlaatonderlaat"].iloc[0])
+                overlaatonderlaat = _overlaatonderlaat(weir_mandev)
+                kind = (overlaatonderlaat or "").lower()
 
-                if overlaatonderlaat.lower() == "overlaat":
+                if kind == "overlaat":
                     self.structures.add_rweir(
                         id=weir_id,
                         name=name,
@@ -986,7 +1021,7 @@ class StructuresIO:
                         usevelocityheight=usevelocityheight,
                     )
 
-                elif overlaatonderlaat.lower() == "onderlaat":
+                elif kind == "onderlaat":
                     if "maximaaldebiet" not in weir_mandev or pd.isna(
                         weir_mandev.maximaaldebiet.to_numpy()[0]
                     ):
@@ -1019,10 +1054,8 @@ class StructuresIO:
                         limitflowneg=maxq,
                     )
                 else:
-                    logger.warning(
-                        'Skipping %s - from "overlaatonderlaat" %s the type of structure could not be determined.',
-                        weir.code,
-                        weir_mandev.overlaatonderlaat,
+                    _warn_unknown_weir_kind(
+                        f"weir {weir.code}", weir_mandev, overlaatonderlaat
                     )
 
         uweirs = weirs[index == 1]
@@ -1224,24 +1257,18 @@ class StructuresIO:
     ) -> None:
         """Add the DAMO culverts.
 
-        A valve or a slide can be schematized from ``management_device``. DAMO 2.2 also has
-        closing devices (afsluitmiddel), which are not supported.
+        A non-return valve (``terugslagklep``) or a gate (``schuif``) is schematized
+        from the culvert's management devices.
 
         Parameters
         ----------
         culverts : ExtendedGeoDataFrame
             DAMO culverts (duikersifonhevel).
         management_device : ExtendedDataFrame, optional
-            DAMO management devices (regelmiddel). Defaults to None.
+            DAMO management devices (regelmiddel; afsluitmiddel from DAMO 2.5).
+            Defaults to None.
         """
         management_device_culvert = DamoRelations.MANAGEMENT_DEVICE_CULVERT
-        if (
-            management_device is not None
-            and "soortafsluitmiddel" not in management_device.columns
-        ):
-            management_device["soortafsluitmiddel"] = management_device[
-                "soortregelmiddel"
-            ]
 
         for culvert in culverts.itertuples():
             culvert_rows = culverts.loc[[culvert.Index]]
@@ -1274,10 +1301,6 @@ class StructuresIO:
                     culvert_rows,
                     management_device,
                 )
-                if "soortafsluitmiddel" not in mandev:
-                    mandev.loc[mandev.index, "soortafsluitmiddel"] = mandev[
-                        "soortregelmiddel"
-                    ]
             else:
                 mandev = pd.DataFrame()
 
@@ -1290,9 +1313,9 @@ class StructuresIO:
             losscoeff = None
             if not mandev.empty:
                 for _, i in mandev.iterrows():
-                    if i["soortafsluitmiddel"] == "terugslagklep":
+                    if i["soortregelmiddel"] == "terugslagklep":
                         allowedflowdir = "positive"
-                    elif i["soortafsluitmiddel"] == "schuif":
+                    elif i["soortregelmiddel"] == "schuif":
                         valveonoff = 1
                         valveopeningheight = float(i["hoogteopening"])
                         numlosscoeff = 1

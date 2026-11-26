@@ -130,12 +130,14 @@ TABLES: dict[str, Table] = {
         ),
         optional_columns=("stuwid", "regelmiddelid"),
     ),
-    "closing_device": Table("Afsluitmiddel", geotype=None, required_columns=("code",)),
     "management_device": Table(
         "Regelmiddel",
         geotype=None,
-        required_columns=("code", "overlaatonderlaat"),
+        required_columns=("code",),
         optional_columns=(
+            # Mandatory in DAMO up to 2.4, optional from 2.5, where the layer also
+            # holds the closing devices of locks, coupures and tunnels.
+            "overlaatonderlaat",
             "globalid",
             "kunstwerkopeningid",
             "duikersifonhevelid",
@@ -651,12 +653,6 @@ FILLED_FROM_GLOBALID: tuple[Extension, ...] = (
 
 # Computed after the renames, whatever the DAMO version (see loader.load_layers).
 DERIVED_COLUMNS: tuple[Extension, ...] = (
-    Extension(
-        "management_device",
-        "soortafsluitmiddel",
-        "The device type under the one name the code reads: a copy of "
-        "soortregelmiddel when the file gives no soortafsluitmiddel.",
-    ),
     Extension(
         "profile",
         "code",

@@ -8,7 +8,7 @@ from collections.abc import Hashable
 from copy import deepcopy
 from pathlib import Path
 from types import ModuleType, UnionType
-from typing import Any
+from typing import Any, TypeVar
 
 import geopandas as gpd
 import numpy as np
@@ -21,6 +21,8 @@ from shapely.geometry.base import BaseGeometry
 from hydrolib.dhydamo.geometry import spatial
 
 logger = logging.getLogger(__name__)
+
+_Frame = TypeVar("_Frame", bound=pd.DataFrame)
 
 
 def _points_to_lines(
@@ -79,6 +81,37 @@ def _fill_from_globalid(df: pd.DataFrame, column: str) -> None:
         df[column] = df[column].fillna(df["globalid"])
     else:
         df[column] = df["globalid"]
+
+
+def _rename_columns(
+    df: _Frame, column_mapping: dict[str, str], layer_name: str
+) -> _Frame:
+    """Return *df* with its columns renamed by *column_mapping*, without duplicate labels.
+
+    When the layer also has a column under a rename's target name (e.g. a column of an
+    older DAMO version that a file still carries), the renamed column wins and the
+    other one is dropped, with a warning. Without this, both would end up under the
+    same label and the column order would decide which one is read.
+    """
+    stale = []
+    for source, target in column_mapping.items():
+        if (
+            source in df.columns
+            and target in df.columns
+            and target not in column_mapping
+        ):
+            logger.warning(
+                'HyDAMO layer "%s" has both "%s" and "%s"; reading "%s" as "%s" and '
+                'ignoring the "%s" column.',
+                layer_name,
+                source,
+                target,
+                source,
+                target,
+                target,
+            )
+            stale.append(target)
+    return df.drop(columns=stale).rename(columns=column_mapping)
 
 
 def _make_index_unique(gdf: pd.DataFrame, index_col: str) -> None:
@@ -499,7 +532,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             gdf = gpd.GeoDataFrame(layer, columns=columns, geometry=layer.geometry)
 
         if column_mapping is not None:
-            gdf = gdf.rename(columns=column_mapping)
+            gdf = _rename_columns(gdf, column_mapping, layer_name)
 
         if fill_from_globalid is not None:
             _fill_from_globalid(gdf, fill_from_globalid)
@@ -896,7 +929,7 @@ class ExtendedDataFrame(pd.DataFrame):
 
         df = layer
         if column_mapping is not None:
-            df = df.rename(columns=column_mapping)
+            df = _rename_columns(df, column_mapping, layer_name)
 
         if fill_from_globalid is not None:
             _fill_from_globalid(df, fill_from_globalid)

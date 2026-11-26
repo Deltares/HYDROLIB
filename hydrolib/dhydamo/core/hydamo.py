@@ -86,7 +86,6 @@ class HyDAMO:
     param_profile_values: ExtendedDataFrame
     weirs: ExtendedGeoDataFrame
     opening: ExtendedDataFrame
-    closing_device: ExtendedDataFrame
     management_device: ExtendedDataFrame
     bridges: ExtendedGeoDataFrame
     culverts: ExtendedGeoDataFrame
