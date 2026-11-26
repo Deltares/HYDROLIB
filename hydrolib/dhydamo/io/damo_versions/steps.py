@@ -60,11 +60,9 @@ STEPS: tuple[Step, ...] = (
             "management_device": "Afsluitmiddel",
         },
         columns={
-            "branches": {"categorieoppwaterlichaam": "categorieoppervlaktewater"},
             "opening": {"regelmiddelid": "afsluitmiddelid"},
             "management_device": {
                 "soortregelmiddel": "typeafsluitmiddel",
-                "soortregelbaarheid": "typeregelbaarheid",
                 # Both in m, relative to the opening.
                 "hoogteopening": "maximalehoogteonderkant",
             },
@@ -115,8 +113,9 @@ def source_layers(version: str) -> dict[str, SourceLayer]:
     Raises
     ------
     ValueError
-        If the version is not supported, or two tables read the same layer: the steps
-        are keyed by table, so each table needs its own layer.
+        If the version is not supported, a step names a table that isn't a HyDAMO
+        table, or two tables read the same layer: the steps are keyed by table, so
+        each table needs its own layer.
     """
     if version not in SUPPORTED_HYDAMO_VERSIONS:
         supported = ", ".join(SUPPORTED_HYDAMO_VERSIONS)
@@ -127,12 +126,24 @@ def source_layers(version: str) -> dict[str, SourceLayer]:
     # {column in the current version: DAMO 2.2 name}, per table
     renames: dict[str, dict[str, str]] = {name: {} for name in TABLES}
     for step in STEPS[: SUPPORTED_HYDAMO_VERSIONS.index(version)]:
+        _check_tables_exist(step)
         layers.update(step.layers)
         for name, columns in step.columns.items():
             for old, new in columns.items():
                 renames[name][new] = renames[name].pop(old, old)
     _check_layers_are_unique(layers, version)
     return {name: SourceLayer(layers[name], renames[name]) for name in TABLES}
+
+
+def _check_tables_exist(step: Step) -> None:
+    """Raise a ValueError if *step* names a table that isn't a HyDAMO table, e.g. a typo."""
+    for field_name, tables in (("layers", step.layers), ("columns", step.columns)):
+        for name in tables:
+            if name not in TABLES:
+                raise ValueError(
+                    f'DAMO version step {step.old} -> {step.new} names "{name}" in its '
+                    f"{field_name}, which is not a HyDAMO table."
+                )
 
 
 def _check_layers_are_unique(layers: dict[str, str], version: str) -> None:

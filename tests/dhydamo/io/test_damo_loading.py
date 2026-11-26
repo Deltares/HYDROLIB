@@ -319,10 +319,8 @@ def _damo_names(version: str) -> dict[str, str]:
         "typeruwheid": "typeruwheid",
         "soortparameter": "soortparameter",
         "vormkoker": "vormkoker",
-        "categorieoppwaterlichaam": "categorieoppwaterlichaam",
         "regelmiddelid": "regelmiddelid",
         "stuurvariabele": "stuurvariabele",
-        "soortregelbaarheid": "soortregelbaarheid",
         "device_layer": "Regelmiddel",
         "soortregelmiddel": "soortregelmiddel",
         "hoogteopening": "hoogteopening",
@@ -333,10 +331,8 @@ def _damo_names(version: str) -> dict[str, str]:
     if version >= "2.5":
         names["soortparameter"] = "typeparameter"
         names["vormkoker"] = "vormduikersifonhevel"
-        names["categorieoppwaterlichaam"] = "categorieoppervlaktewater"
         names["regelmiddelid"] = "afsluitmiddelid"
         names["stuurvariabele"] = "typestuurvariabele"
-        names["soortregelbaarheid"] = "typeregelbaarheid"
         names["device_layer"] = "Afsluitmiddel"
         names["soortregelmiddel"] = "typeafsluitmiddel"
         names["hoogteopening"] = "maximalehoogteonderkant"
@@ -353,7 +349,6 @@ def _write_control_layers(gpkg_path: Path, names: dict[str, str]) -> None:
             {
                 "code": ["H1"],
                 "globalid": ["hydro-guid"],
-                names["categorieoppwaterlichaam"]: ["primair"],
                 "geometry": [LineString([(0, 0), (10, 0)])],
             },
             crs="EPSG:28992",
@@ -385,7 +380,6 @@ def _write_control_layers(gpkg_path: Path, names: dict[str, str]) -> None:
                 "kunstwerkopeningid": ["opening-guid"],
                 "overlaatonderlaat": ["onderlaat"],
                 names["soortregelmiddel"]: ["schuif"],
-                names["soortregelbaarheid"]: ["Regelbaar - lokaal automatisch"],
                 "geometry": [Point(5, 0)],
             },
             crs="EPSG:28992",
@@ -424,7 +418,6 @@ def test_load_from_gpkg_delivers_damo_22_column_names(
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
 
     _assert_canonical_roughness_columns(hydamo)
-    assert hydamo.branches.loc["H1", "categorieoppwaterlichaam"] == "primair"
     assert hydamo.opening["regelmiddelid"].tolist() == ["device-guid"]
     assert hydamo.management.loc["CTRL1", "regelmiddelid"] == "device-guid"
     assert hydamo.management.loc["CTRL1", "stuurvariabele"] == "hoogte opening"
@@ -432,7 +425,6 @@ def test_load_from_gpkg_delivers_damo_22_column_names(
     assert device["globalid"].tolist() == ["device-guid"]
     assert device["soortregelmiddel"].tolist() == ["schuif"]
     assert "soortafsluitmiddel" not in device.columns
-    assert device["soortregelbaarheid"].tolist() == ["Regelbaar - lokaal automatisch"]
 
 
 def _write_branch(gpkg_path: Path, **columns: list[object]) -> None:
@@ -1107,16 +1099,17 @@ def test_load_from_gpkg_maps_damo_25_to_canonical_internal_structure(
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
 
     assert hydamo.source_damo_version == "2.5"
-    assert "categorieoppwaterlichaam" in hydamo.branches.columns
-    assert hydamo.branches.loc["H1", "categorieoppwaterlichaam"] == "primair"
+    # Undeclared columns pass through under their 2.5 names, though DAMO renamed them.
+    assert hydamo.branches.loc["H1", "categorieoppervlaktewater"] == "primair"
+    assert "categorieoppwaterlichaam" not in hydamo.branches.columns
 
     assert hydamo.management_device.loc[0, "soortregelmiddel"] == "schuif"
     assert hydamo.management_device.loc[0, "hoogteopening"] == 0.3
-    assert "soortregelbaarheid" in hydamo.management_device.columns
     assert (
-        hydamo.management_device.loc[0, "soortregelbaarheid"]
+        hydamo.management_device.loc[0, "typeregelbaarheid"]
         == "Regelbaar - lokaal automatisch - elektronisch"
     )
+    assert "soortregelbaarheid" not in hydamo.management_device.columns
 
     assert "regelmiddelid" in hydamo.management.columns
     assert "stuurvariabele" in hydamo.management.columns

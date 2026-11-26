@@ -26,7 +26,6 @@ def test_source_layers_chains_the_renames_of_every_step_per_table() -> None:
         "Afsluitmiddel",
         {
             "typeafsluitmiddel": "soortregelmiddel",
-            "typeregelbaarheid": "soortregelbaarheid",
             "maximalehoogteonderkant": "hoogteopening",
         },
     )
@@ -59,6 +58,26 @@ def test_source_layers_rejects_two_tables_reading_the_same_layer(
     with pytest.raises(
         ValueError, match='"weirs" and "management_device" both read layer'
     ):
+        source_layers("2.5")
+
+
+@pytest.mark.parametrize("field", ["layers", "columns"])
+def test_source_layers_rejects_a_step_naming_a_table_that_does_not_exist(
+    monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    # e.g. a typo, which would otherwise be ignored (layers) or raise a bare KeyError
+    broken = list(steps.STEPS)
+    if field == "layers":
+        broken[-1] = dataclasses.replace(
+            broken[-1], layers={"managment_device": "Afsluitmiddel"}
+        )
+    else:
+        broken[-1] = dataclasses.replace(
+            broken[-1], columns={"managment_device": {"old": "new"}}
+        )
+    monkeypatch.setattr(steps, "STEPS", tuple(broken))
+
+    with pytest.raises(ValueError, match=r'step 2\.4 -> 2\.5 .* "managment_device"'):
         source_layers("2.5")
 
 
