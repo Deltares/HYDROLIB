@@ -94,8 +94,6 @@ class Table:
         `hydrolib.dhydamo.io.damo_versions.loader`). A derived column may also be
         read; its reason then says how the two combine, e.g. overwritten or only
         filled where empty.
-    index : str, optional
-        Column that becomes the index; duplicate values get a suffix.
     group_by : str, optional
         Column whose points are grouped into one line each.
     order_by : str, optional
@@ -112,7 +110,6 @@ class Table:
     required_columns: tuple[str | Column, ...]
     optional_columns: tuple[str | Column, ...] = ()
     derived_columns: tuple[Column, ...] = ()
-    index: str | None = None
     group_by: str | None = None
     order_by: str | None = None
     optional_layer: bool = True
@@ -153,7 +150,11 @@ class Table:
 
     @property
     def identity_column(self) -> str | None:
-        """The read column that is the table's identity, if any."""
+        """The read column that is the table's identity and index, if any.
+
+        A derived identity, such as the profile's ``code``, isn't read: its
+        derivation sets the index.
+        """
         for column in self.columns:
             if column.identity:
                 return column.name
@@ -177,7 +178,6 @@ TABLES: dict[str, Table] = {
         geotype=LineString,
         required_columns=(Column("code", _IDENTITY, identity=True), "geometry"),
         optional_columns=("globalid", "naam"),
-        index="code",
     ),
     "profile": Table(
         "ProfielPunt",
@@ -247,7 +247,6 @@ TABLES: dict[str, Table] = {
                 "the lowest crest of the weir's openings.",
             ),
         ),
-        index="code",
     ),
     "opening": Table(
         "Kunstwerkopening",
@@ -301,7 +300,6 @@ TABLES: dict[str, Table] = {
             "typeruwheid",
         ),
         optional_columns=("naam",),
-        index="code",
     ),
     "culverts": Table(
         "DuikerSifonHevel",
@@ -321,7 +319,6 @@ TABLES: dict[str, Table] = {
             "ruwheid",
         ),
         optional_columns=("globalid", "naam"),
-        index="code",
     ),
     "pumpstations": Table(
         "Gemaal",
@@ -332,7 +329,6 @@ TABLES: dict[str, Table] = {
             "geometry",
         ),
         optional_columns=("naam",),
-        index="code",
     ),
     "pumps": Table(
         "Pomp",
@@ -343,7 +339,6 @@ TABLES: dict[str, Table] = {
             "gemaalid",
             "maximalecapaciteit",
         ),
-        index="code",
     ),
     "management": Table(
         "Sturing",
@@ -377,7 +372,6 @@ TABLES: dict[str, Table] = {
             "ondergrens",
             "streefwaarde",
         ),
-        index="code",
     ),
     "boundary_conditions": Table(
         "hydrologischerandvoorwaarde",
@@ -388,7 +382,6 @@ TABLES: dict[str, Table] = {
             "geometry",
         ),
         optional_columns=("globalid", "waterstand", "debiet"),
-        index="code",
     ),
     "catchments": Table(
         "afvoergebiedaanvoergebied",
@@ -406,7 +399,6 @@ TABLES: dict[str, Table] = {
                 "lateraleknoopid points to.",
             ),
         ),
-        index="code",
         check_geotype=False,
     ),
     "laterals": Table(
@@ -417,7 +409,6 @@ TABLES: dict[str, Table] = {
             "geometry",
             "globalid",
         ),
-        index="code",
     ),
 }
 

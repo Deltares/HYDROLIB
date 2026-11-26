@@ -2004,6 +2004,66 @@ def test_load_from_gpkg_fills_empty_management_code_from_globalid(
     assert hydamo.management.index.tolist() == ["CTRL1", "mgmt-guid-2"]
 
 
+def test_load_from_gpkg_fills_blank_management_code_from_globalid(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Blank counts as empty, as it does for the identity check after the fill.
+    gpkg_path = tmp_path / "sturing_22.gpkg"
+    _write_layer(
+        gpkg_path,
+        "Sturing",
+        gpd.GeoDataFrame(
+            {
+                "code": ["CTRL1", "", "  "],
+                "globalid": ["mgmt-guid-1", "mgmt-guid-2", "mgmt-guid-3"],
+                "geometry": [Point(5, 0), Point(6, 0), Point(7, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.2")
+
+    assert hydamo.management.index.tolist() == ["CTRL1", "mgmt-guid-2", "mgmt-guid-3"]
+    assert (
+        'HyDAMO layer "Sturing": filled "code" from "globalid" in 2 row(s): '
+        "mgmt-guid-2, mgmt-guid-3" in caplog.text
+    )
+
+
+def test_load_from_gpkg_rejects_empty_profiellijnid_naming_the_layer_and_rows(
+    tmp_path: Path,
+) -> None:
+    # profiellijnid becomes the profile's code; without the check, a null one drops
+    # its points silently and a blank one becomes a cross-section with an empty id.
+    gpkg_file = tmp_path / "profile.gpkg"
+    _write_layer(
+        gpkg_file,
+        "ProfielPunt",
+        gpd.GeoDataFrame(
+            {
+                "code": ["PP1", "PP2", "PP3", "PP4"],
+                "globalid": ["p1", "p2", "p3", "p4"],
+                "profiellijnid": ["line-guid", "line-guid", None, " "],
+                "codevolgnummer": [1, 2, 1, 2],
+                "geometry": [
+                    Point(0, 0, 1.0),
+                    Point(1, 0, 0.0),
+                    Point(2, 0, 1.0),
+                    Point(3, 0, 0.0),
+                ],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r'layer "ProfielPunt".*"profiellijnid" is empty in 2 row\(s\): p3, p4',
+    ):
+        HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.2")
+
+
 @pytest.mark.parametrize("validation_mode", ["off", "warn", "strict"])
 @pytest.mark.parametrize("layer", ["Stuw", "lateraleknoop"])
 def test_load_from_gpkg_rejects_empty_codes_naming_the_layer_and_rows(

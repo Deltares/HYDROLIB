@@ -25,6 +25,17 @@ logger = logging.getLogger(__name__)
 _Frame = TypeVar("_Frame", bound=pd.DataFrame)
 
 
+def _is_empty(values: pd.Series) -> pd.Series:
+    """Return which *values* are empty: missing, or only whitespace."""
+    return values.isna() | (values.astype(str).str.strip() == "")
+
+
+def _row_names(df: pd.DataFrame, rows: pd.Series) -> str:
+    """Name the selected *rows* of *df* by ``globalid``, or by index without it."""
+    names = df.loc[rows, "globalid"] if "globalid" in df.columns else df.index[rows]
+    return ", ".join(str(name) for name in names)
+
+
 def _points_to_lines(
     layer: gpd.GeoDataFrame,
     groupby_column: str,
@@ -52,6 +63,13 @@ def _points_to_lines(
         raise ValueError("Can only group Points to LineString")
     if check_3d and np.isnan(layer.geometry.z.to_numpy()).any():
         raise ValueError("All geometries need to have a Z coordinate")
+    # groupby would drop missing values silently and make a line of blank ones
+    empty = _is_empty(layer[groupby_column])
+    if empty.any():
+        raise ValueError(
+            f'Column "{groupby_column}" is empty in {int(empty.sum())} row(s): '
+            f"{_row_names(layer, empty)}. It groups the points into lines."
+        )
 
     geometries = []
     fields = []
@@ -72,15 +90,16 @@ def _points_to_lines(
 def _fill_from_globalid(df: pd.DataFrame, column: str, layer_name: str) -> None:
     """Fill a missing or empty *column* in place from ``globalid``, with a warning.
 
-    An absent column is copied from ``globalid``; empty values in a column that is
-    present are filled from it. Without a ``globalid`` column nothing changes. The
-    warning names the layer and the filled rows, by ``globalid``.
+    An absent column is copied from ``globalid``; empty values (missing, or only
+    whitespace) in a column that is present are filled from it. Without a
+    ``globalid`` column nothing changes. The warning names the layer and the filled
+    rows, by ``globalid``.
     """
     if "globalid" not in df.columns:
         return
     if column in df.columns:
-        empty = df[column].isna()
-        df[column] = df[column].fillna(df["globalid"])
+        empty = _is_empty(df[column])
+        df[column] = df[column].mask(empty, df["globalid"])
     else:
         empty = pd.Series(True, index=df.index)
         df[column] = df["globalid"]
@@ -90,7 +109,7 @@ def _fill_from_globalid(df: pd.DataFrame, column: str, layer_name: str) -> None:
             layer_name,
             column,
             int(empty.sum()),
-            ", ".join(str(value) for value in df.loc[empty, "globalid"]),
+            _row_names(df, empty),
         )
 
 
@@ -109,15 +128,11 @@ def _check_identity(df: pd.DataFrame, column: str) -> None:
     """
     if column not in df.columns:
         raise KeyError(f'Column "{column}" not found; it is the identity of the table.')
-    values = df[column]
-    empty = values.isna() | (values.astype(str).str.strip() == "")
+    empty = _is_empty(df[column])
     if empty.any():
-        rows = (
-            df.loc[empty, "globalid"] if "globalid" in df.columns else df.index[empty]
-        )
         raise ValueError(
             f'Column "{column}" is empty in {int(empty.sum())} row(s): '
-            f"{', '.join(str(row) for row in rows)}. It is the identity of the table: "
+            f"{_row_names(df, empty)}. It is the identity of the table: "
             "the index and the id of its model objects."
         )
 

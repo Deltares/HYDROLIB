@@ -81,7 +81,7 @@ def _required_fields() -> dict[str, set[str]]:
             table = TABLES[name]
             layer_fields = fields.setdefault(source.layer.lower(), set())
             layer_fields.update(getattr(hydamo, name).required_columns)
-            for column in (table.index, table.group_by, table.order_by):
+            for column in (table.identity_column, table.group_by, table.order_by):
                 if column is not None:
                     layer_fields.add(column)
             for file_name, target in source.renames.items():
@@ -228,10 +228,10 @@ def _check_converter(version: str, schema_version: str) -> tuple[list[str], list
 
         # The loaded table must have HyDAMO's required columns and the index column.
         required = set(getattr(hydamo, name).required_columns)
-        if spec.index is not None:
-            required.add(spec.index)
+        if spec.identity_column is not None:
+            required.add(spec.identity_column)
         for column in sorted(required - loaded):
-            purpose = " as its index" if column == spec.index else ""
+            purpose = " as its index" if column == spec.identity_column else ""
             problems.append(
                 f"{layer} has no column '{column}', but {table} requires it{purpose}."
             )

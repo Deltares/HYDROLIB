@@ -1271,6 +1271,10 @@ def test_create_laterals_excludes_nodata_and_keeps_negative_discharge(
         qspec * hydamo.catchments.area.to_numpy() / (1000 * 86400),
         rtol=1e-6,
     )
+    # Indexed by the lateral's code, like loaded laterals.
+    lateral_codes = [f"lat_{code}" for code in hydamo.catchments["code"]]
+    assert hydamo.laterals.index.tolist() == lateral_codes
+    assert hydamo.laterals.index.name == "code"
 
 
 def test_make_index_unique_suffixes_duplicates_without_code_column() -> None:

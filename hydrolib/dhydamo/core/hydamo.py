@@ -314,9 +314,15 @@ class HyDAMO:
             in a column HYDROLIB reads.
         ImportError
             If validation is enabled and its optional dependency is unavailable.
+        KeyError
+            If a loaded layer lacks a required column, such as the ``code`` of a
+            table whose code is its identity; the message names the layer.
         ValueError
             If the DAMO version is unsupported, or generated validation
-            rules require a version unsupported by the installed validator.
+            rules require a version unsupported by the installed validator. Also
+            if the identity (``code``) or the column that groups points into
+            lines (``profiellijnid``) is empty in some rows, also when it is only
+            whitespace; the message names the layer and the rows by ``globalid``.
 
         Notes
         -----
@@ -572,6 +578,9 @@ class HyDAMO:
             self.laterals.loc[index, "geometry"] = lateral  # type: ignore[call-overload]
             self.laterals.loc[index, "globalid"] = knoopid
             self.laterals.loc[index, "code"] = f"lat_{code}"
+
+        # Indexed by code, like loaded laterals
+        self.laterals.index = pd.Index(self.laterals["code"], name="code")
 
 
 class Network:

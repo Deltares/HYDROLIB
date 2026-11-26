@@ -63,6 +63,8 @@ def load_layers(
     ValueError
         If a layer that is not optional is missing, or a layer of points lacks the
         column that groups or orders them into lines; the message names the layer.
+        Also if a table's identity, or the column that groups points into lines, is
+        empty in some rows; the message names the layer and the rows.
     """
     gpkg_path = Path(gpkg_path)
     available_layers = {
@@ -87,7 +89,7 @@ def load_layers(
         kwargs: dict = {
             "gpkg_path": gpkg_path,
             "layer_name": actual_layer,
-            "index_col": table.index,
+            "index_col": table.identity_column,
             "column_mapping": source.renames or None,
             "fill_from_globalid": table.column_filled_from_globalid,
             "identity_column": table.identity_column,
@@ -130,7 +132,7 @@ def _drop_undeclared_columns(hydamo: HyDAMO, name: str, definition: Table) -> No
         "geometry",
         *definition.required_names,
         *definition.optional_names,
-        *(c for c in (definition.index, definition.group_by, definition.order_by) if c),
+        *(c for c in (definition.group_by, definition.order_by) if c),
     }
     table = getattr(hydamo, name)
     undeclared = [column for column in table.columns if column not in declared]
