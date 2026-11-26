@@ -131,8 +131,16 @@ def source_layers(version: str) -> dict[str, SourceLayer]:
         _check_tables_exist(step)
         layers.update(step.layers)
         for name, columns in step.columns.items():
-            for old, new in columns.items():
-                renames[name][new] = renames[name].pop(old, old)
+            # All renames of the step at once, from the names before it: a rename
+            # may take the name another column had before the step.
+            before = renames[name]
+            kept = {
+                current: original
+                for current, original in before.items()
+                if current not in columns
+            }
+            renamed = {new: before.get(old, old) for old, new in columns.items()}
+            renames[name] = {**kept, **renamed}
     _check_layers_are_unique(layers, version)
     return {name: SourceLayer(layers[name], renames[name]) for name in TABLES}
 

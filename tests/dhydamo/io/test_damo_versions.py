@@ -117,3 +117,16 @@ def test_loading_does_not_import_hydamo_validation(tmp_path: Path) -> None:
     )
 
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_source_layers_applies_the_renames_of_a_step_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # In one step, old naam becomes code and old code becomes nummer. Applied one at
+    # a time, the second rename took the first one's result: {"nummer": "naam"}.
+    chained = dataclasses.replace(
+        steps.STEPS[-1], columns={"weirs": {"naam": "code", "code": "nummer"}}
+    )
+    monkeypatch.setattr(steps, "STEPS", (*steps.STEPS[:-1], chained))
+
+    assert source_layers("2.6")["weirs"].renames == {"code": "naam", "nummer": "code"}

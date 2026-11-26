@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 from hydrolib.dhydamo.core.data_model import TABLES
 from hydrolib.dhydamo.io.damo_versions import (
     SUPPORTED_HYDAMO_VERSIONS,
     explain_table,
     explain_tables,
+    steps,
 )
 
 
@@ -94,3 +97,31 @@ def test_explains_every_table(version: str) -> None:
 
     for name in TABLES:
         assert f"{name} <- layer" in report
+
+
+def test_explain_labels_the_columns_the_loader_fills_or_derives() -> None:
+    # Sturing has no code in DAMO, and Stuw has no crest from 2.4.
+    management = _lines(explain_table("management", "2.6"))
+    weirs = _lines(explain_table("weirs", "2.6"))
+
+    assert management[3] == (
+        "column (2.2) required after loading DAMO 2.6 name renamed in note"
+    )
+    assert "code yes code filled from globalid if absent" in management
+    assert "laagstedoorstroomhoogte no laagstedoorstroomhoogte derived, see below" in (
+        weirs
+    )
+
+
+def test_explain_shows_the_renames_the_loader_applies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # In one step, old naam becomes code and old code becomes nummer.
+    chained = dataclasses.replace(
+        steps.STEPS[-1], columns={"weirs": {"naam": "code", "code": "nummer"}}
+    )
+    monkeypatch.setattr(steps, "STEPS", (*steps.STEPS[:-1], chained))
+    lines = _lines(explain_table("weirs", "2.6"))
+
+    assert "code yes nummer 2.5 -> 2.6" in lines
+    assert "naam no code 2.5 -> 2.6" in lines
