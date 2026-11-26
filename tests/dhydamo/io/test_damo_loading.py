@@ -7,6 +7,7 @@ import typing
 from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
+from unittest import mock
 
 import geopandas as gpd
 import pandas as pd
@@ -20,8 +21,9 @@ from hydrolib.dhydamo.core.data_model import (
 )
 from hydrolib.dhydamo.core.drtc import CREST_LEVEL, DRTCModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
+from hydrolib.dhydamo.geometry import mesh
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
-from hydrolib.dhydamo.io.damo_versions import SUPPORTED_HYDAMO_VERSIONS
+from hydrolib.dhydamo.io.damo_versions import SUPPORTED_HYDAMO_VERSIONS, loader
 from hydrolib.dhydamo.validation import HyDAMOValidationError
 from pydantic import ValidationError
 from shapely.geometry import LineString, Point
@@ -460,6 +462,25 @@ def test_load_from_gpkg_passes_undeclared_columns_through(
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
 
     assert hydamo.branches.loc["H1", "opmerking"] == "own column"
+
+
+def test_dropping_undeclared_columns_makes_a_builder_fail_on_reading_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The test-only switch the example-model builds use (_hydamo_object_from_gpkg):
+    # a builder reading a column the data model doesn't declare fails in CI.
+    monkeypatch.setattr(loader, "_KEEP_UNDECLARED_COLUMNS", False)
+    gpkg_file = tmp_path / "branch.gpkg"
+    _write_branch(gpkg_file, naam=["Beek"], opmerking=["own column"])
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.2")
+
+    assert hydamo.branches.loc["H1", "naam"] == "Beek"
+    assert "opmerking" not in hydamo.branches.columns
+    with pytest.raises(KeyError, match="opmerking"):
+        mesh.mesh1d_order_numbers_from_attribute(
+            hydamo.branches, [], order_attribute="opmerking", network=mock.Mock()
+        )
 
 
 @pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)

@@ -8,13 +8,19 @@ from typing import TYPE_CHECKING
 
 import geopandas as gpd
 
-from hydrolib.dhydamo.core.data_model import TABLES, DamoRelations
+from hydrolib.dhydamo.core.data_model import TABLES, DamoRelations, Table
 from hydrolib.dhydamo.io.damo_versions.steps import SourceLayer
 
 if TYPE_CHECKING:
     from hydrolib.dhydamo.core.hydamo import HyDAMO
 
 logger = logging.getLogger(__name__)
+
+# For the tests only: False drops the columns the data model doesn't declare, so that
+# building a model fails on any column it reads without declaring it. Undeclared
+# columns pass through under their own names otherwise, so such a read works on a
+# DAMO 2.2 file and fails on a later version that renamed the column.
+_KEEP_UNDECLARED_COLUMNS = True
 
 
 def load_layers(
@@ -101,11 +107,28 @@ def load_layers(
             raise type(exc)(
                 f'HyDAMO layer "{actual_layer}" (DAMO {hydamo_version}): {exc.args[0]}'
             ) from exc
+        if not _KEEP_UNDECLARED_COLUMNS:
+            _drop_undeclared_columns(hydamo, name, table)
 
     _rewrite_values(hydamo)
     # The derived columns of the tables (Table.derived_columns)
     _derive_profile_code(hydamo)
     _derive_boundary_node(hydamo)
+
+
+def _drop_undeclared_columns(hydamo: HyDAMO, name: str, definition: Table) -> None:
+    """Drop, in place, the columns of table *name* that *definition* doesn't declare."""
+    declared = {
+        "geometry",
+        *definition.required_names,
+        *definition.optional_names,
+        *(column.name for column in definition.derived_columns),
+        *(c for c in (definition.index, definition.group_by, definition.order_by) if c),
+    }
+    table = getattr(hydamo, name)
+    undeclared = [column for column in table.columns if column not in declared]
+    # inplace: returning a copy of an Extended(Geo)DataFrame gives a plain (Geo)DataFrame
+    table.drop(columns=undeclared, inplace=True)
 
 
 def _rewrite_values(hydamo: HyDAMO) -> None:

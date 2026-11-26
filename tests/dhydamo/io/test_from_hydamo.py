@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from unittest import mock
 
 import geopandas as gpd
 import numpy as np
@@ -13,6 +14,7 @@ from hydrolib.dhydamo.converters.hydamo2df import RoughnessVariant
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
+from hydrolib.dhydamo.io.damo_versions import loader
 from netCDF4 import Dataset
 from pydantic import ValidationError
 from rasterio.transform import from_origin
@@ -219,7 +221,11 @@ def _hydamo_object_from_gpkg() -> tuple[HyDAMO, int]:
     gpkg_file = hydamo_data_path / "Example_model.gpkg"
     assert gpkg_file.exists()
 
-    hydamo.load_from_gpkg(gpkg_file, hydamo_version="2.2")
+    # Without the columns the data model doesn't declare, so that every model built
+    # from the example model fails on a column read without declaring it: such a read
+    # works on this DAMO 2.2 file, but not on a later version that renamed the column.
+    with mock.patch.object(loader, "_KEEP_UNDECLARED_COLUMNS", False):
+        hydamo.load_from_gpkg(gpkg_file, hydamo_version="2.2")
 
     len_profile_before = len(hydamo.profile)
     hydamo.snap_to_branch_and_drop(
@@ -273,14 +279,15 @@ def test_hydamo_object_from_gpkg() -> None:
     assert len(hydamo.profile) == 352
     assert hydamo.profile.geom_type.to_numpy()[0] == "LineString"
     # the dataset contains two profile groups (a bridge and a uweir)
-    assert hydamo.profile_group.shape == (2, 4)
+    assert len(hydamo.profile_group) == 2
     # a profile_lines' profielgroepid's should correspond to profile_group globalids
     assert hydamo.profile_line.profielgroepid.to_numpy()[0] in list(
         hydamo.profile_group.globalid
     )
     assert len(hydamo.management_device) == 32
     assert len(hydamo.weirs) == 25
-    assert np.isclose(np.round(hydamo.weirs.doorstroombreedte.mean()), 2)
+    # an undeclared column of the file, dropped by _hydamo_object_from_gpkg
+    assert "doorstroombreedte" not in hydamo.weirs.columns
     assert len(hydamo.culverts) == 90
     assert np.isclose(np.round(hydamo.culverts.length.sum()), 2498)
     assert len(hydamo.pumps) == 1
@@ -289,9 +296,7 @@ def test_hydamo_object_from_gpkg() -> None:
     assert len(hydamo.boundary_conditions) == 1
     assert not hydamo.boundary_conditions.branch_offset.empty
     assert len(hydamo.catchments) == 121
-    assert np.isclose(np.round(hydamo.catchments.oppervlakt.sum()), 2662)
     assert len(hydamo.laterals) == 121
-    assert np.isclose(np.round(hydamo.laterals.afvoer.mean()), 0)
 
 
 def _convert_structures(hydamo_obj: HyDAMO | None = None) -> HyDAMO:

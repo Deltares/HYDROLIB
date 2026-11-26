@@ -139,7 +139,7 @@ TABLES: dict[str, Table] = {
         "HydroObject",
         geotype=LineString,
         required_columns=("code", "geometry"),
-        optional_columns=("globalid",),
+        optional_columns=("globalid", "naam"),
         index="code",
     ),
     "profile": Table(
