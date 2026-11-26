@@ -990,6 +990,133 @@ def test_hydamo_has_no_closing_device_table() -> None:
     assert not hasattr(HyDAMO(), "closing_device")
 
 
+def _write_universal_weir(
+    gpkg_path: Path, weir_crest: float | None, opening_crest: float | None
+) -> None:
+    """Write universal weir ST1 on branch H1: a weir with a profile and one opening.
+
+    The profile's lowest point is at 0.2 m. With *weir_crest* ``None``, the weir has
+    no ``laagstedoorstroomhoogte`` column, as from DAMO 2.4; with *opening_crest*
+    ``None``, the opening's crest is empty.
+    """
+    _write_branch(gpkg_path)
+    weir: dict[str, list[object]] = {
+        "code": ["ST1"],
+        "globalid": ["stuw-guid"],
+        "afvoercoefficient": [1.0],
+    }
+    if weir_crest is not None:
+        weir["laagstedoorstroomhoogte"] = [weir_crest]
+    _write_layer(
+        gpkg_path,
+        "Stuw",
+        gpd.GeoDataFrame({**weir, "geometry": [Point(5, 0)]}, crs="EPSG:28992"),
+    )
+    _write_layer(
+        gpkg_path,
+        "Kunstwerkopening",
+        gpd.GeoDataFrame(
+            {
+                "globalid": ["opening-guid"],
+                "stuwid": ["stuw-guid"],
+                "laagstedoorstroombreedte": [1.2],
+                "laagstedoorstroomhoogte": [
+                    float("nan") if opening_crest is None else opening_crest
+                ],
+                "afvoercoefficient": [1.0],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "profielgroep",
+        gpd.GeoDataFrame(
+            {"globalid": ["group-guid"], "stuwid": ["stuw-guid"], "geometry": [None]},
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "profiellijn",
+        gpd.GeoDataFrame(
+            {
+                "globalid": ["line-guid"],
+                "profielgroepid": ["group-guid"],
+                "geometry": [LineString([(5, -1), (5, 1)])],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_path,
+        "ProfielPunt",
+        gpd.GeoDataFrame(
+            {
+                "code": ["P1", "P2", "P3"],
+                "globalid": ["p1-guid", "p2-guid", "p3-guid"],
+                "profiellijnid": ["line-guid"] * 3,
+                "codevolgnummer": [1, 2, 3],
+                "geometry": [Point(5, -1, 1.0), Point(5, 0, 0.2), Point(5, 1, 1.0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+
+def _universal_weir_crest(hydamo: HyDAMO) -> float:
+    """Build the D-Flow FM weirs and return the crest level of universal weir ST1."""
+    hydamo.weirs["branch_id"] = "H1"
+    hydamo.weirs["branch_offset"] = 5.0
+    hydamo.structures.convert.weirs(
+        weirs=hydamo.weirs,
+        profile_groups=hydamo.profile_group,
+        profile_lines=hydamo.profile_line,
+        profiles=hydamo.profile,
+        opening=hydamo.opening,
+        management_device=hydamo.management_device,
+    )
+    uweirs = hydamo.structures.uweirs_df.set_index("id")
+    return float(uweirs["crestlevel"].astype(float)["ST1"])
+
+
+@pytest.mark.parametrize("version", ["2.4", "2.5"])
+def test_universal_weir_takes_the_crest_of_its_opening(
+    tmp_path: Path, version: str
+) -> None:
+    # From DAMO 2.4, the crest is on the opening (Kunstwerkopening), not on the weir.
+    gpkg_file = tmp_path / "uweir.gpkg"
+    _write_universal_weir(gpkg_file, weir_crest=None, opening_crest=0.7)
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
+
+    assert hydamo.weirs.loc["ST1", "laagstedoorstroomhoogte"] == pytest.approx(0.7)
+    assert _universal_weir_crest(hydamo) == pytest.approx(0.7)
+
+
+def test_universal_weir_without_a_crest_takes_the_lowest_profile_point(
+    tmp_path: Path,
+) -> None:
+    gpkg_file = tmp_path / "uweir.gpkg"
+    _write_universal_weir(gpkg_file, weir_crest=None, opening_crest=None)
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+
+    assert _universal_weir_crest(hydamo) == pytest.approx(0.2)
+
+
+@pytest.mark.parametrize("version", ["2.2", "2.3"])
+def test_universal_weir_keeps_its_own_crest(tmp_path: Path, version: str) -> None:
+    # Up to DAMO 2.3 the weir has its own crest, which wins over its opening's.
+    gpkg_file = tmp_path / "uweir.gpkg"
+    _write_universal_weir(gpkg_file, weir_crest=0.5, opening_crest=0.7)
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
+
+    assert _universal_weir_crest(hydamo) == pytest.approx(0.5)
+
+
 @pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
 def test_load_from_gpkg_derives_profile_code_and_catchment_boundary_node(
     tmp_path: Path, version: str

@@ -35,6 +35,7 @@ def test_extensions_lists_every_extension_with_its_kind_and_reason() -> None:
         ("management_device", "maximaaldebiet", "HYDROLIB-only column"),
         ("management", "stuurvariabele", "value rewrite"),
         ("management", "code", "filled from globalid"),
+        ("weirs", "laagstedoorstroomhoogte", "derived column"),
         ("profile", "code", "derived column"),
         ("catchments", "boundary_node", "derived column"),
     }

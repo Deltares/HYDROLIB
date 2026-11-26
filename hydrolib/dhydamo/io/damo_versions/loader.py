@@ -114,13 +114,14 @@ def load_layers(
     # The derived columns of the tables (Table.derived_columns)
     _derive_profile_code(hydamo)
     _derive_boundary_node(hydamo)
+    _derive_weir_crest(hydamo)
 
 
 def _drop_undeclared_columns(hydamo: HyDAMO, name: str, definition: Table) -> None:
     """Drop, in place, the columns of table *name* that *definition* doesn't read.
 
-    If the file supplies a column with the same name as a derived column, it is
-    dropped and then derived. When the derivation can't run, e.g. ``boundary_node``
+    If the file supplies a column with the same name as a derived column that isn't
+    also read, it is dropped and then derived. When the derivation can't run, e.g. ``boundary_node``
     without laterals, the column stays absent.
     """
     declared = {
@@ -143,6 +144,26 @@ def _rewrite_values(hydamo: HyDAMO) -> None:
             if column.rewrite is not None and column.name in table.columns:
                 old, new = column.rewrite
                 table[column.name] = table[column.name].replace(old, new)
+
+
+def _derive_weir_crest(hydamo: HyDAMO) -> None:
+    """Fill each weir's empty ``laagstedoorstroomhoogte`` from its openings, in place.
+
+    A weir without a crest of its own (always from DAMO 2.4, which moved the crest
+    to Kunstwerkopening) gets the lowest crest of its openings.
+    """
+    weirs, opening = hydamo.weirs, hydamo.opening
+    opening_weir = DamoRelations.OPENING_WEIR
+    if weirs.empty or opening.empty or opening_weir.foreign_key not in opening.columns:
+        return
+    lowest = opening.groupby(opening_weir.foreign_key)["laagstedoorstroomhoogte"].min()
+    from_openings = weirs[opening_weir.parent_key].map(lowest)
+    if "laagstedoorstroomhoogte" in weirs.columns:
+        weirs["laagstedoorstroomhoogte"] = weirs["laagstedoorstroomhoogte"].fillna(
+            from_openings
+        )
+    else:
+        weirs["laagstedoorstroomhoogte"] = from_openings
 
 
 def _derive_profile_code(hydamo: HyDAMO) -> None:

@@ -79,7 +79,8 @@ class Table:
     derived_columns : tuple[Column, ...]
         Columns computed after loading, whatever the DAMO version (see
         `hydrolib.dhydamo.io.damo_versions.loader`). A derived column may also be
-        read, and is then overwritten.
+        read; its reason then says how the two combine, e.g. overwritten or only
+        filled where empty.
     index : str, optional
         Column that becomes the index; duplicate values get a suffix.
     group_by : str, optional
@@ -210,6 +211,14 @@ TABLES: dict[str, Table] = {
         geotype=Point,
         required_columns=("code", "geometry", "globalid", "afvoercoefficient"),
         optional_columns=("naam", "laagstedoorstroomhoogte"),
+        derived_columns=(
+            Column(
+                "laagstedoorstroomhoogte",
+                "The crest level of a universal weir. DAMO moved it from Stuw to "
+                "Kunstwerkopening in 2.4: where the weir has none, it is filled with "
+                "the lowest crest of the weir's openings.",
+            ),
+        ),
         index="code",
     ),
     "opening": Table(
