@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import UnionType
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 import pandas as pd
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
@@ -20,8 +20,47 @@ Geotype = type[BaseGeometry] | UnionType
 
 
 @dataclass(frozen=True)
+class Column:
+    """A declared column with something to say beyond its name.
+
+    Ordinary columns are declared by name only; a column is declared as a `Column`
+    when HYDROLIB has a reason to note, or treats it in a special way.
+
+    Parameters
+    ----------
+    name : str
+        The column, under its DAMO 2.2 name.
+    reason : str
+        Why HYDROLIB needs it, or treats it this way.
+    hydrolib_only : bool
+        Whether the column is HYDROLIB's own: no DAMO version defines it. Default is
+        ``False``.
+    fill_from_globalid : bool
+        Whether the column is filled from ``globalid`` where it is absent or empty,
+        before duplicates get a suffix. Default is ``False``.
+    rewrite : tuple[str, str], optional
+        ``(old, new)``: a value rewritten when loading, whatever the DAMO version.
+        Only the exact value is rewritten, so no general stripping of whitespace or
+        commas.
+    """
+
+    name: str
+    reason: str
+    hydrolib_only: bool = False
+    fill_from_globalid: bool = False
+    rewrite: tuple[str, str] | None = None
+
+
+def _column(column: str | Column) -> Column:
+    """Return *column* as a `Column`; a plain name has no reason."""
+    return column if isinstance(column, Column) else Column(column, reason="")
+
+
+@dataclass(frozen=True)
 class Table:
     """A HyDAMO table: its DAMO 2.2 layer, the columns HYDROLIB reads, and how it is read.
+
+    A column is declared by its name, or as a `Column` when there is more to say.
 
     Parameters
     ----------
@@ -30,13 +69,17 @@ class Table:
     geotype : type[BaseGeometry] or UnionType or None
         Geometry type of a spatial table, e.g. ``Point`` or ``Polygon | MultiPolygon``;
         ``None`` for a table without geometry.
-    required_columns : tuple[str, ...]
+    required_columns : tuple[str or Column, ...]
         Columns a loaded layer must have; a missing one is an error.
-    optional_columns : tuple[str, ...]
+    optional_columns : tuple[str or Column, ...]
         Other columns HYDROLIB reads. Loading doesn't need them: a missing one is
         absent after loading. Building the model may still need one for some
         objects, e.g. ``debiet`` for a discharge boundary; it then fails on the
         missing column.
+    derived_columns : tuple[Column, ...]
+        Columns computed after loading, whatever the DAMO version (see
+        `hydrolib.dhydamo.io.damo_versions.loader`). A derived column may also be
+        read, and is then overwritten.
     index : str, optional
         Column that becomes the index; duplicate values get a suffix.
     group_by : str, optional
@@ -52,13 +95,40 @@ class Table:
 
     layer: str
     geotype: Geotype | None
-    required_columns: tuple[str, ...]
-    optional_columns: tuple[str, ...] = ()
+    required_columns: tuple[str | Column, ...]
+    optional_columns: tuple[str | Column, ...] = ()
+    derived_columns: tuple[Column, ...] = ()
     index: str | None = None
     group_by: str | None = None
     order_by: str | None = None
     optional_layer: bool = True
     check_geotype: bool = True
+
+    @property
+    def required_names(self) -> tuple[str, ...]:
+        """The names of the required columns."""
+        return tuple(_column(column).name for column in self.required_columns)
+
+    @property
+    def optional_names(self) -> tuple[str, ...]:
+        """The names of the optional columns."""
+        return tuple(_column(column).name for column in self.optional_columns)
+
+    @property
+    def columns(self) -> tuple[Column, ...]:
+        """The read columns, required then optional, each as a `Column`."""
+        return tuple(
+            _column(column)
+            for column in (*self.required_columns, *self.optional_columns)
+        )
+
+    @property
+    def column_filled_from_globalid(self) -> str | None:
+        """The column filled from ``globalid``, if any."""
+        for column in self.columns:
+            if column.fill_from_globalid:
+                return column.name
+        return None
 
 
 # The HyDAMO tables loaded from DAMO, by HyDAMO attribute, in loading order. Column
@@ -76,6 +146,13 @@ TABLES: dict[str, Table] = {
         "ProfielPunt",
         geotype=LineString,
         required_columns=("code", "geometry", "globalid", "profiellijnid"),
+        derived_columns=(
+            Column(
+                "code",
+                "The D-Flow FM cross-section id: the profiellijnid of the line the "
+                "points are grouped into, instead of the code of one point.",
+            ),
+        ),
         group_by="profiellijnid",
         order_by="codevolgnummer",
     ),
@@ -136,9 +213,11 @@ TABLES: dict[str, Table] = {
         geotype=None,
         required_columns=("code",),
         optional_columns=(
-            # Mandatory in DAMO up to 2.4, optional from 2.5, where the layer also
-            # holds the closing devices of locks, coupures and tunnels.
-            "overlaatonderlaat",
+            Column(
+                "overlaatonderlaat",
+                "Mandatory in DAMO up to 2.4, optional from 2.5, where the layer also "
+                "holds the closing devices of locks, coupures and tunnels.",
+            ),
             "globalid",
             "kunstwerkopeningid",
             "duikersifonhevelid",
@@ -146,6 +225,12 @@ TABLES: dict[str, Table] = {
             "soortregelmiddel",
             "hoogteopening",
             "afvoercoefficient",
+            Column(
+                "maximaaldebiet",
+                "The maximum flow through an orifice (an onderlaat). When given, the "
+                "D-Flow FM orifice limits its flow to it in both directions.",
+                hydrolib_only=True,
+            ),
         ),
     ),
     "bridges": Table(
@@ -200,14 +285,28 @@ TABLES: dict[str, Table] = {
     "management": Table(
         "Sturing",
         geotype=None,
-        # DAMO defines no code for Sturing: see FILLED_FROM_GLOBALID.
-        required_columns=("code", "globalid"),
+        required_columns=(
+            Column(
+                "code",
+                "DAMO defines no code for Sturing, but HYDROLIB indexes Sturing by "
+                "code and names its controllers after it.",
+                fill_from_globalid=True,
+            ),
+            "globalid",
+        ),
         optional_columns=(
             "regelmiddelid",
             "pompid",
             "hydrologischerandvoorwaardeid",
             "typecontroller",
-            "stuurvariabele",
+            Column(
+                "stuurvariabele",
+                "Every validatiemodule schema from DAMO 2.2 to 2.6 allows only this "
+                "steering variable with a trailing comma, a typo upstream. Files made "
+                "under those versions keep it even after an upstream fix, so the "
+                "rewrite is permanent.",
+                rewrite=("bovenkant afsluitmiddel,", "bovenkant afsluitmiddel"),
+            ),
             "doelvariabele",
             "meetlocatieid",
             "bovengrens",
@@ -227,6 +326,13 @@ TABLES: dict[str, Table] = {
         "afvoergebiedaanvoergebied",
         geotype=Polygon | MultiPolygon,
         required_columns=("code", "geometry", "globalid", "lateraleknoopid"),
+        derived_columns=(
+            Column(
+                "boundary_node",
+                "The RR boundary node id: the code of the lateral the catchment's "
+                "lateraleknoopid points to.",
+            ),
+        ),
         index="code",
         check_geotype=False,
     ),
@@ -569,9 +675,14 @@ CASCADE_PATHS: dict[str, CascadePaths] = {
 }
 
 
+ExtensionKind: TypeAlias = Literal[
+    "HYDROLIB-only column", "value rewrite", "filled from globalid", "derived column"
+]
+
+
 @dataclass(frozen=True)
 class Extension:
-    """A column HYDROLIB defines on top of DAMO 2.2.
+    """A column HYDROLIB defines or treats on top of DAMO 2.2, from `extensions`.
 
     Parameters
     ----------
@@ -579,91 +690,42 @@ class Extension:
         HyDAMO attribute of the table.
     column : str
         The column.
+    kind : ExtensionKind
+        What HYDROLIB does with it.
     reason : str
         Why HYDROLIB needs it.
     """
 
     table: str
     column: str
+    kind: ExtensionKind
     reason: str
 
 
-# Columns HYDROLIB reads on DAMO tables that no DAMO version defines. Each is
-# optional: read when present.
-OWN_COLUMNS: tuple[Extension, ...] = (
-    Extension(
-        "management_device",
-        "maximaaldebiet",
-        "The maximum flow through an orifice (an onderlaat). When given, the D-Flow FM "
-        "orifice limits its flow to it in both directions.",
-    ),
-)
+def extensions() -> list[Extension]:
+    """Return HYDROLIB's extensions to DAMO 2.2, as declared on the tables' columns.
 
-
-@dataclass(frozen=True)
-class ValueRewrite:
-    """A value HYDROLIB rewrites when loading, whatever the DAMO version.
-
-    Only the exact value is rewritten, so no general stripping of whitespace or
-    commas. A table without the column is left alone.
-
-    Parameters
-    ----------
-    table : str
-        HyDAMO attribute of the table.
-    column : str
-        The column, under its DAMO 2.2 name.
-    old : str
-        The value in the file.
-    new : str
-        The value HYDROLIB uses instead.
-    reason : str
-        Why HYDROLIB rewrites it.
+    Returns
+    -------
+    list[Extension]
+        Per table in `TABLES` order: its HYDROLIB-only columns, value rewrites and
+        columns filled from ``globalid``, in column order, then its derived columns.
     """
-
-    table: str
-    column: str
-    old: str
-    new: str
-    reason: str
-
-
-# Applied after the renames, before the derived columns.
-VALUE_REWRITES: tuple[ValueRewrite, ...] = (
-    ValueRewrite(
-        "management",
-        "stuurvariabele",
-        "bovenkant afsluitmiddel,",
-        "bovenkant afsluitmiddel",
-        "Every validatiemodule schema from DAMO 2.2 to 2.6 allows only this steering "
-        "variable with a trailing comma, a typo upstream. Files made under those "
-        "versions keep it even after an upstream fix, so the rewrite is permanent.",
-    ),
-)
-
-# Filled from ``globalid`` where the column is absent or empty, before duplicates
-# get a suffix.
-FILLED_FROM_GLOBALID: tuple[Extension, ...] = (
-    Extension(
-        "management",
-        "code",
-        "DAMO defines no code for Sturing, but HYDROLIB indexes Sturing by code and "
-        "names its controllers after it.",
-    ),
-)
-
-# Computed after the renames, whatever the DAMO version (see loader.load_layers).
-DERIVED_COLUMNS: tuple[Extension, ...] = (
-    Extension(
-        "profile",
-        "code",
-        "The D-Flow FM cross-section id: the profiellijnid of the line the points "
-        "are grouped into, instead of the code of one point.",
-    ),
-    Extension(
-        "catchments",
-        "boundary_node",
-        "The RR boundary node id: the code of the lateral the catchment's "
-        "lateraleknoopid points to.",
-    ),
-)
+    found = []
+    for name, table in TABLES.items():
+        for column in table.columns:
+            if column.hydrolib_only:
+                found.append(
+                    Extension(name, column.name, "HYDROLIB-only column", column.reason)
+                )
+            if column.rewrite is not None:
+                found.append(
+                    Extension(name, column.name, "value rewrite", column.reason)
+                )
+            if column.fill_from_globalid:
+                found.append(
+                    Extension(name, column.name, "filled from globalid", column.reason)
+                )
+        for column in table.derived_columns:
+            found.append(Extension(name, column.name, "derived column", column.reason))
+    return found

@@ -8,12 +8,7 @@ from typing import TYPE_CHECKING
 
 import geopandas as gpd
 
-from hydrolib.dhydamo.core.data_model import (
-    FILLED_FROM_GLOBALID,
-    TABLES,
-    VALUE_REWRITES,
-    DamoRelations,
-)
+from hydrolib.dhydamo.core.data_model import TABLES, DamoRelations
 from hydrolib.dhydamo.io.damo_versions.steps import SourceLayer
 
 if TYPE_CHECKING:
@@ -32,8 +27,8 @@ def load_layers(
 ) -> None:
     """Read the layers of a DAMO GeoPackage into *hydamo*, under their DAMO 2.2 names.
 
-    Then rewrites values (`data_model.VALUE_REWRITES`) and computes the derived
-    columns (`data_model.DERIVED_COLUMNS`).
+    Then rewrites values and computes the derived columns, as declared on the tables
+    (`Column.rewrite`, `Table.derived_columns`).
 
     Parameters
     ----------
@@ -67,8 +62,6 @@ def load_layers(
         layer_name.lower(): layer_name
         for layer_name in gpd.list_layers(gpkg_path).name.tolist()
     }
-    filled_from_globalid = {ext.table: ext.column for ext in FILLED_FROM_GLOBALID}
-
     for name, source in sources.items():
         table = TABLES[name]
         actual_layer = available_layers.get(source.layer.lower())
@@ -89,7 +82,7 @@ def load_layers(
             "layer_name": actual_layer,
             "index_col": table.index,
             "column_mapping": source.renames or None,
-            "fill_from_globalid": filled_from_globalid.get(name),
+            "fill_from_globalid": table.column_filled_from_globalid,
             "check_geotype": table.check_geotype,
             "check_3d": check_3d,
         }
@@ -110,19 +103,19 @@ def load_layers(
             ) from exc
 
     _rewrite_values(hydamo)
-    # The derived columns of data_model.DERIVED_COLUMNS
+    # The derived columns of the tables (Table.derived_columns)
     _derive_profile_code(hydamo)
     _derive_boundary_node(hydamo)
 
 
 def _rewrite_values(hydamo: HyDAMO) -> None:
-    """Apply the value rewrites of `data_model.VALUE_REWRITES`, in place."""
-    for rewrite in VALUE_REWRITES:
-        table = getattr(hydamo, rewrite.table)
-        if rewrite.column in table.columns:
-            table[rewrite.column] = table[rewrite.column].replace(
-                rewrite.old, rewrite.new
-            )
+    """Apply the value rewrites declared on the tables' columns, in place."""
+    for name, definition in TABLES.items():
+        table = getattr(hydamo, name)
+        for column in definition.columns:
+            if column.rewrite is not None and column.name in table.columns:
+                old, new = column.rewrite
+                table[column.name] = table[column.name].replace(old, new)
 
 
 def _derive_profile_code(hydamo: HyDAMO) -> None:

@@ -158,7 +158,7 @@ class HyDAMO:
 
         # The DAMO tables and HYDROLIB's own tables, from the data model
         for name, table in TABLES.items():
-            setattr(self, name, _new_table(table.geotype, table.required_columns))
+            setattr(self, name, _new_table(table.geotype, table.required_names))
         for name, own_table in OWN_TABLES.items():
             setattr(
                 self, name, _new_table(own_table.geotype, own_table.required_columns)
@@ -386,7 +386,7 @@ class HyDAMO:
         """
         for name, definition in TABLES.items():
             table = getattr(self, name)
-            fresh = _new_table(definition.geotype, definition.required_columns)
+            fresh = _new_table(definition.geotype, definition.required_names)
             # inplace: the tables are replaced in place, so references stay valid
             table.drop(index=table.index, inplace=True)  # noqa: PD002
             table.drop(columns=list(table.columns), inplace=True)  # noqa: PD002

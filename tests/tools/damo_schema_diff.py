@@ -15,10 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import hydamo_validation
-from hydrolib.dhydamo.core.data_model import (
-    FILLED_FROM_GLOBALID,
-    TABLES,
-)
+from hydrolib.dhydamo.core.data_model import TABLES
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.io.damo_versions import (
     SUPPORTED_HYDAMO_VERSIONS,
@@ -181,7 +178,6 @@ def _check_converter(version: str, schema_version: str) -> tuple[list[str], list
     """
     schema = _load_schema(schema_version)
     hydamo = HyDAMO()
-    filled_from_globalid = {ext.table: ext.column for ext in FILLED_FROM_GLOBALID}
     problems = []
     notes = []
     for name, source in source_layers(version).items():
@@ -226,8 +222,9 @@ def _check_converter(version: str, schema_version: str) -> tuple[list[str], list
         loaded = set()
         for column in available:
             loaded.add(source.renames.get(column, column))
-        if name in filled_from_globalid and "globalid" in loaded:
-            loaded.add(filled_from_globalid[name])
+        filled = spec.column_filled_from_globalid
+        if filled is not None and "globalid" in loaded:
+            loaded.add(filled)
 
         # The loaded table must have HyDAMO's required columns and the index column.
         required = set(getattr(hydamo, name).required_columns)
