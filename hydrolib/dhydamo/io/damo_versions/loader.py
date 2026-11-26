@@ -59,18 +59,20 @@ def load_layers(
     ------
     KeyError
         If a loaded layer lacks a required column (`data_model.TABLES`); the message
-        names the layer and the column.
+        names the layer and the column. Raised at once.
     ValueError
         If a layer that is not optional is missing, or a layer of points lacks the
         column that groups or orders them into lines; the message names the layer.
         Also if a table's identity, or the column that groups points into lines, is
-        empty in some rows; the message names the layer and the rows.
+        empty in some rows; the message names the layer and the first rows. These
+        errors are collected over all layers and raised together, one line each.
     """
     gpkg_path = Path(gpkg_path)
     available_layers = {
         layer_name.lower(): layer_name
         for layer_name in gpd.list_layers(gpkg_path).name.tolist()
     }
+    errors: list[str] = []
     for name, source in sources.items():
         table = TABLES[name]
         actual_layer = available_layers.get(source.layer.lower())
@@ -82,9 +84,10 @@ def load_layers(
                     hydamo_version,
                 )
                 continue
-            raise ValueError(
+            errors.append(
                 f'Missing required HyDAMO layer "{source.layer}" for DAMO {hydamo_version}.'
             )
+            continue
 
         kwargs: dict = {
             "gpkg_path": gpkg_path,
@@ -103,16 +106,22 @@ def load_layers(
         if clip_layers and name in clip_layers:
             kwargs["clip"], kwargs["cliptype"] = clip_layers[name]
 
+        # The table's own messages don't name the layer.
+        prefix = f'HyDAMO layer "{actual_layer}" (DAMO {hydamo_version}): '
         try:
             getattr(hydamo, name)._read_gpkg_layer(**kwargs)
-        except (KeyError, ValueError) as exc:
-            # e.g. a missing column; the table's own message doesn't name the layer.
-            # The type is kept, so callers that catch it still do.
-            raise type(exc)(
-                f'HyDAMO layer "{actual_layer}" (DAMO {hydamo_version}): {exc.args[0]}'
-            ) from exc
+        except KeyError as exc:
+            # A missing column raises at once, as a KeyError, so callers that catch
+            # it still do.
+            raise KeyError(prefix + str(exc.args[0])) from exc
+        except ValueError as exc:
+            # e.g. empty codes: collected, so all layers are reported at once
+            errors.append(prefix + str(exc))
+            continue
         if not _KEEP_UNDECLARED_COLUMNS:
             _drop_undeclared_columns(hydamo, name, table)
+    if errors:
+        raise ValueError("\n".join(errors))
 
     _rewrite_values(hydamo)
     # The derived columns of the tables (Table.derived_columns)

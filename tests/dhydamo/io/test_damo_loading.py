@@ -2100,6 +2100,92 @@ def test_load_from_gpkg_rejects_empty_codes_naming_the_layer_and_rows(
         )
 
 
+def test_load_from_gpkg_names_at_most_ten_rows_with_an_empty_code(
+    tmp_path: Path,
+) -> None:
+    gpkg_file = tmp_path / "empty_codes.gpkg"
+    _write_layer(
+        gpkg_file,
+        "Stuw",
+        gpd.GeoDataFrame(
+            {
+                "code": [None] * 12,
+                "globalid": [f"g{i}" for i in range(12)],
+                "afvoercoefficient": [1.0] * 12,
+                "geometry": [Point(i, 0) for i in range(12)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r'"code" is empty in 12 row\(s\): g0, g1, g2, g3, g4, g5, g6, g7, g8, '
+        r"g9 and 2 more\.",
+    ):
+        HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.2")
+
+
+def test_load_from_gpkg_reports_the_errors_of_all_layers_at_once(
+    tmp_path: Path,
+) -> None:
+    gpkg_file = tmp_path / "empty_codes.gpkg"
+    for layer in ("Stuw", "lateraleknoop"):
+        _write_layer(
+            gpkg_file,
+            layer,
+            gpd.GeoDataFrame(
+                {
+                    "code": ["A1", None],
+                    "globalid": [f"{layer}-1", f"{layer}-2"],
+                    "afvoercoefficient": [1.0, 1.0],
+                    "geometry": [Point(1, 0), Point(2, 0)],
+                },
+                crs="EPSG:28992",
+            ),
+        )
+
+    with pytest.raises(ValueError, match='"code" is empty') as excinfo:
+        HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.2")
+
+    lines = str(excinfo.value).splitlines()
+    assert any('layer "Stuw"' in line and "Stuw-2" in line for line in lines)
+    assert any(
+        'layer "lateraleknoop"' in line and "lateraleknoop-2" in line for line in lines
+    )
+
+
+def test_load_from_gpkg_raises_a_missing_column_before_other_layer_errors(
+    tmp_path: Path,
+) -> None:
+    # Stuw loads before lateraleknoop: its empty code doesn't hide the missing column.
+    gpkg_file = tmp_path / "errors.gpkg"
+    _write_layer(
+        gpkg_file,
+        "Stuw",
+        gpd.GeoDataFrame(
+            {
+                "code": [None],
+                "globalid": ["g1"],
+                "afvoercoefficient": [1.0],
+                "geometry": [Point(1, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+    _write_layer(
+        gpkg_file,
+        "lateraleknoop",
+        gpd.GeoDataFrame(
+            {"globalid": ["g2"], "geometry": [Point(2, 0)]},
+            crs="EPSG:28992",
+        ),
+    )
+
+    with pytest.raises(KeyError, match='layer "lateraleknoop".*"code" not found'):
+        HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.2")
+
+
 def test_load_from_gpkg_rejects_a_branch_layer_without_code(tmp_path: Path) -> None:
     gpkg_file = tmp_path / "branch.gpkg"
     _write_layer(

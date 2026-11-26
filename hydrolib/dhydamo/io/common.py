@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 _Frame = TypeVar("_Frame", bound=pd.DataFrame)
 
+# The most rows a message names; it gives the count of the rest.
+_MAX_ROW_NAMES = 10
+
 
 def _is_empty(values: pd.Series) -> pd.Series:
     """Return which *values* are empty: missing, or only whitespace."""
@@ -31,9 +34,15 @@ def _is_empty(values: pd.Series) -> pd.Series:
 
 
 def _row_names(df: pd.DataFrame, rows: pd.Series) -> str:
-    """Name the selected *rows* of *df* by ``globalid``, or by index without it."""
+    """Name the selected *rows* of *df* by ``globalid``, or by index without it.
+
+    Names at most `_MAX_ROW_NAMES` rows, then says how many more there are.
+    """
     names = df.loc[rows, "globalid"] if "globalid" in df.columns else df.index[rows]
-    return ", ".join(str(name) for name in names)
+    shown = ", ".join(str(name) for name in names[:_MAX_ROW_NAMES])
+    if len(names) > _MAX_ROW_NAMES:
+        return f"{shown} and {len(names) - _MAX_ROW_NAMES} more"
+    return shown
 
 
 def _points_to_lines(
