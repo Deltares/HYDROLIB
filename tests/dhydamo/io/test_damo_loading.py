@@ -26,7 +26,7 @@ from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 from hydrolib.dhydamo.io.damo_versions import SUPPORTED_HYDAMO_VERSIONS, loader
 from hydrolib.dhydamo.validation import HyDAMOValidationError
 from pydantic import ValidationError
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, Point, Polygon
 
 DATA_PATH = Path("hydrolib/sample_data/data").resolve()
 
@@ -473,6 +473,34 @@ def test_dropping_undeclared_columns_makes_a_builder_fail_on_reading_one(
         mesh.mesh1d_order_numbers_from_attribute(
             hydamo.branches, [], order_attribute="opmerking", network=mock.Mock()
         )
+
+
+def test_dropping_undeclared_columns_drops_a_derived_column_the_file_supplies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # boundary_node is derived from the laterals; without laterals the derivation
+    # leaves it alone, so the guard must not let the file's own value in.
+    monkeypatch.setattr(loader, "_KEEP_UNDECLARED_COLUMNS", False)
+    gpkg_file = tmp_path / "catchments.gpkg"
+    _write_layer(
+        gpkg_file,
+        "afvoergebiedaanvoergebied",
+        gpd.GeoDataFrame(
+            {
+                "code": ["AG1"],
+                "globalid": ["ag-guid"],
+                "lateraleknoopid": ["lat-guid"],
+                "boundary_node": ["from the file"],
+                "geometry": [Polygon([(0, 0), (1, 0), (1, 1)])],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.2")
+
+    assert hydamo.catchments.index.tolist() == ["AG1"]
+    assert "boundary_node" not in hydamo.catchments.columns
 
 
 @pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)

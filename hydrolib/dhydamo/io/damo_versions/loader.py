@@ -117,12 +117,16 @@ def load_layers(
 
 
 def _drop_undeclared_columns(hydamo: HyDAMO, name: str, definition: Table) -> None:
-    """Drop, in place, the columns of table *name* that *definition* doesn't declare."""
+    """Drop, in place, the columns of table *name* that *definition* doesn't read.
+
+    If the file supplies a column with the same name as a derived column, it is
+    dropped and then derived. When the derivation can't run, e.g. ``boundary_node``
+    without laterals, the column stays absent.
+    """
     declared = {
         "geometry",
         *definition.required_names,
         *definition.optional_names,
-        *(column.name for column in definition.derived_columns),
         *(c for c in (definition.index, definition.group_by, definition.order_by) if c),
     }
     table = getattr(hydamo, name)
