@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from unittest import mock
 
 import geopandas as gpd
 import numpy as np
@@ -13,6 +14,7 @@ from hydrolib.dhydamo.converters.hydamo2df import RoughnessVariant
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
+from hydrolib.dhydamo.io.damo_versions import loader
 from netCDF4 import Dataset
 from pydantic import ValidationError
 from rasterio.transform import from_origin
@@ -219,7 +221,11 @@ def _hydamo_object_from_gpkg() -> tuple[HyDAMO, int]:
     gpkg_file = hydamo_data_path / "Example_model.gpkg"
     assert gpkg_file.exists()
 
-    hydamo.load_from_gpkg(gpkg_file, hydamo_version="2.2")
+    # Without the columns the data model doesn't declare, so that every model built
+    # from the example model fails on a column read without declaring it: such a read
+    # works on this DAMO 2.2 file, but not on a later version that renamed the column.
+    with mock.patch.object(loader, "_KEEP_UNDECLARED_COLUMNS", False):
+        hydamo.load_from_gpkg(gpkg_file, hydamo_version="2.2")
 
     len_profile_before = len(hydamo.profile)
     hydamo.snap_to_branch_and_drop(
@@ -273,14 +279,15 @@ def test_hydamo_object_from_gpkg() -> None:
     assert len(hydamo.profile) == 352
     assert hydamo.profile.geom_type.to_numpy()[0] == "LineString"
     # the dataset contains two profile groups (a bridge and a uweir)
-    assert hydamo.profile_group.shape == (2, 5)
+    assert len(hydamo.profile_group) == 2
     # a profile_lines' profielgroepid's should correspond to profile_group globalids
     assert hydamo.profile_line.profielgroepid.to_numpy()[0] in list(
         hydamo.profile_group.globalid
     )
     assert len(hydamo.management_device) == 31
     assert len(hydamo.weirs) == 25
-    assert np.isclose(np.round(hydamo.weirs.doorstroombreedte.mean()), 2)
+    # an undeclared column of the file, dropped by _hydamo_object_from_gpkg
+    assert "doorstroombreedte" not in hydamo.weirs.columns
     assert len(hydamo.culverts) == 90
     assert np.isclose(np.round(hydamo.culverts.length.sum()), 2498)
     assert len(hydamo.pumps) == 1
@@ -289,9 +296,7 @@ def test_hydamo_object_from_gpkg() -> None:
     assert len(hydamo.boundary_conditions) == 1
     assert not hydamo.boundary_conditions.branch_offset.empty
     assert len(hydamo.catchments) == 121
-    assert np.isclose(np.round(hydamo.catchments.oppervlakt.sum()), 2662)
     assert len(hydamo.laterals) == 121
-    assert np.isclose(np.round(hydamo.laterals.afvoer.mean()), 0)
 
 
 def _convert_structures(hydamo_obj: HyDAMO | None = None) -> HyDAMO:
@@ -555,13 +560,32 @@ def _convert_crosssections() -> HyDAMO:
 def test_convert_crosssections() -> None:
     hydamo = _convert_crosssections()
 
-    assert len(hydamo.crosssections.crosssection_def) == 443
-    assert len(hydamo.crosssections.crosssection_loc) == 349
+    # Including the parameterised profile of W_2645_0: one definition, two locations
+    assert len(hydamo.crosssections.crosssection_def) == 444
+    assert len(hydamo.crosssections.crosssection_loc) == 351
 
     # check whether the bridge profile in in the crosssection definitions
     bridge_profile = hydamo.structures.bridges_df.csdefid.to_numpy()[0]
     assert bridge_profile in hydamo.crosssections.crosssection_def
     assert "default" in hydamo.crosssections.crosssection_def
+
+
+def test_example_model_builds_its_parameterised_profile() -> None:
+    # The example links branch W_2645_0 to one profile in hydroobject_normgp.
+    hydamo = _convert_crosssections()
+
+    assert len(hydamo.param_profile) == 1
+    locations = [
+        location
+        for location in hydamo.crosssections.crosssection_loc.values()
+        if location["branchid"] == "W_2645_0"
+    ]
+    assert [location["definitionId"] for location in locations] == [
+        "trapz_s0.3_bw2.0_bw3.4",
+        "trapz_s0.3_bw2.0_bw3.4",
+    ]
+    # the upstream and the downstream bottom level
+    assert [float(location["shift"]) for location in locations] == [20.0, 19.5]
 
 
 @pytest.mark.parametrize(
@@ -817,6 +841,156 @@ def test_convert_boundaries() -> None:
     )
     assert next(i == "RVM_02" for i in hydamo.external_forcings.boundary_nodes)
     assert len(hydamo.external_forcings.boundary_nodes.keys()) == 1
+
+
+def _converted_boundaries(
+    rows: list[dict], drop: tuple[str, ...] = ()
+) -> list[tuple[str, str, float]]:
+    """Convert a boundary table of *rows*; return ``(code, quantity, value)`` per boundary.
+
+    ``add_boundary_condition`` is replaced, so no 1D mesh is needed.
+    """
+    hydamo = HyDAMO()
+    table = gpd.GeoDataFrame(
+        [{**row, "geometry": Point(i, 0)} for i, row in enumerate(rows)],
+        crs="EPSG:28992",
+    ).drop(columns=list(drop))
+    hydamo.boundary_conditions.set_data(table, index_col="code", check_columns=False)
+    added = []
+
+    def add(name: str, pt: Point, quantity: str, value: float, mesh1d: None) -> None:
+        added.append((name, quantity, value))
+
+    with mock.patch.object(
+        hydamo.external_forcings, "add_boundary_condition", side_effect=add
+    ):
+        hydamo.external_forcings.convert.boundaries(hydamo.boundary_conditions)
+    return added
+
+
+def _boundary(
+    code: str, kind: str | None, waterstand: float | None, debiet: float | None
+) -> dict:
+    return {
+        "code": code,
+        "typerandvoorwaarde": kind,
+        "waterstand": waterstand,
+        "debiet": debiet,
+    }
+
+
+def test_convert_boundaries_reads_the_value_of_the_boundary_type() -> None:
+    # Before, the water level was taken whenever it was filled, also for a discharge.
+    added = _converted_boundaries(
+        [
+            _boundary("B1", "waterstand vaste waarde", 10.0, 5.0),
+            _boundary("B2", "debiet vaste waarde", 10.0, 2.0),
+        ]
+    )
+
+    assert added == [("B1", "waterlevelbnd", 10.0), ("B2", "dischargebnd", 2.0)]
+
+
+def test_convert_boundaries_reads_a_discharge_when_no_water_level_is_filled() -> None:
+    # A column empty in every row loads as None, which made isnan fail.
+    added = _converted_boundaries([_boundary("B1", "debiet variabel", None, 2.0)])
+
+    assert added == [("B1", "dischargebnd", 2.0)]
+
+
+def test_convert_boundaries_reads_a_boundary_without_the_other_column() -> None:
+    added = _converted_boundaries(
+        [_boundary("B1", "waterstand vaste waarde", 10.0, None)], drop=("debiet",)
+    )
+
+    assert added == [("B1", "waterlevelbnd", 10.0)]
+
+
+def test_convert_boundaries_uses_a_variable_boundary_as_a_constant(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # The example model's only boundary is such a one; the table has no time series.
+    with caplog.at_level(logging.INFO):
+        added = _converted_boundaries(
+            [_boundary("B1", "waterstand getijdebeweging", 11.0, None)]
+        )
+
+    assert added == [("B1", "waterlevelbnd", 11.0)]
+    assert (
+        'Boundary condition B1 is of type "waterstand getijdebeweging", but the DAMO '
+        "table has no time series: its waterstand 11.0 is used as a constant."
+    ) in caplog.text
+
+
+def test_convert_boundaries_skips_a_qh_relation_with_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # Before, it raised as the first row, and took the type of the row before it
+    # otherwise.
+    added = _converted_boundaries(
+        [
+            _boundary("B1", "Qh-relatie", 7.0, None),
+            _boundary("B2", "debiet vaste waarde", None, 2.0),
+        ]
+    )
+
+    assert added == [("B2", "dischargebnd", 2.0)]
+    assert "Boundary condition B1 is a Q-h relation" in caplog.text
+    assert 'quantity="qhbnd"' in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("row", "drop", "problem"),
+    [
+        (
+            _boundary("B1", "waterstand vaste waarde", None, 5.0),
+            (),
+            'B1 is of type "waterstand vaste waarde", but its waterstand is empty',
+        ),
+        (
+            _boundary("B1", "waterstand variabel", np.nan, np.nan),
+            (),
+            'B1 is of type "waterstand variabel", but its waterstand is empty',
+        ),
+        (
+            _boundary("B1", "debiet vaste waarde", 10.0, None),
+            ("debiet",),
+            'B1 is of type "debiet vaste waarde", but its debiet is empty',
+        ),
+        (
+            _boundary("B1", None, 10.0, None),
+            (),
+            "B1 has no typerandvoorwaarde",
+        ),
+        (
+            _boundary("B1", "Waterstand vaste waarde", 10.0, None),
+            (),
+            "B1 has an unknown typerandvoorwaarde 'Waterstand vaste waarde'",
+        ),
+    ],
+    ids=["no-water-level", "nan-water-level", "no-debiet-column", "no-type", "case"],
+)
+def test_convert_boundaries_rejects_a_boundary_it_cannot_read(
+    row: dict, drop: tuple[str, ...], problem: str
+) -> None:
+    with pytest.raises(ValueError, match="Cannot convert 1 boundary condition") as info:
+        _converted_boundaries([row], drop=drop)
+
+    assert problem in str(info.value)
+
+
+def test_convert_boundaries_names_every_boundary_it_cannot_read() -> None:
+    with pytest.raises(ValueError, match="Cannot convert 2 boundary condition") as info:
+        _converted_boundaries(
+            [
+                _boundary("B1", None, 10.0, None),
+                _boundary("B2", "waterstand vaste waarde", 10.0, None),
+                _boundary("B3", "debiet vaste waarde", None, None),
+            ]
+        )
+
+    assert "B1 has no typerandvoorwaarde" in str(info.value)
+    assert "B3 is of type" in str(info.value)
 
 
 def test_add_boundaries() -> None:
@@ -1266,6 +1440,10 @@ def test_create_laterals_excludes_nodata_and_keeps_negative_discharge(
         qspec * hydamo.catchments.area.to_numpy() / (1000 * 86400),
         rtol=1e-6,
     )
+    # Indexed by the lateral's code, like loaded laterals.
+    lateral_codes = [f"lat_{code}" for code in hydamo.catchments["code"]]
+    assert hydamo.laterals.index.tolist() == lateral_codes
+    assert hydamo.laterals.index.name == "code"
 
 
 def test_make_index_unique_suffixes_duplicates_without_code_column() -> None:

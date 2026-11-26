@@ -8,7 +8,7 @@ from collections.abc import Hashable
 from copy import deepcopy
 from pathlib import Path
 from types import ModuleType, UnionType
-from typing import Any
+from typing import Any, TypeVar
 
 import geopandas as gpd
 import numpy as np
@@ -21,6 +21,28 @@ from shapely.geometry.base import BaseGeometry
 from hydrolib.dhydamo.geometry import spatial
 
 logger = logging.getLogger(__name__)
+
+_Frame = TypeVar("_Frame", bound=pd.DataFrame)
+
+# The most rows a message names; it gives the count of the rest.
+_MAX_ROW_NAMES = 10
+
+
+def _is_empty(values: pd.Series) -> pd.Series:
+    """Return which *values* are empty: missing, or only whitespace."""
+    return values.isna() | (values.astype(str).str.strip() == "")
+
+
+def _row_names(df: pd.DataFrame, rows: pd.Series) -> str:
+    """Name the selected *rows* of *df* by ``globalid``, or by index without it.
+
+    Names at most `_MAX_ROW_NAMES` rows, then says how many more there are.
+    """
+    names = df.loc[rows, "globalid"] if "globalid" in df.columns else df.index[rows]
+    shown = ", ".join(str(name) for name in names[:_MAX_ROW_NAMES])
+    if len(names) > _MAX_ROW_NAMES:
+        return f"{shown} and {len(names) - _MAX_ROW_NAMES} more"
+    return shown
 
 
 def _points_to_lines(
@@ -35,15 +57,28 @@ def _points_to_lines(
     Groups with fewer than two points are skipped with a warning.
     """
     if groupby_column not in layer.columns:
-        raise ValueError("Groupby column not found in feature list.")
-    if order_column is None or order_column not in layer.columns:
-        raise ValueError("Order column not found in feature list.")
+        raise ValueError(
+            f'Column "{groupby_column}" not found; it groups the points into lines.'
+        )
+    if order_column is None:
+        raise ValueError("No column given to order the points of a line.")
+    if order_column not in layer.columns:
+        raise ValueError(
+            f'Column "{order_column}" not found; it orders the points of a line.'
+        )
 
     geom_types = layer.geometry.geom_type.unique()
     if len(geom_types) != 1 or geom_types[0] != "Point":
         raise ValueError("Can only group Points to LineString")
     if check_3d and np.isnan(layer.geometry.z.to_numpy()).any():
         raise ValueError("All geometries need to have a Z coordinate")
+    # groupby would drop missing values silently and make a line of blank ones
+    empty = _is_empty(layer[groupby_column])
+    if empty.any():
+        raise ValueError(
+            f'Column "{groupby_column}" is empty in {int(empty.sum())} row(s): '
+            f"{_row_names(layer, empty)}. It groups the points into lines."
+        )
 
     geometries = []
     fields = []
@@ -61,8 +96,93 @@ def _points_to_lines(
     return fields, geometries
 
 
-def _make_index_unique(gdf: gpd.GeoDataFrame, index_col: str) -> None:
-    """Suffix repeated `index_col` values in place (`_1`, `_2`, ...); the first occurrence keeps its id."""
+def _fill_from_globalid(df: pd.DataFrame, column: str, layer_name: str) -> None:
+    """Fill a missing or empty *column* in place from ``globalid``, with a warning.
+
+    An absent column is copied from ``globalid``; empty values (missing, or only
+    whitespace) in a column that is present are filled from it. Without a
+    ``globalid`` column nothing changes. The warning names the layer and the filled
+    rows, by ``globalid``.
+    """
+    if "globalid" not in df.columns:
+        return
+    if column in df.columns:
+        empty = _is_empty(df[column])
+        df[column] = df[column].mask(empty, df["globalid"])
+    else:
+        empty = pd.Series(True, index=df.index)
+        df[column] = df["globalid"]
+    if empty.any():
+        logger.warning(
+            'HyDAMO layer "%s": filled "%s" from "globalid" in %d row(s): %s',
+            layer_name,
+            column,
+            int(empty.sum()),
+            _row_names(df, empty),
+        )
+
+
+def _check_identity(df: pd.DataFrame, column: str) -> None:
+    """Raise if the identity *column* is missing, or empty in some rows.
+
+    The identity is a table's index and the id of its model objects, so every row
+    needs one. Whitespace counts as empty. The rows are named by ``globalid``.
+
+    Raises
+    ------
+    KeyError
+        If *column* is missing.
+    ValueError
+        If *column* is empty in some rows.
+    """
+    if column not in df.columns:
+        raise KeyError(f'Column "{column}" not found; it is the identity of the table.')
+    empty = _is_empty(df[column])
+    if empty.any():
+        raise ValueError(
+            f'Column "{column}" is empty in {int(empty.sum())} row(s): '
+            f"{_row_names(df, empty)}. It is the identity of the table: "
+            "the index and the id of its model objects."
+        )
+
+
+def _rename_columns(
+    df: _Frame, column_mapping: dict[str, str], layer_name: str
+) -> _Frame:
+    """Return *df* with its columns renamed by *column_mapping*, without duplicate labels.
+
+    When the layer also has a column under a rename's target name (e.g. a column of an
+    older DAMO version that a file still carries), the renamed column wins and the
+    other one is dropped, with a warning. Without this, both would end up under the
+    same label and the column order would decide which one is read.
+    """
+    stale = []
+    for source, target in column_mapping.items():
+        if (
+            source in df.columns
+            and target in df.columns
+            and target not in column_mapping
+        ):
+            logger.warning(
+                'HyDAMO layer "%s" has both "%s" and "%s"; reading "%s" as "%s" and '
+                'ignoring the "%s" column.',
+                layer_name,
+                source,
+                target,
+                source,
+                target,
+                target,
+            )
+            stale.append(target)
+    return df.drop(columns=stale).rename(columns=column_mapping)
+
+
+def _make_index_unique(gdf: pd.DataFrame, index_col: str) -> None:
+    """Suffix repeated `index_col` values in place (`_1`, `_2`, ...); the first occurrence keeps its id.
+
+    A suffix that is already a value in the column is skipped, so ``ST2, ST2, ST2_1``
+    becomes ``ST2, ST2_2, ST2_1``.
+    """
     duplicated = gdf.duplicated(subset=index_col, keep="first")
     if not duplicated.any():
         return
@@ -71,10 +191,15 @@ def _make_index_unique(gdf: gpd.GeoDataFrame, index_col: str) -> None:
         index_col,
         list(gdf.loc[duplicated, index_col].unique()),
     )
-    for dupe_id, group in gdf[duplicated].groupby(by=index_col, sort=False):
-        gdf.loc[group.index, index_col] = [
-            f"{dupe_id}_{i + 1}" for i in range(len(group))
-        ]
+    taken = set(gdf[index_col])
+    for row_index in gdf.index[duplicated]:
+        dupe_id = gdf.loc[row_index, index_col]
+        number = 1
+        while f"{dupe_id}_{number}" in taken:
+            number += 1
+        new_id = f"{dupe_id}_{number}"
+        taken.add(new_id)
+        gdf.loc[row_index, index_col] = new_id
 
 
 class ExtendedGeoDataFrame(gpd.GeoDataFrame):
@@ -244,6 +369,13 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         else:
             logger.debug("No projected CRS is given in ini-file")
 
+    def _drop_columns_not_in(self, data: pd.DataFrame) -> None:
+        """Remove the columns that *data* doesn't have, in place."""
+        stale = [column for column in self.columns if column not in data.columns]
+        if stale:
+            # inplace: returning a copy loses the Extended class
+            self.drop(columns=stale, inplace=True)  # noqa: PD002
+
     def set_data(
         self,
         gdf: gpd.GeoDataFrame,
@@ -252,6 +384,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         check_geotype: bool = True,
     ) -> None:
         """Replace the data with that of a GeoDataFrame, in place.
+
+        Rows and columns that *gdf* doesn't have are removed.
 
         Parameters
         ----------
@@ -273,6 +407,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         """
         if not self.empty:
             self.delete_all()
+        self._drop_columns_not_in(gdf)
 
         # Check columns
         if check_columns:
@@ -428,6 +563,8 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         order_column: str | None = None,
         id_col: str = "code",
         column_mapping: dict | None = None,
+        fill_from_globalid: str | None = None,
+        identity_column: str | None = None,
         check_columns: bool = True,
         check_geotype: bool = True,
         clip: Polygon | MultiPolygon | None = None,
@@ -446,8 +583,12 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
 
         layer = gpd.read_file(gpkg_path, layer=layer_name, engine="pyogrio")
-        columns = [col.lower() for col in layer.columns]
-        layer.columns = columns
+        layer.columns = [col.lower() for col in layer.columns]
+        # Rename first, so that the renames also apply to the columns that group
+        # and order points into lines.
+        if column_mapping is not None:
+            layer = _rename_columns(layer, column_mapping, layer_name)
+        columns = list(layer.columns)
 
         # Create geodataframe
         if groupby_column is not None:
@@ -458,8 +599,11 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         else:
             gdf = gpd.GeoDataFrame(layer, columns=columns, geometry=layer.geometry)
 
-        if column_mapping is not None:
-            gdf = gdf.rename(columns=column_mapping)
+        if fill_from_globalid is not None:
+            _fill_from_globalid(gdf, fill_from_globalid, layer_name)
+
+        if identity_column is not None:
+            _check_identity(gdf, identity_column)
 
         if index_col is not None:
             _make_index_unique(gdf, index_col)
@@ -712,8 +856,17 @@ class ExtendedDataFrame(pd.DataFrame):
             # inplace: returning a copy of an ExtendedDataFrame gives a plain DataFrame
             self.dropna(inplace=True)  # noqa: PD002
 
+    def _drop_columns_not_in(self, data: pd.DataFrame) -> None:
+        """Remove the columns that *data* doesn't have, in place."""
+        stale = [column for column in self.columns if column not in data.columns]
+        if stale:
+            # inplace: returning a copy loses the Extended class
+            self.drop(columns=stale, inplace=True)  # noqa: PD002
+
     def set_data(self, df: pd.DataFrame, index_col: Hashable | None) -> None:
         """Replace the data with that of a DataFrame, in place.
+
+        Rows and columns that *df* doesn't have are removed.
 
         Parameters
         ----------
@@ -729,6 +882,7 @@ class ExtendedDataFrame(pd.DataFrame):
         """
         if not self.empty:
             self.delete_all()
+        self._drop_columns_not_in(df)
 
         # Copy content
         for col, values in df.items():
@@ -816,6 +970,8 @@ class ExtendedDataFrame(pd.DataFrame):
         layer_name: str,
         column_mapping: dict | None = None,
         index_col: str | None = None,
+        fill_from_globalid: str | None = None,
+        identity_column: str | None = None,
         # the arguments for geometry layers, which a table ignores
         **kwargs: object,
     ) -> None:
@@ -842,7 +998,16 @@ class ExtendedDataFrame(pd.DataFrame):
 
         df = layer
         if column_mapping is not None:
-            df = df.rename(columns=column_mapping)
+            df = _rename_columns(df, column_mapping, layer_name)
+
+        if fill_from_globalid is not None:
+            _fill_from_globalid(df, fill_from_globalid, layer_name)
+
+        if identity_column is not None:
+            _check_identity(df, identity_column)
+
+        if index_col is not None:
+            _make_index_unique(df, index_col)
 
         # Add data to class GeoDataFrame
         self.set_data(df, index_col=index_col)

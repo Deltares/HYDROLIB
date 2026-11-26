@@ -7,7 +7,7 @@ from collections.abc import Hashable
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, no_type_check
+from typing import TYPE_CHECKING, Any, cast, no_type_check
 
 import geopandas as gpd
 import numpy as np
@@ -16,7 +16,7 @@ from netCDF4 import Dataset, chartostring
 from pydantic import ConfigDict, validate_call
 from shapely.geometry import Point
 
-from hydrolib.dhydamo.core.relations import RelationsHyDAMO
+from hydrolib.dhydamo.core.data_model import DamoRelations
 from hydrolib.dhydamo.geometry.mesh import Network
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
 
@@ -171,8 +171,8 @@ class CrossSectionsIO:
         if crosssections is not None and profile_groups is not None:
             if profile_lines is None:
                 raise ValueError("profile_lines is required with profile_groups.")
-            profile_group_bridge = RelationsHyDAMO.PROFILE_GROUP_BRIDGE
-            profile_group_weir = RelationsHyDAMO.PROFILE_GROUP_WEIR
+            profile_group_bridge = DamoRelations.PROFILE_GROUP_BRIDGE
+            profile_group_weir = DamoRelations.PROFILE_GROUP_WEIR
             # check for profile_groups items with valid brugid or stuwid. They need to be droppped from profiles.
             structure_group_mask = pd.Series(False, index=profile_groups.index)
             for relation in (profile_group_bridge, profile_group_weir):
@@ -180,11 +180,11 @@ class CrossSectionsIO:
                     structure_group_mask |= profile_groups[relation.foreign_key].notna()
 
             structure_groups = profile_groups.loc[structure_group_mask]
-            structure_lines = RelationsHyDAMO.PROFILE_LINE_GROUP.children_of(
+            structure_lines = DamoRelations.PROFILE_LINE_GROUP.children_of(
                 structure_groups,
                 profile_lines,
             )
-            structure_profiles = RelationsHyDAMO.PROFILE_LINE.children_of(
+            structure_profiles = DamoRelations.PROFILE_LINE.children_of(
                 structure_lines,
                 crosssections,
             )
@@ -246,11 +246,14 @@ class CrossSectionsIO:
             if param_profile_values is None:
                 raise ValueError("param_profile_values is required with param_profile.")
             # Derive norm cross sections for norm parametrised
+            # Resolved against all branches, so that a link matching several split
+            # parts always warns; the branches with a cross section get none.
             param_profiles_converted = self.crosssections.parametrised_to_profiles(
                 param_profile,
                 param_profile_values,
-                no_crosssection,
+                list(branches.itertuples()),
                 roughness_variant=roughness_variant,
+                with_crosssection=set(branches.index).difference(no_crosssection_id),
             )
             # Get branch information
             branchdata = self.crosssections.hydamo.branches.loc[
@@ -327,6 +330,65 @@ class CrossSectionsIO:
                 )
 
 
+# typerandvoorwaarde: the DAMO values of a water level and of a discharge boundary
+_WATER_LEVEL_BOUNDARIES = (
+    "waterstand vaste waarde",
+    "waterstand variabel",
+    "waterstand getijdebeweging",
+)
+_DISCHARGE_BOUNDARIES = ("debiet vaste waarde", "debiet variabel")
+_QH_BOUNDARY = "Qh-relatie"
+
+
+def _read_boundary(
+    code: str,
+    kind: str | float | None,
+    waterstand: float | None,
+    debiet: float | None,
+) -> tuple[str, float] | None:
+    """Return the quantity and the constant value of a boundary condition.
+
+    Returns None for a Q-h relation, which is skipped with a warning.
+
+    Raises
+    ------
+    ValueError
+        If *kind* is empty or unknown, or the value of its kind is empty.
+    """
+    if kind == _QH_BOUNDARY:
+        logger.warning(
+            "Boundary condition %s is a Q-h relation, which the DAMO table can't "
+            "hold; it is skipped. Add it with ExternalForcings.add_boundary_condition"
+            '(..., quantity="qhbnd", value={"Q": [...], "H": [...]}).',
+            code,
+        )
+        return None
+    if kind in _WATER_LEVEL_BOUNDARIES:
+        quantity, column, value = "waterlevelbnd", "waterstand", waterstand
+    elif kind in _DISCHARGE_BOUNDARIES:
+        quantity, column, value = "dischargebnd", "debiet", debiet
+    elif kind is None or pd.isna(kind):
+        raise ValueError(f"{code} has no typerandvoorwaarde")
+    else:
+        allowed = (*_WATER_LEVEL_BOUNDARIES, *_DISCHARGE_BOUNDARIES, _QH_BOUNDARY)
+        raise ValueError(
+            f"{code} has an unknown typerandvoorwaarde {kind!r}, expected one of "
+            f"{', '.join(allowed)}"
+        )
+    if value is None or pd.isna(value):
+        raise ValueError(f'{code} is of type "{kind}", but its {column} is empty')
+    if kind not in ("waterstand vaste waarde", "debiet vaste waarde"):
+        logger.info(
+            'Boundary condition %s is of type "%s", but the DAMO table has no time '
+            "series: its %s %s is used as a constant.",
+            code,
+            kind,
+            column,
+            value,
+        )
+    return quantity, float(value)
+
+
 class ExternalForcingsIO:
     """Add boundary conditions and laterals from DAMO tables.
 
@@ -347,46 +409,57 @@ class ExternalForcingsIO:
     ) -> None:
         """Add constant boundary conditions from the DAMO table randvoorwaarden.
 
-        The table has no time series; to add one, use
-        ``ExternalForcings.add_boundary_condition``.
+        ``typerandvoorwaarde`` decides the kind: a water level, read from
+        ``waterstand``, or a discharge, read from ``debiet``. The table has no time
+        series, so a variable or tidal boundary gets its value as a constant, which is
+        logged; to add a time series, use ``ExternalForcings.add_boundary_condition``.
+        A Q-h relation can't be held by the table either: it is skipped with a
+        warning, to be added with ``add_boundary_condition``.
 
         Parameters
         ----------
         boundary_conditions : ExtendedGeoDataFrame
             Locations and properties of the boundary conditions: ``code``,
-            ``typerandvoorwaarde`` (water level or discharge), ``waterstand`` and ``debiet``.
+            ``typerandvoorwaarde``, ``waterstand`` and ``debiet``. A missing
+            ``waterstand`` or ``debiet`` column counts as empty.
         mesh1d : Network, optional
             Network with the 1D mesh, to find the node of each boundary. Defaults to None.
-        """
-        # Read from Hydamo
-        bcdct = {}
 
+        Raises
+        ------
+        ValueError
+            If a boundary has no or an unknown ``typerandvoorwaarde``, or its value
+            is empty. The message names every such boundary by ``code``; none is
+            added then.
+        """
+        empty = pd.Series(None, index=boundary_conditions.index, dtype=object)
         boundary_columns = zip(
             boundary_conditions["code"],
             boundary_conditions["typerandvoorwaarde"],
-            boundary_conditions["waterstand"],
-            boundary_conditions["debiet"],
+            boundary_conditions.get("waterstand", empty),
+            boundary_conditions.get("debiet", empty),
             boundary_conditions.geometry,
         )
+        boundaries = []
+        problems = []
         for code, kind, waterstand, debiet, geometry in boundary_columns:
-            if "waterstand" in kind:
-                quantity = "waterlevelbnd"
-            elif "debiet" in kind:
-                quantity = "dischargebnd"
+            try:
+                read = _read_boundary(code, kind, waterstand, debiet)
+            except ValueError as exc:
+                problems.append(str(exc))
+                continue
+            if read is not None:
+                boundaries.append((code, geometry, *read))
+        if problems:
+            raise ValueError(
+                f"Cannot convert {len(problems)} boundary condition(s): "
+                + "; ".join(problems)
+            )
 
-            # Add boundary condition
-            bcdct[code] = {
-                "code": code,
-                "quantity": quantity,
-                "value": waterstand if not np.isnan(waterstand) else debiet,
-                "time": None,
-                "geometry": geometry,
-            }
-
-        # Add all items
-        for key, item in bcdct.items():
+        for code, geometry, quantity, value in boundaries:
+            # The boundary_conditions table has Point geometries (data model).
             self.external_forcings.add_boundary_condition(
-                key, item["geometry"], item["quantity"], item["value"], mesh1d=mesh1d
+                code, cast("Point", geometry), quantity, value, mesh1d=mesh1d
             )
 
     @validate_call(
@@ -621,6 +694,70 @@ class ExternalForcingsIO:
         return loc_geom, loc_series
 
 
+def _overlaatonderlaat(device: pd.DataFrame) -> str | None:
+    """Return the first device's ``overlaatonderlaat``, or None when absent or empty.
+
+    The column is optional: from DAMO 2.5, Afsluitmiddel also holds closing devices
+    that are neither overflow nor underflow.
+    """
+    if "overlaatonderlaat" not in device.columns:
+        return None
+    value = device["overlaatonderlaat"].iloc[0]
+    return None if pd.isna(value) else str(value)
+
+
+def _device_name(device: pd.Series) -> str:
+    """Name a management *device* by its ``code``, or its ``globalid`` without one."""
+    code = device.get("code")
+    return str(device["globalid"] if code is None or pd.isna(code) else code)
+
+
+# The flow direction of a non-return valve, from its richting (stroomrichting from
+# DAMO 2.5): relative to the HydroObject, whose direction the branch keeps.
+_NON_RETURN_DIRECTIONS = {"Positief": "positive", "Negatief": "negative"}
+
+
+def _non_return_direction(device: pd.Series, culvert: str) -> str:
+    """Return the flow direction a non-return valve *device* allows on *culvert*.
+
+    Without a direction, or with ``Beide``, which a non-return valve can't have, it
+    allows positive flow, with a warning.
+    """
+    direction = device.get("richting")
+    if direction in _NON_RETURN_DIRECTIONS:
+        return _NON_RETURN_DIRECTIONS[direction]
+    found = "no direction" if pd.isna(direction) else f'direction "{direction}"'
+    logger.warning(
+        'Non-return valve %s on culvert %s has %s ("richting"; from DAMO 2.5 '
+        '"stroomrichting"); allowing positive flow, along the branch.',
+        _device_name(device),
+        culvert,
+        found,
+    )
+    return "positive"
+
+
+def _warn_unknown_weir_kind(
+    structure: str, device: pd.DataFrame, overlaatonderlaat: str | None
+) -> None:
+    """Warn that *structure* is skipped: its *device* is neither overflow nor underflow."""
+    device_id = device["code"].iloc[0] if "code" in device.columns else None
+    if pd.isna(device_id):
+        device_id = device["globalid"].iloc[0]
+    if overlaatonderlaat is None:
+        reason = 'has no "overlaatonderlaat"'
+    else:
+        reason = f'has "overlaatonderlaat" "{overlaatonderlaat}"'
+    logger.warning(
+        "Skipping %s: its management device %s %s, so it is unknown whether it is "
+        'an overflow or an underflow. Set "overlaatonderlaat" to "Overlaat" or '
+        '"Onderlaat".',
+        structure,
+        device_id,
+        reason,
+    )
+
+
 class StructuresIO:
     """Add structures from DAMO tables.
 
@@ -632,6 +769,34 @@ class StructuresIO:
 
     def __init__(self, structures: Structures) -> None:
         self.structures = structures
+
+    @staticmethod
+    def _claim_weir_id(owners: dict[str, str], weir_id: str, owner: str) -> None:
+        """Record that *owner* uses structure id *weir_id*, or raise if it is taken.
+
+        Parameters
+        ----------
+        owners : dict[str, str]
+            The owner of each structure id claimed so far, updated in place.
+        weir_id : str
+            The D-Flow FM structure id.
+        owner : str
+            What the id belongs to, e.g. ``"opening 1 of weir ST2"`` or ``"weir ST3"``.
+
+        Raises
+        ------
+        ValueError
+            If another weir or opening already has *weir_id*.
+        """
+        if weir_id in owners:
+            raise ValueError(
+                f"Structure id {weir_id} of {owner} is also the id of "
+                f"{owners[weir_id]}. D-Flow FM needs unique structure ids: give "
+                "these weirs unique codes in the GeoPackage. A code ending in _<n> "
+                "may have been added by HYDROLIB for a duplicate code; see the "
+                "duplicates warning."
+            )
+        owners[weir_id] = owner
 
     def _name_or_nan(self, row: pd.Series) -> Hashable:
         """Return the index label of the row if it has a name column, otherwise NaN."""
@@ -776,11 +941,11 @@ class StructuresIO:
         usevelocityheight : bool, optional
             D-Flow FM keyword ``usevelocityheight``. Defaults to True.
         """
-        opening_weir = RelationsHyDAMO.OPENING_WEIR
-        management_device_opening = RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING
-        profile_group_weir = RelationsHyDAMO.PROFILE_GROUP_WEIR
-        profile_line_group = RelationsHyDAMO.PROFILE_LINE_GROUP
-        profile_line = RelationsHyDAMO.PROFILE_LINE
+        opening_weir = DamoRelations.OPENING_WEIR
+        management_device_opening = DamoRelations.MANAGEMENT_DEVICE_OPENING
+        profile_group_weir = DamoRelations.PROFILE_GROUP_WEIR
+        profile_line_group = DamoRelations.PROFILE_LINE_GROUP
+        profile_line = DamoRelations.PROFILE_LINE
         if weirs is None or opening is None or management_device is None:
             raise ValueError("weirs, opening and management_device are required.")
         index = np.zeros(len(weirs.code))
@@ -795,6 +960,9 @@ class StructuresIO:
                 )
             ] = 1
 
+        # The owner of each structure id. The id of an opening of a compound weir,
+        # weir.code_N, can be the code of another weir.
+        owners: dict[str, str] = {}
         rweirs = weirs[index == 0]
         for weir in rweirs.itertuples():
             weir_rows = rweirs.loc[[weir.Index]]
@@ -823,14 +991,14 @@ class StructuresIO:
                     if weir_mandev.empty:
                         logger.warning(
                             "Skipping opening %s (weir %s) because there is no associated management device.",
-                            op_row.code,
+                            op_row.globalid,
                             weir.code,
                         )
                         continue
                     if weir_mandev.shape[0] > 1:
                         logger.warning(
                             "Multiple management devices associated to opening %s (weir %s). Taking the first one.",
-                            op_row.code,
+                            op_row.globalid,
                             weir.code,
                         )
                         weir_mandev = weir_mandev.iloc[[0]]
@@ -842,10 +1010,14 @@ class StructuresIO:
                     # this structure id; see Structures.compound_weir_structure_ids
                     # in core/hydamo.py.
                     weir_id = f"{weir.code}_{num_op + 1}"
+                    self._claim_weir_id(
+                        owners, weir_id, f"opening {num_op + 1} of weir {weir.code}"
+                    )
                     self.structures.compound_weir_structure_ids[
                         str(weir_mandev["globalid"].iloc[0])
                     ] = weir_id
-                    kind = str(weir_mandev["overlaatonderlaat"].iloc[0]).lower()
+                    overlaatonderlaat = _overlaatonderlaat(weir_mandev)
+                    kind = (overlaatonderlaat or "").lower()
                     if kind == "overlaat":
                         cmp_list.append(weir_id)
                         self.structures.add_rweir(
@@ -860,43 +1032,21 @@ class StructuresIO:
                             usevelocityheight=usevelocityheight,
                         )
                     elif kind == "onderlaat":
-                        cmp_list.append(weir_id)
-                        if "maximaaldebiet" not in weir_mandev or pd.isna(
-                            weir_mandev.maximaaldebiet.to_numpy()[0]
+                        if self._add_orifice(
+                            weir_id,
+                            name,
+                            weir,
+                            op_row,
+                            weir_mandev,
+                            usevelocityheight,
+                            f"opening {num_op + 1} of weir {weir.code}",
                         ):
-                            limitflow = False
-                            maxq = 0.0
-                        else:
-                            limitflow = True
-                            maxq = float(weir_mandev.maximaaldebiet.to_numpy()[0])
-                        self.structures.add_orifice(
-                            id=weir_id,
-                            name=name,
-                            branchid=weir.branch_id,
-                            chainage=weir.branch_offset,
-                            crestlevel=float(
-                                weir_opening.laagstedoorstroomhoogte.to_numpy()[0]
-                            ),
-                            crestwidth=float(
-                                weir_opening.laagstedoorstroombreedte.to_numpy()[0]
-                            ),
-                            corrcoeff=weir.afvoercoefficient,
-                            allowedflowdir="both",
-                            usevelocityheight=usevelocityheight,
-                            gateloweredgelevel=float(
-                                weir_opening.laagstedoorstroomhoogte.to_numpy()[0]
-                            )
-                            + float(weir_mandev.hoogteopening.to_numpy()[0]),
-                            uselimitflowpos=limitflow,
-                            limitflowpos=maxq,
-                            uselimitflowneg=limitflow,
-                            limitflowneg=maxq,
-                        )
+                            cmp_list.append(weir_id)
                     else:
-                        logger.warning(
-                            'Skipping weir %s - from "overlaatonderlaat" %s the type of structure could not be determined.',
-                            weir.code,
-                            weir_mandev.overlaatonderlaat,
+                        _warn_unknown_weir_kind(
+                            f"opening {num_op + 1} of weir {weir.code}",
+                            weir_mandev,
+                            overlaatonderlaat,
                         )
                 self.structures.add_compound(
                     id=f"cmp_{weir.code}", structureids=cmp_list
@@ -911,6 +1061,7 @@ class StructuresIO:
                     continue
 
                 weir_id = weir.code
+                self._claim_weir_id(owners, weir_id, f"weir {weir.code}")
                 # Unlike the compound case above, no need to record this id in
                 # compound_weir_structure_ids: this weir has a single opening, so
                 # its structure id is just weir.code, which
@@ -924,21 +1075,22 @@ class StructuresIO:
                 if weir_mandev.empty:
                     logger.warning(
                         "Skipping opening %s (weir %s) because there is no associated management device.",
-                        weir_opening.code.squeeze(),
+                        weir_opening.globalid.squeeze(),
                         weir_id,
                     )
                     continue
                 if weir_mandev.shape[0] > 1:
                     logger.warning(
                         "Multiple management devices associated to opening %s (weir %s). Taking the first one.",
-                        weir_opening.code.squeeze(),
+                        weir_opening.globalid.squeeze(),
                         weir_id,
                     )
                     weir_mandev = weir_mandev.iloc[[0]]
 
-                overlaatonderlaat = str(weir_mandev["overlaatonderlaat"].iloc[0])
+                overlaatonderlaat = _overlaatonderlaat(weir_mandev)
+                kind = (overlaatonderlaat or "").lower()
 
-                if overlaatonderlaat.lower() == "overlaat":
+                if kind == "overlaat":
                     self.structures.add_rweir(
                         id=weir_id,
                         name=name,
@@ -951,47 +1103,24 @@ class StructuresIO:
                         usevelocityheight=usevelocityheight,
                     )
 
-                elif overlaatonderlaat.lower() == "onderlaat":
-                    if "maximaaldebiet" not in weir_mandev or pd.isna(
-                        weir_mandev.maximaaldebiet.to_numpy()[0]
-                    ):
-                        limitflow = False
-                        maxq = 0.0
-                    else:
-                        limitflow = True
-                        maxq = float(weir_mandev.maximaaldebiet.to_numpy()[0])
-                    self.structures.add_orifice(
-                        id=weir_id,
-                        name=name,
-                        branchid=weir.branch_id,
-                        chainage=weir.branch_offset,
-                        crestlevel=float(
-                            weir_opening.laagstedoorstroomhoogte.to_numpy()[0]
-                        ),
-                        crestwidth=float(
-                            weir_opening.laagstedoorstroombreedte.to_numpy()[0]
-                        ),
-                        corrcoeff=weir.afvoercoefficient,
-                        allowedflowdir="both",
-                        usevelocityheight=usevelocityheight,
-                        gateloweredgelevel=float(
-                            weir_opening.laagstedoorstroomhoogte.to_numpy()[0]
-                        )
-                        + float(weir_mandev.hoogteopening.to_numpy()[0]),
-                        uselimitflowpos=limitflow,
-                        limitflowpos=maxq,
-                        uselimitflowneg=limitflow,
-                        limitflowneg=maxq,
+                elif kind == "onderlaat":
+                    self._add_orifice(
+                        weir_id,
+                        name,
+                        weir,
+                        weir_opening.iloc[0],
+                        weir_mandev,
+                        usevelocityheight,
+                        f"weir {weir.code}",
                     )
                 else:
-                    logger.warning(
-                        'Skipping %s - from "overlaatonderlaat" %s the type of structure could not be determined.',
-                        weir.code,
-                        weir_mandev.overlaatonderlaat,
+                    _warn_unknown_weir_kind(
+                        f"weir {weir.code}", weir_mandev, overlaatonderlaat
                     )
 
         uweirs = weirs[index == 1]
         for uweir in uweirs.itertuples():
+            self._claim_weir_id(owners, str(uweir.code), f"weir {uweir.code}")
             uweir_rows = uweirs.loc[[uweir.Index]]
             # the name, or the code when there is none
             if "naam" in uweirs.columns and pd.notna(uweir.naam):
@@ -1040,6 +1169,79 @@ class StructuresIO:
                 yvalues=" ".join([f"{yz[0]:7.3f}" for yz in yzvalues]),
                 zvalues=" ".join([f"{yz[1]:7.3f}" for yz in yzvalues]),
             )
+
+    def _add_orifice(
+        self,
+        orifice_id: str,
+        name: str,
+        weir: Any,
+        opening: pd.Series,
+        device: pd.DataFrame,
+        usevelocityheight: bool,
+        structure: str,
+    ) -> bool:
+        """Add the orifice of a weir *opening* whose *device* is an underflow.
+
+        The gate's lower edge is the opening's crest plus the device's
+        ``hoogteopening``. Without a gate height the orifice is skipped with a
+        warning naming *structure*.
+
+        Parameters
+        ----------
+        orifice_id : str
+            Id of the orifice.
+        name : str
+            Name of the orifice.
+        weir : Any
+            The weir, a row of ``itertuples``: its branch, chainage and
+            ``afvoercoefficient``.
+        opening : pd.Series
+            The opening: its crest level and width.
+        device : pd.DataFrame
+            The opening's management device, one row.
+        usevelocityheight : bool
+            D-Flow FM keyword ``usevelocityheight``.
+        structure : str
+            The structure in the warning, e.g. ``"weir ST1"``.
+
+        Returns
+        -------
+        bool
+            Whether the orifice was added.
+        """
+        height = device["hoogteopening"].iloc[0] if "hoogteopening" in device else None
+        if height is None or pd.isna(height):
+            logger.warning(
+                "Skipping %s: its management device %s has no gate height "
+                '("hoogteopening"; from DAMO 2.5 "maximalehoogteonderkant").',
+                structure,
+                _device_name(device.iloc[0]),
+            )
+            return False
+        if "maximaaldebiet" not in device or pd.isna(device.maximaaldebiet.iloc[0]):
+            limitflow = False
+            maxq = 0.0
+        else:
+            limitflow = True
+            maxq = float(device.maximaaldebiet.iloc[0])
+        crest = float(opening.laagstedoorstroomhoogte)
+        self.structures.add_orifice(
+            id=orifice_id,
+            name=name,
+            branchid=weir.branch_id,
+            chainage=weir.branch_offset,
+            crestlevel=crest,
+            crestwidth=float(opening.laagstedoorstroombreedte),
+            corrcoeff=weir.afvoercoefficient,
+            allowedflowdir="both",
+            usevelocityheight=usevelocityheight,
+            gateloweredgelevel=crest + float(height),
+            uselimitflowpos=limitflow,
+            limitflowpos=maxq,
+            uselimitflowneg=limitflow,
+            limitflowneg=maxq,
+        )
+        return True
 
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
@@ -1119,9 +1321,9 @@ class StructuresIO:
         profile_groups, profile_lines, profiles : optional
             DAMO profile groups, lines and points. Default to None.
         """
-        profile_group_bridge = RelationsHyDAMO.PROFILE_GROUP_BRIDGE
-        profile_line_group = RelationsHyDAMO.PROFILE_LINE_GROUP
-        profile_line = RelationsHyDAMO.PROFILE_LINE
+        profile_group_bridge = DamoRelations.PROFILE_GROUP_BRIDGE
+        profile_line_group = DamoRelations.PROFILE_LINE_GROUP
+        profile_line = DamoRelations.PROFILE_LINE
         if profile_groups is None or profile_lines is None or profiles is None:
             raise ValueError(
                 "profile_groups, profile_lines and profiles are required for bridges."
@@ -1188,24 +1390,19 @@ class StructuresIO:
     ) -> None:
         """Add the DAMO culverts.
 
-        A valve or a slide can be schematized from ``management_device``. DAMO 2.2 also has
-        closing devices (afsluitmiddel), which are not supported.
+        A non-return valve (``terugslagklep``) or a gate (``schuif``) is schematized
+        from the culvert's management devices. A gate without a height gives no
+        valve, and a device of another type is ignored, each with a warning.
 
         Parameters
         ----------
         culverts : ExtendedGeoDataFrame
             DAMO culverts (duikersifonhevel).
         management_device : ExtendedDataFrame, optional
-            DAMO management devices (regelmiddel). Defaults to None.
+            DAMO management devices (regelmiddel; afsluitmiddel from DAMO 2.5).
+            Defaults to None.
         """
-        management_device_culvert = RelationsHyDAMO.MANAGEMENT_DEVICE_CULVERT
-        if (
-            management_device is not None
-            and "soortafsluitmiddel" not in management_device.columns
-        ):
-            management_device["soortafsluitmiddel"] = management_device[
-                "soortregelmiddel"
-            ]
+        management_device_culvert = DamoRelations.MANAGEMENT_DEVICE_CULVERT
 
         for culvert in culverts.itertuples():
             culvert_rows = culverts.loc[[culvert.Index]]
@@ -1238,10 +1435,6 @@ class StructuresIO:
                     culvert_rows,
                     management_device,
                 )
-                if "soortafsluitmiddel" not in mandev:
-                    mandev.loc[mandev.index, "soortafsluitmiddel"] = mandev[
-                        "soortregelmiddel"
-                    ]
             else:
                 mandev = pd.DataFrame()
 
@@ -1252,23 +1445,37 @@ class StructuresIO:
             valveopeningheight: float = 0
             relopening = None
             losscoeff = None
-            if not mandev.empty:
-                for _, i in mandev.iterrows():
-                    if i["soortafsluitmiddel"] == "terugslagklep":
-                        allowedflowdir = "positive"
-                    elif i["soortafsluitmiddel"] == "schuif":
-                        valveonoff = 1
-                        valveopeningheight = float(i["hoogteopening"])
-                        numlosscoeff = 1
-                        relopening = [
-                            float(i["hoogteopening"])
-                            / float(culvert_rows["hoogteopening"].to_numpy()[0])
-                        ]
-                        losscoeff = [float(i["afvoercoefficient"])]
-                    else:
-                        raise NotImplementedError(
-                            f'Type of management device for culvert {culvert.code} is not implemented; only "schuif" and "terugslagklep" are allowed.'
+            for _, device in mandev.iterrows():
+                device_type = device.get("soortregelmiddel")
+                if device_type == "terugslagklep":
+                    allowedflowdir = _non_return_direction(device, str(culvert.code))
+                elif device_type == "schuif":
+                    height = device.get("hoogteopening")
+                    if height is None or pd.isna(height):
+                        logger.warning(
+                            "Building culvert %s without a valve: its management "
+                            'device %s has no gate height ("hoogteopening"; from '
+                            'DAMO 2.5 "maximalehoogteonderkant").',
+                            culvert.code,
+                            _device_name(device),
                         )
+                        continue
+                    valveonoff = 1
+                    valveopeningheight = float(height)
+                    numlosscoeff = 1
+                    relopening = [
+                        float(height)
+                        / float(culvert_rows["hoogteopening"].to_numpy()[0])
+                    ]
+                    losscoeff = [float(device["afvoercoefficient"])]
+                else:
+                    logger.warning(
+                        'Ignoring management device %s of type "%s" on culvert %s: '
+                        'only "schuif" and "terugslagklep" are modelled.',
+                        _device_name(device),
+                        device_type,
+                        culvert.code,
+                    )
 
             # check if a separate name field is present
             # the name, if present, otherwise the code
@@ -1354,8 +1561,8 @@ class StructuresIO:
         ValueError
             If ``pumps`` or ``management`` is missing.
         """
-        pump_pumpstation = RelationsHyDAMO.PUMP_PUMPSTATION
-        management_pump = RelationsHyDAMO.MANAGEMENT_PUMP
+        pump_pumpstation = DamoRelations.PUMP_PUMPSTATION
+        management_pump = DamoRelations.MANAGEMENT_PUMP
         if pumps is None or management is None:
             raise ValueError("pumps and management are required.")
 

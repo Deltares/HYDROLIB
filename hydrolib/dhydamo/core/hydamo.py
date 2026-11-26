@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import numbers
-from collections.abc import Hashable, Mapping
+from collections.abc import Collection, Hashable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, no_type_check
@@ -17,7 +17,7 @@ from netCDF4 import Dataset, Variable, chartostring
 from pydantic import ConfigDict, Field, validate_call
 from pyproj import CRS
 from scipy.spatial import KDTree
-from shapely.geometry import LineString, MultiPolygon, Point, Polygon
+from shapely.geometry import LineString, Point
 from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
 
@@ -33,14 +33,21 @@ from hydrolib.dhydamo.converters.hydamo2df import (
     StorageNodesIO,
     StructuresIO,
 )
-from hydrolib.dhydamo.core.relations import (
-    RelationsHyDAMO,
-    build_cascade_plan,
+from hydrolib.dhydamo.core.data_model import (
+    OWN_TABLES,
+    TABLES,
+    DamoRelations,
+    Geotype,
 )
+from hydrolib.dhydamo.core.relations import build_cascade_plan
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
-from hydrolib.dhydamo.io.damo_converters import get_damo_converter
+from hydrolib.dhydamo.io.damo_versions import (
+    SourceLayer,
+    load_layers,
+    source_layers,
+)
 from hydrolib.dhydamo.io.netcdfreader import time_index
 from hydrolib.dhydamo.validation import (
     HydamoValidationResult,
@@ -51,6 +58,15 @@ from hydrolib.dhydamo.validation import (
 logger = logging.getLogger(__name__)
 
 
+def _new_table(
+    geotype: Geotype | None, required: tuple[str, ...]
+) -> ExtendedGeoDataFrame | ExtendedDataFrame:
+    """Return an empty table: spatial when it has a geometry type."""
+    if geotype is None:
+        return ExtendedDataFrame(required_columns=list(required))
+    return ExtendedGeoDataFrame(geotype=geotype, required_columns=list(required))
+
+
 class HyDAMO:
     """The HyDAMO input data and the model objects derived from it.
 
@@ -58,6 +74,32 @@ class HyDAMO:
     and the cross sections, structures, observation points, storage nodes and external
     forcings of the model.
     """
+
+    # The tables of the data model (core.data_model), created in __init__.
+    # Only their types are declared here, for type checking.
+    branches: ExtendedGeoDataFrame
+    profile: ExtendedGeoDataFrame
+    profile_roughness: ExtendedDataFrame
+    profile_line: ExtendedGeoDataFrame
+    profile_group: ExtendedDataFrame
+    param_profile: ExtendedDataFrame
+    param_profile_values: ExtendedDataFrame
+    weirs: ExtendedGeoDataFrame
+    opening: ExtendedDataFrame
+    management_device: ExtendedDataFrame
+    bridges: ExtendedGeoDataFrame
+    culverts: ExtendedGeoDataFrame
+    pumpstations: ExtendedGeoDataFrame
+    pumps: ExtendedDataFrame
+    management: ExtendedDataFrame
+    boundary_conditions: ExtendedGeoDataFrame
+    catchments: ExtendedGeoDataFrame
+    laterals: ExtendedGeoDataFrame
+    overflows: ExtendedGeoDataFrame
+    sewer_areas: ExtendedGeoDataFrame
+    greenhouse_areas: ExtendedGeoDataFrame
+    greenhouse_laterals: ExtendedGeoDataFrame
+    storage_areas: ExtendedGeoDataFrame
 
     @validate_call(
         config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
@@ -110,167 +152,17 @@ class HyDAMO:
             "dimr_version": "Deltares, DIMR_EXE Version 2.00.00.140737 (Win64) (Win64)",
             "suite_version": "D-HYDRO Suite 2024.03 1D2D,",
         }
-        self.source_damo_version = "2.2"
+        # the DAMO version the data was loaded as; None until load_from_gpkg
+        self.source_damo_version: str | None = None
         self.validation_result: HydamoValidationResult | None = None
 
-        # Create standard dataframe for network, crosssections, orifices, weirs
-        self.branches = ExtendedGeoDataFrame(
-            geotype=LineString, required_columns=["code", "geometry"]
-        )
-
-        self.profile = ExtendedGeoDataFrame(
-            geotype=LineString,
-            required_columns=["code", "geometry", "globalid", "profiellijnid"],
-        )
-        self.profile_roughness = ExtendedDataFrame(required_columns=["profielpuntid"])
-
-        self.profile_line = ExtendedGeoDataFrame(
-            geotype=LineString, required_columns=["globalid", "profielgroepid"]
-        )
-
-        self.profile_group = ExtendedDataFrame(required_columns=[])
-
-        self.param_profile = ExtendedDataFrame(
-            required_columns=["globalid", "normgeparamprofielid", "hydroobjectid"]
-        )
-
-        self.param_profile_values = ExtendedDataFrame(
-            required_columns=[
-                "normgeparamprofielid",
-                "soortparameter",
-                "waarde",
-                "ruwheidlaag",
-                "ruwheidhoog",
-                "typeruwheid",
-            ]
-        )
-
-        # Weirs
-        self.weirs = ExtendedGeoDataFrame(
-            geotype=Point,
-            required_columns=[
-                "code",
-                "geometry",
-                "globalid",
-                "afvoercoefficient",
-            ],
-        )
-
-        # opening
-        self.opening = ExtendedDataFrame(
-            required_columns=[
-                "globalid",
-                "laagstedoorstroombreedte",
-                "laagstedoorstroomhoogte",
-                "afvoercoefficient",
-            ]
-        )
-
-        # opening
-        self.closing_device = ExtendedDataFrame(required_columns=["code"])
-
-        # opening
-        self.management_device = ExtendedDataFrame(
-            required_columns=["code", "overlaatonderlaat"]
-        )
-
-        # Bridges
-        self.bridges = ExtendedGeoDataFrame(
-            geotype=Point,
-            required_columns=[
-                "code",
-                "globalid",
-                "geometry",
-                "lengte",
-                "intreeverlies",
-                "uittreeverlies",
-                "ruwheid",
-                "typeruwheid",
-            ],
-        )
-
-        # Culverts
-        self.culverts = ExtendedGeoDataFrame(
-            geotype=LineString,
-            required_columns=[
-                "code",
-                "geometry",
-                "lengte",
-                "hoogteopening",
-                "breedteopening",
-                "hoogtebinnenonderkantbene",
-                "hoogtebinnenonderkantbov",
-                "vormkoker",
-                "intreeverlies",
-                "uittreeverlies",
-                "typeruwheid",
-                "ruwheid",
-            ],
-        )
-
-        # Gemalen
-        self.pumpstations = ExtendedGeoDataFrame(
-            geotype=Point,
-            required_columns=[
-                "code",
-                "globalid",
-                "geometry",
-            ],
-        )
-        self.pumps = ExtendedDataFrame(
-            required_columns=["code", "globalid", "gemaalid", "maximalecapaciteit"]
-        )
-        self.management = ExtendedDataFrame(required_columns=["code", "globalid"])
-
-        # Hydraulische randvoorwaarden
-        self.boundary_conditions = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["code", "typerandvoorwaarde", "geometry"]
-        )
-
-        # RR catchments
-        self.catchments = ExtendedGeoDataFrame(
-            geotype=Polygon | MultiPolygon,
-            required_columns=["code", "geometry", "globalid", "lateraleknoopid"],
-        )
-
-        # Laterals
-        self.laterals = ExtendedGeoDataFrame(
-            geotype=Point, required_columns=["code", "geometry", "globalid"]
-        )
-
-        # RR overflows
-        self.overflows = ExtendedGeoDataFrame(
-            geotype=Point,
-            required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
-        )
-
-        # RR sewer areas
-        self.sewer_areas = ExtendedGeoDataFrame(
-            geotype=Polygon, required_columns=["code", "geometry"]
-        )
-
-        # RR overflows
-        self.overflows = ExtendedGeoDataFrame(
-            geotype=Point,
-            required_columns=["code", "geometry", "codegerelateerdobject", "fractie"],
-        )
-
-        # RR greenhouse areas
-        self.greenhouse_areas = ExtendedGeoDataFrame(
-            geotype=Polygon, required_columns=["code", "geometry"]
-        )
-
-        # RR overflows
-        self.greenhouse_laterals = ExtendedGeoDataFrame(
-            geotype=Point,
-            required_columns=["code", "geometry", "codegerelateerdobject"],
-        )
-
-        # RR overflows
-        self.storage_areas = ExtendedGeoDataFrame(
-            geotype=Polygon,
-            required_columns=["code", "geometry"],
-        )
+        # The DAMO tables and HYDROLIB's own tables, from the data model
+        for name, table in TABLES.items():
+            setattr(self, name, _new_table(table.geotype, table.required_names))
+        for name, own_table in OWN_TABLES.items():
+            setattr(
+                self, name, _new_table(own_table.geotype, own_table.required_columns)
+            )
 
     @validate_call(
         config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
@@ -278,7 +170,7 @@ class HyDAMO:
     def validate_gpkg(
         self,
         gpkg_path: Path | str,
-        hydamo_version: str = "2.2",
+        hydamo_version: str,
         validation_coverages: dict | None = None,
         validation_rules_path: Path | str | None = None,
     ) -> HydamoValidationResult:
@@ -292,8 +184,12 @@ class HyDAMO:
         gpkg_path : str or Path
             Path to the GeoPackage file.
         hydamo_version : str
-            DAMO version to validate against. Default is ``"2.2"``. This
-            selects the requested version; it does not detect the source version.
+            DAMO version to validate against, e.g. ``"2.6"``. Required: it selects
+            the version; it does not detect the source version. Any version that the
+            installed validatiemodule has a schema for is accepted, which can include
+            versions that ``load_from_gpkg`` cannot load yet (see
+            ``SUPPORTED_HYDAMO_VERSIONS``). For such a version no column counts as
+            read by HYDROLIB, so every finding goes into the INFO line.
         validation_coverages : dict, optional
             Coverage dict forwarded to the validator.
         validation_rules_path : str or Path, optional
@@ -305,9 +201,12 @@ class HyDAMO:
         -------
         HydamoValidationResult
             Also stored as ``self.validation_result``. Inspect ``success``,
-            ``status``, and ``errors`` to handle validation failures. A reported
-            failure is returned rather than raised as ``HyDAMOValidationError``.
-            Diagnostic warnings and errors are logged by the
+            ``status``, ``errors`` and ``syntax_findings`` to handle validation
+            failures. Findings in columns HYDROLIB reads are logged as one
+            warning per layer by the ``hydrolib.dhydamo.validation`` logger, the
+            number of other findings as one INFO line. A reported failure is
+            returned rather than raised as ``HyDAMOValidationError``. The
+            validatiemodule's own diagnostics are logged by the
             ``hydamo_validation.validator`` logger.
 
         Raises
@@ -318,39 +217,65 @@ class HyDAMO:
             If generated rules are requested for a version unsupported by the
             installed validator's schemas.
         """
+        # Without version steps to the version, no column counts as read.
+        try:
+            read_columns = self._read_columns(source_layers(hydamo_version))
+        except ValueError:
+            read_columns = {}
         result = validate_or_raise(
             gpkg_path=gpkg_path,
             hydamo_version=hydamo_version,
             validation_mode="warn",
             coverages=validation_coverages,
             validation_rules_path=validation_rules_path,
+            read_columns=read_columns,
         )
         assert result is not None
         self.validation_result = result
         return result
 
+    def _read_columns(self, sources: dict[str, SourceLayer]) -> dict[str, set[str]]:
+        """Return, per lowercase DAMO layer, the columns HYDROLIB reads.
+
+        The columns are the table's required columns, ``globalid`` and, for a
+        spatial table, ``geometry``, under their names in the DAMO version of
+        *sources* (from ``source_layers``).
+        """
+        read_columns: dict[str, set[str]] = {}
+        for name, source in sources.items():
+            table = getattr(self, name)
+            columns = {*table.required_columns, "globalid"}
+            if isinstance(table, ExtendedGeoDataFrame):
+                columns.add("geometry")
+            file_names = {new: old for old, new in source.renames.items()}
+            read_columns[source.layer.lower()] = {
+                file_names.get(column, column) for column in columns
+            }
+        return read_columns
+
     def load_from_gpkg(
         self,
         gpkg_path: Path | str,
-        hydamo_version: str = "2.2",
+        hydamo_version: str,
         clip_layers: dict | None = None,
         check_3d: bool = True,
         validation_mode: ValidationMode = "off",
         validation_coverages: dict | None = None,
         validation_rules_path: Path | str | None = None,
     ) -> HyDAMO:
-        """Load HyDAMO data from a GeoPackage via a versioned DAMO converter.
+        """Load HyDAMO data from a GeoPackage of a supported DAMO version.
 
         Parameters
         ----------
         gpkg_path : str or Path
             Path to the GeoPackage file.
         hydamo_version : str
-            DAMO schema version string: ``"2.2"``, ``"2.3"``, ``"2.4"``, or
-            ``"2.5"``. Selects the converter; it does not detect or verify the
-            source schema version. Default is ``"2.2"``.
+            DAMO schema version, one of ``SUPPORTED_HYDAMO_VERSIONS`` (2.2 to 2.6),
+            e.g. ``"2.6"``. Required: it selects the renames back to DAMO 2.2, the
+            names HYDROLIB uses; it does not detect or verify the source schema
+            version.
         clip_layers : dict, optional
-            Per-layer spatial clip. Maps ``target_attr`` name to a
+            Per-table spatial clip. Maps a HyDAMO table name to a
             ``(geometry, cliptype)`` tuple, e.g.
             ``{"branches": (gpd.read_file(extent).union_all(), "clip")}``.
             Layers absent from the dict are loaded without clipping.
@@ -359,13 +284,16 @@ class HyDAMO:
             them into lines. Other layers are not checked for Z coordinates.
             Pass ``False`` to allow 2D profile points. Default is ``True``.
         validation_mode : str
-            ``"off"`` skips validation (default). ``"warn"`` validates and
-            continues after a reported failure; diagnostic warnings and errors
-            are logged by the ``hydamo_validation.validator`` logger. Inspect
-            ``validation_result`` for the full result.
-            ``"strict"`` raises ``HyDAMOValidationError`` on a reported failure
-            before loading layers. Validation setup errors can raise in either
-            enabled mode.
+            ``"off"`` skips validation (default). Both other modes act on the
+            values the syntax check rejected in columns HYDROLIB reads (its
+            required columns, ``globalid`` and, for spatial tables, the
+            geometry): ``"warn"`` logs them as one warning per layer, by the
+            ``hydrolib.dhydamo.validation`` logger, and continues; ``"strict"``
+            raises ``HyDAMOValidationError`` before loading layers, as it does
+            when the validation run fails. Rejected values in other columns
+            only give one INFO line with their number. Inspect
+            ``validation_result.syntax_findings`` for all of them. Validation
+            setup errors can raise in either enabled mode.
         validation_coverages : dict, optional
             Coverage dict forwarded to the validator.
         validation_rules_path : str or Path, optional
@@ -382,21 +310,35 @@ class HyDAMO:
         Raises
         ------
         HyDAMOValidationError
-            If validation reports failure in ``"strict"`` mode.
+            In ``"strict"`` mode, if the validation run fails or rejected values
+            in a column HYDROLIB reads.
         ImportError
             If validation is enabled and its optional dependency is unavailable.
+        KeyError
+            If a loaded layer lacks a required column, such as the ``code`` of a
+            table whose code is its identity; the message names the layer.
         ValueError
-            If the converter version is unsupported, or generated validation
-            rules require a version unsupported by the installed validator.
+            If the DAMO version is unsupported, or generated validation
+            rules require a version unsupported by the installed validator. Also
+            if the identity (``code``) or the column that groups points into
+            lines (``profiellijnid``) is empty in some rows, also when it is only
+            whitespace; the message names the layer and the rows by ``globalid``.
 
         Notes
         -----
+        A load replaces every DAMO table, also those whose layer the GeoPackage
+        lacks: nothing of an earlier load is left in them. HYDROLIB's own tables
+        (sewer areas, overflows, greenhouses, storage areas) are kept, and so are
+        model objects built from an earlier load, such as structures and cross
+        sections. For a new model, use a new ``HyDAMO``.
+
         Validation requires Python 3.12 and ``pip install "hydrolib[validation]"``.
         After enabled validation returns normally, ``self.validation_result``
-        contains ``success``, ``status``, and ``errors``. It is ``None`` when
+        contains ``success``, ``status``, ``errors`` and ``syntax_findings``
+        (per layer, column and error code). It is ``None`` when
         validation is off. Use ``validate_gpkg()`` to inspect validation failures
         without loading data. Comprehensive schema, type, and relation checks
-        require appropriate custom rules; selecting a converter or using strict
+        require appropriate custom rules; selecting a DAMO version or using strict
         mode alone does not establish that the input is valid DAMO data.
 
         Examples
@@ -415,8 +357,8 @@ class HyDAMO:
         Use ``validation_mode="strict"`` to raise ``HyDAMOValidationError``
         instead of loading after a reported validation failure.
         """
-        # Resolve the converter first so an unsupported version fails before validation runs.
-        converter = get_damo_converter(hydamo_version)
+        # Resolve the layers first so an unsupported version fails before validation runs.
+        sources = source_layers(hydamo_version)
 
         self.validation_result = None
         self.source_damo_version = hydamo_version
@@ -426,10 +368,37 @@ class HyDAMO:
             validation_mode=validation_mode,
             coverages=validation_coverages,
             validation_rules_path=validation_rules_path,
+            read_columns=(
+                self._read_columns(sources) if validation_mode != "off" else None
+            ),
         )
 
-        converter.load_into(self, gpkg_path, clip_layers=clip_layers, check_3d=check_3d)
+        self._reset_damo_tables()
+        load_layers(
+            self,
+            gpkg_path,
+            sources,
+            hydamo_version,
+            clip_layers=clip_layers,
+            check_3d=check_3d,
+        )
         return self
+
+    def _reset_damo_tables(self) -> None:
+        """Empty every DAMO table in place, as it is after ``HyDAMO()``.
+
+        In place, so references to the tables stay valid. HYDROLIB's own tables
+        (``OWN_TABLES``) are left alone: they are filled from their own files.
+        """
+        for name, definition in TABLES.items():
+            table = getattr(self, name)
+            fresh = _new_table(definition.geotype, definition.required_names)
+            # inplace: the tables are replaced in place, so references stay valid
+            table.drop(index=table.index, inplace=True)  # noqa: PD002
+            table.drop(columns=list(table.columns), inplace=True)  # noqa: PD002
+            table.index = fresh.index
+            for column in fresh.columns:
+                table[column] = fresh[column]
 
     @validate_call(
         config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)
@@ -609,6 +578,9 @@ class HyDAMO:
             self.laterals.loc[index, "geometry"] = lateral  # type: ignore[call-overload]
             self.laterals.loc[index, "globalid"] = knoopid
             self.laterals.loc[index, "code"] = f"lat_{code}"
+
+        # Indexed by code, like loaded laterals
+        self.laterals.index = pd.Index(self.laterals["code"], name="code")
 
 
 class Network:
@@ -1572,159 +1544,230 @@ class CrossSections:
         parametrised_values: ExtendedDataFrame,
         branches: list,
         roughness_variant: RoughnessVariant | None = None,
+        with_crosssection: Collection[Hashable] = (),
     ) -> dict:
-        """Generate parametrised cross sections for all branches, or those without one.
+        """Generate the parametrised cross sections of *branches*.
+
+        Each link row gives its branch a profile, so a profile linked to several
+        branches applies to each of them. A branch linked to several profiles gets
+        the first, with a warning. A link is resolved against all *branches*; if
+        its branch is in *with_crosssection*, it is skipped. Links to other
+        branches are skipped too.
+
+        A profile without ``taludhelling linkerzijde`` is a rectangle, otherwise
+        a trapezium. A profile that lacks a dimension it needs (a bottom width and
+        both bottom levels, and for a trapezium also the right slope and both
+        insteek heights) is skipped with a warning.
 
         Parameters
         ----------
-        parametrised : pd.DataFrame
-            GeoDataFrame with geometries and attributes of parametrised profiles.
+        parametrised : ExtendedDataFrame
+            The links of branches to their parametrised profile
+            (``hydroobject_normgp``): ``hydroobjectid`` and ``normgeparamprofielid``.
+        parametrised_values : ExtendedDataFrame
+            The values of the profiles (NormgeparamProfielWaarde).
         branches : list
-            List of branches for which the parametrised profiles are derived
+            The branches, as rows of ``DataFrame.itertuples``.
+        roughness_variant : RoughnessVariant, optional
+            Use the high or the low roughness value of the profiles.
+        with_crosssection : Collection[Hashable], optional
+            The indices of the branches that already have a cross section, and so
+            get no parametrised one. Default is none.
 
         Returns
         -------
-        dictionary
-            Dictionary with attributes of cross sections, usable for dflowfm
+        dict
+            The attributes of the cross section of each branch, by branch index,
+            usable for D-Flow FM.
         """
         cssdct = {}
-        branch_relation = RelationsHyDAMO.PARAM_PROFILE_BRANCH
-        values_relation = RelationsHyDAMO.PARAM_PROFILE_VALUES
-
-        # index label of the branch per branch id (the first matching branch)
-        branch_index: dict[str, Hashable] = {}
-        for branch in branches:
-            branch_index.setdefault(
-                getattr(branch, branch_relation.parent_key), branch.Index
+        values_relation = DamoRelations.PARAM_PROFILE_VALUES
+        chosen = _param_profile_of_branch(parametrised, branches, with_crosssection)
+        for index, param in chosen.items():
+            profile_id = param[values_relation.parent_key]
+            values = values_relation.children_of(
+                param.to_frame().T, parametrised_values
             )
-
-        for _, param in parametrised.iterrows():
-            param_row = param.to_frame().T
-            branch_id = param[branch_relation.foreign_key]
-            index = branch_index[branch_id]
-            values = values_relation.children_of(param_row, parametrised_values)
-
-            # Drop profiles for which not enough data is available to write (as rectangle)
-            # nulls = pd.isna(parambranches[['bodembreedte', 'bodemhoogtebenedenstrooms', 'bodemhoogtebovenstrooms']]).any(axis=1).to_numpy()
-            # parambranches = parambranches.drop(ExtendedGeoDataFrame(geotype=LineString), parambranches.index[nulls], index_col='code',axis=0)
-            # parambranches.drop(parambranches.index[nulls], inplace=True)
-
-            if pd.isna(
-                values[values.soortparameter == "bodemhoogte benedenstrooms"].waarde
-            ).to_numpy()[0]:
-                logger.warning(
-                    "bodemhoogte benedenstrooms not available for profile %s.",
-                    param.globalid,
-                )
-            if pd.isna(
-                values[values.soortparameter == "bodembreedte"].waarde
-            ).to_numpy()[0]:
-                logger.warning(
-                    "bodembreedte not available for profile %s.",
-                    param.globalid,
-                )
-            if pd.isna(
-                values[values.soortparameter == "bodemhoogte bovenstrooms"].waarde
-            ).to_numpy()[0]:
-                logger.warning(
-                    "bodemhoogte bovenstrooms not available for profile %s.",
-                    param.globalid,
-                )
-
-            # Determine characteristics
-            botlev_upper = values[
-                values.soortparameter == "bodemhoogte bovenstrooms"
-            ].waarde.to_numpy()[0]
-            botlev_lower = values[
-                values.soortparameter == "bodemhoogte benedenstrooms"
-            ].waarde.to_numpy()[0]
-
-            if pd.isna(
-                values[values.soortparameter == "taludhelling linkerzijde"].waarde
-            ).to_numpy()[0]:
-                css_type = "rectangle"
-            else:
-                css_type = "trapezium"
-                dh1 = (
-                    values[
-                        values.soortparameter == "hoogte insteek linkerzijde"
-                    ].waarde.to_numpy()[0]
-                    - (botlev_upper + botlev_lower) / 2.0
-                )
-                dh2 = (
-                    values[
-                        values.soortparameter == "hoogte insteek rechterzijde"
-                    ].waarde.to_numpy()[0]
-                    - (botlev_upper + botlev_lower) / 2.0
-                )
-                # height = (dh1 + dh2) / 2.0
-                # Determine maximum flow width and slope (both needed for output)
-                maxflowwidth = (
-                    values[values.soortparameter == "bodembreedte"].waarde.to_numpy()[0]
-                    + values[
-                        values.soortparameter == "taludhelling linkerzijde"
-                    ].waarde.to_numpy()[0]
-                    * dh1
-                    + values[
-                        values.soortparameter == "taludhelling rechterzijde"
-                    ].waarde.to_numpy()[0]
-                    * dh2
-                )
-                slope = (
-                    values[
-                        values.soortparameter == "taludhelling linkerzijde"
-                    ].waarde.to_numpy()[0]
-                    + values[
-                        values.soortparameter == "taludhelling rechterzijde"
-                    ].waarde.to_numpy()[0]
-                ) / 2.0
-
-            if roughness_variant == RoughnessVariant.LOW:
-                roughness = values.ruwheidlaag.to_numpy()[0]
-            elif roughness_variant == RoughnessVariant.HIGH:
-                roughness = values.ruwheidhoog.to_numpy()[0]
-            else:
-                raise ValueError(
-                    'Invalid value for roughness_variant; should be "High" or "Low".'
-                )
-            # Determine name for cross section
-            if css_type == "trapezium":
-                cssdct[index] = {
-                    "type": css_type,
-                    "slope": round(slope, 2),
-                    "maximumflowwidth": round(maxflowwidth, 1),
-                    "bottomwidth": round(
-                        values[
-                            values.soortparameter == "bodembreedte"
-                        ].waarde.to_numpy()[0],
-                        3,
-                    ),
-                    "closed": 0,
-                    "thalweg": 0.0,
-                    "typeruwheid": values.typeruwheid.to_numpy()[0],
-                    "ruwheid": roughness,
-                    "bottomlevel_upper": botlev_upper,
-                    "bottomlevel_lower": botlev_lower,
-                }
-            elif css_type == "rectangle":
-                cssdct[index] = {
-                    "type": css_type,
-                    "height": 5.0,
-                    "width": round(
-                        values[
-                            values.soortparameter == "bodembreedte"
-                        ].waarde.to_numpy()[0],
-                        3,
-                    ),
-                    "closed": 0,
-                    "thalweg": 0.0,
-                    "typeruwheid": values.typeruwheid.to_numpy()[0],
-                    "ruwheid": roughness,
-                    "bottomlevel_upper": botlev_upper,
-                    "bottomlevel_lower": botlev_lower,
-                }
-
+            crosssection = _param_cross_section(
+                values, profile_id, index, roughness_variant
+            )
+            if crosssection is not None:
+                cssdct[index] = crosssection
         return cssdct
+
+
+# The dimensions every parametrised profile needs, and those a trapezium also needs
+_PARAM_DIMENSIONS = (
+    "bodembreedte",
+    "bodemhoogte bovenstrooms",
+    "bodemhoogte benedenstrooms",
+)
+_TRAPEZIUM_DIMENSIONS = (
+    "taludhelling rechterzijde",
+    "hoogte insteek linkerzijde",
+    "hoogte insteek rechterzijde",
+)
+
+
+def _param_cross_section(
+    values: pd.DataFrame,
+    profile_id: str,
+    branch: Hashable,
+    roughness_variant: RoughnessVariant | None,
+) -> dict | None:
+    """Return the cross section of a parametrised profile, or None if it lacks a dimension.
+
+    Parameters
+    ----------
+    values : pd.DataFrame
+        The NormgeparamProfielWaarde rows of the profile, one per ``soortparameter``.
+        An absent row counts as an empty value.
+    profile_id : str
+        The profile's ``normgeparamprofielid``, for the messages.
+    branch : Hashable
+        The index of the branch that gets the profile, for the messages.
+    roughness_variant : RoughnessVariant or None
+        Use the high or the low roughness value.
+
+    Returns
+    -------
+    dict or None
+        A rectangle without ``taludhelling linkerzijde``, a trapezium with it. None,
+        with a warning, if the profile lacks a dimension it needs.
+
+    Raises
+    ------
+    ValueError
+        If *roughness_variant* is neither high nor low.
+    """
+    by_parameter = values.drop_duplicates("soortparameter").set_index("soortparameter")[
+        "waarde"
+    ]
+
+    def value(parameter: str) -> np.float64:
+        # numpy floats, so that round() rounds 3.35 to 3.4 as before, not to 3.3
+        found = by_parameter.get(parameter)
+        return np.float64("nan" if found is None or pd.isna(found) else found)
+
+    trapezium = not np.isnan(value("taludhelling linkerzijde"))
+    needed = _PARAM_DIMENSIONS + (_TRAPEZIUM_DIMENSIONS if trapezium else ())
+    missing = [parameter for parameter in needed if np.isnan(value(parameter))]
+    if missing:
+        logger.warning(
+            "Parameterised profile %s has no %s; branch %s gets no parameterised "
+            "profile.",
+            profile_id,
+            ", ".join(missing),
+            branch,
+        )
+        return None
+
+    if roughness_variant == RoughnessVariant.LOW:
+        roughness = values.ruwheidlaag.to_numpy()[0]
+    elif roughness_variant == RoughnessVariant.HIGH:
+        roughness = values.ruwheidhoog.to_numpy()[0]
+    else:
+        raise ValueError(
+            'Invalid value for roughness_variant; should be "High" or "Low".'
+        )
+    width = value("bodembreedte")
+    upper, lower = (
+        value("bodemhoogte bovenstrooms"),
+        value("bodemhoogte benedenstrooms"),
+    )
+    common = {
+        "closed": 0,
+        "thalweg": 0.0,
+        "typeruwheid": values.typeruwheid.to_numpy()[0],
+        "ruwheid": roughness,
+        "bottomlevel_upper": upper,
+        "bottomlevel_lower": lower,
+    }
+    if not trapezium:
+        return {"type": "rectangle", "height": 5.0, "width": round(width, 3), **common}
+
+    # The insteek heights above the mean bottom level
+    dh1 = value("hoogte insteek linkerzijde") - (upper + lower) / 2.0
+    dh2 = value("hoogte insteek rechterzijde") - (upper + lower) / 2.0
+    left, right = value("taludhelling linkerzijde"), value("taludhelling rechterzijde")
+    return {
+        "type": "trapezium",
+        "slope": round((left + right) / 2.0, 2),
+        "maximumflowwidth": round(width + left * dh1 + right * dh2, 1),
+        "bottomwidth": round(width, 3),
+        **common,
+    }
+
+
+def _param_profile_of_branch(
+    links: pd.DataFrame,
+    branches: list,
+    with_crosssection: Collection[Hashable] = (),
+) -> dict[Hashable, pd.Series]:
+    """Return the link row of the parametrised profile each branch gets, by branch index.
+
+    A link's ``hydroobjectid`` is a branch ``globalid``. When it matches several
+    branches (split parts sharing a ``globalid``, invalid DAMO), only the first gets
+    the profile, with a warning, whether or not it has a cross section already. A
+    branch in *with_crosssection* then gets none. A branch linked to several
+    profiles gets the first, with a warning. Links to none of *branches* are
+    skipped.
+
+    Parameters
+    ----------
+    links : pd.DataFrame
+        The ``hydroobject_normgp`` rows.
+    branches : list
+        All branches, as rows of ``DataFrame.itertuples``.
+    with_crosssection : Collection[Hashable], optional
+        The indices of the branches that already have a cross section.
+
+    Returns
+    -------
+    dict[Hashable, pd.Series]
+        The link row per branch index, in the order of *links*.
+    """
+    branch_relation = DamoRelations.PARAM_PROFILE_BRANCH
+    profile_key = DamoRelations.PARAM_PROFILE_VALUES.parent_key
+    branches_by_key: dict[str, list] = {}
+    for branch in branches:
+        key = getattr(branch, branch_relation.parent_key)
+        branches_by_key.setdefault(key, []).append(branch)
+
+    chosen: dict[Hashable, pd.Series] = {}
+    profiles_of_branch: dict[Hashable, list[str]] = {}
+    for _, link in links.iterrows():
+        key = link[branch_relation.foreign_key]
+        matching = branches_by_key.get(key, [])
+        if not matching:
+            continue
+        branch = matching[0]
+        if len(matching) > 1:
+            logger.warning(
+                "Parameterised profile %s: %s %s matches branches %s; only %s gets "
+                "the profile.",
+                link[profile_key],
+                branch_relation.foreign_key,
+                key,
+                ", ".join(str(other.code) for other in matching),
+                branch.code,
+            )
+        if branch.Index in with_crosssection:
+            continue
+        chosen.setdefault(branch.Index, link)
+        profiles_of_branch.setdefault(branch.Index, []).append(link[profile_key])
+
+    for index, profiles in profiles_of_branch.items():
+        if len(profiles) > 1:
+            logger.warning(
+                "Branch %s is linked to %d parameterised profiles; using %s and "
+                "ignoring %s.",
+                index,
+                len(profiles),
+                profiles[0],
+                ", ".join(str(profile) for profile in profiles[1:]),
+            )
+    return chosen
 
 
 def _boundary_crossings(line: LineString, polygons: gpd.GeoDataFrame) -> list[float]:

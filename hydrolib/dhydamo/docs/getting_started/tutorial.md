@@ -2,7 +2,7 @@
 
 This notebook gives an overview of the functionalities of the D-HyDAMO module, part of the Hydrolib environment.
 
-This notebook is based on previous examples of the python package delft3dfmpy, but now connnected to the Hydrolib-core package, which is used for writing a D-Hydro model. It contains similar functinality as delft3dfmpy v2.0.1; input data can be loaded from HyDAMO DAMO 2.2-2.5 GeoPackages through the versioned `HyDAMO.load_from_gpkg(...)` workflow. The example model used here is based on a part of the Oostrumsche beek in Limburg, ameded with some fictional dummy data to better illustrate functionalities.
+This notebook is based on previous examples of the python package delft3dfmpy, but now connnected to the Hydrolib-core package, which is used for writing a D-Hydro model. It contains similar functinality as delft3dfmpy v2.0.1; input data can be loaded from HyDAMO DAMO 2.2-2.6 GeoPackages through the versioned `HyDAMO.load_from_gpkg(...)` workflow. The example model used here is based on a part of the Oostrumsche beek in Limburg, ameded with some fictional dummy data to better illustrate functionalities.
 
 ## Load Python libraries and Hydrolib-core functionality
 
@@ -256,7 +256,7 @@ Note that for importing most structures multiple objects are needed from the GPK
 
  - for weirs, a corresponding profile is looked up in the crossections. If one is found, the weir is implemented as a universal weir. If it is not found, a regular (rectangular) weir will be used. The cross-section ('hydamo.profile') should be related through 'hydamo.profile_line' to a 'hydamo.profile_group', which contains a 'stuwid' column which is equal to the GlobalID of the corresponding weir. The weir object can also include orifices, in that case the field 'overlaatonderlaat' in the 'management_device-object ('regelmiddel') is 'onderlaat'. For weirs it should be 'overlaat'.
  
- - for culverts, a regelmiddel can be used to model a 'schuif' and/or a 'terugslagklep'. This is specified by the field 'soortregelmiddel'. In case of a 'terugslagklep', the flow direction is set to 'positive' instead of 'both'. In case of a 'schuif', a valve is implemented. Note that in DAMO2.2, an 'afsluitmiddel' can contain the same information. For now, only a regelmiddel (management_device) is implemented. In a next version, the flexibility to use both will be included. 
+ - for culverts, a regelmiddel can be used to model a 'schuif' and/or a 'terugslagklep'. This is specified by the field 'soortregelmiddel'. In case of a 'terugslagklep', the flow direction follows the field 'richting' ('stroomrichting' from DAMO 2.5): 'Positief' allows flow along the branch only, 'Negatief' against it. Without a direction, or with 'Beide', positive flow is allowed, with a warning. In case of a 'schuif', a valve is implemented. Up to DAMO 2.4 the devices come from Regelmiddel; devices recorded on Afsluitmiddel are not read. From DAMO 2.5, which merged Regelmiddel into Afsluitmiddel, they come from Afsluitmiddel. 
  
  - bridges need an associated crosssection. This is idential to universal weirs, but here the 'hydamo.profile_group'-object should contain a field 'brugid'. 
  
@@ -516,7 +516,7 @@ mesh.mesh1d_add_branches_from_gdf(
     Structures [27, 33] have the same location.
     
 
-Add cross-sections to the branches. TO do this, many HyDAMO objects might be needed: if parameterised profiles occur, they are taken from hydamo.param_profile and, param_profile_values; if crosssections are associated with structures, those are specified in profile_group and profile lines. 
+Add cross-sections to the branches. TO do this, many HyDAMO objects might be needed: if parameterised profiles occur, they are taken from hydamo.param_profile (the links of branches to their profile, from the hydroobject_normgp layer) and hydamo.param_profile_values (the profile values, from NormgeparamProfielWaarde); a branch that already has a measured profile keeps it; if crosssections are associated with structures, those are specified in profile_group and profile lines. 
 
 HyDAMO DAMO2.2 data contains two roughness values (high and low); here it can be specified which one to use.
 
@@ -831,7 +831,7 @@ if RTC:
     )
 ```
 
-If PID controllers are present, they need settings that are not included in the HyDAMO DAMO2.2 data. We define those in a dictionary. They can be specified for each structure - in that case the key of the dictionary should match the key in the HyDAMO DAMO2.2 'sturing'-object. If no separate settings are provided the 'global' settings are used.
+If PID controllers are present, they need settings that are not included in the HyDAMO DAMO2.2 data. We define those in a dictionary. They can be specified for each structure - in that case the key of the dictionary is the D-Flow FM structure id, such as the weir code, or for a weir with several openings the id of the opening's structure (e.g. 'S_98740_3'). Keys that match no controlled structure are ignored with a warning. If no separate settings are provided the 'global' settings are used.
 
 
 ```python
@@ -843,7 +843,7 @@ if RTC:
         "kd": 0.0,
         "maxspeed": 0.00033,
     }
-    pid_settings["kst_pid"] = {
+    pid_settings["S_98740_3"] = {
         "ki": -0.03,
         "kp": -0.0,
         "kd": 0.0,
