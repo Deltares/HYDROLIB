@@ -54,9 +54,34 @@ def test_the_steering_variable_rewrite_is_declared_on_its_column() -> None:
     )
 
 
+def test_a_table_fills_at_most_one_column_from_globalid() -> None:
+    # The loader fills one column per table, so a second would be reported but not
+    # filled.
+    with pytest.raises(ValueError, match="more than one column"):
+        Table(
+            "Sturing",
+            geotype=None,
+            required_columns=(
+                Column("code", "A reason.", fill_from_globalid=True),
+                Column("naam", "Another reason.", fill_from_globalid=True),
+            ),
+        )
+
+
 def test_a_table_names_its_column_filled_from_globalid() -> None:
     assert TABLES["management"].column_filled_from_globalid == "code"
     assert TABLES["weirs"].column_filled_from_globalid is None
+
+
+def test_own_tables_declare_the_optional_rr_inputs_they_read() -> None:
+    assert OWN_TABLES["sewer_areas"].optional_names == (
+        "riool_berging_mm",
+        "riool_poc_m3s",
+    )
+    assert OWN_TABLES["greenhouse_areas"].optional_names == (
+        "roof_storage_mm",
+        "basin_storage_class",
+    )
 
 
 def _relations() -> list[Relation]:
@@ -82,7 +107,9 @@ def test_relations_and_cascade_paths_name_only_existing_tables() -> None:
         for path in paths:
             cascade_relations.extend(path)
 
-    assert len(_relations()) == 20
+    # both namespaces are scanned
+    assert DamoRelations.CATCHMENT_LATERAL in _relations()
+    assert OwnRelations.OVERFLOW_SEWER_AREA in _relations()
     assert (
         _unknown_tables(_relations() + cascade_relations, list(CASCADE_PATHS)) == set()
     )

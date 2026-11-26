@@ -104,6 +104,21 @@ class Table:
     optional_layer: bool = True
     check_geotype: bool = True
 
+    def __post_init__(self) -> None:
+        """Check that at most one column is filled from ``globalid``.
+
+        Raises
+        ------
+        ValueError
+            If more than one column is: the loader fills one column per table.
+        """
+        filled = [column.name for column in self.columns if column.fill_from_globalid]
+        if len(filled) > 1:
+            raise ValueError(
+                f"Table {self.layer} fills more than one column from globalid "
+                f"({', '.join(filled)}); the loader fills one column per table."
+            )
+
     @property
     def required_names(self) -> tuple[str, ...]:
         """The names of the required columns."""
@@ -356,11 +371,19 @@ class OwnTable:
         Columns the table must have.
     reason : str
         Why HYDROLIB needs it.
+    optional_columns : tuple[Column, ...]
+        Other columns HYDROLIB reads when present, each with its reason.
     """
 
     geotype: type[BaseGeometry]
     required_columns: tuple[str, ...]
     reason: str
+    optional_columns: tuple[Column, ...] = ()
+
+    @property
+    def optional_names(self) -> tuple[str, ...]:
+        """The names of the optional columns."""
+        return tuple(column.name for column in self.optional_columns)
 
 
 # HYDROLIB's own tables, by HyDAMO attribute. They aren't loaded by load_from_gpkg,
@@ -375,11 +398,35 @@ OWN_TABLES: dict[str, OwnTable] = {
         Polygon,
         ("code", "geometry"),
         "RR sewer areas, which drain through their overflows.",
+        optional_columns=(
+            Column(
+                "riool_berging_mm",
+                "The sewer storage (mm) of the area. Without it, the storage given to "
+                "the RR model setup (a value or a raster) is used.",
+            ),
+            Column(
+                "riool_poc_m3s",
+                "The pump capacity (m3/s) of the area. Without it, the capacity given "
+                "to the RR model setup (a value or a raster, in mm/h) is used.",
+            ),
+        ),
     ),
     "greenhouse_areas": OwnTable(
         Polygon,
         ("code", "geometry"),
         "RR greenhouse areas.",
+        optional_columns=(
+            Column(
+                "roof_storage_mm",
+                "The roof storage (mm) of the area. Without it, the storage given to "
+                "the RR model setup (a value or a raster) is used.",
+            ),
+            Column(
+                "basin_storage_class",
+                "The basin storage class of the area. Without it, the class given to "
+                "the RR model setup is used.",
+            ),
+        ),
     ),
     "greenhouse_laterals": OwnTable(
         Point,
