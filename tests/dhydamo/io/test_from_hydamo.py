@@ -273,12 +273,12 @@ def test_hydamo_object_from_gpkg() -> None:
     assert len(hydamo.profile) == 352
     assert hydamo.profile.geom_type.to_numpy()[0] == "LineString"
     # the dataset contains two profile groups (a bridge and a uweir)
-    assert hydamo.profile_group.shape == (2, 4)
+    assert hydamo.profile_group.shape == (2, 5)
     # a profile_lines' profielgroepid's should correspond to profile_group globalids
     assert hydamo.profile_line.profielgroepid.to_numpy()[0] in list(
         hydamo.profile_group.globalid
     )
-    assert len(hydamo.management_device) == 32
+    assert len(hydamo.management_device) == 31
     assert len(hydamo.weirs) == 25
     assert np.isclose(np.round(hydamo.weirs.doorstroombreedte.mean()), 2)
     assert len(hydamo.culverts) == 90

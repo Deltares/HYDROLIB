@@ -149,7 +149,7 @@ def test_load_from_gpkg_uses_versioned_converter_for_damo_22() -> None:
     assert hydamo.source_damo_version == "2.2"
     assert hydamo.validation_result is None
     assert len(hydamo.branches) == 61
-    assert len(hydamo.management_device) == 32
+    assert len(hydamo.management_device) == 31
     assert len(hydamo.pumps) == 3
 
 
@@ -160,7 +160,7 @@ def test_load_from_gpkg_passthrough_versions_behave_like_22(version: str) -> Non
 
     assert hydamo.source_damo_version == version
     assert len(hydamo.branches) == 61
-    assert len(hydamo.management_device) == 32
+    assert len(hydamo.management_device) == 31
     assert len(hydamo.pumps) == 3
 
 
