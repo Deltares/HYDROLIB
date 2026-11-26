@@ -270,8 +270,8 @@ class HyDAMO:
         gpkg_path : str or Path
             Path to the GeoPackage file.
         hydamo_version : str
-            DAMO schema version, one of ``SUPPORTED_HYDAMO_VERSIONS``, e.g.
-            ``"2.5"``. Required: it selects the renames back to DAMO 2.2, the
+            DAMO schema version, one of ``SUPPORTED_HYDAMO_VERSIONS`` (2.2 to 2.6),
+            e.g. ``"2.6"``. Required: it selects the renames back to DAMO 2.2, the
             names HYDROLIB uses; it does not detect or verify the source schema
             version.
         clip_layers : dict, optional

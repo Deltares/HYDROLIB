@@ -74,6 +74,8 @@ STEPS: tuple[Step, ...] = (
             "culverts": {"vormkoker": "vormduikersifonhevel"},
         },
     ),
+    # DAMO 2.6 renamed none of the columns HYDROLIB reads.
+    Step("2.5", "2.6"),
 )
 
 SUPPORTED_HYDAMO_VERSIONS: tuple[str, ...] = ("2.2", *(step.new for step in STEPS))

@@ -1223,7 +1223,25 @@ def test_weir_opening_without_device_logs_opening_globalid(
 
 
 def test_supported_damo_converter_versions() -> None:
-    assert SUPPORTED_HYDAMO_VERSIONS == ("2.2", "2.3", "2.4", "2.5")
+    assert SUPPORTED_HYDAMO_VERSIONS == ("2.2", "2.3", "2.4", "2.5", "2.6")
+
+
+def test_load_from_gpkg_reads_a_damo_26_file_like_its_25_equivalent(
+    tmp_path: Path,
+) -> None:
+    # DAMO 2.6 renamed none of the columns HYDROLIB reads, so a 2.5 file has 2.6's
+    # real column names for them.
+    gpkg_file = _make_minimal_25_gpkg(tmp_path)
+
+    hydamo_25 = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+    hydamo_26 = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.6")
+
+    assert hydamo_26.source_damo_version == "2.6"
+    for name in TABLES:
+        pd.testing.assert_frame_equal(
+            getattr(hydamo_26, name), getattr(hydamo_25, name), obj=name
+        )
+    assert hydamo_26.management_device.loc[0, "hoogteopening"] == 0.3
 
 
 def test_load_from_gpkg_uses_versioned_converter_for_damo_22() -> None:
@@ -2378,8 +2396,12 @@ def test_validate_gpkg_requires_hydamo_version() -> None:
 
 def test_load_from_gpkg_raises_for_unsupported_version() -> None:
     hydamo = HyDAMO()
-    with pytest.raises(ValueError, match="Unsupported"):
-        hydamo.load_from_gpkg("irrelevant.gpkg", hydamo_version="9.9")
+    with pytest.raises(
+        ValueError,
+        match=r'Unsupported HyDAMO DAMO version "2\.7"\. '
+        r"Supported versions: 2\.2, 2\.3, 2\.4, 2\.5, 2\.6\.",
+    ):
+        hydamo.load_from_gpkg("irrelevant.gpkg", hydamo_version="2.7")
 
 
 def test_load_from_gpkg_validation_warn_failure_does_not_raise(

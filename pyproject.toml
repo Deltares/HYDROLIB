@@ -51,7 +51,8 @@ dependencies = [
 validation = [
   # Upper limit is raised by hand: a new release can bring a new HyDAMO schema,
   # which needs its own version step in hydrolib/dhydamo/io/damo_versions/steps.py.
-  # Check the steps with tests/tools/damo_schema_diff.py before raising it.
+  # Before raising it, run the contract test of the data model and the version
+  # steps against the new schemas.
   "hydamo-validation>=1.7.0,<1.8",
 ]
 

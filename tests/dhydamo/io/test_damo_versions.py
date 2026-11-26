@@ -12,6 +12,9 @@ from hydrolib.dhydamo.io.damo_versions import (
     steps,
 )
 
+# The step in which DAMO merged Regelmiddel into Afsluitmiddel
+STEP_24_25 = next(i for i, step in enumerate(steps.STEPS) if step.new == "2.5")
+
 
 def test_source_layers_chains_the_renames_of_every_step_per_table() -> None:
     sources = source_layers("2.5")
@@ -50,8 +53,9 @@ def test_source_layers_rejects_two_tables_reading_the_same_layer(
 ) -> None:
     # The steps are keyed by table, so each table must have its own layer.
     broken = list(steps.STEPS)
-    broken[-1] = dataclasses.replace(
-        broken[-1], layers={**broken[-1].layers, "weirs": "Afsluitmiddel"}
+    broken[STEP_24_25] = dataclasses.replace(
+        broken[STEP_24_25],
+        layers={**broken[STEP_24_25].layers, "weirs": "Afsluitmiddel"},
     )
     monkeypatch.setattr(steps, "STEPS", tuple(broken))
 
@@ -68,12 +72,12 @@ def test_source_layers_rejects_a_step_naming_a_table_that_does_not_exist(
     # e.g. a typo, which would otherwise be ignored (layers) or raise a bare KeyError
     broken = list(steps.STEPS)
     if field == "layers":
-        broken[-1] = dataclasses.replace(
-            broken[-1], layers={"managment_device": "Afsluitmiddel"}
+        broken[STEP_24_25] = dataclasses.replace(
+            broken[STEP_24_25], layers={"managment_device": "Afsluitmiddel"}
         )
     else:
-        broken[-1] = dataclasses.replace(
-            broken[-1], columns={"managment_device": {"old": "new"}}
+        broken[STEP_24_25] = dataclasses.replace(
+            broken[STEP_24_25], columns={"managment_device": {"old": "new"}}
         )
     monkeypatch.setattr(steps, "STEPS", tuple(broken))
 
