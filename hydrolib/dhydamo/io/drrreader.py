@@ -13,7 +13,7 @@ from pydantic import ConfigDict, StrictStr, validate_call
 from shapely.geometry import Point
 
 from hydrolib.dhydamo.core import drr
-from hydrolib.dhydamo.core.relations import RelationsRR
+from hydrolib.dhydamo.core.data_model import DamoRelations, OwnRelations
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.io import idfreader
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
@@ -529,7 +529,7 @@ class PavedIO:
 
                 elev = stats_sa_elev.iloc[isew]["median"]
                 # find overflows related to this sewer area
-                overflow_sa = RelationsRR.OVERFLOW_SEWER_AREA
+                overflow_sa = OwnRelations.OVERFLOW_SEWER_AREA
                 sewer_id = getattr(sew, overflow_sa.parent_key)
                 ovf = overflows[overflows[overflow_sa.foreign_key] == sewer_id]
                 for ov, ov_geometry in zip(ovf.itertuples(), ovf.geometry):
@@ -828,7 +828,7 @@ class GreenhouseIO:
                     basin_storage_class_val = f"{gh_basin_storage_class:g}"
                 else:
                     basin_storage_class_val = f"{basin_storage_class:g}"
-                gh_area = RelationsRR.GREENHOUSE_LATERAL_AREA
+                gh_area = OwnRelations.GREENHOUSE_LATERAL_AREA
                 area_id = getattr(gh, gh_area.parent_key)
                 related_laterals = greenhouse_laterals[
                     greenhouse_laterals[gh_area.foreign_key] == area_id
@@ -1249,7 +1249,7 @@ class ExternalForcingsIO:
             # inplace: returning a copy of an ExtendedGeoDataFrame gives a plain GeoDataFrame
             catchments.drop(drop_idx, inplace=True)  # noqa: PD002
 
-        catchment_lat = RelationsRR.CATCHMENT_LATERAL
+        catchment_lat = DamoRelations.CATCHMENT_LATERAL
         for cat in catchments.itertuples():
             lateral_id = getattr(cat, catchment_lat.foreign_key)
             lat = boundary_nodes[boundary_nodes[catchment_lat.parent_key] == lateral_id]

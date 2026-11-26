@@ -19,8 +19,8 @@ from pydantic import ConfigDict, Field, validate_call
 from typing_extensions import TypedDict
 
 from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.dhydamo.core.data_model import DamoRelations
 from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.core.relations import RelationsHyDAMO
 from hydrolib.dhydamo.io.netcdfreader import time_index
 
 logger = logging.getLogger(__name__)
@@ -151,6 +151,71 @@ class DRTCStructure:
     struct_type: str
     struct_name: str
     struct_property: str
+
+
+def _warn_unknown_settings_keys(
+    name: str, settings: dict | None, controlled_structures: set[str]
+) -> None:
+    """Warn once about settings keys that match no controlled structure.
+
+    Such a key is ignored, so a stale or misspelt structure id would otherwise go
+    unnoticed and its controller would silently get the ``"global"`` settings.
+
+    Parameters
+    ----------
+    name : str
+        Name of the settings argument, for the message.
+    settings : dict or None
+        The settings, keyed by structure id and ``"global"``.
+    controlled_structures : set of str
+        Ids of the structures with this type of controller.
+    """
+    if settings is None:
+        return
+    # dict order, not sorted: keys of different types cannot be compared
+    unknown = [
+        key for key in settings if key != "global" and key not in controlled_structures
+    ]
+    if unknown:
+        logger.warning(
+            "%s keys %s match no structure with this type of controller, so they "
+            "are ignored. Keys are D-Flow FM structure ids.",
+            name,
+            unknown,
+        )
+
+
+def _settings_for(name: str, settings: dict, structure_id: str) -> dict:
+    """Return the settings of a structure, or the ``"global"`` settings.
+
+    Parameters
+    ----------
+    name : str
+        Name of the settings argument, for the message.
+    settings : dict
+        The settings, keyed by structure id and ``"global"``.
+    structure_id : str
+        D-Flow FM id of the controlled structure.
+
+    Returns
+    -------
+    dict
+        The settings under ``structure_id``, otherwise those under ``"global"``.
+
+    Raises
+    ------
+    ValueError
+        If ``settings`` has neither key, e.g. because the structure's key is
+        misspelt and there is no ``"global"`` fallback.
+    """
+    if structure_id in settings:
+        return settings[structure_id]
+    if "global" in settings:
+        return settings["global"]
+    raise ValueError(
+        f"{name} has no key '{structure_id}' and no 'global' fallback. "
+        "Keys are D-Flow FM structure ids."
+    )
 
 
 class DRTCModel:
@@ -430,8 +495,8 @@ class DRTCModel:
         all_management = self.hydamo.management
         # The resolver raises for rows referencing neither a pump nor a management device.
         hydamo_controllers = all_management[
-            all_management[RelationsHyDAMO.MANAGEMENT_PUMP.foreign_key].notna()
-            | all_management[RelationsHyDAMO.MANAGEMENT_DEVICE.foreign_key].notna()
+            all_management[DamoRelations.MANAGEMENT_PUMP.foreign_key].notna()
+            | all_management[DamoRelations.MANAGEMENT_DEVICE.foreign_key].notna()
         ]
         for _, management in hydamo_controllers.iterrows():
             resolved = self._resolve_management_structure(management)
@@ -457,8 +522,8 @@ class DRTCModel:
 
         Architecture note: this method, and the weir/orifice resolution it
         delegates to `_resolve_weir_via_opening`, intentionally lives here and
-        not in `hydrolib.dhydamo.io.damo_converters`. The converters package
-        only normalizes differences between DAMO schema versions (column
+        not in `hydrolib.dhydamo.io.damo_versions`. The version steps there
+        only normalize differences between DAMO schema versions (column
         renames, layer name changes) into one canonical HyDAMO column set;
         once `hydamo.management` reaches this method, the DAMO version is
         irrelevant. Mapping a management record to a controllable structure is
@@ -468,7 +533,7 @@ class DRTCModel:
         ----------
         management : pd.Series
             A single row from ``hydamo.management``, in canonical
-            (post-``damo_converters``) column form. Must have ``pompid`` and
+            (as loaded) column form. Must have ``pompid`` and
             ``regelmiddelid``, where exactly one of the two is expected to be non-null.
 
         Returns
@@ -486,8 +551,8 @@ class DRTCModel:
             If neither ``pompid`` nor ``regelmiddelid`` is set on ``management``, since a
             management record must reference one of the two.
         """
-        management_pump = RelationsHyDAMO.MANAGEMENT_PUMP
-        management_device = RelationsHyDAMO.MANAGEMENT_DEVICE
+        management_pump = DamoRelations.MANAGEMENT_PUMP
+        management_device = DamoRelations.MANAGEMENT_DEVICE
         management_rows = management.to_frame().T
         pump_id = management[management_pump.foreign_key]
         if not pd.isna(pump_id):
@@ -540,7 +605,7 @@ class DRTCModel:
             )
             return None
 
-        culvert_relation = RelationsHyDAMO.MANAGEMENT_DEVICE_CULVERT
+        culvert_relation = DamoRelations.MANAGEMENT_DEVICE_CULVERT
         if pd.notna(mandev[culvert_relation.foreign_key]).any():
             struc = culvert_relation.parents_of(
                 mandev.iloc[:1],
@@ -599,7 +664,7 @@ class DRTCModel:
             or None if ``mandev`` has no ``kunstwerkopeningid``, the chain to ``weirs``
             cannot be resolved, or the weir turns out to be compound (multi-opening).
         """
-        opening_relation = RelationsHyDAMO.MANAGEMENT_DEVICE_OPENING
+        opening_relation = DamoRelations.MANAGEMENT_DEVICE_OPENING
         if opening_relation.foreign_key not in mandev.columns:
             return None
         opening_id = mandev[opening_relation.foreign_key].to_numpy()[0]
@@ -610,7 +675,7 @@ class DRTCModel:
             mandev.iloc[:1],
             self.hydamo.opening,
         )
-        weir_relation = RelationsHyDAMO.OPENING_WEIR
+        weir_relation = DamoRelations.OPENING_WEIR
         if opening_row.empty or weir_relation.foreign_key not in opening_row.columns:
             return None
         weir_row = weir_relation.parents_of(opening_row, self.hydamo.weirs)
@@ -1350,15 +1415,25 @@ class DRTCModel:
     ) -> None:
         """Add the time, PID and interval controllers of ``hydamo.management``.
 
-        The settings that HyDAMO lacks are given per structure id, or for all other
-        structures under the key ``"global"``.
+        The settings that HyDAMO lacks are keyed by D-Flow FM structure id: the weir,
+        orifice, pump or culvert code, or for a weir with several openings the id of
+        the opening's structure (e.g. ``S_98740_3``). Structures without their own key
+        get the settings under ``"global"``. Keys that match no structure with that
+        type of controller are listed in one warning per settings dict.
+
+        A structure gets one controller: when several Sturing rows with a supported
+        controller type (PID, interval or time) resolve to the same structure, the
+        first of them is used and the others are skipped with a warning. Rows with
+        another type are skipped with a warning before any other check.
 
         Parameters
         ----------
         pid_settings : dict, optional
-            ``ki``, ``kp``, ``kd`` and ``maxspeed`` of the PID controllers. Defaults to None.
+            ``ki``, ``kp``, ``kd`` and ``maxspeed`` of the PID controllers, per structure
+            id and under ``"global"``. Defaults to None.
         interval_settings : dict, optional
-            ``deadband`` and ``maxspeed`` of the interval controllers. Defaults to None.
+            ``deadband`` and ``maxspeed`` of the interval controllers, per structure id
+            and under ``"global"``. Defaults to None.
         timeseries : pd.DataFrame, optional
             Time series of the time controllers, with the structure ids as columns.
             Defaults to None.
@@ -1368,11 +1443,30 @@ class DRTCModel:
         ValueError
             For inconsistent input, e.g. a PID controller without ``pid_settings``.
         """
+        # the Sturing code of the row that controls each structure: the first wins
+        controlled_by: dict[str, str] = {}
+        pid_structures: set[str] = set()
+        interval_structures: set[str] = set()
         for _, management in self.hydamo.management.iterrows():
             resolved = self._resolve_management_structure(management)
             if resolved is None:
                 continue
             structype, struc_id = resolved
+            # only rows that create a controller compete for a structure
+            if management.typecontroller not in ("PID", "interval", "time"):
+                logger.warning(
+                    f"{management.typecontroller} is not a valid controller type - skipped."
+                )
+                continue
+            if struc_id in controlled_by:
+                logger.warning(
+                    "Structure %s is controlled by Sturing %s and %s. Using %s.",
+                    struc_id,
+                    controlled_by[struc_id],
+                    management.code,
+                    controlled_by[struc_id],
+                )
+                continue
             if (
                 structype == "weir"
                 and management.stuurvariabele == "bovenkant afsluitmiddel"
@@ -1401,30 +1495,20 @@ class DRTCModel:
                 )
 
             if management.typecontroller == "PID":
-                #  if the ID is not specified separately, use the global settings
                 if pid_settings is None:
                     raise ValueError(
                         f"{management.code} contains a PID controller, but no pid_settings are provided. Please do so."
                     )
-                if struc_id not in pid_settings:
-                    ki = pid_settings["global"]["ki"]
-                    kp = pid_settings["global"]["kp"]
-                    kd = pid_settings["global"]["kd"]
-                    max_speed = pid_settings["global"]["maxspeed"]
-                else:
-                    ki = pid_settings[struc_id]["ki"]
-                    kp = pid_settings[struc_id]["kp"]
-                    kd = pid_settings[struc_id]["kd"]
-                    max_speed = pid_settings[struc_id]["maxspeed"]
-
+                pid_structures.add(struc_id)
+                pid = _settings_for("pid_settings", pid_settings, struc_id)
                 self.add_pid_controller(
                     structure_id=struc_id,
                     steering_variable=steering_variable,
                     target_variable=target_variable,
-                    ki=ki,
-                    kp=kp,
-                    kd=kd,
-                    max_speed=max_speed,
+                    ki=pid["ki"],
+                    kp=pid["kp"],
+                    kd=pid["kd"],
+                    max_speed=pid["maxspeed"],
                     setpoint=management.streefwaarde,
                     lower_bound=management.ondergrens,
                     upper_bound=management.bovengrens,
@@ -1436,22 +1520,18 @@ class DRTCModel:
                     raise ValueError(
                         f"{management.code} contains an interval controller, but no interval_settings are provided. Please do so."
                     )
-
-                if struc_id not in interval_settings:
-                    deadband = interval_settings["global"]["deadband"]
-                    max_speed = interval_settings["global"]["maxspeed"]
-                else:
-                    deadband = interval_settings[struc_id]["deadband"]
-                    max_speed = interval_settings[struc_id]["maxspeed"]
-
+                interval_structures.add(struc_id)
+                interval = _settings_for(
+                    "interval_settings", interval_settings, struc_id
+                )
                 self.add_interval_controller(
                     structure_id=struc_id,
                     steering_variable=steering_variable,
                     target_variable=target_variable,
-                    deadband=deadband,
+                    deadband=interval["deadband"],
                     setting_above=management.bovengrens,
                     setting_below=management.ondergrens,
-                    max_speed=max_speed,
+                    max_speed=interval["maxspeed"],
                     setpoint=management.streefwaarde,
                     observation_location=management.meetlocatieid,
                 )
@@ -1468,10 +1548,12 @@ class DRTCModel:
                         steering_variable=steering_variable,
                         data=data,
                     )
-            else:
-                logger.warning(
-                    f"{management.typecontroller} is not a valid controller type - skipped."
-                )
+            controlled_by[struc_id] = management.code
+
+        _warn_unknown_settings_keys("pid_settings", pid_settings, pid_structures)
+        _warn_unknown_settings_keys(
+            "interval_settings", interval_settings, interval_structures
+        )
 
     @validate_call(
         config=ConfigDict(arbitrary_types_allowed=True, coerce_numbers_to_str=True)

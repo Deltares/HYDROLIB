@@ -205,8 +205,9 @@ def test_convert_to_hydrolibmodel() -> None:
     hydamo, _ = setup_model()
 
     models = Df2HydrolibModel(hydamo)
-    assert len(models.friction_defs) == 4
-    assert len(models.crossdefs) == 443
+    # Including the parameterised profile of W_2645_0 and its roughness (Manning 0.06)
+    assert len(models.friction_defs) == 5
+    assert len(models.crossdefs) == 444
 
 
 def _add_to_filestructure(

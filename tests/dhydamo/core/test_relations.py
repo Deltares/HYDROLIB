@@ -2,12 +2,9 @@ from collections.abc import Callable
 
 import pandas as pd
 import pytest
+from hydrolib.dhydamo.core.data_model import DamoRelations
 from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.core.relations import (
-    RelationsHyDAMO,
-    build_cascade_plan,
-    follow_relation,
-)
+from hydrolib.dhydamo.core.relations import build_cascade_plan, follow_relation
 
 
 def _hydamo(**tables: pd.DataFrame) -> HyDAMO:
@@ -110,7 +107,7 @@ def _rr_hydamo() -> HyDAMO:
 def test_parents_of_selects_rows_referenced_by_children() -> None:
     hydamo = _profile_hydamo()
 
-    parents = RelationsHyDAMO.PROFILE_LINE.parents_of(
+    parents = DamoRelations.PROFILE_LINE.parents_of(
         hydamo.profile.loc[["p1"]], hydamo.profile_line
     )
 
@@ -120,7 +117,7 @@ def test_parents_of_selects_rows_referenced_by_children() -> None:
 def test_children_of_selects_rows_referencing_parents() -> None:
     hydamo = _profile_hydamo()
 
-    children = RelationsHyDAMO.PROFILE_LINE.children_of(
+    children = DamoRelations.PROFILE_LINE.children_of(
         hydamo.profile_line.loc[["l2"]], hydamo.profile
     )
 
@@ -128,7 +125,7 @@ def test_children_of_selects_rows_referencing_parents() -> None:
 
 
 def test_relation_methods_ignore_null_keys() -> None:
-    relation = RelationsHyDAMO.PROFILE_LINE
+    relation = DamoRelations.PROFILE_LINE
     profiles = pd.DataFrame({"profiellijnid": [None]}, index=["profile-without-line"])
     profile_lines = pd.DataFrame({"globalid": [None]}, index=["line-without-id"])
 
@@ -175,7 +172,7 @@ def test_relation_methods_require_source_and_target_keys(
     make_args: Callable[[HyDAMO], tuple[pd.DataFrame, pd.DataFrame]],
     missing_key: str,
 ) -> None:
-    relation_method = getattr(RelationsHyDAMO.PROFILE_LINE, method)
+    relation_method = getattr(DamoRelations.PROFILE_LINE, method)
     source, target = make_args(_profile_hydamo())
 
     with pytest.raises(KeyError, match=missing_key):
@@ -184,7 +181,7 @@ def test_relation_methods_require_source_and_target_keys(
 
 def test_follow_relation_dispatches_in_both_directions() -> None:
     hydamo = _profile_hydamo()
-    relation = RelationsHyDAMO.PROFILE_LINE
+    relation = DamoRelations.PROFILE_LINE
 
     target_table, target_rows = follow_relation(
         hydamo, relation, "profile", hydamo.profile.loc[["p1"]]
@@ -204,7 +201,7 @@ def test_follow_relation_supports_empty_rows() -> None:
 
     target_table, target_rows = follow_relation(
         hydamo,
-        RelationsHyDAMO.PROFILE_LINE,
+        DamoRelations.PROFILE_LINE,
         "profile",
         hydamo.profile.iloc[0:0],
     )
@@ -220,7 +217,7 @@ def test_follow_relation_rejects_unrelated_source_table() -> None:
     with pytest.raises(ValueError, match="not an endpoint"):
         follow_relation(
             hydamo,
-            RelationsHyDAMO.PROFILE_LINE,
+            DamoRelations.PROFILE_LINE,
             "branches",
             hydamo.profile,
         )
@@ -307,3 +304,13 @@ def test_build_cascade_plan_returns_empty_for_unconfigured_source() -> None:
     hydamo = _hydamo(branches=pd.DataFrame(index=["branch-1"]))
 
     assert build_cascade_plan(hydamo, "branches", pd.Index(["branch-1"])) == {}
+
+
+@pytest.mark.parametrize("source_table", ["WEIRS", "weir"])
+def test_build_cascade_plan_rejects_a_table_hydamo_does_not_have(
+    source_table: str,
+) -> None:
+    # A typo must not read as "a table without cascade paths": the caller would
+    # then drop the source rows and leave their related rows behind.
+    with pytest.raises(ValueError, match=f"'{source_table}'"):
+        build_cascade_plan(_structure_hydamo(), source_table, pd.Index(["w1"]))

@@ -49,9 +49,11 @@ dependencies = [
 
 [project.optional-dependencies]
 validation = [
-  "hydamo-validation>=1.6.0",
-  # hydamo-validation 1.6.0 imports fiona but doesn't declare it.
-  "fiona>=1.10",
+  # Upper limit is raised by hand: a new release can bring a new HyDAMO schema,
+  # which needs its own version step in hydrolib/dhydamo/io/damo_versions/steps.py.
+  # Before raising it, run the contract test of the data model and the version
+  # steps against the new schemas.
+  "hydamo-validation>=1.7.0,<1.8",
 ]
 
 [dependency-groups]
@@ -147,6 +149,7 @@ exclude = [
 module = [
   "cftime.*",
   "exactextract.*",
+  "hydamo_validation.*",
   "meshkernel.*",
   "rasterio.*",
 ]

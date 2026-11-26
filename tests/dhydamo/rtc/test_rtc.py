@@ -58,7 +58,7 @@ def _add_default_simple_control(
         timeseries = pd.read_csv(data_path / "timecontrollers.csv")
         timeseries.index = timeseries.Time
 
-        pid_settings["kst_pid"] = {
+        pid_settings["S_98740_3"] = {
             "ki": -0.03,
             "kp": -0.0,
             "kd": 0.0,
