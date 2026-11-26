@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING
 
 import geopandas as gpd
 
-from hydrolib.dhydamo.io.damo_converters.data_model import (
+from hydrolib.dhydamo.core.data_model import (
     FILLED_FROM_GLOBALID,
     TABLES,
     VALUE_REWRITES,
     DamoRelations,
 )
-from hydrolib.dhydamo.io.damo_converters.steps import SourceLayer
+from hydrolib.dhydamo.io.damo_versions.steps import SourceLayer
 
 if TYPE_CHECKING:
     from hydrolib.dhydamo.core.hydamo import HyDAMO

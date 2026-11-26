@@ -13,10 +13,10 @@ from pydantic import ConfigDict, StrictStr, validate_call
 from shapely.geometry import Point
 
 from hydrolib.dhydamo.core import drr
+from hydrolib.dhydamo.core.data_model import DamoRelations, OwnRelations
 from hydrolib.dhydamo.geometry import zonal
 from hydrolib.dhydamo.io import idfreader
 from hydrolib.dhydamo.io.common import ExtendedGeoDataFrame
-from hydrolib.dhydamo.io.damo_converters.data_model import DamoRelations, OwnRelations
 
 logger = logging.getLogger(__name__)
 

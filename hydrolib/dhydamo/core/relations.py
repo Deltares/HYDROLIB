@@ -1,7 +1,7 @@
 """Follow the relations between the HyDAMO tables, and plan cascading drops.
 
 The relations themselves, and the cascade paths, are in the data model
-(`hydrolib.dhydamo.io.damo_converters.data_model`).
+(`hydrolib.dhydamo.core.data_model`).
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from hydrolib.dhydamo.io.damo_converters.data_model import (
+from hydrolib.dhydamo.core.data_model import (
     CASCADE_PATHS,
     OWN_TABLES,
     TABLES,

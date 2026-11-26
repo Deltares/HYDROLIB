@@ -15,14 +15,14 @@ from pathlib import Path
 from typing import Any
 
 import hydamo_validation
-from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.io.damo_converters import (
-    SUPPORTED_HYDAMO_VERSIONS,
-    source_layers,
-)
-from hydrolib.dhydamo.io.damo_converters.data_model import (
+from hydrolib.dhydamo.core.data_model import (
     FILLED_FROM_GLOBALID,
     TABLES,
+)
+from hydrolib.dhydamo.core.hydamo import HyDAMO
+from hydrolib.dhydamo.io.damo_versions import (
+    SUPPORTED_HYDAMO_VERSIONS,
+    source_layers,
 )
 
 

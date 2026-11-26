@@ -19,8 +19,8 @@ from pydantic import ConfigDict, Field, validate_call
 from typing_extensions import TypedDict
 
 from hydrolib.core.dflowfm.mdu.models import FMModel
+from hydrolib.dhydamo.core.data_model import DamoRelations
 from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.io.damo_converters.data_model import DamoRelations
 from hydrolib.dhydamo.io.netcdfreader import time_index
 
 logger = logging.getLogger(__name__)
@@ -522,8 +522,8 @@ class DRTCModel:
 
         Architecture note: this method, and the weir/orifice resolution it
         delegates to `_resolve_weir_via_opening`, intentionally lives here and
-        not in `hydrolib.dhydamo.io.damo_converters`. The converters package
-        only normalizes differences between DAMO schema versions (column
+        not in `hydrolib.dhydamo.io.damo_versions`. The version steps there
+        only normalize differences between DAMO schema versions (column
         renames, layer name changes) into one canonical HyDAMO column set;
         once `hydamo.management` reaches this method, the DAMO version is
         irrelevant. Mapping a management record to a controllable structure is
@@ -533,7 +533,7 @@ class DRTCModel:
         ----------
         management : pd.Series
             A single row from ``hydamo.management``, in canonical
-            (post-``damo_converters``) column form. Must have ``pompid`` and
+            (as loaded) column form. Must have ``pompid`` and
             ``regelmiddelid``, where exactly one of the two is expected to be non-null.
 
         Returns

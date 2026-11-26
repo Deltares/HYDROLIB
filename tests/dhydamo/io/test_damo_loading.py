@@ -13,15 +13,15 @@ import pandas as pd
 import pytest
 from hydrolib.core.dflowfm.mdu.models import FMModel
 from hydrolib.dhydamo import validation
-from hydrolib.dhydamo.core.drtc import CREST_LEVEL, DRTCModel
-from hydrolib.dhydamo.core.hydamo import HyDAMO
-from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
-from hydrolib.dhydamo.io.damo_converters import SUPPORTED_HYDAMO_VERSIONS
-from hydrolib.dhydamo.io.damo_converters.data_model import (
+from hydrolib.dhydamo.core.data_model import (
     OWN_TABLES,
     TABLES,
     DamoRelations,
 )
+from hydrolib.dhydamo.core.drtc import CREST_LEVEL, DRTCModel
+from hydrolib.dhydamo.core.hydamo import HyDAMO
+from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
+from hydrolib.dhydamo.io.damo_versions import SUPPORTED_HYDAMO_VERSIONS
 from hydrolib.dhydamo.validation import HyDAMOValidationError
 from pydantic import ValidationError
 from shapely.geometry import LineString, Point

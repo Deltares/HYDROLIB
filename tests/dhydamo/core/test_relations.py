@@ -2,9 +2,9 @@ from collections.abc import Callable
 
 import pandas as pd
 import pytest
+from hydrolib.dhydamo.core.data_model import DamoRelations
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.core.relations import build_cascade_plan, follow_relation
-from hydrolib.dhydamo.io.damo_converters.data_model import DamoRelations
 
 
 def _hydamo(**tables: pd.DataFrame) -> HyDAMO:

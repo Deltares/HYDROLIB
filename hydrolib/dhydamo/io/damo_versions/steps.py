@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from hydrolib.dhydamo.io.damo_converters.data_model import TABLES
+from hydrolib.dhydamo.core.data_model import TABLES
 
 
 @dataclass(frozen=True)

@@ -33,20 +33,20 @@ from hydrolib.dhydamo.converters.hydamo2df import (
     StorageNodesIO,
     StructuresIO,
 )
-from hydrolib.dhydamo.core.relations import build_cascade_plan
-from hydrolib.dhydamo.geometry import zonal
-from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
-from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
-from hydrolib.dhydamo.io.damo_converters import (
-    SourceLayer,
-    load_layers,
-    source_layers,
-)
-from hydrolib.dhydamo.io.damo_converters.data_model import (
+from hydrolib.dhydamo.core.data_model import (
     OWN_TABLES,
     TABLES,
     DamoRelations,
     Geotype,
+)
+from hydrolib.dhydamo.core.relations import build_cascade_plan
+from hydrolib.dhydamo.geometry import zonal
+from hydrolib.dhydamo.geometry.spatial import find_nearest_branch
+from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
+from hydrolib.dhydamo.io.damo_versions import (
+    SourceLayer,
+    load_layers,
+    source_layers,
 )
 from hydrolib.dhydamo.io.netcdfreader import time_index
 from hydrolib.dhydamo.validation import (
@@ -75,7 +75,7 @@ class HyDAMO:
     forcings of the model.
     """
 
-    # The tables of the data model (damo_converters.data_model), created in __init__.
+    # The tables of the data model (core.data_model), created in __init__.
     # Only their types are declared here, for type checking.
     branches: ExtendedGeoDataFrame
     profile: ExtendedGeoDataFrame

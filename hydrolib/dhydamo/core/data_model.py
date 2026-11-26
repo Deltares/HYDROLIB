@@ -1,8 +1,9 @@
 """HYDROLIB's data model: the HyDAMO tables, under their DAMO 2.2 names, and HYDROLIB's extensions.
 
-Every DAMO version is loaded into this one model: the version steps (`steps`) rename a
-file's layers and columns back to DAMO 2.2. The model is plain data and independent of
-any DAMO version. ``HyDAMO.__init__`` builds its tables from it.
+Every DAMO version is loaded into this one model: the version steps
+(`hydrolib.dhydamo.io.damo_versions.steps`) rename a file's layers and columns back to
+DAMO 2.2. The model is plain data and independent of any DAMO version.
+``HyDAMO.__init__`` builds its tables from it.
 """
 
 from __future__ import annotations

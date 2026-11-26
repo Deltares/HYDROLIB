@@ -16,9 +16,9 @@ from netCDF4 import Dataset, chartostring
 from pydantic import ConfigDict, validate_call
 from shapely.geometry import Point
 
+from hydrolib.dhydamo.core.data_model import DamoRelations
 from hydrolib.dhydamo.geometry.mesh import Network
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
-from hydrolib.dhydamo.io.damo_converters.data_model import DamoRelations
 
 if TYPE_CHECKING:
     from hydrolib.dhydamo.core.hydamo import (
