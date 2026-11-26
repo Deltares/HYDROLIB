@@ -61,11 +61,9 @@ STEPS: tuple[Step, ...] = (
         },
         columns={
             "opening": {"regelmiddelid": "afsluitmiddelid"},
-            "management_device": {
-                "soortregelmiddel": "typeafsluitmiddel",
-                # Both in m, relative to the opening.
-                "hoogteopening": "maximalehoogteonderkant",
-            },
+            # Not maximalehoogteonderkant -> hoogteopening: a level, not a height.
+            # The loader derives the height from it.
+            "management_device": {"soortregelmiddel": "typeafsluitmiddel"},
             "management": {
                 "regelmiddelid": "afsluitmiddelid",
                 "stuurvariabele": "typestuurvariabele",

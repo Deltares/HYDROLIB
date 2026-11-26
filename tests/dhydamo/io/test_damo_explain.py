@@ -24,7 +24,8 @@ def test_explains_a_table_of_damo_22_without_renames() -> None:
 
     assert lines[0] == 'management_device <- layer "Regelmiddel" (DAMO 2.2)'
     assert "soortregelmiddel no soortregelmiddel" in lines
-    assert "hoogteopening no hoogteopening" in lines
+    assert "hoogteopening no hoogteopening derived, see below" in lines
+    assert "maximalehoogteonderkant no (from 2.5)" in lines
     assert "Other columns pass through under their own names." in lines
 
 
@@ -36,7 +37,9 @@ def test_explains_the_layer_move_and_the_renames_of_damo_25() -> None:
         lines
     )
     assert "soortregelmiddel no typeafsluitmiddel 2.4 -> 2.5" in lines
-    assert "hoogteopening no maximalehoogteonderkant 2.4 -> 2.5" in lines
+    # not renamed: a level from 2.5, from which the height is derived
+    assert "hoogteopening no hoogteopening derived, see below" in lines
+    assert "maximalehoogteonderkant no maximalehoogteonderkant" in lines
     # values and a HYDROLIB-only column
     assert "soortregelmiddel: schuif, terugslagklep" in lines
     assert "maximaaldebiet no (HYDROLIB only)" in lines

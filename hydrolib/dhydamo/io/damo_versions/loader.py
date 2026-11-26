@@ -128,6 +128,39 @@ def load_layers(
     _derive_profile_code(hydamo)
     _derive_boundary_node(hydamo)
     _derive_weir_crest(hydamo)
+    _derive_gate_height(hydamo)
+
+
+def _derive_gate_height(hydamo: HyDAMO) -> None:
+    """Set each device's ``hoogteopening`` from its ``maximalehoogteonderkant``, in place.
+
+    From DAMO 2.5 a management device has the level of its gate's lower edge, not
+    the gate's height. Where the level is given, the height is the level minus the
+    crest of the device's opening, or minus the upstream invert of its culvert. Other
+    devices keep their ``hoogteopening``, or none.
+    """
+    devices = hydamo.management_device
+    if devices.empty or "maximalehoogteonderkant" not in devices.columns:
+        return
+    below = pd.Series(float("nan"), index=devices.index)
+    for relation, level in (
+        (DamoRelations.MANAGEMENT_DEVICE_OPENING, "laagstedoorstroomhoogte"),
+        (DamoRelations.MANAGEMENT_DEVICE_CULVERT, "hoogtebinnenonderkantbov"),
+    ):
+        parent = getattr(hydamo, relation.parent_table)
+        if relation.foreign_key not in devices.columns or level not in parent.columns:
+            continue
+        levels = pd.Series(
+            parent[level].to_numpy(dtype=float), index=parent[relation.parent_key]
+        )
+        levels = levels[~levels.index.duplicated()]
+        below = below.fillna(devices[relation.foreign_key].map(levels))
+    height = pd.to_numeric(devices["maximalehoogteonderkant"]) - below
+    if "hoogteopening" in devices.columns:
+        # The level wins over a hoogteopening a 2.5 file still has from 2.4.
+        devices["hoogteopening"] = height.fillna(devices["hoogteopening"])
+    else:
+        devices["hoogteopening"] = height
 
 
 def _drop_undeclared_columns(hydamo: HyDAMO, name: str, definition: Table) -> None:

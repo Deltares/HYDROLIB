@@ -84,7 +84,8 @@ def _column_problems(version: str, tables: dict[str, Table] = TABLES) -> list[st
     A column is supplied when its layer has it under the name the steps rename to
     it. A derived column, a column filled from ``globalid`` and a HYDROLIB-only
     column needn't be supplied. The columns that group and order points into lines
-    must be supplied too, declared or not.
+    must be supplied too, declared or not. A column DAMO added (`Column.since`) is
+    checked from that version on, and must be absent before it.
     """
     schema = _schema(version)
     problems = []
@@ -97,6 +98,13 @@ def _column_problems(version: str, tables: dict[str, Table] = TABLES) -> list[st
         supplied = {source.renames.get(field, field) for field in fields}
         derived = {column.name for column in table.derived_columns}
         for column in table.columns:
+            if not column.in_version(version):
+                if column.name in supplied:
+                    problems.append(
+                        f"{name} ({source.layer}) has {column.name} before "
+                        f"{column.since}"
+                    )
+                continue
             if (
                 column.name in supplied
                 or column.name in derived
@@ -220,6 +228,18 @@ def test_column_check_fails_on_a_declared_column_without_its_rename() -> None:
 
     assert _column_problems("2.3", tables) == []
     assert _column_problems("2.4", tables) == ["weirs (Stuw) has no column soortstuw"]
+
+
+def test_column_check_checks_a_column_only_from_the_version_that_added_it() -> None:
+    # Stuw has typestuw from DAMO 2.4 (a rename DAMO made, here declared as added).
+    tables = _with_column("weirs", Column("typestuw", "a test", since="2.4"))
+    too_early = _with_column("weirs", Column("typestuw", "a test", since="2.5"))
+
+    assert _column_problems("2.3", tables) == []
+    assert _column_problems("2.4", tables) == []
+    assert _column_problems("2.4", too_early) == [
+        "weirs (Stuw) has typestuw before 2.5"
+    ]
 
 
 @pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)

@@ -147,6 +147,8 @@ def _column_lines(
         name = file_names[version].get(column.name, column.name)
         if column.hydrolib_only:
             name = "(HYDROLIB only)"
+        elif not column.in_version(version):
+            name = f"(from {column.since})"
         required = "yes" if column.name in definition.required_names else "no"
         rows.append(
             (column.name, required, name, ", ".join(renamed_in), _note(column, derived))

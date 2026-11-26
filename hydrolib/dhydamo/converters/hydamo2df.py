@@ -7,7 +7,7 @@ from collections.abc import Hashable
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, cast, no_type_check
+from typing import TYPE_CHECKING, Any, cast, no_type_check
 
 import geopandas as gpd
 import numpy as np
@@ -706,6 +706,12 @@ def _overlaatonderlaat(device: pd.DataFrame) -> str | None:
     return None if pd.isna(value) else str(value)
 
 
+def _device_name(device: pd.Series) -> str:
+    """Name a management *device* by its ``code``, or its ``globalid`` without one."""
+    code = device.get("code")
+    return str(device["globalid"] if code is None or pd.isna(code) else code)
+
+
 def _warn_unknown_weir_kind(
     structure: str, device: pd.DataFrame, overlaatonderlaat: str | None
 ) -> None:
@@ -1001,38 +1007,16 @@ class StructuresIO:
                             usevelocityheight=usevelocityheight,
                         )
                     elif kind == "onderlaat":
-                        cmp_list.append(weir_id)
-                        if "maximaaldebiet" not in weir_mandev or pd.isna(
-                            weir_mandev.maximaaldebiet.to_numpy()[0]
+                        if self._add_orifice(
+                            weir_id,
+                            name,
+                            weir,
+                            op_row,
+                            weir_mandev,
+                            usevelocityheight,
+                            f"opening {num_op + 1} of weir {weir.code}",
                         ):
-                            limitflow = False
-                            maxq = 0.0
-                        else:
-                            limitflow = True
-                            maxq = float(weir_mandev.maximaaldebiet.to_numpy()[0])
-                        self.structures.add_orifice(
-                            id=weir_id,
-                            name=name,
-                            branchid=weir.branch_id,
-                            chainage=weir.branch_offset,
-                            crestlevel=float(
-                                weir_opening.laagstedoorstroomhoogte.to_numpy()[0]
-                            ),
-                            crestwidth=float(
-                                weir_opening.laagstedoorstroombreedte.to_numpy()[0]
-                            ),
-                            corrcoeff=weir.afvoercoefficient,
-                            allowedflowdir="both",
-                            usevelocityheight=usevelocityheight,
-                            gateloweredgelevel=float(
-                                weir_opening.laagstedoorstroomhoogte.to_numpy()[0]
-                            )
-                            + float(weir_mandev.hoogteopening.to_numpy()[0]),
-                            uselimitflowpos=limitflow,
-                            limitflowpos=maxq,
-                            uselimitflowneg=limitflow,
-                            limitflowneg=maxq,
-                        )
+                            cmp_list.append(weir_id)
                     else:
                         _warn_unknown_weir_kind(
                             f"opening {num_op + 1} of weir {weir.code}",
@@ -1095,36 +1079,14 @@ class StructuresIO:
                     )
 
                 elif kind == "onderlaat":
-                    if "maximaaldebiet" not in weir_mandev or pd.isna(
-                        weir_mandev.maximaaldebiet.to_numpy()[0]
-                    ):
-                        limitflow = False
-                        maxq = 0.0
-                    else:
-                        limitflow = True
-                        maxq = float(weir_mandev.maximaaldebiet.to_numpy()[0])
-                    self.structures.add_orifice(
-                        id=weir_id,
-                        name=name,
-                        branchid=weir.branch_id,
-                        chainage=weir.branch_offset,
-                        crestlevel=float(
-                            weir_opening.laagstedoorstroomhoogte.to_numpy()[0]
-                        ),
-                        crestwidth=float(
-                            weir_opening.laagstedoorstroombreedte.to_numpy()[0]
-                        ),
-                        corrcoeff=weir.afvoercoefficient,
-                        allowedflowdir="both",
-                        usevelocityheight=usevelocityheight,
-                        gateloweredgelevel=float(
-                            weir_opening.laagstedoorstroomhoogte.to_numpy()[0]
-                        )
-                        + float(weir_mandev.hoogteopening.to_numpy()[0]),
-                        uselimitflowpos=limitflow,
-                        limitflowpos=maxq,
-                        uselimitflowneg=limitflow,
-                        limitflowneg=maxq,
+                    self._add_orifice(
+                        weir_id,
+                        name,
+                        weir,
+                        weir_opening.iloc[0],
+                        weir_mandev,
+                        usevelocityheight,
+                        f"weir {weir.code}",
                     )
                 else:
                     _warn_unknown_weir_kind(
@@ -1182,6 +1144,79 @@ class StructuresIO:
                 yvalues=" ".join([f"{yz[0]:7.3f}" for yz in yzvalues]),
                 zvalues=" ".join([f"{yz[1]:7.3f}" for yz in yzvalues]),
             )
+
+    def _add_orifice(
+        self,
+        orifice_id: str,
+        name: str,
+        weir: Any,
+        opening: pd.Series,
+        device: pd.DataFrame,
+        usevelocityheight: bool,
+        structure: str,
+    ) -> bool:
+        """Add the orifice of a weir *opening* whose *device* is an underflow.
+
+        The gate's lower edge is the opening's crest plus the device's
+        ``hoogteopening``. Without a gate height the orifice is skipped with a
+        warning naming *structure*.
+
+        Parameters
+        ----------
+        orifice_id : str
+            Id of the orifice.
+        name : str
+            Name of the orifice.
+        weir : Any
+            The weir, a row of ``itertuples``: its branch, chainage and
+            ``afvoercoefficient``.
+        opening : pd.Series
+            The opening: its crest level and width.
+        device : pd.DataFrame
+            The opening's management device, one row.
+        usevelocityheight : bool
+            D-Flow FM keyword ``usevelocityheight``.
+        structure : str
+            The structure in the warning, e.g. ``"weir ST1"``.
+
+        Returns
+        -------
+        bool
+            Whether the orifice was added.
+        """
+        height = device["hoogteopening"].iloc[0] if "hoogteopening" in device else None
+        if height is None or pd.isna(height):
+            logger.warning(
+                "Skipping %s: its management device %s has no gate height "
+                '("hoogteopening"; from DAMO 2.5 "maximalehoogteonderkant").',
+                structure,
+                _device_name(device.iloc[0]),
+            )
+            return False
+        if "maximaaldebiet" not in device or pd.isna(device.maximaaldebiet.iloc[0]):
+            limitflow = False
+            maxq = 0.0
+        else:
+            limitflow = True
+            maxq = float(device.maximaaldebiet.iloc[0])
+        crest = float(opening.laagstedoorstroomhoogte)
+        self.structures.add_orifice(
+            id=orifice_id,
+            name=name,
+            branchid=weir.branch_id,
+            chainage=weir.branch_offset,
+            crestlevel=crest,
+            crestwidth=float(opening.laagstedoorstroombreedte),
+            corrcoeff=weir.afvoercoefficient,
+            allowedflowdir="both",
+            usevelocityheight=usevelocityheight,
+            gateloweredgelevel=crest + float(height),
+            uselimitflowpos=limitflow,
+            limitflowpos=maxq,
+            uselimitflowneg=limitflow,
+            limitflowneg=maxq,
+        )
+        return True
 
     # legacy from delft3dfmpy, not used or tested here (some are broken): mypy skips it
     @no_type_check
@@ -1331,7 +1366,8 @@ class StructuresIO:
         """Add the DAMO culverts.
 
         A non-return valve (``terugslagklep``) or a gate (``schuif``) is schematized
-        from the culvert's management devices.
+        from the culvert's management devices. A gate without a height gives no
+        valve, and a device of another type is ignored, each with a warning.
 
         Parameters
         ----------
@@ -1384,23 +1420,37 @@ class StructuresIO:
             valveopeningheight: float = 0
             relopening = None
             losscoeff = None
-            if not mandev.empty:
-                for _, i in mandev.iterrows():
-                    if i["soortregelmiddel"] == "terugslagklep":
-                        allowedflowdir = "positive"
-                    elif i["soortregelmiddel"] == "schuif":
-                        valveonoff = 1
-                        valveopeningheight = float(i["hoogteopening"])
-                        numlosscoeff = 1
-                        relopening = [
-                            float(i["hoogteopening"])
-                            / float(culvert_rows["hoogteopening"].to_numpy()[0])
-                        ]
-                        losscoeff = [float(i["afvoercoefficient"])]
-                    else:
-                        raise NotImplementedError(
-                            f'Type of management device for culvert {culvert.code} is not implemented; only "schuif" and "terugslagklep" are allowed.'
+            for _, device in mandev.iterrows():
+                device_type = device.get("soortregelmiddel")
+                if device_type == "terugslagklep":
+                    allowedflowdir = "positive"
+                elif device_type == "schuif":
+                    height = device.get("hoogteopening")
+                    if height is None or pd.isna(height):
+                        logger.warning(
+                            "Building culvert %s without a valve: its management "
+                            'device %s has no gate height ("hoogteopening"; from '
+                            'DAMO 2.5 "maximalehoogteonderkant").',
+                            culvert.code,
+                            _device_name(device),
                         )
+                        continue
+                    valveonoff = 1
+                    valveopeningheight = float(height)
+                    numlosscoeff = 1
+                    relopening = [
+                        float(height)
+                        / float(culvert_rows["hoogteopening"].to_numpy()[0])
+                    ]
+                    losscoeff = [float(device["afvoercoefficient"])]
+                else:
+                    logger.warning(
+                        'Ignoring management device %s of type "%s" on culvert %s: '
+                        'only "schuif" and "terugslagklep" are modelled.',
+                        _device_name(device),
+                        device_type,
+                        culvert.code,
+                    )
 
             # check if a separate name field is present
             # the name, if present, otherwise the code

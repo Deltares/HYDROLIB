@@ -29,7 +29,8 @@ class Column:
     Parameters
     ----------
     name : str
-        The column, under its DAMO 2.2 name.
+        The column, under its DAMO 2.2 name, or its name in the version that
+        introduced it (see *since*).
     reason : str
         Why HYDROLIB needs it, or treats it this way.
     hydrolib_only : bool
@@ -49,6 +50,9 @@ class Column:
     values : tuple[str, ...]
         The values the code compares the column against, as DAMO spells them. The
         contract test checks that each DAMO version allows them. Default is none.
+    since : str, optional
+        The first DAMO version with the column, e.g. ``"2.5"``, for a column DAMO
+        added rather than renamed. Default is ``None``: every version has it.
     """
 
     name: str
@@ -58,6 +62,16 @@ class Column:
     rewrite: tuple[str, str] | None = None
     identity: bool = False
     values: tuple[str, ...] = ()
+    since: str | None = None
+
+    def in_version(self, version: str) -> bool:
+        """Return whether DAMO *version* has the column (see *since*)."""
+        return self.since is None or _version_key(version) >= _version_key(self.since)
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    """Return DAMO *version* as numbers, to compare, e.g. ``"2.10"`` > ``"2.9"``."""
+    return tuple(int(part) for part in version.split("."))
 
 
 # The reason of the code identity, which tightens DAMO.
@@ -322,12 +336,28 @@ TABLES: dict[str, Table] = {
                 values=("schuif", "terugslagklep"),
             ),
             "hoogteopening",
+            Column(
+                "maximalehoogteonderkant",
+                "The level of the gate's lower edge, in m NAP: on an orifice or a culvert "
+                "valve, the hoogteopening is derived from it.",
+                since="2.5",
+            ),
             "afvoercoefficient",
             Column(
                 "maximaaldebiet",
                 "The maximum flow through an orifice (an onderlaat). When given, the "
                 "D-Flow FM orifice limits its flow to it in both directions.",
                 hydrolib_only=True,
+            ),
+        ),
+        derived_columns=(
+            Column(
+                "hoogteopening",
+                "The gate's height above the opening's crest (on a weir opening) or "
+                "above the culvert's upstream invert (hoogtebinnenonderkantbov). From "
+                "DAMO 2.5 the device has the gate's level instead "
+                "(maximalehoogteonderkant, in m NAP): where it is given, the height is "
+                "that level minus the crest or the invert.",
             ),
         ),
     ),
