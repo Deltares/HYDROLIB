@@ -235,10 +235,13 @@ TABLES: dict[str, Table] = {
         required_columns=(),
         optional_columns=("globalid", "brugid", "hydroobjectid", "stuwid"),
     ),
+    # The links of branches to their parameterised profile. NormgeparamProfiel itself
+    # isn't loaded: no code reads it, and its values link through
+    # normgeparamprofielid.
     "param_profile": Table(
-        "NormgeparamProfiel",
+        "hydroobject_normgp",
         geotype=None,
-        required_columns=("globalid", "normgeparamprofielid", "hydroobjectid"),
+        required_columns=("hydroobjectid", "normgeparamprofielid"),
     ),
     "param_profile_values": Table(
         "NormgeparamProfielWaarde",

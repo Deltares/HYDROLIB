@@ -1545,35 +1545,37 @@ class CrossSections:
         branches: list,
         roughness_variant: RoughnessVariant | None = None,
     ) -> dict:
-        """Generate parametrised cross sections for all branches, or those without one.
+        """Generate the parametrised cross sections of *branches*.
+
+        Each link row gives its branch a profile, so a profile linked to several
+        branches applies to each of them. A branch linked to several profiles gets
+        the first, with a warning. Links to other branches are skipped.
 
         Parameters
         ----------
-        parametrised : pd.DataFrame
-            GeoDataFrame with geometries and attributes of parametrised profiles.
+        parametrised : ExtendedDataFrame
+            The links of branches to their parametrised profile
+            (``hydroobject_normgp``): ``hydroobjectid`` and ``normgeparamprofielid``.
+        parametrised_values : ExtendedDataFrame
+            The values of the profiles (NormgeparamProfielWaarde).
         branches : list
-            List of branches for which the parametrised profiles are derived
+            The branches to give a profile, as rows of ``DataFrame.itertuples``:
+            those without a cross section.
+        roughness_variant : RoughnessVariant, optional
+            Use the high or the low roughness value of the profiles.
 
         Returns
         -------
-        dictionary
-            Dictionary with attributes of cross sections, usable for dflowfm
+        dict
+            The attributes of the cross section of each branch, by branch index,
+            usable for D-Flow FM.
         """
         cssdct = {}
-        branch_relation = DamoRelations.PARAM_PROFILE_BRANCH
         values_relation = DamoRelations.PARAM_PROFILE_VALUES
 
-        # index label of the branch per branch id (the first matching branch)
-        branch_index: dict[str, Hashable] = {}
-        for branch in branches:
-            branch_index.setdefault(
-                getattr(branch, branch_relation.parent_key), branch.Index
-            )
-
-        for _, param in parametrised.iterrows():
+        for index, param in _param_profile_of_branch(parametrised, branches).items():
             param_row = param.to_frame().T
-            branch_id = param[branch_relation.foreign_key]
-            index = branch_index[branch_id]
+            profile_id = param[values_relation.parent_key]
             values = values_relation.children_of(param_row, parametrised_values)
 
             # Drop profiles for which not enough data is available to write (as rectangle)
@@ -1586,21 +1588,21 @@ class CrossSections:
             ).to_numpy()[0]:
                 logger.warning(
                     "bodemhoogte benedenstrooms not available for profile %s.",
-                    param.globalid,
+                    profile_id,
                 )
             if pd.isna(
                 values[values.soortparameter == "bodembreedte"].waarde
             ).to_numpy()[0]:
                 logger.warning(
                     "bodembreedte not available for profile %s.",
-                    param.globalid,
+                    profile_id,
                 )
             if pd.isna(
                 values[values.soortparameter == "bodemhoogte bovenstrooms"].waarde
             ).to_numpy()[0]:
                 logger.warning(
                     "bodemhoogte bovenstrooms not available for profile %s.",
-                    param.globalid,
+                    profile_id,
                 )
 
             # Determine characteristics
@@ -1697,6 +1699,69 @@ class CrossSections:
                 }
 
         return cssdct
+
+
+def _param_profile_of_branch(
+    links: pd.DataFrame, branches: list
+) -> dict[Hashable, pd.Series]:
+    """Return the link row of the parametrised profile each branch gets, by branch index.
+
+    A link's ``hydroobjectid`` is a branch ``globalid``. When it matches several
+    branches (split parts sharing a ``globalid``, invalid DAMO), only the first gets
+    the profile, with a warning. A branch linked to several profiles gets the first,
+    with a warning. Links to none of *branches* are skipped.
+
+    Parameters
+    ----------
+    links : pd.DataFrame
+        The ``hydroobject_normgp`` rows.
+    branches : list
+        The branches, as rows of ``DataFrame.itertuples``.
+
+    Returns
+    -------
+    dict[Hashable, pd.Series]
+        The link row per branch index, in the order of *links*.
+    """
+    branch_relation = DamoRelations.PARAM_PROFILE_BRANCH
+    profile_key = DamoRelations.PARAM_PROFILE_VALUES.parent_key
+    branches_by_key: dict[str, list] = {}
+    for branch in branches:
+        key = getattr(branch, branch_relation.parent_key)
+        branches_by_key.setdefault(key, []).append(branch)
+
+    chosen: dict[Hashable, pd.Series] = {}
+    profiles_of_branch: dict[Hashable, list[str]] = {}
+    for _, link in links.iterrows():
+        key = link[branch_relation.foreign_key]
+        matching = branches_by_key.get(key, [])
+        if not matching:
+            continue
+        branch = matching[0]
+        if len(matching) > 1:
+            logger.warning(
+                "Parameterised profile %s: %s %s matches branches %s; only %s gets "
+                "the profile.",
+                link[profile_key],
+                branch_relation.foreign_key,
+                key,
+                ", ".join(str(other.code) for other in matching),
+                branch.code,
+            )
+        chosen.setdefault(branch.Index, link)
+        profiles_of_branch.setdefault(branch.Index, []).append(link[profile_key])
+
+    for index, profiles in profiles_of_branch.items():
+        if len(profiles) > 1:
+            logger.warning(
+                "Branch %s is linked to %d parameterised profiles; using %s and "
+                "ignoring %s.",
+                index,
+                len(profiles),
+                profiles[0],
+                ", ".join(str(profile) for profile in profiles[1:]),
+            )
+    return chosen
 
 
 def _boundary_crossings(line: LineString, polygons: gpd.GeoDataFrame) -> list[float]:

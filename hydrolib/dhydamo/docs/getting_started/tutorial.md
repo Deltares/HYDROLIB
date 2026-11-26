@@ -516,7 +516,7 @@ mesh.mesh1d_add_branches_from_gdf(
     Structures [27, 33] have the same location.
     
 
-Add cross-sections to the branches. TO do this, many HyDAMO objects might be needed: if parameterised profiles occur, they are taken from hydamo.param_profile and, param_profile_values; if crosssections are associated with structures, those are specified in profile_group and profile lines. 
+Add cross-sections to the branches. TO do this, many HyDAMO objects might be needed: if parameterised profiles occur, they are taken from hydamo.param_profile (the links of branches to their profile, from the hydroobject_normgp layer) and hydamo.param_profile_values (the profile values, from NormgeparamProfielWaarde); a branch that already has a measured profile keeps it; if crosssections are associated with structures, those are specified in profile_group and profile lines. 
 
 HyDAMO DAMO2.2 data contains two roughness values (high and low); here it can be specified which one to use.
 

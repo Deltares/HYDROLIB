@@ -560,13 +560,32 @@ def _convert_crosssections() -> HyDAMO:
 def test_convert_crosssections() -> None:
     hydamo = _convert_crosssections()
 
-    assert len(hydamo.crosssections.crosssection_def) == 443
-    assert len(hydamo.crosssections.crosssection_loc) == 349
+    # Including the parameterised profile of W_2645_0: one definition, two locations
+    assert len(hydamo.crosssections.crosssection_def) == 444
+    assert len(hydamo.crosssections.crosssection_loc) == 351
 
     # check whether the bridge profile in in the crosssection definitions
     bridge_profile = hydamo.structures.bridges_df.csdefid.to_numpy()[0]
     assert bridge_profile in hydamo.crosssections.crosssection_def
     assert "default" in hydamo.crosssections.crosssection_def
+
+
+def test_example_model_builds_its_parameterised_profile() -> None:
+    # The example links branch W_2645_0 to one profile in hydroobject_normgp.
+    hydamo = _convert_crosssections()
+
+    assert len(hydamo.param_profile) == 1
+    locations = [
+        location
+        for location in hydamo.crosssections.crosssection_loc.values()
+        if location["branchid"] == "W_2645_0"
+    ]
+    assert [location["definitionId"] for location in locations] == [
+        "trapz_s0.3_bw2.0_bw3.4",
+        "trapz_s0.3_bw2.0_bw3.4",
+    ]
+    # the upstream and the downstream bottom level
+    assert [float(location["shift"]) for location in locations] == [20.0, 19.5]
 
 
 @pytest.mark.parametrize(

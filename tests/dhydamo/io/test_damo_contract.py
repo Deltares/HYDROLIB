@@ -37,13 +37,6 @@ pytestmark = pytest.mark.requires_hydamo_validation
 # {layer: {field: properties}}, layer names in lower case
 Schema = dict[str, dict[str, dict[str, Any]]]
 
-# param_profile still reads NormgeparamProfiel, which has neither column; ticket 17
-# moves it to the hydroobject_normgp link table.
-_PARAM_PROFILE_GAP = [
-    "param_profile (NormgeparamProfiel) has no column normgeparamprofielid",
-    "param_profile (NormgeparamProfiel) has no column hydroobjectid",
-]
-
 STEP_24_25 = next(step for step in steps.STEPS if step.new == "2.5")
 
 
@@ -212,18 +205,15 @@ def test_step_check_fails_on_a_layer_damo_does_not_have() -> None:
 
 @pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
 def test_every_declared_column_reaches_damo_22(version: str) -> None:
-    assert _column_problems(version) == _PARAM_PROFILE_GAP
+    assert _column_problems(version) == []
 
 
 def test_column_check_fails_on_a_declared_column_without_its_rename() -> None:
     # DAMO 2.4 renamed soortstuw to typestuw, and no step says so.
     tables = _with_column("weirs", Column("soortstuw", "a test"))
 
-    assert _column_problems("2.3", tables) == _PARAM_PROFILE_GAP
-    assert _column_problems("2.4", tables) == [
-        *_PARAM_PROFILE_GAP,
-        "weirs (Stuw) has no column soortstuw",
-    ]
+    assert _column_problems("2.3", tables) == []
+    assert _column_problems("2.4", tables) == ["weirs (Stuw) has no column soortstuw"]
 
 
 @pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
