@@ -37,6 +37,7 @@ def test_explains_the_layer_move_and_the_renames_of_damo_25() -> None:
         lines
     )
     assert "soortregelmiddel no typeafsluitmiddel 2.4 -> 2.5" in lines
+    assert "richting no stroomrichting 2.4 -> 2.5" in lines
     # not renamed: a level from 2.5, from which the height is derived
     assert "hoogteopening no hoogteopening derived, see below" in lines
     assert "maximalehoogteonderkant no maximalehoogteonderkant" in lines

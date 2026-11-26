@@ -32,7 +32,7 @@ def test_source_layers_chains_the_renames_of_every_step_per_table() -> None:
     # Moved from Regelmiddel to Afsluitmiddel in 2.5, with Regelmiddel's old names.
     assert sources["management_device"] == SourceLayer(
         "Afsluitmiddel",
-        {"typeafsluitmiddel": "soortregelmiddel"},
+        {"typeafsluitmiddel": "soortregelmiddel", "stroomrichting": "richting"},
     )
 
 

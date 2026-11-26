@@ -712,6 +712,31 @@ def _device_name(device: pd.Series) -> str:
     return str(device["globalid"] if code is None or pd.isna(code) else code)
 
 
+# The flow direction of a non-return valve, from its richting (stroomrichting from
+# DAMO 2.5): relative to the HydroObject, whose direction the branch keeps.
+_NON_RETURN_DIRECTIONS = {"Positief": "positive", "Negatief": "negative"}
+
+
+def _non_return_direction(device: pd.Series, culvert: str) -> str:
+    """Return the flow direction a non-return valve *device* allows on *culvert*.
+
+    Without a direction, or with ``Beide``, which a non-return valve can't have, it
+    allows positive flow, with a warning.
+    """
+    direction = device.get("richting")
+    if direction in _NON_RETURN_DIRECTIONS:
+        return _NON_RETURN_DIRECTIONS[direction]
+    found = "no direction" if pd.isna(direction) else f'direction "{direction}"'
+    logger.warning(
+        'Non-return valve %s on culvert %s has %s ("richting"; from DAMO 2.5 '
+        '"stroomrichting"); allowing positive flow, along the branch.',
+        _device_name(device),
+        culvert,
+        found,
+    )
+    return "positive"
+
+
 def _warn_unknown_weir_kind(
     structure: str, device: pd.DataFrame, overlaatonderlaat: str | None
 ) -> None:
@@ -1423,7 +1448,7 @@ class StructuresIO:
             for _, device in mandev.iterrows():
                 device_type = device.get("soortregelmiddel")
                 if device_type == "terugslagklep":
-                    allowedflowdir = "positive"
+                    allowedflowdir = _non_return_direction(device, str(culvert.code))
                 elif device_type == "schuif":
                     height = device.get("hoogteopening")
                     if height is None or pd.isna(height):

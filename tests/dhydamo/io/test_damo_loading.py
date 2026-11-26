@@ -325,6 +325,7 @@ def _damo_names(version: str) -> dict[str, str]:
         "stuurvariabele": "stuurvariabele",
         "device_layer": "Regelmiddel",
         "soortregelmiddel": "soortregelmiddel",
+        "richting": "richting",
         "onderlaat": "onderlaat",
     }
     if version >= "2.4":
@@ -336,6 +337,7 @@ def _damo_names(version: str) -> dict[str, str]:
         names["stuurvariabele"] = "typestuurvariabele"
         names["device_layer"] = "Afsluitmiddel"
         names["soortregelmiddel"] = "typeafsluitmiddel"
+        names["richting"] = "stroomrichting"
         names["onderlaat"] = "Onderlaat"
     return names
 
@@ -792,10 +794,10 @@ def test_load_from_gpkg_gives_a_culvert_the_valve_of_its_device(
     assert culvert["allowedflowdir"] == "both"
 
 
-@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
-def test_load_from_gpkg_gives_a_culvert_the_non_return_valve_of_its_device(
-    tmp_path: Path, version: str
-) -> None:
+def _non_return_culvert(
+    tmp_path: Path, version: str, direction: str | None
+) -> pd.Series:
+    """Build culvert DU1 with non-return valve AF1 of *direction*, and return it."""
     names = _damo_names(version)
     gpkg_file = tmp_path / "non_return.gpkg"
     _write_branch(gpkg_file)
@@ -810,15 +812,47 @@ def test_load_from_gpkg_gives_a_culvert_the_non_return_valve_of_its_device(
                 "duikersifonhevelid": "duiker-guid",
                 "overlaatonderlaat": None,
                 "soortregelmiddel": "terugslagklep",
+                "richting": direction,
             }
         ],
     )
 
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
     culvert = _convert_culverts(hydamo).loc["DU1"]
+    assert isinstance(culvert, pd.Series)
+    return culvert
+
+
+@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
+@pytest.mark.parametrize(
+    ("direction", "allowedflowdir"),
+    [("Positief", "positive"), ("Negatief", "negative")],
+)
+def test_load_from_gpkg_gives_a_culvert_the_non_return_valve_of_its_device(
+    tmp_path: Path, version: str, direction: str, allowedflowdir: str
+) -> None:
+    # richting up to DAMO 2.4, stroomrichting from 2.5: relative to the HydroObject,
+    # whose direction the branch keeps.
+    culvert = _non_return_culvert(tmp_path, version, direction)
+
+    assert culvert["allowedflowdir"] == allowedflowdir
+    assert culvert["valveonoff"] == 0
+
+
+@pytest.mark.parametrize("version", ["2.2", "2.5"])
+@pytest.mark.parametrize("direction", [None, "Beide"])
+def test_load_from_gpkg_gives_a_non_return_valve_without_direction_positive_flow(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    version: str,
+    direction: str | None,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        culvert = _non_return_culvert(tmp_path, version, direction)
 
     assert culvert["allowedflowdir"] == "positive"
-    assert culvert["valveonoff"] == 0
+    assert "culvert DU1" in caplog.text
+    assert "AF1" in caplog.text
 
 
 def test_load_from_gpkg_leaves_closing_devices_of_locks_coupures_and_tunnels_out_of_the_model(

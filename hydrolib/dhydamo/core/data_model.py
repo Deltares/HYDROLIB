@@ -335,6 +335,13 @@ TABLES: dict[str, Table] = {
                 "a schuif becomes a valve.",
                 values=("schuif", "terugslagklep"),
             ),
+            Column(
+                "richting",
+                "The direction a culvert's terugslagklep lets water through, relative "
+                "to the HydroObject, whose direction the branch keeps. Empty or Beide "
+                "gives positive flow, with a warning.",
+                values=("Beide", "Negatief", "Positief"),
+            ),
             "hoogteopening",
             Column(
                 "maximalehoogteonderkant",
