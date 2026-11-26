@@ -5,7 +5,9 @@ from __future__ import annotations
 import dataclasses
 import subprocess
 import sys
+from pathlib import Path
 
+import geopandas as gpd
 import pytest
 from hydrolib.dhydamo.io.damo_versions import (
     SUPPORTED_HYDAMO_VERSIONS,
@@ -13,6 +15,7 @@ from hydrolib.dhydamo.io.damo_versions import (
     source_layers,
     steps,
 )
+from shapely.geometry import Point
 
 # The step in which DAMO merged Regelmiddel into Afsluitmiddel
 STEP_24_25 = next(i for i, step in enumerate(steps.STEPS) if step.new == "2.5")
@@ -92,15 +95,24 @@ def test_source_layers_rejects_an_unsupported_version() -> None:
         source_layers("9.9")
 
 
-def test_loading_does_not_import_hydamo_validation() -> None:
+def test_loading_does_not_import_hydamo_validation(tmp_path: Path) -> None:
     # The steps and the data model are plain data; only validation and the contract
     # test use the validatiemodule, which exists only for Python 3.12.
+    gpkg_file = tmp_path / "weir.gpkg"
+    gpd.GeoDataFrame(
+        {
+            "code": ["ST1"],
+            "globalid": ["st1-guid"],
+            "afvoercoefficient": [1.0],
+            "geometry": [Point(0, 0)],
+        },
+        crs="EPSG:28992",
+    ).to_file(gpkg_file, layer="Stuw", driver="GPKG", engine="pyogrio")
     code = (
         "import sys\n"
         "from hydrolib.dhydamo.core.hydamo import HyDAMO\n"
-        "from hydrolib.dhydamo.io.damo_versions import source_layers\n"
-        "source_layers('2.6')\n"
-        "HyDAMO()\n"
+        f"hydamo = HyDAMO().load_from_gpkg({str(gpkg_file)!r}, hydamo_version='2.6')\n"
+        "assert hydamo.weirs.index.tolist() == ['ST1']\n"
         "assert 'hydamo_validation' not in sys.modules\n"
     )
 

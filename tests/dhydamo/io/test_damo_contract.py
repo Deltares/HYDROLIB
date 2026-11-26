@@ -83,7 +83,8 @@ def _column_problems(version: str, tables: dict[str, Table] = TABLES) -> list[st
 
     A column is supplied when its layer has it under the name the steps rename to
     it. A derived column, a column filled from ``globalid`` and a HYDROLIB-only
-    column needn't be supplied.
+    column needn't be supplied. The columns that group and order points into lines
+    must be supplied too, declared or not.
     """
     schema = _schema(version)
     problems = []
@@ -104,13 +105,19 @@ def _column_problems(version: str, tables: dict[str, Table] = TABLES) -> list[st
             ):
                 continue
             problems.append(f"{name} ({source.layer}) has no column {column.name}")
+        for points_column in (table.group_by, table.order_by):
+            if points_column is not None and points_column not in supplied:
+                problems.append(
+                    f"{name} ({source.layer}) has no column {points_column}"
+                )
     return problems
 
 
 def _value_problems(version: str, tables: dict[str, Table] = TABLES) -> list[str]:
     """Return the declared values that DAMO *version* doesn't allow.
 
-    A value is also allowed when a value the data model rewrites to it is.
+    The allowed values are compared as the loader leaves them: a value the data
+    model rewrites counts as the value it is rewritten to.
     """
     schema = _schema(version)
     problems = []
@@ -122,9 +129,8 @@ def _value_problems(version: str, tables: dict[str, Table] = TABLES) -> list[str
             if not column.values or field is None:
                 # an absent column is a column problem
                 continue
-            allowed = set(field.get("enum", []))
-            if column.rewrite is not None and column.rewrite[0] in allowed:
-                allowed.add(column.rewrite[1])
+            rewrites = dict([column.rewrite]) if column.rewrite is not None else {}
+            allowed = {rewrites.get(value, value) for value in field.get("enum", [])}
             for value in column.values:
                 if value not in allowed:
                     problems.append(f"{name}.{column.name}: {value!r}")
@@ -265,3 +271,35 @@ def test_extension_check_fails_on_an_extension_that_clashes_with_damo(
     tables: dict[str, Table], problem: str
 ) -> None:
     assert problem in _extension_problems(tables)
+
+
+@pytest.mark.parametrize("field", ["group_by", "order_by"])
+def test_column_check_fails_on_a_group_or_order_column_damo_lacks(field: str) -> None:
+    # The loader needs them to make lines of the points, though they needn't be
+    # declared columns.
+    if field == "group_by":
+        profile = dataclasses.replace(TABLES["profile"], group_by="volgorde")
+    else:
+        profile = dataclasses.replace(TABLES["profile"], order_by="volgorde")
+    tables = {**TABLES, "profile": profile}
+
+    assert _column_problems("2.6", tables) == [
+        "profile (ProfielPunt) has no column volgorde"
+    ]
+
+
+def test_value_check_fails_on_a_value_the_loader_rewrites_away() -> None:
+    # The code never sees the typo: loading rewrites it.
+    tables = _with_column(
+        "management",
+        Column(
+            "stuurvariabele",
+            "a test",
+            rewrite=("bovenkant afsluitmiddel,", "bovenkant afsluitmiddel"),
+            values=("bovenkant afsluitmiddel,",),
+        ),
+    )
+
+    assert _value_problems("2.5", tables) == [
+        "management.stuurvariabele: 'bovenkant afsluitmiddel,'"
+    ]

@@ -574,8 +574,12 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             raise ValueError(f'Layer "{layer_name}" does not exist in: "{gpkg_path}"')
 
         layer = gpd.read_file(gpkg_path, layer=layer_name, engine="pyogrio")
-        columns = [col.lower() for col in layer.columns]
-        layer.columns = columns
+        layer.columns = [col.lower() for col in layer.columns]
+        # Rename first, so that the renames also apply to the columns that group
+        # and order points into lines.
+        if column_mapping is not None:
+            layer = _rename_columns(layer, column_mapping, layer_name)
+        columns = list(layer.columns)
 
         # Create geodataframe
         if groupby_column is not None:
@@ -585,9 +589,6 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             gdf = gpd.GeoDataFrame(fields, columns=columns, geometry=geometries)
         else:
             gdf = gpd.GeoDataFrame(layer, columns=columns, geometry=layer.geometry)
-
-        if column_mapping is not None:
-            gdf = _rename_columns(gdf, column_mapping, layer_name)
 
         if fill_from_globalid is not None:
             _fill_from_globalid(gdf, fill_from_globalid, layer_name)

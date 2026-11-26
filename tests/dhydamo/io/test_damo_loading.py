@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 import types
@@ -24,7 +25,7 @@ from hydrolib.dhydamo.core.drtc import CREST_LEVEL, DRTCModel
 from hydrolib.dhydamo.core.hydamo import HyDAMO
 from hydrolib.dhydamo.geometry import mesh
 from hydrolib.dhydamo.io.common import ExtendedDataFrame, ExtendedGeoDataFrame
-from hydrolib.dhydamo.io.damo_versions import SUPPORTED_HYDAMO_VERSIONS, loader
+from hydrolib.dhydamo.io.damo_versions import SUPPORTED_HYDAMO_VERSIONS, loader, steps
 from hydrolib.dhydamo.validation import HyDAMOValidationError
 from pydantic import ValidationError
 from shapely.geometry import LineString, Point, Polygon
@@ -2771,3 +2772,34 @@ def test_a_param_profile_link_to_a_branch_with_a_cross_section_is_skipped(
         definition = hydamo.crosssections.crosssection_def[location["definitionId"]]
         widths.setdefault(location["branchid"], set()).add(definition["width"])
     assert widths == {"W1": {1.0}, "W2": {6.0}}
+
+
+def test_load_from_gpkg_renames_the_order_column_before_grouping_points(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A step that renames the column ordering the points must apply to the grouping
+    # too; before, grouping looked for the DAMO 2.2 name in the file.
+    renamed = dataclasses.replace(
+        steps.STEPS[-1], columns={"profile": {"codevolgnummer": "volgnummer"}}
+    )
+    monkeypatch.setattr(steps, "STEPS", (*steps.STEPS[:-1], renamed))
+    gpkg_file = tmp_path / "profile.gpkg"
+    _write_layer(
+        gpkg_file,
+        "ProfielPunt",
+        gpd.GeoDataFrame(
+            {
+                "code": ["PP2", "PP1"],
+                "globalid": ["p2", "p1"],
+                "profiellijnid": ["line-guid", "line-guid"],
+                "volgnummer": [2, 1],
+                "geometry": [Point(1, 0, 0.0), Point(0, 0, 1.0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.6")
+
+    line = hydamo.profile.geometry.iloc[0]
+    assert list(line.coords) == [(0.0, 0.0, 1.0), (1.0, 0.0, 0.0)]
