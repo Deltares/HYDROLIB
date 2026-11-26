@@ -1,0 +1,67 @@
+"""The DAMO version steps, chained by `source_layers`."""
+
+from __future__ import annotations
+
+import dataclasses
+
+import pytest
+from hydrolib.dhydamo.io.damo_versions import (
+    SUPPORTED_HYDAMO_VERSIONS,
+    SourceLayer,
+    source_layers,
+    steps,
+)
+
+
+def test_source_layers_chains_the_renames_of_every_step_per_table() -> None:
+    sources = source_layers("2.5")
+
+    # typeruwheid renamed in 2.4, vormkoker in 2.5
+    assert sources["culverts"] == SourceLayer(
+        "DuikerSifonHevel",
+        {"typemethoderuwheid": "typeruwheid", "vormduikersifonhevel": "vormkoker"},
+    )
+    # Moved from Regelmiddel to Afsluitmiddel in 2.5, with Regelmiddel's old names.
+    assert sources["management_device"] == SourceLayer(
+        "Afsluitmiddel",
+        {
+            "typeafsluitmiddel": "soortregelmiddel",
+            "typeregelbaarheid": "soortregelbaarheid",
+            "maximalehoogteonderkant": "hoogteopening",
+        },
+    )
+
+
+def test_source_layers_of_damo_22_renames_nothing() -> None:
+    sources = source_layers("2.2")
+
+    assert sources["management_device"] == SourceLayer("Regelmiddel", {})
+    assert all(not source.renames for source in sources.values())
+
+
+@pytest.mark.parametrize("version", SUPPORTED_HYDAMO_VERSIONS)
+def test_no_two_tables_read_the_same_layer(version: str) -> None:
+    layers = [source.layer.lower() for source in source_layers(version).values()]
+
+    assert len(layers) == len(set(layers))
+
+
+def test_source_layers_rejects_two_tables_reading_the_same_layer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The steps are keyed by table, so each table must have its own layer.
+    broken = list(steps.STEPS)
+    broken[-1] = dataclasses.replace(
+        broken[-1], layers={**broken[-1].layers, "weirs": "Afsluitmiddel"}
+    )
+    monkeypatch.setattr(steps, "STEPS", tuple(broken))
+
+    with pytest.raises(
+        ValueError, match='"weirs" and "management_device" both read layer'
+    ):
+        source_layers("2.5")
+
+
+def test_source_layers_rejects_an_unsupported_version() -> None:
+    with pytest.raises(ValueError, match='Unsupported HyDAMO DAMO version "9.9"'):
+        source_layers("9.9")

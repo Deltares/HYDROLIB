@@ -29,9 +29,9 @@ class Step:
     layers : dict[str, str]
         The tables whose layer changed: ``{HyDAMO attribute: layer in new}``.
     columns : dict[str, dict[str, str]]
-        ``{layer in new: {column in old: column in new}}``. For a table that moves to
-        another layer in this step (see *layers*), the column in old is its name in the
-        table's old layer.
+        The tables whose columns were renamed:
+        ``{HyDAMO attribute: {column in old: column in new}}``. For a table that moves
+        to another layer (see *layers*), the old names are those of its old layer.
     """
 
     old: str
@@ -46,10 +46,10 @@ STEPS: tuple[Step, ...] = (
         "2.3",
         "2.4",
         columns={
-            "NormgeparamProfielWaarde": {"typeruwheid": "typemethoderuwheid"},
-            "Brug": {"typeruwheid": "typemethoderuwheid"},
-            "DuikerSifonHevel": {"typeruwheid": "typemethoderuwheid"},
-            "RuwheidProfiel": {"typeruwheid": "typemethoderuwheid"},
+            "param_profile_values": {"typeruwheid": "typemethoderuwheid"},
+            "bridges": {"typeruwheid": "typemethoderuwheid"},
+            "culverts": {"typeruwheid": "typemethoderuwheid"},
+            "profile_roughness": {"typeruwheid": "typemethoderuwheid"},
         },
     ),
     Step(
@@ -60,22 +60,20 @@ STEPS: tuple[Step, ...] = (
             "management_device": "Afsluitmiddel",
         },
         columns={
-            "HydroObject": {"categorieoppwaterlichaam": "categorieoppervlaktewater"},
-            "Kunstwerkopening": {"regelmiddelid": "afsluitmiddelid"},
-            # The 2.5 Afsluitmiddel takes the 2.4 Regelmiddel's role, the only one
-            # HYDROLIB reads it in, so the old names are Regelmiddel's.
-            "Afsluitmiddel": {
+            "branches": {"categorieoppwaterlichaam": "categorieoppervlaktewater"},
+            "opening": {"regelmiddelid": "afsluitmiddelid"},
+            "management_device": {
                 "soortregelmiddel": "typeafsluitmiddel",
                 "soortregelbaarheid": "typeregelbaarheid",
                 # Both in m, relative to the opening.
                 "hoogteopening": "maximalehoogteonderkant",
             },
-            "Sturing": {
+            "management": {
                 "regelmiddelid": "afsluitmiddelid",
                 "stuurvariabele": "typestuurvariabele",
             },
-            "NormgeparamProfielWaarde": {"soortparameter": "typeparameter"},
-            "DuikerSifonHevel": {"vormkoker": "vormduikersifonhevel"},
+            "param_profile_values": {"soortparameter": "typeparameter"},
+            "culverts": {"vormkoker": "vormduikersifonhevel"},
         },
     ),
 )
@@ -117,7 +115,8 @@ def source_layers(version: str) -> dict[str, SourceLayer]:
     Raises
     ------
     ValueError
-        If the version is not supported.
+        If the version is not supported, or two tables read the same layer: the steps
+        are keyed by table, so each table needs its own layer.
     """
     if version not in SUPPORTED_HYDAMO_VERSIONS:
         supported = ", ".join(SUPPORTED_HYDAMO_VERSIONS)
@@ -129,7 +128,20 @@ def source_layers(version: str) -> dict[str, SourceLayer]:
     renames: dict[str, dict[str, str]] = {name: {} for name in TABLES}
     for step in STEPS[: SUPPORTED_HYDAMO_VERSIONS.index(version)]:
         layers.update(step.layers)
-        for name, layer in layers.items():
-            for old, new in step.columns.get(layer, {}).items():
+        for name, columns in step.columns.items():
+            for old, new in columns.items():
                 renames[name][new] = renames[name].pop(old, old)
+    _check_layers_are_unique(layers, version)
     return {name: SourceLayer(layers[name], renames[name]) for name in TABLES}
+
+
+def _check_layers_are_unique(layers: dict[str, str], version: str) -> None:
+    """Raise a ValueError if two tables read the same layer in DAMO *version*."""
+    table_of_layer: dict[str, str] = {}
+    for name, layer in layers.items():
+        other = table_of_layer.setdefault(layer.lower(), name)
+        if other != name:
+            raise ValueError(
+                f'HyDAMO tables "{other}" and "{name}" both read layer "{layer}" in '
+                f"DAMO {version}; the version steps need one layer per table."
+            )
