@@ -354,17 +354,18 @@ def test_validate_gpkg_returns_result_and_stores_on_instance(
     sys.version_info[:2] != (3, 12),
     reason="hydamo-validation is only available for Python 3.12",
 )
-def test_real_validation_reports_example_model_globalid_findings(
+def test_real_validation_of_example_model(
     tmp_path: Path,
 ) -> None:
-    """Run the real validatiemodule on the example model and read its findings.
+    """Run the real validatiemodule on the example model: only the two schema findings remain.
 
     Skipped unless hydamo-validation is installed (Python 3.12, pip install
     hydrolib[validation]).
     """
     # The validatiemodule crashes on a layer stored without the geometry its
-    # schema requires (Regelmiddel in the example) and on NULL geometries. Give
-    # those rows a placeholder point, so every layer is validated.
+    # schema requires and on NULL geometries (the example's tables without
+    # geometry, e.g. Sturing). Give those rows a placeholder point, so every layer
+    # is validated.
     original = DATA_PATH / "Example_model.gpkg"
     clean_gpkg = tmp_path / "clean_for_validation.gpkg"
     placeholder = Point(0, 0)
@@ -388,16 +389,9 @@ def test_real_validation_reports_example_model_globalid_findings(
     result = hydamo.validate_gpkg(clean_gpkg, hydamo_version="2.2")
 
     assert result.success is True
-    findings = {
-        (f.layer, f.column, f.code): f
-        for f in result.syntax_findings
-        if f.column == "globalid"
-    }
-    # split branches share their globalid on purpose
-    assert findings[("hydroobject", "globalid", 3)].read_by_hydrolib
-    # the example's control data (ticket 07)
-    assert findings[("sturing", "globalid", 3)].row_count > 0
-    assert findings[("sturing", "globalid", 4)].row_count > 0
-    assert findings[("regelmiddel", "globalid", 3)].examples == [
-        "{bb24467d-3de6-4a5f-a3a4-b89e334c6824}"
-    ]
+    findings = {(f.layer, f.column, f.code) for f in result.syntax_findings}
+    # The example follows DAMO 2.2, apart from two findings that come from the schema:
+    # it requires pompid on every Sturing row, also on rows that control a weir, and
+    # it only allows the steering variable with a trailing comma ("bovenkant
+    # afsluitmiddel,"), which loading rewrites (VALUE_REWRITES).
+    assert findings == {("sturing", "pompid", 4), ("sturing", "stuurvariabele", 6)}

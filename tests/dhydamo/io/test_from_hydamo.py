@@ -284,7 +284,7 @@ def test_hydamo_object_from_gpkg() -> None:
     assert hydamo.profile_line.profielgroepid.to_numpy()[0] in list(
         hydamo.profile_group.globalid
     )
-    assert len(hydamo.management_device) == 32
+    assert len(hydamo.management_device) == 31
     assert len(hydamo.weirs) == 25
     # an undeclared column of the file, dropped by _hydamo_object_from_gpkg
     assert "doorstroombreedte" not in hydamo.weirs.columns
