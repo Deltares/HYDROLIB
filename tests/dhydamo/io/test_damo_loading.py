@@ -1165,7 +1165,9 @@ def test_load_from_gpkg_derives_profile_code_and_catchment_boundary_node(
     hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version=version)
 
     assert hydamo.profile["code"].tolist() == ["line-guid"]
+    assert hydamo.profile.index.tolist() == ["line-guid"]
     assert hydamo.catchments.loc["C1", "boundary_node"] == "LAT1"
+    assert hydamo.laterals.index.tolist() == ["LAT1"]
 
 
 def _make_weir_without_device_gpkg(tmp_path: Path, n_openings: int) -> Path:
@@ -1932,7 +1934,7 @@ def test_drtc_error_names_management_code_filled_from_globalid(tmp_path: Path) -
 
 
 def test_load_from_gpkg_fills_missing_management_code_from_globalid(
-    tmp_path: Path,
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     # DAMO defines no code for Sturing, so HYDROLIB fills it from globalid.
     gpkg_path = tmp_path / "sturing_22.gpkg"
@@ -1956,6 +1958,10 @@ def test_load_from_gpkg_fills_missing_management_code_from_globalid(
     assert hydamo.management.index.tolist() == ["mgmt-guid"]
     assert hydamo.management.loc["mgmt-guid", "code"] == "mgmt-guid"
     assert hydamo.management.loc["mgmt-guid", "regelmiddelid"] == "regel-guid"
+    assert (
+        'HyDAMO layer "Sturing": filled "code" from "globalid" in 1 row(s): mgmt-guid'
+        in caplog.text
+    )
 
 
 def test_load_from_gpkg_fills_empty_management_code_from_globalid(
@@ -1978,6 +1984,99 @@ def test_load_from_gpkg_fills_empty_management_code_from_globalid(
     hydamo = HyDAMO().load_from_gpkg(gpkg_path, hydamo_version="2.2")
 
     assert hydamo.management.index.tolist() == ["CTRL1", "mgmt-guid-2"]
+
+
+@pytest.mark.parametrize("validation_mode", ["off", "warn", "strict"])
+@pytest.mark.parametrize("layer", ["Stuw", "lateraleknoop"])
+def test_load_from_gpkg_rejects_empty_codes_naming_the_layer_and_rows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validation_mode: Literal["off", "warn", "strict"],
+    layer: str,
+) -> None:
+    # code is the identity of these tables: DAMO allows it empty, HYDROLIB doesn't.
+    if validation_mode != "off":
+        _install_fake_validator(monkeypatch, _syntax_validator({}))
+    gpkg_file = tmp_path / "empty_codes.gpkg"
+    _write_layer(
+        gpkg_file,
+        layer,
+        gpd.GeoDataFrame(
+            {
+                "code": ["A1", None, " "],
+                "globalid": ["g1", "g2", "g3"],
+                "afvoercoefficient": [1.0, 1.0, 1.0],
+                "geometry": [Point(1, 0), Point(2, 0), Point(3, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    with pytest.raises(
+        ValueError, match=rf'layer "{layer}".*"code" is empty in 2 row\(s\): g2, g3'
+    ):
+        HyDAMO().load_from_gpkg(
+            gpkg_file, hydamo_version="2.5", validation_mode=validation_mode
+        )
+
+
+def test_load_from_gpkg_rejects_a_branch_layer_without_code(tmp_path: Path) -> None:
+    gpkg_file = tmp_path / "branch.gpkg"
+    _write_layer(
+        gpkg_file,
+        "HydroObject",
+        gpd.GeoDataFrame(
+            {"globalid": ["hydro-guid"], "geometry": [LineString([(0, 0), (10, 0)])]},
+            crs="EPSG:28992",
+        ),
+    )
+
+    with pytest.raises(KeyError, match='layer "HydroObject".*"code" not found'):
+        HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+
+
+def test_load_from_gpkg_suffixes_duplicate_lateral_codes(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    gpkg_file = tmp_path / "laterals.gpkg"
+    _write_layer(
+        gpkg_file,
+        "lateraleknoop",
+        gpd.GeoDataFrame(
+            {
+                "code": ["L1", "L1"],
+                "globalid": ["g1", "g2"],
+                "geometry": [Point(1, 0), Point(2, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+
+    assert hydamo.laterals.index.tolist() == ["L1", "L1_1"]
+    assert "Index column 'code' contains duplicates (['L1'])" in caplog.text
+
+
+def test_load_from_gpkg_loads_a_management_device_without_code(tmp_path: Path) -> None:
+    # Devices are joined on globalid, and code is optional on the 2.5 Afsluitmiddel.
+    gpkg_file = tmp_path / "device.gpkg"
+    _write_layer(
+        gpkg_file,
+        "Afsluitmiddel",
+        gpd.GeoDataFrame(
+            {
+                "globalid": ["device-guid"],
+                "kunstwerkopeningid": ["opening-guid"],
+                "geometry": [Point(5, 0)],
+            },
+            crs="EPSG:28992",
+        ),
+    )
+
+    hydamo = HyDAMO().load_from_gpkg(gpkg_file, hydamo_version="2.5")
+
+    assert hydamo.management_device["globalid"].tolist() == ["device-guid"]
 
 
 def test_load_from_gpkg_with_validation_warn_generates_rules_and_continues(
@@ -2179,7 +2278,11 @@ def test_validation_warn_logs_findings_in_columns_hydrolib_reads(
         # a missing value has no value to show: name the row by its code
         ("globalid", 4, "missing", ["ST3"]),
     ]
-    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    warnings = [
+        r.getMessage()
+        for r in caplog.records
+        if r.levelname == "WARNING" and r.name == "hydrolib.dhydamo.validation"
+    ]
     assert len(warnings) == 1
     assert "stuw" in warnings[0]
     assert "globalid: 2 rows not unique (e.g. {dup})" in warnings[0]

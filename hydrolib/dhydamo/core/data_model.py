@@ -42,6 +42,10 @@ class Column:
         ``(old, new)``: a value rewritten when loading, whatever the DAMO version.
         Only the exact value is rewritten, so no general stripping of whitespace or
         commas.
+    identity : bool
+        Whether the column is the table's identity: its index and the id of its model
+        objects. An empty value raises an error, duplicates get a suffix. Default is
+        ``False``.
     """
 
     name: str
@@ -49,6 +53,15 @@ class Column:
     hydrolib_only: bool = False
     fill_from_globalid: bool = False
     rewrite: tuple[str, str] | None = None
+    identity: bool = False
+
+
+# The reason of the code identity, which tightens DAMO.
+_IDENTITY = (
+    "Tightens DAMO, where code is optional and not unique. It is the table's index, "
+    "the id of its model objects and their name in logs and settings, so an empty "
+    "code is an error and duplicates get a suffix."
+)
 
 
 def _column(column: str | Column) -> Column:
@@ -139,6 +152,14 @@ class Table:
         )
 
     @property
+    def identity_column(self) -> str | None:
+        """The read column that is the table's identity, if any."""
+        for column in self.columns:
+            if column.identity:
+                return column.name
+        return None
+
+    @property
     def column_filled_from_globalid(self) -> str | None:
         """The column filled from ``globalid``, if any."""
         for column in self.columns:
@@ -154,7 +175,7 @@ TABLES: dict[str, Table] = {
     "branches": Table(
         "HydroObject",
         geotype=LineString,
-        required_columns=("code", "geometry"),
+        required_columns=(Column("code", _IDENTITY, identity=True), "geometry"),
         optional_columns=("globalid", "naam"),
         index="code",
     ),
@@ -165,8 +186,10 @@ TABLES: dict[str, Table] = {
         derived_columns=(
             Column(
                 "code",
-                "The D-Flow FM cross-section id: the profiellijnid of the line the "
-                "points are grouped into, instead of the code of one point.",
+                "The D-Flow FM cross-section id and the table's index: the "
+                "profiellijnid of the line the points are grouped into, instead of "
+                "the code of one point. Unique by construction.",
+                identity=True,
             ),
         ),
         group_by="profiellijnid",
@@ -209,7 +232,12 @@ TABLES: dict[str, Table] = {
     "weirs": Table(
         "Stuw",
         geotype=Point,
-        required_columns=("code", "geometry", "globalid", "afvoercoefficient"),
+        required_columns=(
+            Column("code", _IDENTITY, identity=True),
+            "geometry",
+            "globalid",
+            "afvoercoefficient",
+        ),
         optional_columns=("naam", "laagstedoorstroomhoogte"),
         derived_columns=(
             Column(
@@ -235,8 +263,10 @@ TABLES: dict[str, Table] = {
     "management_device": Table(
         "Regelmiddel",
         geotype=None,
-        required_columns=("code",),
+        # Joined on globalid; code is optional on the 2.5 Afsluitmiddel.
+        required_columns=(),
         optional_columns=(
+            "code",
             Column(
                 "overlaatonderlaat",
                 "Mandatory in DAMO up to 2.4, optional from 2.5, where the layer also "
@@ -261,7 +291,7 @@ TABLES: dict[str, Table] = {
         "Brug",
         geotype=Point,
         required_columns=(
-            "code",
+            Column("code", _IDENTITY, identity=True),
             "globalid",
             "geometry",
             "lengte",
@@ -277,7 +307,7 @@ TABLES: dict[str, Table] = {
         "DuikerSifonHevel",
         geotype=LineString,
         required_columns=(
-            "code",
+            Column("code", _IDENTITY, identity=True),
             "geometry",
             "lengte",
             "hoogteopening",
@@ -296,14 +326,23 @@ TABLES: dict[str, Table] = {
     "pumpstations": Table(
         "Gemaal",
         geotype=Point,
-        required_columns=("code", "globalid", "geometry"),
+        required_columns=(
+            Column("code", _IDENTITY, identity=True),
+            "globalid",
+            "geometry",
+        ),
         optional_columns=("naam",),
         index="code",
     ),
     "pumps": Table(
         "Pomp",
         geotype=None,
-        required_columns=("code", "globalid", "gemaalid", "maximalecapaciteit"),
+        required_columns=(
+            Column("code", _IDENTITY, identity=True),
+            "globalid",
+            "gemaalid",
+            "maximalecapaciteit",
+        ),
         index="code",
     ),
     "management": Table(
@@ -315,6 +354,7 @@ TABLES: dict[str, Table] = {
                 "DAMO defines no code for Sturing, but HYDROLIB indexes Sturing by "
                 "code and names its controllers after it.",
                 fill_from_globalid=True,
+                identity=True,
             ),
             "globalid",
         ),
@@ -342,14 +382,23 @@ TABLES: dict[str, Table] = {
     "boundary_conditions": Table(
         "hydrologischerandvoorwaarde",
         geotype=Point,
-        required_columns=("code", "typerandvoorwaarde", "geometry"),
+        required_columns=(
+            Column("code", _IDENTITY, identity=True),
+            "typerandvoorwaarde",
+            "geometry",
+        ),
         optional_columns=("globalid", "waterstand", "debiet"),
         index="code",
     ),
     "catchments": Table(
         "afvoergebiedaanvoergebied",
         geotype=Polygon | MultiPolygon,
-        required_columns=("code", "geometry", "globalid", "lateraleknoopid"),
+        required_columns=(
+            Column("code", _IDENTITY, identity=True),
+            "geometry",
+            "globalid",
+            "lateraleknoopid",
+        ),
         derived_columns=(
             Column(
                 "boundary_node",
@@ -363,7 +412,12 @@ TABLES: dict[str, Table] = {
     "laterals": Table(
         "lateraleknoop",
         geotype=Point,
-        required_columns=("code", "geometry", "globalid"),
+        required_columns=(
+            Column("code", _IDENTITY, identity=True),
+            "geometry",
+            "globalid",
+        ),
+        index="code",
     ),
 }
 
@@ -732,7 +786,11 @@ CASCADE_PATHS: dict[str, CascadePaths] = {
 
 
 ExtensionKind: TypeAlias = Literal[
-    "HYDROLIB-only column", "value rewrite", "filled from globalid", "derived column"
+    "identity",
+    "HYDROLIB-only column",
+    "value rewrite",
+    "filled from globalid",
+    "derived column",
 ]
 
 
@@ -764,11 +822,15 @@ def extensions() -> list[Extension]:
     Returns
     -------
     list[Extension]
-        Per table in `TABLES` order: its HYDROLIB-only columns, value rewrites and
-        columns filled from ``globalid``, in column order, then its derived columns.
+        Per table in `TABLES` order: its identity, HYDROLIB-only columns, value
+        rewrites and columns filled from ``globalid``, in column order, then its
+        derived columns.
     """
     found = []
     for name, table in TABLES.items():
+        for column in (*table.columns, *table.derived_columns):
+            if column.identity:
+                found.append(Extension(name, column.name, "identity", column.reason))
         for column in table.columns:
             if column.hydrolib_only:
                 found.append(

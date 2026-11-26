@@ -69,18 +69,57 @@ def _points_to_lines(
     return fields, geometries
 
 
-def _fill_from_globalid(df: pd.DataFrame, column: str) -> None:
-    """Fill a missing or empty *column* in place from ``globalid``.
+def _fill_from_globalid(df: pd.DataFrame, column: str, layer_name: str) -> None:
+    """Fill a missing or empty *column* in place from ``globalid``, with a warning.
 
     An absent column is copied from ``globalid``; empty values in a column that is
-    present are filled from it. Without a ``globalid`` column nothing changes.
+    present are filled from it. Without a ``globalid`` column nothing changes. The
+    warning names the layer and the filled rows, by ``globalid``.
     """
     if "globalid" not in df.columns:
         return
     if column in df.columns:
+        empty = df[column].isna()
         df[column] = df[column].fillna(df["globalid"])
     else:
+        empty = pd.Series(True, index=df.index)
         df[column] = df["globalid"]
+    if empty.any():
+        logger.warning(
+            'HyDAMO layer "%s": filled "%s" from "globalid" in %d row(s): %s',
+            layer_name,
+            column,
+            int(empty.sum()),
+            ", ".join(str(value) for value in df.loc[empty, "globalid"]),
+        )
+
+
+def _check_identity(df: pd.DataFrame, column: str) -> None:
+    """Raise if the identity *column* is missing, or empty in some rows.
+
+    The identity is a table's index and the id of its model objects, so every row
+    needs one. Whitespace counts as empty. The rows are named by ``globalid``.
+
+    Raises
+    ------
+    KeyError
+        If *column* is missing.
+    ValueError
+        If *column* is empty in some rows.
+    """
+    if column not in df.columns:
+        raise KeyError(f'Column "{column}" not found; it is the identity of the table.')
+    values = df[column]
+    empty = values.isna() | (values.astype(str).str.strip() == "")
+    if empty.any():
+        rows = (
+            df.loc[empty, "globalid"] if "globalid" in df.columns else df.index[empty]
+        )
+        raise ValueError(
+            f'Column "{column}" is empty in {int(empty.sum())} row(s): '
+            f"{', '.join(str(row) for row in rows)}. It is the identity of the table: "
+            "the index and the id of its model objects."
+        )
 
 
 def _rename_columns(
@@ -501,6 +540,7 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
         id_col: str = "code",
         column_mapping: dict | None = None,
         fill_from_globalid: str | None = None,
+        identity_column: str | None = None,
         check_columns: bool = True,
         check_geotype: bool = True,
         clip: Polygon | MultiPolygon | None = None,
@@ -535,7 +575,10 @@ class ExtendedGeoDataFrame(gpd.GeoDataFrame):
             gdf = _rename_columns(gdf, column_mapping, layer_name)
 
         if fill_from_globalid is not None:
-            _fill_from_globalid(gdf, fill_from_globalid)
+            _fill_from_globalid(gdf, fill_from_globalid, layer_name)
+
+        if identity_column is not None:
+            _check_identity(gdf, identity_column)
 
         if index_col is not None:
             _make_index_unique(gdf, index_col)
@@ -903,6 +946,7 @@ class ExtendedDataFrame(pd.DataFrame):
         column_mapping: dict | None = None,
         index_col: str | None = None,
         fill_from_globalid: str | None = None,
+        identity_column: str | None = None,
         # the arguments for geometry layers, which a table ignores
         **kwargs: object,
     ) -> None:
@@ -932,7 +976,10 @@ class ExtendedDataFrame(pd.DataFrame):
             df = _rename_columns(df, column_mapping, layer_name)
 
         if fill_from_globalid is not None:
-            _fill_from_globalid(df, fill_from_globalid)
+            _fill_from_globalid(df, fill_from_globalid, layer_name)
+
+        if identity_column is not None:
+            _check_identity(df, identity_column)
 
         if index_col is not None:
             _make_index_unique(df, index_col)

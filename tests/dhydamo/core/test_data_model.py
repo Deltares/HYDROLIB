@@ -31,7 +31,23 @@ def test_a_table_gives_the_names_of_its_columns_whatever_their_declaration() -> 
 def test_extensions_lists_every_extension_with_its_kind_and_reason() -> None:
     listed = {(ext.table, ext.column, ext.kind) for ext in extensions()}
 
-    assert listed == {
+    identities = {
+        (table, "code", "identity")
+        for table in (
+            "branches",
+            "profile",
+            "weirs",
+            "bridges",
+            "culverts",
+            "pumpstations",
+            "pumps",
+            "management",
+            "boundary_conditions",
+            "catchments",
+            "laterals",
+        )
+    }
+    assert listed == identities | {
         ("management_device", "maximaaldebiet", "HYDROLIB-only column"),
         ("management", "stuurvariabele", "value rewrite"),
         ("management", "code", "filled from globalid"),

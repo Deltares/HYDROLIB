@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import geopandas as gpd
+import pandas as pd
 
 from hydrolib.dhydamo.core.data_model import TABLES, DamoRelations, Table
 from hydrolib.dhydamo.io.damo_versions.steps import SourceLayer
@@ -89,6 +90,7 @@ def load_layers(
             "index_col": table.index,
             "column_mapping": source.renames or None,
             "fill_from_globalid": table.column_filled_from_globalid,
+            "identity_column": table.identity_column,
             "check_geotype": table.check_geotype,
             "check_3d": check_3d,
         }
@@ -133,7 +135,7 @@ def _drop_undeclared_columns(hydamo: HyDAMO, name: str, definition: Table) -> No
     table = getattr(hydamo, name)
     undeclared = [column for column in table.columns if column not in declared]
     # inplace: returning a copy of an Extended(Geo)DataFrame gives a plain (Geo)DataFrame
-    table.drop(columns=undeclared, inplace=True)
+    table.drop(columns=undeclared, inplace=True)  # noqa: PD002
 
 
 def _rewrite_values(hydamo: HyDAMO) -> None:
@@ -167,11 +169,12 @@ def _derive_weir_crest(hydamo: HyDAMO) -> None:
 
 
 def _derive_profile_code(hydamo: HyDAMO) -> None:
-    """Set each profile's ``code`` to its ``profiellijnid``, in place."""
+    """Set each profile's ``code`` to its ``profiellijnid``, and index by it, in place."""
     if not hydamo.profile.empty and "profiellijnid" in hydamo.profile.columns:
         # After grouping, each row is a profile line: replace the code of its first
         # point with the line's id.
         hydamo.profile["code"] = hydamo.profile["profiellijnid"]
+        hydamo.profile.index = pd.Index(hydamo.profile["code"], name="code")
 
 
 def _derive_boundary_node(hydamo: HyDAMO) -> None:
